@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "modules": {
+    "caveman": {
+      "version": "1.0.0",
+      "source": {
+        "project": "JuliusBrussee/caveman",
+        "url": "https://github.com/JuliusBrussee/caveman",
+        "license": "MIT (skill)"
+      }
+    },
+    "rtk": {
+      "version": "1.0.0",
+      "source": {
+        "project": "rtk-ai/rtk",
+        "url": "https://github.com/rtk-ai/rtk",
+        "license": "see upstream repo"
+      }
+    },
+    "ponytail": {
+      "version": "1.0.0",
+      "source": {
+        "project": "DietrichGebert/ponytail",
+        "url": "https://github.com/DietrichGebert/ponytail",
+        "license": "see upstream repo"
+      }
+    },
+    "signature-remover": {
+      "version": "1.0.0",
+      "source": {
+        "project": "Anthropic / OpenAI formats; community de-AI tooling",
+        "url": "https://github.com/conorbronsdon/avoid-ai-writing",
+        "license": "see upstream repos"
+      }
+    },
+    "watermark-remover": {
+      "version": "1.0.0",
+      "source": {
+        "project": "guillaumemeyer/watermarks-remover",
+        "url": "https://github.com/guillaumemeyer/watermarks-remover",
+        "license": "see upstream repo"
+      }
+    },
+    "codegraph": {
+      "version": "1.0.0",
+      "source": {
+        "project": "colbymchenry/codegraph",
+        "url": "https://github.com/colbymchenry/codegraph",
+        "license": "see upstream repo"
+      }
+    }
+  },
+  "package": {
+    "name": "mugil-ide",
+    "version": "1.0.0"
+  }
+}

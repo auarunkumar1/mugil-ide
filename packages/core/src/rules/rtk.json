@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "boilerplate": {
+    "pattern": "\\b(hopefully this helps|hope this helps|let me know if you have (any )?questions|let me know if you need anything else|thanks for your (help|time)|thank you for your (help|time)|looking forward to your response|i look forward to hearing from you|feel free to reach out)\\b[^.!?\\n]*[.!?]?",
+    "flags": "gi"
+  },
+  "intro": {
+    "pattern": "\\b(i (am|'m) writing (this|to|because)|this (prompt|request|message) (is|was) (about|regarding)|i have a question (about|regarding)|hi there|hello there|hey there|good (morning|afternoon|evening))\\b[^.!?\\n]*[.!?]?",
+    "flags": "gi"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "mugil-ide",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Token-efficient Mugil IDE CLI (Ink TUI + one-shot mode)",
+  "bin": {
+    "mugil-ide": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": ["dist"],
+  "scripts": {
+    "prepack": "npm run build",
+    "prebuild": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
+    "pretypecheck": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"(no tests yet)\""
+  },
+  "dependencies": {
+    "@mugil-ide/core": "1.0.0",
+    "@mugil-ide/docs": "1.0.0",
+    "commander": "^12.1.0",
+    "diff": "^5.2.0",
+    "dotenv": "^16.4.5",
+    "ink": "^5.0.1",
+    "ink-text-input": "^6.0.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/diff": "^5.2.1",
+    "@types/node": "^22.5.0",
+    "@types/react": "^18.3.4",
+    "typescript": "^5.5.4"
+  }
+}

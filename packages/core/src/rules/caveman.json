@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "phrases": [
+    { "pattern": "\\bin order to\\b", "flags": "gi", "replacement": "to" },
+    { "pattern": "\\bdue to the fact that\\b", "flags": "gi", "replacement": "because" },
+    { "pattern": "\\bin spite of the fact that\\b", "flags": "gi", "replacement": "although" },
+    { "pattern": "\\bat this point in time\\b", "flags": "gi", "replacement": "now" },
+    { "pattern": "\\bin the event that\\b", "flags": "gi", "replacement": "if" },
+    { "pattern": "\\bfor the purpose of\\b", "flags": "gi", "replacement": "for" },
+    { "pattern": "\\bwith regard to\\b", "flags": "gi", "replacement": "about" },
+    { "pattern": "\\bit is important to note that\\b", "flags": "gi", "replacement": "" },
+    { "pattern": "\\bplease note that\\b", "flags": "gi", "replacement": "" },
+    { "pattern": "\\bplease be advised that\\b", "flags": "gi", "replacement": "" },
+    { "pattern": "\\bI would like to\\b", "flags": "gi", "replacement": "I want to" },
+    { "pattern": "\\bI am going to\\b", "flags": "gi", "replacement": "I will" },
+    { "pattern": "\\bwould you please\\b", "flags": "gi", "replacement": "" },
+    { "pattern": "\\bcould you please\\b", "flags": "gi", "replacement": "" },
+    { "pattern": "\\bcan you please\\b", "flags": "gi", "replacement": "" },
+    { "pattern": "\\bkindly\\b", "flags": "gi", "replacement": "" }
+  ],
+  "filler": "\\b(just|actually|basically|literally|really|quite|simply|very|rather|definitely|certainly|obviously|of course|in fact|as you know)\\b",
+  "fillerFlags": "gi",
+  "polite": "\\b(please|kindly|thanks in advance|thank you in advance)\\b",
+  "politeFlags": "gi"
+}
