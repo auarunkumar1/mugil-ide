@@ -239,7 +239,7 @@ export function parseCodeFile(file: string, content: string): CodeFile {
 
 /** Recursively collects source files under a root, skipping ignored dirs. */
 export function collectSourceFiles(root: string, options: BuildCodeGraphOptions = {}): string[] {
-  const { ignoreDirs, languages } = getRules();
+  const { ignoreDirs } = getRules();
   const skip = new Set<string>([...ignoreDirs, ...(options.ignoreDirs ?? [])]);
   const files: string[] = [];
   const stack = [root];

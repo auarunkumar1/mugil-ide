@@ -92,7 +92,6 @@ export function LoginWizard({ initialProvider, onDone }: LoginWizardProps): Reac
   );
   const [baseUrl, setBaseUrl] = useState('');
   const [key, setKey] = useState('');
-  const [models, setModels] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const finished = useRef(false);
