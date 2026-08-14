@@ -118,7 +118,7 @@ streaming `PipelineEvent`s), `refine` (caveman → rtk → truncate), `token`
 npm install
 npm run build         # all packages
 npm run typecheck     # all packages
-npm run test          # 134 tests across 3 packages (cli has none)
+npm run test          # 153 tests across 4 packages (incl. cli command + TUI suites)
 npm run lint          # eslint (flat config, eslint.config.mjs)
 npm run pack          # build + pack all four tarballs into dist-packages/
 npm run release       # release plan (dry-run) — --bump / --publish for real
@@ -142,6 +142,7 @@ See `.env.example`. The important ones:
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODELS` / `ANTHROPIC_BASE_URL` | Anthropic completions + ladder + compatible-endpoint base URL |
 | `AI_PROVIDER` | Force the completion provider: `openrouter` \| `openai` \| `anthropic` |
 | `MUGIL_IDE_ENV_FILE` | User env file storing saved API keys (default `~/.config/mugil-ide/.env`) |
+| `MUGIL_IDE_TUI_MODE` / `MUGIL_IDE_TUI_THINKING` | Persisted TUI prefs: plan/act mode + show/hide thinking (written by `/plan` `/act` `/thinking`) |
 | `REDIS_URL` / `REDIS_CLUSTER_URLS` | Redis cache (single / multi-node cluster) |
 | `MUGIL_IDE_CACHE_DIR` | File-cache location (default `~/.cache/mugil-ide`) |
 | `CACHE_TTL`, `TOKEN_BUDGET` | Cache TTL (s), per-prompt token budget |
@@ -182,7 +183,7 @@ safe env-file key storage plus OpenAI/Anthropic provider clients — and the
 **codegraph** module (symbols, import + call edges, context queries), release
 tooling (`npm run release`: bump/pack/tag, `--publish` in dependency order),
 and TUI polish (animated working spinner, live pipeline/token streaming,
-`/plan` `/act` modes, `/thinking` show/hide). **134 tests pass.**
+`/plan` `/act` modes, `/thinking` show/hide). **153 tests pass.**
 
 ### Pending todos
 

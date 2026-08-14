@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import TextInput from 'ink-text-input';
-import { BRAND, type Engine, type AskResult, type PipelineEvent } from '@mugil-ide/core';
+import { BRAND, readUserEnv, writeUserEnv, type Engine, type AskResult, type PipelineEvent } from '@mugil-ide/core';
 import { MugilLogo } from './logo.js';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -9,6 +9,29 @@ const SPINNER_MS = 90;
 
 type Mode = 'act' | 'plan';
 type ThinkingPref = 'show' | 'hide';
+
+// Persisted TUI preferences (stored in the user env file, see core env.ts).
+const TUI_MODE_VAR = 'MUGIL_IDE_TUI_MODE';
+const TUI_THINKING_VAR = 'MUGIL_IDE_TUI_THINKING';
+
+function initialMode(): Mode {
+  const value = readUserEnv()[TUI_MODE_VAR]?.toLowerCase();
+  return value === 'plan' ? 'plan' : 'act';
+}
+
+function initialThinkingPref(): ThinkingPref {
+  const value = readUserEnv()[TUI_THINKING_VAR]?.toLowerCase();
+  return value === 'show' ? 'show' : 'hide';
+}
+
+/** Best-effort persistence — never blocks or crashes the TUI. */
+function persistPrefs(mode: Mode, thinking: ThinkingPref): void {
+  try {
+    writeUserEnv({ [TUI_MODE_VAR]: mode, [TUI_THINKING_VAR]: thinking });
+  } catch {
+    // prefs are a nicety; ignore write failures
+  }
+}
 
 const PLAN_INSTRUCTION =
   'You are in PLAN mode: produce a concise, numbered step-by-step plan only. ' +
@@ -44,8 +67,8 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [busy, setBusy] = useState(false);
   const [frame, setFrame] = useState(0);
-  const [mode, setMode] = useState<Mode>('act');
-  const [thinkingPref, setThinkingPref] = useState<ThinkingPref>('hide');
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [thinkingPref, setThinkingPref] = useState<ThinkingPref>(initialThinkingPref);
   const [live, setLive] = useState<LiveStatus>({ stage: '' });
   const nextId = React.useRef(1);
 
@@ -73,12 +96,16 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
       return;
     }
     if (prompt === '/plan' || prompt === '/act') {
-      setMode(prompt === '/plan' ? 'plan' : 'act');
+      const next = prompt === '/plan' ? 'plan' : 'act';
+      setMode(next);
+      persistPrefs(next, thinkingPref);
       setInput('');
       return;
     }
     if (prompt === '/thinking') {
-      setThinkingPref((p) => (p === 'show' ? 'hide' : 'show'));
+      const next = thinkingPref === 'show' ? 'hide' : 'show';
+      setThinkingPref(next);
+      persistPrefs(mode, next);
       setInput('');
       return;
     }
