@@ -68,10 +68,11 @@ npm workspaces monorepo — packages in `packages/*`, root is private.
 ## Technology inventory (installed versions)
 
 **Runtime & toolchain** — Node.js ≥ 20 (engines; smoke-tested on Node 24),
-TypeScript 5.9.3, npm workspaces. Testing: Jest 29.7.0 + ts-jest (+ supertest
-for the MCP stdio tests; ESM packages need `--experimental-vm-modules` via
-`cross-env`). Quality: ESLint 9.39.5 + typescript-eslint (flat config),
-Prettier 3.9.6.
+TypeScript 5.9.3, npm workspaces. Testing: Jest 29.7.0 + ts-jest in core,
+cli and mcp (+ supertest for the MCP stdio tests; ESM packages — cli, mcp —
+need `--experimental-vm-modules` via `cross-env`; the CLI TUI tests use a
+custom `tests/helpers/renderApp.ts` fake stdin — see gotcha 7). Quality:
+ESLint 9.39.5 + typescript-eslint (flat config), Prettier 3.9.6.
 
 **CLI** (`mugil-ide`) — commander 12.1.0; ink 5.2.1 (React 18.3.1)
 + ink-text-input 6.0.0 (TUI); dotenv 16.6.1; diff 5.2.2 (terminal prompt
@@ -155,8 +156,9 @@ See `.env.example`. The important ones:
 1. **`.js` import specifiers everywhere** (NodeNext style) point at `.ts`
    sources.
 2. **Module-system split**: core/docs are CJS; cli/mcp are ESM
-   (`"type": "module"`). ESM packages need `jest.config.cjs` and the mcp tests
-   require `cross-env NODE_OPTIONS=--experimental-vm-modules` (Windows-safe).
+   (`"type": "module"`). ESM packages (cli, mcp) need `jest.config.cjs` and
+   their tests run via `cross-env NODE_OPTIONS=--experimental-vm-modules`
+   (Windows-safe).
 3. **Overrides gating**: the fs store is only consulted when
    `MUGIL_IDE_MODULES_DIR` is set or `NODE_ENV !== 'test'`. Update-manager tests
    are hermetic (tmp dir + `resetStore()`) — an earlier version leaked a test
@@ -171,6 +173,18 @@ See `.env.example`. The important ones:
    file instead — see the update-manager smoke history.
 6. **Credit discipline**: every technique module credits its origin in its
    header + `ATTRIBUTIONS.md`. Keep that up when adding modules.
+7. **Ink 5 input in tests**: `ink-testing-library` v3 is **incompatible with
+   ink 5** — its fake stdin only emits `'data'`, but ink 5 consumes input via
+   the Node readable-stream protocol (`readable` event + `read()`), and it
+   lacks `stdin.ref()`/`unref()`. The CLI's TUI tests use a custom helper
+   (`tests/helpers/renderApp.ts`) with a real `Readable`-based fake stdin
+   that (a) resolves only after ink attaches its input listener, (b) pushes
+   text and `\r` as separate chunks — Node merges synchronous pushes into one
+   `read()` — and (c) delays Enter until React has re-rendered, because
+   ink-text-input submits the value captured in its closure and a premature
+   Enter submits a stale empty string. Note the input placeholder literally
+   contains `/plan · /act · /thinking`, so don't try to detect typing via
+   frame contents.
 
 ## Status / roadmap
 
@@ -183,13 +197,22 @@ safe env-file key storage plus OpenAI/Anthropic provider clients — and the
 **codegraph** module (symbols, import + call edges, context queries), release
 tooling (`npm run release`: bump/pack/tag, `--publish` in dependency order),
 and TUI polish (animated working spinner, live pipeline/token streaming,
-`/plan` `/act` modes, `/thinking` show/hide). **153 tests pass.**
+`/plan` `/act` modes, `/thinking` show/hide), plus **automated CLI + TUI test
+suites** (spawned-binary command tests + ink-rendered ChatApp behavior
+tests). **153 tests pass.**
 
 ### Pending todos
 
-1. **Test gaps** — the CLI package has **no tests yet** (`"no tests yet"`);
-   the `login` wizard has no automated coverage (env layer + provider clients
-   are covered in core).
+1. **Publish to npm** — release tooling is in place (`npm run release`:
+   bump/pack/tag, `--publish` in dependency order) and the dry-run plan was
+   verified, but no version has been bumped, tagged, or published yet. Needs
+   an npm account + auth (`npm login`) and a decision on the license
+   (README says MIT placeholder).
+2. **`LoginWizard` component coverage** — the `login` command is covered
+   end-to-end via spawned-binary tests (incl. its piped/no-TTY path) and the
+   env layer + provider clients have core-level tests, but the wizard UI
+   itself has no component-level TUI tests (only `ChatApp` does). Could be
+   rendered with `tests/helpers/renderApp.ts` the same way.
 
 ## Verification loop
 
