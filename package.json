@@ -1,0 +1,30 @@
+{
+  "name": "mugil-ide",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Token-efficient Mugil IDE — core engine + CLI",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "update:check": "node packages/cli/dist/index.js update --check",
+    "update:watch": "node packages/cli/dist/index.js update --watch",
+    "mcp": "node packages/mcp/dist/stdio.js",
+    "pack": "npm run build && node scripts/pack-all.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
