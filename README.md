@@ -53,7 +53,7 @@ From source:
 ```bash
 npm install
 npm run build          # builds all packages
-npm test               # 132 unit tests
+npm test               # 134 unit tests
 npm run typecheck
 ```
 
@@ -69,6 +69,16 @@ Packaging / publishing the monorepo:
 ```bash
 npm run pack           # builds everything and packs all four @mugil-ide/* tarballs into dist-packages/
 # publish in dependency order: core -> {docs, mcp} -> cli
+
+npm run release        # release plan (dry-run) — see below
+```
+
+Releasing a new version:
+
+```bash
+npm run release minor              # print the plan (dry-run, default)
+npm run release minor -- --bump    # bump versions + pack + git commit/tag
+npm run release major -- --publish # ... and npm publish in dependency order
 ```
 
 ### One-shot mode
@@ -93,6 +103,16 @@ diff inline, then the response. With `--json` you get the raw result.
 node packages/cli/dist/index.js
 # type prompts, /quit to exit, Ctrl+C also works
 ```
+
+The TUI shows a live status line while a request runs (pipeline stage + token
+counts streaming as they happen) with an animated spinner, and supports
+slash commands:
+
+- `/plan` / `/act` — switch between **plan** (numbered plan only, no code)
+  and **act** modes; shown in the header
+- `/thinking` — show/hide the model's reasoning/thinking output (💭) when the
+  provider returns it
+- `/quit` / `/exit` — leave
 
 ### Markdown documentation
 
@@ -255,7 +275,7 @@ to MCP clients via `PipelineEvent`s.
 - ✅ Watermark Remover module (credited to `guillaumemeyer/watermarks-remover`; Layer A Unicode hygiene + vendor attribution-line stripping, wired into the pipeline output)
 - ✅ Registration + API-key management — `login`/`logout`/`keys` commands; safe key saving in a user-level env file (0600) for OpenRouter (primary), OpenAI, and Anthropic providers, incl. custom compatible endpoints
 - ✅ Codegraph module (credited to `colbymchenry/codegraph`; symbols, import + call edges, context queries via `mugil-ide graph`)
-- ⏳ Release automation + publishing (version/bump/pack/tag script; publish in dependency order)
+- ✅ Release tooling (`npm run release`: version/bump/pack/tag; `--publish` ships in dependency order)
 
 ## License
 

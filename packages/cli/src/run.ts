@@ -71,10 +71,13 @@ export async function runOnce(
   console.log('─'.repeat(64));
 
   if (result.refine.original !== result.refine.refined && options.refine !== false) {
+    const color = process.stdout.isTTY === true;
+    const red = (s: string) => (color ? `\x1b[31m${s}\x1b[0m` : s);
+    const green = (s: string) => (color ? `\x1b[32m${s}\x1b[0m` : s);
     console.log('\nrefined prompt diff:');
     for (const part of diffWords(result.refine.original, result.refine.refined)) {
-      if (part.added) process.stdout.write(`  + ${part.value}`);
-      else if (part.removed) process.stdout.write(`  - ${part.value}`);
+      if (part.added) process.stdout.write(`  ${green('+')} ${green(part.value)}`);
+      else if (part.removed) process.stdout.write(`  ${red('-')} ${red(part.value)}`);
     }
     console.log('');
   }

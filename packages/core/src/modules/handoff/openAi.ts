@@ -53,11 +53,16 @@ export class OpenAiClient implements ProviderClient {
 
     const data = (await res.json()) as {
       model?: string;
-      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+      choices?: Array<{
+        message?: { content?: string; reasoning_content?: string; reasoning?: string };
+        finish_reason?: string;
+      }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
-    const content = data.choices?.[0]?.message?.content ?? '';
+    const message = data.choices?.[0]?.message;
+    const content = message?.content ?? '';
+    const thinking = message?.reasoning_content ?? message?.reasoning;
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
@@ -72,6 +77,7 @@ export class OpenAiClient implements ProviderClient {
       content,
       usage,
       finishReason: data.choices?.[0]?.finish_reason,
+      thinking: thinking && thinking.length > 0 ? thinking : undefined,
     };
   }
 }
