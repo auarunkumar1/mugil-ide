@@ -1,8 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Text, useApp } from 'ink';
 import TextInput from 'ink-text-input';
-import { BRAND, type Engine, type AskResult } from '@mugil-ide/core';
+import { BRAND, type Engine, type AskResult, type PipelineEvent } from '@mugil-ide/core';
 import { MugilLogo } from './logo.js';
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+const SPINNER_MS = 90;
+
+type Mode = 'act' | 'plan';
+type ThinkingPref = 'show' | 'hide';
+
+const PLAN_INSTRUCTION =
+  'You are in PLAN mode: produce a concise, numbered step-by-step plan only. ' +
+  'No code, no implementation, no file edits. Keep it under ~300 tokens.';
+
+const MODE_LABEL: Record<Mode, string> = { act: 'act', plan: 'plan' };
 
 interface Entry {
   id: number;
@@ -10,6 +22,13 @@ interface Entry {
   status: 'pending' | 'done' | 'error';
   result?: AskResult;
   error?: string;
+}
+
+interface LiveStatus {
+  stage: string;
+  originalTokens?: number;
+  refinedTokens?: number;
+  totalTokens?: number;
 }
 
 interface ChatAppProps {
@@ -24,9 +43,20 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
   const [input, setInput] = useState('');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [busy, setBusy] = useState(false);
+  const [frame, setFrame] = useState(0);
+  const [mode, setMode] = useState<Mode>('act');
+  const [thinkingPref, setThinkingPref] = useState<ThinkingPref>('hide');
+  const [live, setLive] = useState<LiveStatus>({ stage: '' });
   const nextId = React.useRef(1);
 
   const { config } = engine;
+
+  // Animated "working" spinner while a request is in flight.
+  useEffect(() => {
+    if (!busy) return;
+    const id = setInterval(() => setFrame((f) => (f + 1) % SPINNER_FRAMES.length), SPINNER_MS);
+    return () => clearInterval(id);
+  }, [busy]);
 
   // Resolve the exit promise once the Ink app unmounts (Ctrl+C or /quit).
   useEffect(() => {
@@ -42,12 +72,40 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
       exit();
       return;
     }
+    if (prompt === '/plan' || prompt === '/act') {
+      setMode(prompt === '/plan' ? 'plan' : 'act');
+      setInput('');
+      return;
+    }
+    if (prompt === '/thinking') {
+      setThinkingPref((p) => (p === 'show' ? 'hide' : 'show'));
+      setInput('');
+      return;
+    }
     setInput('');
     const entry: Entry = { id: nextId.current++, prompt, status: 'pending' };
     setEntries((prev) => [...prev.slice(-(MAX_ENTRIES - 1)), entry]);
     setBusy(true);
+    setLive({ stage: 'signature' });
     try {
-      const result = await engine.pipeline.ask(prompt);
+      const onEvent = (ev: PipelineEvent): void => {
+        if (ev.type === 'stage') setLive((l) => ({ ...l, stage: ev.stage }));
+        else if (ev.type === 'refined') {
+          setLive((l) => ({
+            ...l,
+            originalTokens: ev.refine.originalTokens,
+            refinedTokens: ev.refine.refinedTokens,
+          }));
+        } else if (ev.type === 'handoff') {
+          setLive((l) => ({ ...l, stage: 'handoff', model: ev.model }));
+        } else if (ev.type === 'done') {
+          setLive((l) => ({ ...l, totalTokens: ev.usage.totalTokens }));
+        }
+      };
+      const result = await engine.pipeline.ask(prompt, {
+        systemPrompt: mode === 'plan' ? PLAN_INSTRUCTION : undefined,
+        onEvent,
+      });
       setEntries((prev) =>
         prev.map((e) => (e.id === entry.id ? { ...e, status: 'done', result } : e)),
       );
@@ -61,18 +119,22 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
       );
     } finally {
       setBusy(false);
+      setLive({ stage: '' });
     }
   }
+
+  const spinner = SPINNER_FRAMES[frame]!;
 
   return (
     <Box flexDirection="column" paddingX={1}>
       <Box marginBottom={1}>
         <MugilLogo />
       </Box>
-      <Header config={config} />
+      <Header config={config} mode={mode} thinkingPref={thinkingPref} />
+      {busy && <LiveStatusLine status={live} spinner={spinner} />}
       <Box flexDirection="column" marginTop={1}>
         {entries.map((entry) => (
-          <EntryView key={entry.id} entry={entry} />
+          <EntryView key={entry.id} entry={entry} spinner={spinner} thinkingPref={thinkingPref} />
         ))}
       </Box>
       <Box marginTop={1} borderStyle="round" borderColor="cyan" paddingX={1}>
@@ -81,34 +143,73 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
           value={input}
           onChange={setInput}
           onSubmit={submit}
-          placeholder={busy ? 'working…' : 'type a prompt, or /quit'}
+          placeholder={busy ? spinner : `type a prompt, or /plan · /act · /thinking · /quit`}
         />
       </Box>
     </Box>
   );
 }
 
-function Header({ config }: { config: Engine['config'] }): React.ReactElement {
+function Header({
+  config,
+  mode,
+  thinkingPref,
+}: {
+  config: Engine['config'];
+  mode: Mode;
+  thinkingPref: ThinkingPref;
+}): React.ReactElement {
   const backendName = config.redisUrl ? 'redis' : config.cacheDir ? 'file' : 'memory';
-  const mode = config.openRouterApiKey ? 'live' : 'mock';
+  const liveMode = config.provider === 'openrouter' ? 'openrouter' : config.provider;
+  const keySet =
+    config.openRouterApiKey || config.openaiApiKey || config.anthropicApiKey ? 'live' : 'mock';
   return (
     <Box flexDirection="column">
       <Text bold color="green">
         ⚡ {BRAND}
       </Text>
       <Text dimColor>
-        model: {config.models.map((m) => m.id).join(' → ')} · cache: {backendName} (TTL{' '}
-        {config.cacheTtlSeconds}s) · mode: {mode} · budget: {config.tokenBudget} tokens
+        mode: <Text color={mode === 'plan' ? 'yellow' : 'green'}>{MODE_LABEL[mode]}</Text>
+        {' · '}thinking: <Text color={thinkingPref === 'show' ? 'yellow' : 'gray'}>{thinkingPref}</Text>
+        {' · '}provider: {liveMode} ({keySet}) · model: {config.models.map((m) => m.id).join(' → ')} ·
+        cache: {backendName} (TTL {config.cacheTtlSeconds}s) · budget: {config.tokenBudget} tokens
       </Text>
     </Box>
   );
 }
 
-function EntryView({ entry }: { entry: Entry }): React.ReactElement | null {
+function LiveStatusLine({ status, spinner }: { status: LiveStatus; spinner: string }): React.ReactElement {
+  const parts = [
+    status.stage && `stage: ${status.stage}`,
+    status.originalTokens !== undefined &&
+      status.refinedTokens !== undefined &&
+      `tokens: ${status.originalTokens}→${status.refinedTokens}`,
+    status.totalTokens !== undefined && `total: ${status.totalTokens}`,
+  ].filter(Boolean);
+  return (
+    <Box marginTop={1}>
+      <Text color="cyan">
+        {spinner} {parts.join(' · ') || 'working…'}
+      </Text>
+    </Box>
+  );
+}
+
+function EntryView({
+  entry,
+  spinner,
+  thinkingPref,
+}: {
+  entry: Entry;
+  spinner: string;
+  thinkingPref: ThinkingPref;
+}): React.ReactElement | null {
   if (entry.status === 'pending') {
     return (
       <Box>
-        <Text dimColor>⏳ {entry.prompt.slice(0, 60)}…</Text>
+        <Text dimColor>
+          {spinner} {entry.prompt.slice(0, 60)}…
+        </Text>
       </Box>
     );
   }
@@ -135,7 +236,18 @@ function EntryView({ entry }: { entry: Entry }): React.ReactElement | null {
         {r.model}
         {r.mock ? ' (mock)' : ''} · {cacheTag} · {strategyTag} ·{' '}
         {r.refine.originalTokens}→{r.refine.refinedTokens} tok (-{r.refine.savingsPct}%)
+        {r.thinking ? ' · 💭' : ''}
       </Text>
+      {r.thinking && thinkingPref === 'show' && (
+        <Box flexDirection="column" marginTop={1} marginBottom={1} paddingLeft={1}>
+          <Text bold color="yellow">
+            💭 thinking
+          </Text>
+          <Text color="yellow" dimColor>
+            {r.thinking}
+          </Text>
+        </Box>
+      )}
       <Text color="gray">{r.response}</Text>
     </Box>
   );

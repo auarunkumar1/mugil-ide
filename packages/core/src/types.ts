@@ -30,6 +30,8 @@ export interface CompletionResult {
   finishReason?: string;
   /** True when the request was served by the offline mock. */
   mock?: boolean;
+  /** Reasoning/thinking output from reasoning-capable models, if any. */
+  thinking?: string;
 }
 
 export interface HandoffOptions {
@@ -88,6 +90,8 @@ export interface AskResult {
     hit: boolean;
     kind?: CacheHitKind;
   };
+  /** Reasoning/thinking output from the model, if any (not cached). */
+  thinking?: string;
 }
 
 /** Live progress events emitted by the pipeline (consumed by the WebView). */

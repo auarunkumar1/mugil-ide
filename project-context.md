@@ -118,9 +118,10 @@ streaming `PipelineEvent`s), `refine` (caveman → rtk → truncate), `token`
 npm install
 npm run build         # all packages
 npm run typecheck     # all packages
-npm run test          # 132 tests across 3 packages (cli has none)
+npm run test          # 134 tests across 3 packages (cli has none)
 npm run lint          # eslint (flat config, eslint.config.mjs)
 npm run pack          # build + pack all four tarballs into dist-packages/
+npm run release       # release plan (dry-run) — --bump / --publish for real
 npm run update:check  # module/npm update check via the CLI
 npm run mcp           # run the MCP stdio server directly
 ```
@@ -178,15 +179,14 @@ Generator, Redis hardening (SCAN + cluster), in-browser engine entry
 (retained, unused), npm packaging (verified via temp-prefix install of the
 four tarballs), **multi-provider auth** — `login` / `logout` / `keys` with
 safe env-file key storage plus OpenAI/Anthropic provider clients — and the
-**codegraph** module (symbols, import + call edges, context queries).
-**132 tests pass.**
+**codegraph** module (symbols, import + call edges, context queries), release
+tooling (`npm run release`: bump/pack/tag, `--publish` in dependency order),
+and TUI polish (animated working spinner, live pipeline/token streaming,
+`/plan` `/act` modes, `/thinking` show/hide). **134 tests pass.**
 
 ### Pending todos
 
-1. **Release automation + publishing** — version/bump/pack/tag script; publish
-   the four packages in dependency order (core → docs/mcp → cli);
-   `npm i -g mugil-ide` is then the documented install path.
-2. **Test gaps** — the CLI package has **no tests yet** (`"no tests yet"`);
+1. **Test gaps** — the CLI package has **no tests yet** (`"no tests yet"`);
    the `login` wizard has no automated coverage (env layer + provider clients
    are covered in core).
 

@@ -15,7 +15,8 @@
     "update:check": "node packages/cli/dist/index.js update --check",
     "update:watch": "node packages/cli/dist/index.js update --watch",
     "mcp": "node packages/mcp/dist/stdio.js",
-    "pack": "npm run build && node scripts/pack-all.mjs"
+    "pack": "npm run build && node scripts/pack-all.mjs",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",

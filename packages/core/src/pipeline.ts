@@ -147,6 +147,7 @@ export class Pipeline {
       usage: completion.usage,
       refine,
       cache: { hit: false },
+      thinking: completion.thinking,
     };
   }
 }
