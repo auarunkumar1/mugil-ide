@@ -53,7 +53,7 @@ From source:
 ```bash
 npm install
 npm run build          # builds all packages
-npm test               # 134 unit tests
+npm test               # 153 unit tests
 npm run typecheck
 ```
 
@@ -113,6 +113,9 @@ slash commands:
 - `/thinking` — show/hide the model's reasoning/thinking output (💭) when the
   provider returns it
 - `/quit` / `/exit` — leave
+
+Both preferences persist across sessions in the user env file
+(`MUGIL_IDE_TUI_MODE`, `MUGIL_IDE_TUI_THINKING` — same file `login` uses).
 
 ### Markdown documentation
 
@@ -222,6 +225,8 @@ The npm packages use the `@mugil-ide/*` scope, matching the product brand
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Anthropic-compatible endpoint base URL |
 | `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` |
 | `MUGIL_IDE_ENV_FILE` | `~/.config/mugil-ide/.env` | User env file storing saved API keys |
+| `MUGIL_IDE_TUI_MODE` | `act` | Persisted TUI mode: `act` \| `plan` |
+| `MUGIL_IDE_TUI_THINKING` | `hide` | Persisted TUI thinking pref: `show` \| `hide` |
 | `REDIS_URL` | — | Redis cache (single node); absent → file cache |
 | `REDIS_CLUSTER_URLS` | — | Comma-separated node URLs; enables the Redis Cluster backend (used when `REDIS_URL` is unset) |
 | `MUGIL_IDE_CACHE_DIR` | `~/.cache/mugil-ide` | File-cache location |

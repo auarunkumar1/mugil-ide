@@ -9,7 +9,7 @@ export interface OpenRouterClientOptions {
   appUrl?: string;
 }
 
-export interface OpenRouterCompleteOptions extends ProviderCompleteOptions {}
+export type OpenRouterCompleteOptions = ProviderCompleteOptions;
 
 export class OpenRouterError extends Error {
   constructor(
