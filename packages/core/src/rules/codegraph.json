@@ -1,0 +1,156 @@
+{
+  "version": "1.0.0",
+  "ignoreDirs": [
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    "target",
+    "coverage",
+    ".git",
+    ".svn",
+    ".hg",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".cache",
+    ".next",
+    ".nuxt",
+    ".smoke"
+  ],
+  "languages": {
+    "typescript": {
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"],
+      "symbols": [
+        {
+          "kind": "function",
+          "pattern": "export\\s+(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)\\s*\\(",
+          "flags": "g"
+        },
+        {
+          "kind": "const",
+          "pattern": "export\\s+const\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[A-Za-z_$][\\w$]*)\\s*=>",
+          "flags": "g"
+        },
+        {
+          "kind": "class",
+          "pattern": "export\\s+(?:default\\s+)?class\\s+([A-Za-z_$][\\w$]*)",
+          "flags": "g"
+        },
+        {
+          "kind": "interface",
+          "pattern": "export\\s+interface\\s+([A-Za-z_$][\\w$]*)",
+          "flags": "g"
+        },
+        {
+          "kind": "type",
+          "pattern": "export\\s+type\\s+([A-Za-z_$][\\w$]*)\\s*=",
+          "flags": "g"
+        },
+        {
+          "kind": "enum",
+          "pattern": "export\\s+enum\\s+([A-Za-z_$][\\w$]*)",
+          "flags": "g"
+        }
+      ],
+      "imports": [
+        {
+          "kind": "module",
+          "pattern": "(?:from\\s+|require\\s*\\(\\s*)[\"']([^\"']+)[\"']",
+          "flags": "g"
+        },
+        {
+          "kind": "side-effect",
+          "pattern": "(?:^|\\n)\\s*import\\s*[\"']([^\"']+)[\"']",
+          "flags": "g"
+        }
+      ]
+    },
+    "python": {
+      "extensions": [".py", ".pyw"],
+      "symbols": [
+        {
+          "kind": "function",
+          "pattern": "^(?:async\\s+)?def\\s+([A-Za-z_]\\w*)\\s*\\(",
+          "flags": "gm"
+        },
+        {
+          "kind": "class",
+          "pattern": "^class\\s+([A-Za-z_]\\w*)",
+          "flags": "gm"
+        }
+      ],
+      "imports": [
+        {
+          "kind": "module",
+          "pattern": "^\\s*from\\s+([\\w.]+)\\s+import",
+          "flags": "gm"
+        },
+        {
+          "kind": "module",
+          "pattern": "^\\s*import\\s+([\\w.]+)",
+          "flags": "gm"
+        }
+      ]
+    },
+    "go": {
+      "extensions": [".go"],
+      "symbols": [
+        {
+          "kind": "function",
+          "pattern": "^func\\s+(?:\\([^)]*\\)\\s*)?([A-Z]\\w*)\\s*\\(",
+          "flags": "gm"
+        },
+        {
+          "kind": "type",
+          "pattern": "^type\\s+(\\w+)\\s+(struct|interface)",
+          "flags": "gm"
+        }
+      ],
+      "imports": [
+        {
+          "kind": "module",
+          "pattern": "^import\\s+\"([^\"]+)\"",
+          "flags": "gm"
+        },
+        {
+          "kind": "module",
+          "pattern": "^\\s*\"([^\"]+)\"",
+          "flags": "gm"
+        }
+      ]
+    },
+    "rust": {
+      "extensions": [".rs"],
+      "symbols": [
+        {
+          "kind": "function",
+          "pattern": "^(?:pub\\s+)?fn\\s+(\\w+)\\s*\\(",
+          "flags": "gm"
+        },
+        {
+          "kind": "struct",
+          "pattern": "^(?:pub\\s+)?struct\\s+(\\w+)",
+          "flags": "gm"
+        },
+        {
+          "kind": "enum",
+          "pattern": "^(?:pub\\s+)?enum\\s+(\\w+)",
+          "flags": "gm"
+        },
+        {
+          "kind": "trait",
+          "pattern": "^(?:pub\\s+)?trait\\s+(\\w+)",
+          "flags": "gm"
+        }
+      ],
+      "imports": [
+        {
+          "kind": "module",
+          "pattern": "^\\s*use\\s+([\\w:]+)",
+          "flags": "gm"
+        }
+      ]
+    }
+  }
+}

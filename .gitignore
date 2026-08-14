@@ -1,0 +1,9 @@
+node_modules/
+dist/
+dist-packages/
+coverage/
+*.log
+.env
+.env.local
+.cache/
+.smoke/

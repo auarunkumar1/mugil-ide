@@ -1,0 +1,25 @@
+{
+  "name": "@mugil-ide/core",
+  "version": "1.0.0",
+  "description": "Token Efficiency Manager, Smart Cache, Auto Handoff, Signature Stripper",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "prepack": "npm run build",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "redis": "^4.7.0",
+    "tiktoken": "^1.0.17"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^22.5.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.5.4"
+  }
+}

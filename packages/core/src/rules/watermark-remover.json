@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+  "unicode": {
+    "invisible": {
+      "label": "unicode:invisible",
+      "pattern": "[\\u200B-\\u200D\\u2060\\uFEFF\\u00AD]",
+      "flags": "g"
+    },
+    "bidi": {
+      "label": "unicode:bidi-controls",
+      "pattern": "[\\u202A-\\u202E\\u2066-\\u2069\\u061C]",
+      "flags": "g"
+    },
+    "tags": {
+      "label": "unicode:tag-characters",
+      "ranges": [[917504, 917759]]
+    },
+    "exoticSpaces": {
+      "label": "unicode:exotic-spaces",
+      "pattern": "[\\u00A0\\u1680\\u2000-\\u200A\\u202F\\u205F\\u3000]",
+      "flags": "g"
+    }
+  },
+  "vendor": [
+    {
+      "provider": "openai",
+      "label": "openai:attribution-line",
+      "pattern": "^\\s*(?:this (?:text|content|response|passage|article|output) (?:was )?)?(?:generated|created|written|produced|made|powered)(?:\\s+by|\\s+with)?\\s+(?:an?\\s+)?(?:ai|ai assistant|openai|chatgpt|gpt[- ]?\\d*)\\b[^\\n]*\\n?",
+      "flags": "gim"
+    },
+    {
+      "provider": "anthropic",
+      "label": "anthropic:attribution-line",
+      "pattern": "^\\s*(?:this (?:text|content|response|passage|article|output) (?:was )?)?(?:generated|created|written|produced|made|powered)(?:\\s+by|\\s+with)?\\s+(?:an?\\s+)?(?:claude|anthropic)\\b[^\\n]*\\n?",
+      "flags": "gim"
+    },
+    {
+      "provider": "gemini",
+      "label": "gemini:attribution-line",
+      "pattern": "^\\s*(?:this (?:text|content|response|passage|article|output) (?:was )?)?(?:generated|created|written|produced|made|powered)(?:\\s+by|\\s+with)?\\s+(?:an?\\s+)?(?:gemini|bard|synthid)\\b[^\\n]*\\n?",
+      "flags": "gim"
+    }
+  ]
+}
