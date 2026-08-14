@@ -15,7 +15,7 @@ export interface AnthropicClientOptions {
 
 interface AnthropicResponse {
   model?: string;
-  content?: Array<{ type?: string; text?: string }>;
+  content?: Array<{ type?: string; text?: string; thinking?: string }>;
   usage?: { input_tokens?: number; output_tokens?: number };
   stop_reason?: string;
 }
@@ -65,9 +65,14 @@ export class AnthropicClient implements ProviderClient {
     }
 
     const data = (await res.json()) as AnthropicResponse;
-    const content = (data.content ?? [])
+    const blocks = data.content ?? [];
+    const content = blocks
       .filter((block) => block.type === 'text' && typeof block.text === 'string')
       .map((block) => block.text!)
+      .join('');
+    const thinking = blocks
+      .filter((block) => block.type === 'thinking' && typeof block.thinking === 'string')
+      .map((block) => block.thinking!)
       .join('');
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.input_tokens ?? countTokens(promptText);
@@ -83,6 +88,7 @@ export class AnthropicClient implements ProviderClient {
       content,
       usage,
       finishReason: data.stop_reason,
+      thinking: thinking.length > 0 ? thinking : undefined,
     };
   }
 }

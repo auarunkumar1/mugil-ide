@@ -52,6 +52,24 @@ describe('OpenAiClient', () => {
     expect(result.usage.totalTokens).toBe(7);
   });
 
+  it('captures reasoning output from reasoning-capable models', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'o3-mini',
+        choices: [
+          {
+            message: { content: 'answer', reasoning_content: 'step 1: think', finish_reason: 'stop' },
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const result = await client.complete([{ role: 'user', content: 'q' }], { model: 'o3-mini' });
+    expect(result.thinking).toBe('step 1: think');
+  });
+
   it('falls back to mock mode without a key', async () => {
     const client = new OpenAiClient();
     expect(client.mock).toBe(true);
@@ -102,6 +120,25 @@ describe('AnthropicClient', () => {
     expect(result.provider).toBe('anthropic');
     expect(result.content).toBe('answer');
     expect(result.usage.totalTokens).toBe(11);
+  });
+
+  it('captures thinking blocks from extended-thinking models', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-sonnet-4',
+        content: [
+          { type: 'thinking', thinking: 'step 1: consider inputs' },
+          { type: 'text', text: 'final answer' },
+        ],
+        usage: { input_tokens: 8, output_tokens: 3 },
+        stop_reason: 'end_turn',
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new AnthropicClient({ apiKey: 'sk-ant-test' });
+    const result = await client.complete([{ role: 'user', content: 'q' }], { model: 'claude-sonnet-4' });
+    expect(result.thinking).toBe('step 1: consider inputs');
+    expect(result.content).toBe('final answer');
   });
 
   it('defaults max_tokens and falls back to mock without a key', async () => {
