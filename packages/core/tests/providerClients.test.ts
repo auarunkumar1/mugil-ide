@@ -256,6 +256,89 @@ describe('provider selection in createEngine', () => {
   });
 });
 
+describe('tool calling (Anthropic)', () => {
+  it('includes tools in the Anthropic wire format', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-3-5-sonnet',
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input_tokens: 5, output_tokens: 2 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new AnthropicClient({ apiKey: 'sk-ant-test' });
+    await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'claude-3-5-sonnet',
+      tools: [{ name: 'add', description: 'add two numbers', parameters: { type: 'object' } }],
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      tools?: Array<{ name: string; description: string; input_schema: unknown }>;
+    };
+    expect(body.tools).toEqual([
+      { name: 'add', description: 'add two numbers', input_schema: { type: 'object' } },
+    ]);
+  });
+
+  it('parses tool_use blocks into ToolCalls', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-3-5-sonnet',
+        content: [
+          { type: 'text', text: 'let me compute' },
+          { type: 'tool_use', id: 'toolu_1', name: 'add', input: { a: 2, b: 3 } },
+        ],
+        usage: { input_tokens: 5, output_tokens: 8 },
+        stop_reason: 'tool_use',
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new AnthropicClient({ apiKey: 'sk-ant-test' });
+    const result = await client.complete([{ role: 'user', content: 'compute' }], {
+      model: 'claude-3-5-sonnet',
+      tools: [{ name: 'add', description: 'add', parameters: {} }],
+    });
+    expect(result.content).toBe('let me compute');
+    expect(result.toolCalls).toEqual([{ id: 'toolu_1', name: 'add', arguments: '{"a":2,"b":3}' }]);
+    expect(result.finishReason).toBe('tool_use');
+  });
+
+  it('translates assistant toolCalls and tool results into Anthropic messages', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-3-5-sonnet',
+        content: [{ type: 'text', text: '5' }],
+        usage: { input_tokens: 5, output_tokens: 2 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new AnthropicClient({ apiKey: 'sk-ant-test' });
+    await client.complete(
+      [
+        { role: 'user', content: '2 + 3' },
+        {
+          role: 'assistant',
+          content: 'computing',
+          toolCalls: [{ id: 'toolu_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+        },
+        { role: 'tool', toolCallId: 'toolu_1', content: '5' },
+      ],
+      { model: 'claude-3-5-sonnet', tools: [{ name: 'add', description: 'add', parameters: {} }] },
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { messages: unknown[] };
+    expect(body.messages).toEqual([
+      { role: 'user', content: '2 + 3' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'computing' },
+          { type: 'tool_use', id: 'toolu_1', name: 'add', input: { a: 2, b: 3 } },
+        ],
+      },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: '5' }] },
+    ]);
+  });
+});
+
 describe('tool calling (OpenAI family)', () => {
   it('includes a tools array in the request body (OpenAI format)', async () => {
     const fetchMock = jest.fn().mockResolvedValue(

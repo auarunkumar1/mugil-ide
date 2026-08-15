@@ -4,7 +4,7 @@
  * Without an API key it runs in mock mode so the pipeline is exercisable
  * offline.
  */
-import type { ChatMessage, CompletionResult } from '../../types.js';
+import type { ChatMessage, CompletionResult, ToolCall, ToolDefinition } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import { mockCompletion, ProviderError, type ProviderClient, type ProviderCompleteOptions } from './provider.js';
 
@@ -15,9 +15,54 @@ export interface AnthropicClientOptions {
 
 interface AnthropicResponse {
   model?: string;
-  content?: Array<{ type?: string; text?: string; thinking?: string }>;
+  content?: Array<{
+    type?: string;
+    text?: string;
+    thinking?: string;
+    id?: string;
+    name?: string;
+    input?: unknown;
+  }>;
   usage?: { input_tokens?: number; output_tokens?: number };
   stop_reason?: string;
+}
+
+/**
+ * Neutral ChatMessage[] -> Anthropic wire messages. Each tool result becomes
+ * its own user message with a single tool_result block (Anthropic forbids
+ * merging tool_results); assistant tool calls become tool_use content blocks.
+ */
+function toAnthropicMessages(
+  messages: ChatMessage[],
+): Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> {
+  const out: Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> = [];
+  for (const m of messages) {
+    if (m.role === 'system') continue; // handled via top-level `system` field
+    if (m.role === 'tool') {
+      out.push({
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: m.toolCallId!, content: m.content }],
+      });
+      continue;
+    }
+    if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+      const blocks: Array<Record<string, unknown>> = [];
+      if (m.content) blocks.push({ type: 'text', text: m.content });
+      for (const call of m.toolCalls) {
+        let input: unknown = {};
+        try {
+          input = JSON.parse(call.arguments);
+        } catch {
+          input = {};
+        }
+        blocks.push({ type: 'tool_use', id: call.id, name: call.name, input });
+      }
+      out.push({ role: 'assistant', content: blocks });
+      continue;
+    }
+    out.push({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content });
+  }
+  return out;
 }
 
 export class AnthropicClient implements ProviderClient {
@@ -37,7 +82,7 @@ export class AnthropicClient implements ProviderClient {
   ): Promise<CompletionResult> {
     if (this.mock) return mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
     const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-    let chat = messages.filter((m) => m.role !== 'system');
+    let chat = toAnthropicMessages(messages);
     if (chat.length === 0) {
       chat = [{ role: 'user', content: system || 'hello' }];
     }
@@ -55,6 +100,22 @@ export class AnthropicClient implements ProviderClient {
       temperature = undefined; // Anthropic requires temperature=1 or omitted with thinking
     }
 
+    const body: Record<string, unknown> = {
+      model: options.model,
+      max_tokens: maxTokens,
+      system: system.trim().length > 0 ? system : undefined,
+      messages: chat,
+      temperature,
+      thinking: thinkingConfig,
+    };
+    if (options.tools && options.tools.length > 0) {
+      body.tools = options.tools.map((t: ToolDefinition) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.parameters,
+      }));
+    }
+
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
@@ -62,14 +123,7 @@ export class AnthropicClient implements ProviderClient {
         'x-api-key': this.apiKey!,
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model: options.model,
-        max_tokens: maxTokens,
-        system: system.trim().length > 0 ? system : undefined,
-        messages: chat,
-        temperature,
-        thinking: thinkingConfig,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -91,6 +145,9 @@ export class AnthropicClient implements ProviderClient {
       .filter((block) => block.type === 'thinking' && typeof block.thinking === 'string')
       .map((block) => block.thinking!)
       .join('');
+    const toolCalls: ToolCall[] = blocks
+      .filter((b) => b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string')
+      .map((b) => ({ id: b.id!, name: b.name!, arguments: JSON.stringify(b.input ?? {}) }));
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.input_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.output_tokens ?? countTokens(content);
@@ -105,6 +162,7 @@ export class AnthropicClient implements ProviderClient {
       content,
       usage,
       finishReason: data.stop_reason,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       thinking: thinking.length > 0 ? thinking : undefined,
     };
   }
