@@ -6,9 +6,27 @@ export interface Usage {
   totalTokens: number;
 }
 
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema object for the tool's parameters (provider-agnostic). */
+  parameters: Record<string, unknown>;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  /** Raw JSON string of the arguments, exactly as sent by the model. */
+  arguments: string;
+}
+
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  /** Assistant messages that requested tools (content may be ''). */
+  toolCalls?: ToolCall[];
+  /** Tool messages: the id of the ToolCall this is the result of. */
+  toolCallId?: string;
 }
 
 export type ModelTier = 'cheap' | 'standard' | 'smart';
@@ -30,6 +48,8 @@ export interface CompletionResult {
   content: string;
   usage: Usage;
   finishReason?: string;
+  /** Tool calls the model requested; absent when it answered directly. */
+  toolCalls?: ToolCall[];
   /** True when the request was served by the offline mock. */
   mock?: boolean;
   /** Reasoning/thinking output from reasoning-capable models, if any. */
@@ -43,6 +63,8 @@ export interface HandoffOptions {
   preferredModel?: string;
   /** Ordered list of model ids to try after the preferred/routed model fails. */
   fallbackChain?: string[];
+  /** Tools the model may call. Omit for plain completions. */
+  tools?: ToolDefinition[];
   /** Reasoning/thinking level requested ('off' | 'low' | 'medium' | 'high'). */
   thinkingLevel?: ThinkingLevel;
   /** Explicit token budget for thinking (e.g. Anthropic budget_tokens). */

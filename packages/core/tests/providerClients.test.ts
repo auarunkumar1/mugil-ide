@@ -2,6 +2,7 @@ import { AnthropicClient } from '../src/modules/handoff/anthropic.js';
 import { OpenAiClient } from '../src/modules/handoff/openAi.js';
 import { fetchProviderModels } from '../src/modules/handoff/models.js';
 import { createEngine, loadConfig } from '../src/index.js';
+import type { ToolDefinition } from '../src/types.js';
 
 const originalFetch = global.fetch;
 
@@ -252,6 +253,95 @@ describe('provider selection in createEngine', () => {
     expect(engine.client.constructor.name).toBe('OpenAiClient');
     expect(engine.client.mock).toBe(false);
     expect(engine.config.provider).toBe('lmstudio');
+  });
+});
+
+describe('tool calling (OpenAI family)', () => {
+  it('includes a tools array in the request body (OpenAI format)', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'gpt-4o-mini',
+        choices: [{ message: { content: 'done' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const tool: ToolDefinition = {
+      name: 'add',
+      description: 'add two numbers',
+      parameters: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'number' } } },
+    };
+    await client.complete([{ role: 'user', content: '2 + 3' }], { model: 'gpt-4o-mini', tools: [tool] });
+
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      tools?: Array<{ type: string; function: { name: string; description: string; parameters: unknown } }>;
+    };
+    expect(body.tools).toEqual([
+      { type: 'function', function: { name: 'add', description: 'add two numbers', parameters: tool.parameters } },
+    ]);
+  });
+
+  it('parses tool_calls from the response', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'gpt-4o-mini',
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                { id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const result = await client.complete([{ role: 'user', content: 'compute' }], {
+      model: 'gpt-4o-mini',
+      tools: [{ name: 'add', description: 'add two numbers', parameters: {} }],
+    });
+    expect(result.toolCalls).toEqual([{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }]);
+    expect(result.finishReason).toBe('tool_calls');
+  });
+
+  it('round-trips assistant toolCalls and tool results through the request body', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'gpt-4o-mini',
+        choices: [{ message: { content: 'final', tool_calls: undefined }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    await client.complete(
+      [
+        { role: 'user', content: '2 + 3' },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+        },
+        { role: 'tool', toolCallId: 'call_1', content: '5' },
+      ],
+      { model: 'gpt-4o-mini', tools: [{ name: 'add', description: 'add', parameters: {} }] },
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { messages: unknown[] };
+    expect(body.messages).toEqual([
+      { role: 'user', content: '2 + 3' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } }],
+      },
+      { role: 'tool', tool_call_id: 'call_1', content: '5' },
+    ]);
   });
 });
 
