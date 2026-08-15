@@ -4,6 +4,7 @@ import {
   DEFAULT_OPENAI_MODELS,
   DEFAULT_ANTHROPIC_MODELS,
   modelSupportsThinking,
+  modelSupportsTools,
   type CompletionProvider,
 } from '../../config.js';
 
@@ -44,6 +45,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             name?: string;
             context_length?: number;
             pricing?: { prompt?: string; completion?: string };
+            supported_parameters?: string[];
           }>;
         };
         if (json.data && Array.isArray(json.data) && json.data.length > 0) {
@@ -58,6 +60,9 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
               costPerMTokOut: isNaN(costOut) ? 0 : costOut,
               contextWindow: m.context_length || 128000,
               supportsThinking: modelSupportsThinking(m.id),
+              supportsTools: Array.isArray(m.supported_parameters)
+                ? m.supported_parameters.includes('tools')
+                : modelSupportsTools(m.id),
             };
           });
           modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
@@ -89,6 +94,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
                 costPerMTokOut: 0,
                 contextWindow: 128000,
                 supportsThinking: modelSupportsThinking(m.id),
+                supportsTools: modelSupportsTools(m.id),
               }));
               modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
               return list;
@@ -117,6 +123,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
                   costPerMTokOut: 0,
                   contextWindow: 128000,
                   supportsThinking: modelSupportsThinking(name),
+                  supportsTools: modelSupportsTools(name),
                 }));
               if (list.length > 0) {
                 modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
@@ -155,6 +162,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             costPerMTokOut: 0,
             contextWindow: 128000,
             supportsThinking: modelSupportsThinking(m.id),
+            supportsTools: modelSupportsTools(m.id),
           }));
           modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
           return list;
@@ -182,6 +190,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
               costPerMTokOut: m.id.includes('haiku') ? 4 : 15,
               contextWindow: 200000,
               supportsThinking: modelSupportsThinking(m.id),
+              supportsTools: modelSupportsTools(m.id),
             }));
             modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
             return list;
