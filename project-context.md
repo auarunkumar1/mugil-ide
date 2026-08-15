@@ -51,7 +51,16 @@ npm workspaces monorepo — packages in `packages/*`, root is private.
   `HandoffManager` (cost-based routing, fallback chains, offline mock mode)
   and `models.ts` (`fetchProviderModels` — per-provider catalog probes for
   OpenRouter / OpenAI / Anthropic / Ollama / LM Studio / local endpoints,
-  with an in-memory 60s cache and curated fallback ladders when offline).
+  with an in-memory 60s cache and curated fallback ladders when offline;
+  entries carry `supportsThinking` / `supportsTools` capability flags).
+  `HandoffOptions.tools` is forwarded to each provider client in its own wire
+  format (`tools`/`tool_calls` for OpenAI-family, `tools`/`tool_use` for
+  Anthropic).
+- `modules/tool-loop` — `ToolLoop`: the bounded agentic function-calling loop
+  (registry-driven execution, unknown-tool/exception capture, forced
+  no-tools final answer, summed usage). Wired into `Pipeline.ask` via
+  `AskOptions.tools` / `toolRegistry` / `maxToolIterations`; tool-bearing
+  asks bypass the smart cache entirely (see gotchas 11–12).
 - `contextResolver.ts` — `resolveFileContext()`: `@file` / `@path` attachment
   support used by the TUI prompt box (resolves paths relative to the cwd and
   injects file contents).
@@ -321,7 +330,8 @@ wave and monospace alignment), plus **function calling with a bounded agentic
 tool loop** — `AskOptions.tools`/`toolRegistry` run `ToolLoop` (registry
 execution, unknown-tool/exception capture, forced no-tools final answer, cache
 bypass; OpenAI-family + Anthropic wire formats; `supportsTools` auto-detected
-from the catalog), plus **automated CLI + TUI test suites**
+from the catalog; design record: `docs/superpowers/plans/2026-08-15-function-calling.md`),
+plus **automated CLI + TUI test suites**
 (spawned-binary command tests + ink-rendered ChatApp behavior tests).
 **192 tests pass.**
 
