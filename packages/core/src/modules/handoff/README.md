@@ -17,7 +17,16 @@ Clients cover OpenRouter, OpenAI-compatible endpoints (OpenAI, Ollama, LM
 Studio, generic local), and Anthropic. `fetchProviderModels()` (see
 `models.ts`) probes the active provider's catalog — `/v1/models`, Ollama's
 native `/api/tags`, or Anthropic's `/v1/models` — with curated fallback
-ladders when offline.
+ladders when offline. Catalog entries carry `supportsThinking` and
+`supportsTools` capability flags (OpenRouter's `supported_parameters` refines
+the latter when present).
+
+**Tools.** `HandoffOptions.tools` (a `ToolDefinition[]`) is forwarded to the
+provider client, which sends it in the provider's own wire format
+(`tools`/`tool_calls` for OpenAI-family, `tools`/`tool_use` for Anthropic)
+and parses requested calls back into neutral `ToolCall`s. The tool-call
+*round trip* (execution + result feedback + bounding) is owned by the
+[tool-loop](../tool-loop/README.md) module, not by handoff.
 
 **Credits:** model routing and fallback are built on the
 [OpenRouter](https://openrouter.ai) unified model API. See
