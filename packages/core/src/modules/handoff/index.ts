@@ -119,6 +119,7 @@ export class HandoffManager {
           temperature: options.temperature,
           thinkingLevel: options.thinkingLevel,
           thinkingBudgetTokens: options.thinkingBudgetTokens,
+          tools: options.tools,
         });
         return { ...result, attempts };
       } catch (err) {
