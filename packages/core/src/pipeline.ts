@@ -10,6 +10,7 @@ import {
 import { refinePrompt, type RefineOptions } from './refine.js';
 import { countTokens } from './token/tokenizer.js';
 import type { HandoffManager } from './modules/handoff/index.js';
+import { ToolLoop, type ToolLoopResult, type ToolRegistry } from './modules/tool-loop/index.js';
 
 export interface PipelineOptions {
   cache: SmartCache;
@@ -29,6 +30,13 @@ export interface AskOptions extends HandoffOptions {
   /** Override the token budget for this request (defaults to pipeline.tokenBudget or model context window). */
   tokenBudget?: number;
   systemPrompt?: string;
+  /**
+   * Executors for the declared tools. Required when `tools` is set — a
+   * declared tool without an executor throws before any request is sent.
+   */
+  toolRegistry?: ToolRegistry;
+  /** Max tool-loop iterations before a forced final answer. Default 6. */
+  maxToolIterations?: number;
   /** Live progress callback; emitted synchronously as the pipeline runs. */
   onEvent?: (event: PipelineEvent) => void;
   /**
@@ -64,6 +72,10 @@ export class Pipeline {
   async ask(prompt: string, options: AskOptions = {}): Promise<AskResult> {
     const emit = options.onEvent ?? (() => {});
     const effectiveBudget = options.tokenBudget ?? this.tokenBudget;
+    // Tool-bearing requests bypass the cache entirely (lookup AND store): a
+    // cache hit would skip tool execution, which is wrong for side-effectful
+    // tools and stale for any tool whose result may have changed.
+    const hasTools = Boolean(options.tools && options.tools.length > 0);
 
     // 1. Signature removal + refinement
     emit({ type: 'stage', stage: 'signature' });
@@ -85,7 +97,7 @@ export class Pipeline {
       options.preferredModel && options.preferredModel !== 'openrouter/auto'
         ? options.preferredModel
         : undefined;
-    if (!options.noCache) {
+    if (!options.noCache && !hasTools) {
       cacheLookup = await this.cache.lookup(prompt, { model: cacheModel });
       // If we are currently running with a LIVE provider, ignore any stale cached mock responses!
       if (
@@ -112,6 +124,7 @@ export class Pipeline {
         usage,
         refine,
         cache: { hit: true, kind: cacheLookup.kind },
+        toolCalls: 0,
       };
     }
 
@@ -140,7 +153,18 @@ export class Pipeline {
     const defaultMax = Math.max(256, effectiveBudget - refine.refinedTokens);
     const maxTokens = outputBudget !== undefined ? Math.min(defaultMax, outputBudget) : options.maxTokens ?? defaultMax;
     emit({ type: 'stage', stage: 'handoff' });
-    const completion = await this.handoff.complete(messages, { ...options, maxTokens });
+    const completion = hasTools
+      ? await new ToolLoop({
+          handoff: this.handoff,
+          maxIterations: options.maxToolIterations,
+          onTool: (call) => emit({ type: 'tool', name: call.name }),
+        }).run(messages, {
+          ...options,
+          tools: options.tools!,
+          registry: options.toolRegistry ?? {},
+          maxTokens,
+        })
+      : await this.handoff.complete(messages, { ...options, maxTokens });
     emit({
       type: 'handoff',
       attempts: completion.attempts,
@@ -156,7 +180,7 @@ export class Pipeline {
       cacheLookup.kind === 'partial' && cacheLookup.entry
         ? `${cacheLookup.entry.response}\n\n${strippedNew}`
         : strippedNew;
-    if (!options.noCache) {
+    if (!options.noCache && !hasTools) {
       await this.cache.store(prompt, response, completion.model, completion.usage, cacheModel);
     }
     emit({ type: 'done', usage: completion.usage });
@@ -170,6 +194,7 @@ export class Pipeline {
       refine,
       cache: { hit: false },
       thinking: completion.thinking,
+      toolCalls: hasTools ? (completion as ToolLoopResult).toolCalls : 0,
     };
   }
 }

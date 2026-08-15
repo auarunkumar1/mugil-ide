@@ -120,6 +120,8 @@ export interface AskResult {
   };
   /** Reasoning/thinking output from the model, if any (not cached). */
   thinking?: string;
+  /** Number of tool calls executed while answering (0 for plain asks). */
+  toolCalls: number;
 }
 
 /** Live progress events emitted by the pipeline (consumed by the WebView). */
@@ -128,5 +130,6 @@ export type PipelineEvent =
   | { type: 'refined'; refine: RefineResult }
   | { type: 'cache'; hit: boolean; kind?: CacheHitKind }
   | { type: 'handoff'; attempts: string[]; model: string; mock?: boolean }
+  | { type: 'tool'; name: string }
   | { type: 'done'; usage: Usage };
 
