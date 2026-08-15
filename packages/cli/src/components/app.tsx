@@ -319,6 +319,7 @@ export function ChatApp({ engine, onExit }: ChatAppProps): React.ReactElement {
           usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
           refine: { original: '', refined: '', originalTokens: 0, refinedTokens: 0, savingsPct: 0, appliedStrategies: [] },
           cache: { hit: false },
+          toolCalls: 0,
         },
       };
       setEntries((prev) => [...prev.slice(-(MAX_ENTRIES - 1)), entry]);
