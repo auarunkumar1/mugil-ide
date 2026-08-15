@@ -114,10 +114,15 @@ embeddings; **model-scoped keys** — see gotcha 9), `handoff` (OpenRouter /
 OpenAI / Anthropic / Ollama / LM Studio / local clients, cost-based routing,
 fallback chains, offline mock; an explicitly requested model is
 **authoritative** and never silently escalates into the ladder — see
-gotcha 9), `pipeline` (signature → refine → cache → handoff → store,
-streaming `PipelineEvent`s), `refine` (caveman → rtk → truncate), `token`
-(lazy tiktoken + estimator), `update` (UpdateManager check/apply/watch),
-`branding`, `browser.ts` (browser-safe entry), `config` / `createEngine`.
+gotcha 9; `tools` forwarded to provider clients in each provider's wire
+format), `tool-loop` (bounded agentic function-calling loop: registry-driven
+execution, error capture, forced final answer — see gotchas 11–12),
+`pipeline` (signature → refine → cache → handoff → store, streaming
+`PipelineEvent`s incl. `{ type: 'tool' }`), `refine` (caveman → rtk →
+truncate), `token` (lazy tiktoken + estimator), `update`
+(UpdateManager check/apply/watch), `branding`, `browser.ts` (browser-safe
+entry), `config` / `createEngine` (incl. `modelSupportsTools` + catalog
+`supportsTools` from OpenRouter `supported_parameters`).
 
 **Surface packages** — CLI (`run` / TUI / `graph` / `login` / `logout` /
 `keys` / `update` / `docs`) and MCP (12 tools over stdio).
@@ -130,7 +135,7 @@ npm run dev           # build and launch the interactive TUI
 npm start             # launch the interactive TUI directly
 npm run build         # all packages
 npm run typecheck     # all packages
-npm run test          # 174 tests across 4 packages (incl. cli command + TUI suites)
+npm run test          # 192 tests across 4 packages (incl. cli command + TUI suites)
 npm run lint          # eslint (flat config, eslint.config.mjs)
 npm run pack          # build + pack all four tarballs into dist-packages/
 npm run release       # release plan (dry-run) — --bump / --publish for real
@@ -283,6 +288,19 @@ OpenAI, then Anthropic (see `loadConfig()` in `config.ts`).
     of the model list, and the initial highlight always lands on a real model.
     Note the dropdown can open with the small config-default catalog while the
     real provider catalog is still loading — keep Enter safe at that size too.
+11. **Tool-bearing requests bypass the cache entirely**: when `AskOptions.tools`
+    is set, `Pipeline.ask` skips both cache lookup and cache store. A cached
+    hit would skip tool execution — wrong for side-effectful tools and stale
+    for any tool whose result may have changed. `AskResult.cache.hit` is
+    always `false` for tool-bearing asks.
+12. **The tool loop is bounded, and always ends in text**: `ToolLoop` runs at
+    most `maxIterations` (default 6) model rounds. When the model keeps
+    requesting tool calls past the limit, the loop forces one final completion
+    *without* tools ("provide your final answer now"), so a caller never gets
+    back an empty string. Unknown tool names and executor exceptions are fed
+    back to the model as `Error: ...` tool results so it can recover, and a
+    declared tool with no registry entry throws `ToolError` before any request
+    is sent.
 
 ## Status / roadmap
 
@@ -299,9 +317,13 @@ and TUI polish (animated working spinner, live pipeline/token streaming,
 `/thinking-view` show/hide, `/model` selection dropdown with custom model IDs,
 `/accounts` provider & local-AI setup menu (Ollama / LM Studio / local
 endpoints), `/clear-cache`, `@file` attachment, pseudo-3D logo with specular
-wave and monospace alignment), plus **automated CLI + TUI test suites**
+wave and monospace alignment), plus **function calling with a bounded agentic
+tool loop** — `AskOptions.tools`/`toolRegistry` run `ToolLoop` (registry
+execution, unknown-tool/exception capture, forced no-tools final answer, cache
+bypass; OpenAI-family + Anthropic wire formats; `supportsTools` auto-detected
+from the catalog), plus **automated CLI + TUI test suites**
 (spawned-binary command tests + ink-rendered ChatApp behavior tests).
-**174 tests pass.**
+**192 tests pass.**
 
 ### Pending todos
 

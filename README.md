@@ -35,7 +35,8 @@ The engine is a set of **separate, credited modules** — see
 | **Signature Remover** | Strips Anthropic/OpenAI prompt signatures **and** AI-generated code signatures (headers, attribution comments, watermark chars) | Anthropic/OpenAI formats; community de-AI tooling |
 | **Watermark Remover** | Strips AI provenance watermarks from generated text — invisible Unicode carriers (zero-width chars, bidi, tag chars, exotic spaces) and vendor attribution lines | [guillaumemeyer/watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) |
 | **Smart Cache** | `exact` → `partial` (prefix + delta) → `semantic` (embedding similarity); memory / Redis / file backends with TTL; entries can be scoped to the requested model so one model's answer is never served for another | Redis; semantic-caching pattern |
-| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); offline mock mode | [OpenRouter](https://openrouter.ai) |
+| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); tool declarations forwarded in each provider's wire format; offline mock mode | [OpenRouter](https://openrouter.ai) |
+| **Tool Loop** | Bounded agentic function calling: declare `tools` + a `toolRegistry`, the loop executes requested calls, feeds results back, and forces a final text answer after `maxIterations` — with error capture for unknown/failed tools and a full cache bypass for tool-bearing asks | — |
 | **Auto Update Manager** | Versioned, updatable module rules (JSON) + check/apply/periodic-watch against a registry + npm version check | — |
 | **MCP Server** | Engine modules as MCP tools (`ask`, `refine_prompt`, `count_tokens`, `strip_*`, `compress_command_output`, `list_models`) over stdio | [Model Context Protocol](https://modelcontextprotocol.io) |
 | **MD Generator** | Automated markdown docs from source (exports, classes, JSDoc) + token cost of the doc; periodic `--watch` mode | — |
@@ -53,7 +54,7 @@ From source:
 ```bash
 npm install
 npm run build          # builds all packages
-npm test               # 174 unit tests
+npm test               # 192 unit tests
 npm run typecheck
 ```
 
@@ -290,6 +291,7 @@ packages/
 │   │   ├── codegraph/         code knowledge graph (symbols, imports, calls)
 │   │   ├── smart-cache/      exact/partial/semantic cache, backends, embeddings
 │   │   ├── handoff/          OpenRouter client + Auto Handoff Manager
+│   │   ├── tool-loop/        bounded agentic function-calling loop
 │   │   └── overrides.ts      runtime rules override store (update target)
 │   ├── src/rules/            versioned rules JSON + module registry
 │   ├── src/update/           Auto Update Manager (check/apply/watch)
@@ -305,8 +307,12 @@ packages/
 The request path: **signature strip → token refinement (caveman + rtk +
 truncate) → cache lookup → model routing/handoff → cache store**, with
 Ponytail's output-minimization instruction injected into the system prompt.
-Token counts, savings and cache outcomes are surfaced in the CLI and exposed
-to MCP clients via `PipelineEvent`s.
+When a request declares tools (`AskOptions.tools` + `toolRegistry`), the
+cache is bypassed and handoff becomes a **bounded tool loop**: the model's
+tool calls are executed and fed back until it answers without tools, with a
+forced final text after `maxIterations`. Token counts, savings, tool-call
+progress and cache outcomes are surfaced in the CLI and exposed to MCP
+clients via `PipelineEvent`s (`{ type: 'tool' }` fires per executed call).
 
 ## Roadmap
 

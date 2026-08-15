@@ -74,6 +74,16 @@ export {
 } from './modules/smart-cache/embeddings.js';
 export type { EmbeddingProvider } from './modules/smart-cache/embeddings.js';
 
+// Tool Loop (agentic function calling)
+export { ToolLoop, ToolError, parseToolArguments } from './modules/tool-loop/index.js';
+export type {
+  ToolRegistry,
+  ToolExecutor,
+  ToolLoopOptions,
+  ToolLoopRunOptions,
+  ToolLoopResult,
+} from './modules/tool-loop/index.js';
+
 // Auto Handoff (OpenRouter / OpenAI / Anthropic providers)
 export { OpenRouterClient, OpenRouterError } from './modules/handoff/openRouter.js';
 export type { OpenRouterClientOptions, OpenRouterCompleteOptions } from './modules/handoff/openRouter.js';
@@ -135,6 +145,7 @@ export {
   loadConfig,
   isLocalUrl,
   modelSupportsThinking,
+  modelSupportsTools,
   fetchRemoteModels,
   DEFAULT_OPENROUTER_MODELS,
   DEFAULT_OPENAI_MODELS,
@@ -150,6 +161,8 @@ export type { AppConfig, CompletionProvider } from './config.js';
 export type {
   Usage,
   ChatMessage,
+  ToolDefinition,
+  ToolCall,
   ModelSpec,
   ModelTier,
   ThinkingLevel,
