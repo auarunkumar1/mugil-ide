@@ -3,9 +3,16 @@
  * (OpenAI-compatible endpoints work too). Without an API key it runs in mock
  * mode so the pipeline is exercisable offline.
  */
-import type { ChatMessage, CompletionResult } from '../../types.js';
+import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
-import { mockCompletion, ProviderError, type ProviderClient, type ProviderCompleteOptions } from './provider.js';
+import {
+  mockCompletion,
+  ProviderError,
+  toOpenAiMessages,
+  toOpenAiTools,
+  type ProviderClient,
+  type ProviderCompleteOptions,
+} from './provider.js';
 
 export interface OpenAiClientOptions {
   apiKey?: string;
@@ -47,8 +54,11 @@ export class OpenAiClient implements ProviderClient {
 
     const body: Record<string, unknown> = {
       model: options.model,
-      messages,
+      messages: toOpenAiMessages(messages),
     };
+    if (options.tools && options.tools.length > 0) {
+      body.tools = toOpenAiTools(options.tools);
+    }
 
     if (isOpenAiReasoning) {
       if (options.maxTokens) body.max_completion_tokens = options.maxTokens;
@@ -83,7 +93,16 @@ export class OpenAiClient implements ProviderClient {
     const data = (await res.json()) as {
       model?: string;
       choices?: Array<{
-        message?: { content?: string; reasoning_content?: string; reasoning?: string };
+        message?: {
+          content?: string | null;
+          reasoning_content?: string;
+          reasoning?: string;
+          tool_calls?: Array<{
+            id?: string;
+            type?: string;
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
         finish_reason?: string;
       }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
@@ -101,6 +120,13 @@ export class OpenAiClient implements ProviderClient {
         content = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
       }
     }
+    const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
+      .filter((tc) => tc?.type === 'function' && Boolean(tc.function?.name))
+      .map((tc) => ({
+        id: tc.id ?? '',
+        name: tc.function!.name!,
+        arguments: tc.function!.arguments ?? '{}',
+      }));
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
@@ -115,6 +141,7 @@ export class OpenAiClient implements ProviderClient {
       content,
       usage,
       finishReason: data.choices?.[0]?.finish_reason,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       thinking: thinking && thinking.length > 0 ? thinking : undefined,
     };
   }

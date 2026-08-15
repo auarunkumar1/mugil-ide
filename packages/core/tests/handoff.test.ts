@@ -1,5 +1,6 @@
 import { HandoffManager } from '../src/modules/handoff/index.js';
 import { OpenRouterClient, OpenRouterError } from '../src/modules/handoff/openRouter.js';
+import { mockCompletion, type ProviderClient } from '../src/modules/handoff/provider.js';
 import type { ChatMessage, CompletionResult, ModelSpec } from '../src/types.js';
 
 const MODELS: ModelSpec[] = [
@@ -120,6 +121,21 @@ describe('HandoffManager', () => {
     );
     expect(calls).toEqual(['smart-1', 'cheap-1']);
     expect(result.content).toBe('from fallback');
+  });
+
+  it('forwards tools to the provider client', async () => {
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue(mockCompletion([], { model: 'm' }, 'X')),
+    };
+    const manager = new HandoffManager({ client: client as unknown as ProviderClient, models: [] });
+    await manager.complete([{ role: 'user', content: 'hi' }], {
+      tools: [{ name: 'add', description: 'add', parameters: {} }],
+    });
+    expect(client.complete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ tools: [{ name: 'add', description: 'add', parameters: {} }] }),
+    );
   });
 
   it('does not burn the chain on a 400 auth error', async () => {

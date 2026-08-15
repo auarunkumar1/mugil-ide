@@ -1,4 +1,4 @@
-import type { ChatMessage, CompletionResult, ThinkingLevel } from '../../types.js';
+import type { ChatMessage, CompletionResult, ThinkingLevel, ToolDefinition } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 
 export interface ProviderCompleteOptions {
@@ -7,6 +7,41 @@ export interface ProviderCompleteOptions {
   temperature?: number;
   thinkingLevel?: ThinkingLevel;
   thinkingBudgetTokens?: number;
+  /** Tools the model may call. Omit for plain completions. */
+  tools?: ToolDefinition[];
+}
+
+/** OpenAI-compatible `tools` wire format (used by openAi.ts and openRouter.ts). */
+export function toOpenAiTools(tools: ToolDefinition[]): Array<Record<string, unknown>> {
+  return tools.map((t) => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.parameters },
+  }));
+}
+
+/**
+ * Neutral ChatMessage[] -> OpenAI-compatible wire messages.
+ * Translates camelCase `toolCalls`/`toolCallId` into the snake_case
+ * `tool_calls`/`tool_call_id` the API expects; plain messages pass through.
+ */
+export function toOpenAiMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+  return messages.map((m): Record<string, unknown> => {
+    if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
+      return {
+        role: 'assistant',
+        content: m.content,
+        tool_calls: m.toolCalls.map((call) => ({
+          id: call.id,
+          type: 'function',
+          function: { name: call.name, arguments: call.arguments },
+        })),
+      };
+    }
+    if (m.role === 'tool') {
+      return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+    }
+    return { role: m.role, content: m.content };
+  });
 }
 
 /**
