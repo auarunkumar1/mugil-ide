@@ -4,7 +4,8 @@ import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { HandoffManager } from '../src/modules/handoff/index.js';
 import { OpenRouterClient } from '../src/modules/handoff/openRouter.js';
 import { LexicalEmbedding } from '../src/modules/smart-cache/embeddings.js';
-import type { ModelSpec } from '../src/types.js';
+import type { ProviderClient } from '../src/modules/handoff/provider.js';
+import type { ModelSpec, ToolCall } from '../src/types.js';
 
 const MODELS: ModelSpec[] = [
   { id: 'cheap-1', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 8000 },
@@ -72,6 +73,68 @@ describe('Pipeline', () => {
     const prompt = 'Explain recursion.';
     await pipeline.ask(prompt);
     const second = await pipeline.ask(prompt, { noCache: true });
+    expect(second.cache.hit).toBe(false);
+  });
+
+  it('runs the tool loop when tools are declared and bypasses the cache', async () => {
+    const cache = new SmartCache({
+      backend: new MemoryBackend(),
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+    });
+    const client = {
+      mock: false,
+      complete: jest
+        .fn()
+        .mockResolvedValueOnce({
+          provider: 'openai',
+          model: 'tool-model',
+          content: '',
+          usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+          finishReason: 'tool_calls',
+          toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+        })
+        .mockResolvedValueOnce({
+          provider: 'openai',
+          model: 'tool-model',
+          content: '5',
+          usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+          finishReason: 'stop',
+        })
+        .mockResolvedValue({
+          provider: 'openai',
+          model: 'tool-model',
+          content: '5',
+          usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+          finishReason: 'stop',
+        }),
+    };
+    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const pipeline = new Pipeline({ cache, handoff, tokenBudget: 10000 });
+    const events: string[] = [];
+    const toolRegistry = {
+      add: async (call: ToolCall): Promise<string> => {
+        const args = JSON.parse(call.arguments) as { a: number; b: number };
+        return String(args.a + args.b);
+      },
+    };
+    const tools = [{ name: 'add', description: 'add two numbers', parameters: {} }];
+
+    const result = await pipeline.ask('2 + 3', {
+      tools,
+      toolRegistry,
+      onEvent: (ev) => {
+        if (ev.type === 'tool') events.push(ev.name);
+      },
+    });
+
+    expect(result.response).toBe('5');
+    expect(result.toolCalls).toBe(1);
+    expect(events).toEqual(['add']);
+    expect(result.cache.hit).toBe(false);
+
+    // Cache bypass: a repeat tool-bearing ask must not hit the cache either.
+    const second = await pipeline.ask('2 + 3', { tools, toolRegistry });
     expect(second.cache.hit).toBe(false);
   });
 });
