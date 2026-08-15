@@ -190,11 +190,13 @@ export function createMcpServer(engine: Engine = createEngine(loadConfig())): Mc
         noCache: z.boolean().optional(),
         outputBudget: z.number().int().positive().optional(),
         ponytail: z.boolean().optional(),
+        thinkingLevel: z.enum(['off', 'low', 'medium', 'high']).optional(),
       },
     },
-    async ({ prompt, model, noRefine, noCache, outputBudget, ponytail }) => {
+    async ({ prompt, model, noRefine, noCache, outputBudget, ponytail, thinkingLevel }) => {
       const result = await engine.pipeline.ask(prompt, {
         preferredModel: model,
+        thinkingLevel,
         noRefine,
         noCache,
         ponytail: outputBudget !== undefined ? { outputBudget } : ponytail === false ? false : true,

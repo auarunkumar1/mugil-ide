@@ -74,6 +74,54 @@ describe('HandoffManager', () => {
     expect(result.attempts[1]).toBe('smart-1');
   });
 
+  it('does not escalate to the ladder when an explicit model is requested', async () => {
+    const calls: string[] = [];
+    const failing = {
+      mock: false,
+      async complete(
+        _messages: ChatMessage[],
+        options: { model: string },
+      ): Promise<CompletionResult> {
+        calls.push(options.model);
+        throw new OpenRouterError('boom', 429, true);
+      },
+    };
+    const manager = new HandoffManager({ client: failing as unknown as OpenRouterClient, models: MODELS });
+    await expect(
+      manager.complete([{ role: 'user', content: 'hi' }], { preferredModel: 'smart-1' }),
+    ).rejects.toThrow('boom');
+    expect(calls).toEqual(['smart-1']);
+  });
+
+  it('honors an explicit fallbackChain alongside a preferred model', async () => {
+    const calls: string[] = [];
+    const failing = {
+      mock: false,
+      async complete(
+        _messages: ChatMessage[],
+        options: { model: string },
+      ): Promise<CompletionResult> {
+        calls.push(options.model);
+        if (options.model === 'smart-1') {
+          throw new OpenRouterError('boom', 429, true);
+        }
+        return {
+          provider: 'openrouter',
+          model: options.model,
+          content: 'from fallback',
+          usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+        };
+      },
+    };
+    const manager = new HandoffManager({ client: failing as unknown as OpenRouterClient, models: MODELS });
+    const result = await manager.complete(
+      [{ role: 'user', content: 'hi' }],
+      { preferredModel: 'smart-1', fallbackChain: ['cheap-1'] },
+    );
+    expect(calls).toEqual(['smart-1', 'cheap-1']);
+    expect(result.content).toBe('from fallback');
+  });
+
   it('does not burn the chain on a 400 auth error', async () => {
     const calls: string[] = [];
     const failing = {

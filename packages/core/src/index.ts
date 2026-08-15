@@ -131,13 +131,28 @@ export {
 } from './env.js';
 
 // Config + types
-export { loadConfig } from './config.js';
+export {
+  loadConfig,
+  isLocalUrl,
+  modelSupportsThinking,
+  fetchRemoteModels,
+  DEFAULT_OPENROUTER_MODELS,
+  DEFAULT_OPENAI_MODELS,
+  DEFAULT_ANTHROPIC_MODELS,
+  DEFAULT_OLLAMA_MODELS,
+  DEFAULT_LMSTUDIO_MODELS,
+  DEFAULT_LOCAL_MODELS,
+} from './config.js';
+export { fetchProviderModels } from './modules/handoff/models.js';
+export type { FetchModelsOptions } from './modules/handoff/models.js';
+export { resolveFileContext, type ResolveContextResult } from './contextResolver.js';
 export type { AppConfig, CompletionProvider } from './config.js';
 export type {
   Usage,
   ChatMessage,
   ModelSpec,
   ModelTier,
+  ThinkingLevel,
   CompletionResult,
   HandoffOptions,
   RefineResult,
@@ -151,31 +166,63 @@ export type {
 
 /** Builds a fully-wired engine from the environment. */
 export function createEngine(config: AppConfig) {
+  let currentConfig = config;
   const cacheBackend = createCacheBackend({
-    redisUrl: config.redisUrl,
-    redisClusterUrls: config.redisClusterUrls,
-    cacheDir: config.cacheDir,
+    redisUrl: currentConfig.redisUrl,
+    redisClusterUrls: currentConfig.redisClusterUrls,
+    cacheDir: currentConfig.cacheDir,
   });
-  const embedding = createEmbeddingProvider(config.embedding);
+  const embedding = createEmbeddingProvider(currentConfig.embedding);
   const cache = new SmartCache({
     backend: cacheBackend,
-    ttlSeconds: config.cacheTtlSeconds,
+    ttlSeconds: currentConfig.cacheTtlSeconds,
     embedding,
   });
-  const client = createClient(config);
-  const handoff = new HandoffManager({ client, models: config.models });
+  let client = createClient(currentConfig);
+  const handoff = new HandoffManager({ client, models: currentConfig.models });
   const pipeline = new Pipeline({
     cache,
     handoff,
-    tokenBudget: config.tokenBudget,
+    tokenBudget: currentConfig.tokenBudget,
   });
-  return { cache, handoff, pipeline, client, config, backend: cacheBackend };
+
+  const engine = {
+    cache,
+    handoff,
+    pipeline,
+    get client() {
+      return client;
+    },
+    get config() {
+      return currentConfig;
+    },
+    backend: cacheBackend,
+    reconfigure(newConfig: AppConfig) {
+      currentConfig = newConfig;
+      client = createClient(newConfig);
+      handoff.setClient(client);
+      handoff.setModels(newConfig.models);
+      pipeline.tokenBudget = newConfig.tokenBudget;
+      return engine;
+    },
+  };
+
+  return engine;
 }
 
 export type Engine = ReturnType<typeof createEngine>;
 
 /** Picks the completion client for the configured provider. */
 function createClient(config: AppConfig): ProviderClient {
+  if (config.provider === 'ollama') {
+    return new OpenAiClient({ apiKey: 'ollama', baseUrl: config.ollamaBaseUrl });
+  }
+  if (config.provider === 'lmstudio') {
+    return new OpenAiClient({ apiKey: 'lm-studio', baseUrl: config.lmstudioBaseUrl });
+  }
+  if (config.provider === 'local') {
+    return new OpenAiClient({ apiKey: 'local', baseUrl: config.localBaseUrl });
+  }
   if (config.provider === 'openai') {
     return new OpenAiClient({ apiKey: config.openaiApiKey, baseUrl: config.openaiBaseUrl });
   }

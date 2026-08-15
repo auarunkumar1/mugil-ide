@@ -53,6 +53,20 @@ describe('Pipeline', () => {
     expect(result.refine.appliedStrategies.length).toBeGreaterThan(0);
   });
 
+  it('serves cache entries only for the same explicitly requested model', async () => {
+    const pipeline = makePipeline();
+    const prompt = 'Refactor this cache key.';
+    const first = await pipeline.ask(prompt, { preferredModel: 'cheap-1' });
+    expect(first.cache.hit).toBe(false);
+    // A different explicitly-requested model must not get the cached answer.
+    const second = await pipeline.ask(prompt, { preferredModel: 'other-1' });
+    expect(second.cache.hit).toBe(false);
+    expect(second.model).toBe('other-1');
+    // The same model again hits the cache.
+    const third = await pipeline.ask(prompt, { preferredModel: 'cheap-1' });
+    expect(third.cache.hit).toBe(true);
+  });
+
   it('respects noCache', async () => {
     const pipeline = makePipeline();
     const prompt = 'Explain recursion.';

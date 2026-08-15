@@ -66,13 +66,21 @@ export function rtkStrategy(text: string): StrategyResult {
     return '';
   });
 
-  // De-duplicate repeated sentences (case-insensitive, whitespace-normalized).
+  // Preserve markdown code blocks from being flattened
+  const codeBlocks: string[] = [];
+  let masked = out.replace(/```[\s\S]*?```/g, (m) => {
+    codeBlocks.push(m);
+    return `__RTK_CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+
+  // De-duplicate repeated sentences in prose (case-insensitive, whitespace-normalized).
   const seen = new Set<string>();
-  out = out
+  masked = masked
     .split(/(?<=[.!?])\s+|\n+/)
     .filter((chunk) => {
       const norm = chunk.trim().toLowerCase();
       if (norm.length === 0) return false;
+      if (norm.startsWith('__rtk_code_block_')) return true;
       if (seen.has(norm)) {
         removed.push(chunk);
         return false;
@@ -82,7 +90,8 @@ export function rtkStrategy(text: string): StrategyResult {
     })
     .join(' ');
 
-  out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
+  masked = masked.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
+  out = masked.replace(/__RTK_CODE_BLOCK_(\d+)__/g, (_, idx) => codeBlocks[Number(idx)] ?? '');
   const changed = out !== text;
   return { text: out.trim(), changed, removed };
 }

@@ -10,6 +10,9 @@ export interface ProviderInfo {
   keyVar: string;
   modelsVar: string;
   baseVar: string;
+  defaultBaseUrl?: string;
+  defaultPort?: string;
+  isLocal?: boolean;
   custom?: boolean;
 }
 
@@ -39,22 +42,37 @@ export const PROVIDERS: ProviderInfo[] = [
     baseVar: 'ANTHROPIC_BASE_URL',
   },
   {
-    id: 'openai-custom',
-    label: 'OpenAI-compatible endpoint (custom base URL)',
-    signup: '',
-    keyVar: 'OPENAI_API_KEY',
-    modelsVar: 'OPENAI_MODELS',
-    baseVar: 'OPENAI_BASE_URL',
-    custom: true,
+    id: 'ollama',
+    label: 'Ollama (Local AI)',
+    signup: 'https://ollama.ai',
+    keyVar: 'OLLAMA_API_KEY',
+    modelsVar: 'OLLAMA_MODELS',
+    baseVar: 'OLLAMA_BASE_URL',
+    defaultBaseUrl: 'http://localhost:11434/v1',
+    defaultPort: '11434',
+    isLocal: true,
   },
   {
-    id: 'anthropic-custom',
-    label: 'Anthropic-compatible endpoint (custom base URL)',
+    id: 'lmstudio',
+    label: 'LM Studio (Local AI)',
+    signup: 'https://lmstudio.ai',
+    keyVar: 'LMSTUDIO_API_KEY',
+    modelsVar: 'LMSTUDIO_MODELS',
+    baseVar: 'LMSTUDIO_BASE_URL',
+    defaultBaseUrl: 'http://localhost:1234/v1',
+    defaultPort: '1234',
+    isLocal: true,
+  },
+  {
+    id: 'local',
+    label: 'Custom Local / OpenAI Endpoint',
     signup: '',
-    keyVar: 'ANTHROPIC_API_KEY',
-    modelsVar: 'ANTHROPIC_MODELS',
-    baseVar: 'ANTHROPIC_BASE_URL',
-    custom: true,
+    keyVar: 'LOCAL_API_KEY',
+    modelsVar: 'LOCAL_MODELS',
+    baseVar: 'LOCAL_BASE_URL',
+    defaultBaseUrl: 'http://localhost:8000/v1',
+    defaultPort: '8000',
+    isLocal: true,
   },
 ];
 
