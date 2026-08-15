@@ -318,6 +318,24 @@ export function mugilStripCodeSignatures(code: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Ponytail output budget (max_tokens cap)
+// ---------------------------------------------------------------------------
+
+/**
+ * Ponytail output budget: hard cap on completion tokens, or undefined when
+ * disabled. Default 8192; override with `MUGIL_IDE_OUTPUT_BUDGET`.
+ */
+export function mugilOutputBudget(): number | undefined {
+  if (!ENABLED) return undefined
+  const raw = process.env.MUGIL_IDE_OUTPUT_BUDGET
+  if (raw !== undefined) {
+    const n = Number(raw)
+    if (Number.isFinite(n) && n > 0) return Math.floor(n)
+  }
+  return 8192
+}
+
+// ---------------------------------------------------------------------------
 // Combined pipeline transforms
 // ---------------------------------------------------------------------------
 
