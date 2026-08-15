@@ -48,12 +48,12 @@ and **tools** (`packages/opencode/src/tool/`). Graft targets:
 | Mugil module | Graft point | Status |
 | --- | --- | --- |
 | `signature-remover` | Pre-request prompt transform (user prompt → LLM). | ✅ Grafted (see Graft status above) |
-| `caveman` + `rtk` | Pre-request prompt refinement / command-output compression (tool result transform). | ✅ Grafted — pre-request chain; tool-output compression not yet wired (M2) |
-| `ponytail` | Output-minimization system instruction + completion `max_tokens` cap (LLM call options). | ✅ Grafted — system instruction; `max_tokens` cap not yet wired (M2) |
+| `caveman` + `rtk` | Pre-request prompt refinement / command-output compression (tool result transform). | ✅ Grafted — pre-request chain + `mugilCompressOutput` on tool results |
+| `ponytail` | Output-minimization system instruction + completion `max_tokens` cap (LLM call options). | ✅ Grafted — system instruction + `mugilOutputBudget` cap (default 8192, `MUGIL_IDE_OUTPUT_BUDGET`) |
 | `watermark-remover` | Post-generation transform (strip AI provenance marks from assistant text). | ✅ Grafted (see Graft status above) |
-| `smart-cache` | Response cache keyed by prompt+model in the LLM call path (`session/llm/`). | To graft (M2) |
-| `codegraph` | Keep as standalone `mugil-ide graph` command + optional custom tool. | Keep (M3) |
-| `webhooks` | Port to an OpenCode **hook** (`hook/*`) firing on message/tool events. | To graft (M2) |
+| `smart-cache` | Response cache keyed by prompt+model in the LLM call path (`session/llm/`). | ✅ Grafted — exact tier (`src/mugil/cache.ts`), tool-call bypass, file backend |
+| `codegraph` | Keep as standalone `mugil-ide graph` command + optional custom tool. | ✅ Keep — verified building + running |
+| `webhooks` | Port to an OpenCode **hook** (`hook/*`) firing on message/tool events. | ✅ Grafted — `src/mugil/webhooks.ts` mapped from `session.next.*` events |
 | `modules/sessions.ts` | Superseded by OpenCode's session store. | Drop |
 | MCP server (`@mugil-ide/mcp`) | Standalone product — OpenCode is an MCP *client*, not server. | Keep |
 | `modules/undo.ts`, `skills`, `tools/*` | Superseded by OpenCode's built-ins (better tested). | Drop |
@@ -65,11 +65,11 @@ and **tools** (`packages/opencode/src/tool/`). Graft targets:
   (they exercise the legacy components directly).
 - **M1 — graft engine addons.** ✅ Done — see "Graft status (M1)" below.
   Signature/caveman/rtk run as a pre-request chain, ponytail is a system
-  instruction, watermark removal is post-generation. Remaining M1 remnants
-  deferred to M2: RTK command-output compression on tool results and the
-  ponytail `max_tokens` cap.
-- **M2 — smart-cache + webhooks.** Cache layer in `session/llm/`, webhook
-  hook.
+  instruction, watermark removal is post-generation.
+- **M2 — remaining addon grafts.** ✅ Done (2026-08-15): RTK
+  `compressCommandOutput` on tool results, ponytail `max_tokens` cap,
+  smart-cache exact tier in the LLM call path, and webhooks mapped from the
+  `session.next.*` event bus. All typecheck-clean and probed live.
 - **M3 — retire legacy.** Delete `packages/cli/src/components/app.tsx` +
   `packages/core/src/modules/tool-loop` + handoff pipeline once parity is
   proven; keep `codegraph`, MCP server, and the crediting/attribution
