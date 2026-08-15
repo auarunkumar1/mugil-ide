@@ -19,6 +19,15 @@ export function modelSupportsThinking(id: string): boolean {
   );
 }
 
+/**
+ * Whether a model can call tools. Conservative default true — every current
+ * provider's models support function calling; per-model catalog data (e.g.
+ * OpenRouter `supported_parameters`) refines this when available.
+ */
+export function modelSupportsTools(_id: string): boolean {
+  return true;
+}
+
 /** Default OpenRouter model ladder used when OPENROUTER_MODELS is not set. */
 export const DEFAULT_OPENROUTER_MODELS: ModelSpec[] = [
   { id: 'openrouter/auto', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },

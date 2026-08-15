@@ -428,6 +428,41 @@ describe('tool calling (OpenAI family)', () => {
   });
 });
 
+describe('tool-calling capability detection', () => {
+  it('marks OpenRouter models that advertise tools support', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        data: [
+          { id: 'a/model-with-tools', supported_parameters: ['temperature', 'tools'] },
+          { id: 'b/model-without-tools', supported_parameters: ['temperature'] },
+          { id: 'c/no-parameter-info' },
+        ],
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    // Distinct baseUrl so this does not collide with the fetchProviderModels
+    // suite's cache key (`openrouter:default:auth`).
+    const models = await fetchProviderModels({
+      provider: 'openrouter',
+      apiKey: 'test-key',
+      baseUrl: 'https://openrouter.detect/v1',
+    });
+    expect(models.find((m) => m.id === 'a/model-with-tools')!.supportsTools).toBe(true);
+    expect(models.find((m) => m.id === 'b/model-without-tools')!.supportsTools).toBe(false);
+    expect(models.find((m) => m.id === 'c/no-parameter-info')!.supportsTools).toBe(true); // default true
+  });
+
+  it('defaults Ollama models to tool support', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({ data: [{ id: 'llama3.2:latest' }] }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    // Distinct baseUrl to avoid the fetchProviderModels suite's cache key.
+    const models = await fetchProviderModels({ provider: 'ollama', baseUrl: 'http://ollama.detect:11434/v1' });
+    expect(models[0]!.supportsTools).toBe(true);
+  });
+});
+
 describe('fetchProviderModels', () => {
   it('fetches models from OpenRouter endpoint', async () => {
     const fetchMock = jest.fn().mockResolvedValue(
