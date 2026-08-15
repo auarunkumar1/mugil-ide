@@ -8,6 +8,7 @@ import type { Agent } from "@/agent/agent"
 import type { MessageV2 } from "../message-v2"
 import type { Provider } from "@/provider/provider"
 import { ProviderTransform } from "@/provider/transform"
+import { mugilOutputBudget } from "@/mugil"
 import { SystemPrompt } from "../system"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { Effect, Record } from "effect"
@@ -111,6 +112,8 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
           ...input.messages,
         ]
 
+  // Mugil graft: ponytail output budget caps the completion tokens.
+  const mugilBudget = mugilOutputBudget()
   const params = yield* input.plugin.trigger(
     "chat.params",
     {
@@ -126,7 +129,9 @@ export const prepare = Effect.fn("LLMRequestPrep.prepare")(function* (input: Pre
         : undefined,
       topP: input.agent.topP ?? ProviderTransform.topP(input.model),
       topK: ProviderTransform.topK(input.model),
-      maxOutputTokens: ProviderTransform.maxOutputTokens(input.model, input.flags.outputTokenMax),
+      maxOutputTokens: mugilBudget
+        ? Math.min(ProviderTransform.maxOutputTokens(input.model, input.flags.outputTokenMax), mugilBudget)
+        : ProviderTransform.maxOutputTokens(input.model, input.flags.outputTokenMax),
       options,
     },
   )
