@@ -40,6 +40,8 @@ export interface ModelSpec {
   costPerMTokOut: number;
   contextWindow: number;
   supportsThinking?: boolean;
+  /** Whether the model can call tools. Populated from catalog data when available. */
+  supportsTools?: boolean;
 }
 
 export interface CompletionResult {
