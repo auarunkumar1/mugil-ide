@@ -10,6 +10,14 @@ Three-layer response cache, checked in order of cost:
 Backends: in-memory (default), Redis (`REDIS_URL`), or file
 (`MUGIL_IDE_CACHE_DIR`). All entries have a TTL.
 
+**Model-scoped entries.** `lookup(prompt, { model })` and
+`store(prompt, response, model, usage, keyModel)` namespace the key by the
+requested model, and the partial/semantic layers only match entries stored
+under the same scope — so a cached answer produced under one selected model
+(e.g. DeepSeek) is never served for another (e.g. a local Ollama model).
+`openrouter/auto` is exempt and keeps a shared cache because it routes
+dynamically.
+
 **Credits:** Redis for the distributed backend; the exact/semantic caching
 pattern from OpenAI's embedding docs. See
 [ATTRIBUTIONS.md](../../../../ATTRIBUTIONS.md).

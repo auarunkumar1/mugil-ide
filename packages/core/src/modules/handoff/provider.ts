@@ -1,10 +1,12 @@
-import type { ChatMessage, CompletionResult } from '../../types.js';
+import type { ChatMessage, CompletionResult, ThinkingLevel } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 
 export interface ProviderCompleteOptions {
   model: string;
   maxTokens?: number;
   temperature?: number;
+  thinkingLevel?: ThinkingLevel;
+  thinkingBudgetTokens?: number;
 }
 
 /**

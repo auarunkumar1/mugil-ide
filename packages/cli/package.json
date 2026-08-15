@@ -11,6 +11,8 @@
     "dist"
   ],
   "scripts": {
+    "dev": "npm run build && node dist/index.js",
+    "start": "node dist/index.js",
     "prepack": "npm run build",
     "prebuild": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
     "pretypecheck": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",

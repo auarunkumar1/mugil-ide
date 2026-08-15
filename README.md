@@ -34,8 +34,8 @@ The engine is a set of **separate, credited modules** — see
 | **Ponytail** | Output minimization — "laziest senior dev" instruction + output budget | [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) |
 | **Signature Remover** | Strips Anthropic/OpenAI prompt signatures **and** AI-generated code signatures (headers, attribution comments, watermark chars) | Anthropic/OpenAI formats; community de-AI tooling |
 | **Watermark Remover** | Strips AI provenance watermarks from generated text — invisible Unicode carriers (zero-width chars, bidi, tag chars, exotic spaces) and vendor attribution lines | [guillaumemeyer/watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) |
-| **Smart Cache** | `exact` → `partial` (prefix + delta) → `semantic` (embedding similarity); memory / Redis / file backends with TTL | Redis; semantic-caching pattern |
-| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic clients with cost-based routing and automatic fallback chains; offline mock mode | [OpenRouter](https://openrouter.ai) |
+| **Smart Cache** | `exact` → `partial` (prefix + delta) → `semantic` (embedding similarity); memory / Redis / file backends with TTL; entries can be scoped to the requested model so one model's answer is never served for another | Redis; semantic-caching pattern |
+| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); offline mock mode | [OpenRouter](https://openrouter.ai) |
 | **Auto Update Manager** | Versioned, updatable module rules (JSON) + check/apply/periodic-watch against a registry + npm version check | — |
 | **MCP Server** | Engine modules as MCP tools (`ask`, `refine_prompt`, `count_tokens`, `strip_*`, `compress_command_output`, `list_models`) over stdio | [Model Context Protocol](https://modelcontextprotocol.io) |
 | **MD Generator** | Automated markdown docs from source (exports, classes, JSDoc) + token cost of the doc; periodic `--watch` mode | — |
@@ -53,7 +53,7 @@ From source:
 ```bash
 npm install
 npm run build          # builds all packages
-npm test               # 153 unit tests
+npm test               # 174 unit tests
 npm run typecheck
 ```
 
@@ -89,6 +89,7 @@ node packages/cli/dist/index.js run "Write a recursive fibonacci function in Typ
 # options
 node packages/cli/dist/index.js run --json --no-refine "prompt"
 node packages/cli/dist/index.js run -m anthropic/claude-3.5-sonnet "prompt"
+node packages/cli/dist/index.js run -t medium "prompt"           # thinking level: off | low | medium | high
 node packages/cli/dist/index.js run --no-ponytail "prompt"        # disable output minimization
 node packages/cli/dist/index.js run --output-budget 512 "prompt"  # cap completion tokens
 ```
@@ -108,14 +109,23 @@ The TUI shows a live status line while a request runs (pipeline stage + token
 counts streaming as they happen) with an animated spinner, and supports
 slash commands:
 
+- `/model` — open the model-selection dropdown (fetches the active provider's
+  catalog; includes a "Custom Model ID…" entry at the end). The chosen model
+  is **authoritative**: requests never silently fall back to a different model
+  from the ladder, and the cache is scoped per selected model
+- `/thinking` — pick a **thinking level**: `off` / `low` / `medium` / `high`
+- `/thinking-view` — show/hide the model's reasoning output (💭) when the
+  provider returns it
+- `/accounts` — provider & local-AI setup (OpenRouter / OpenAI / Anthropic /
+  Ollama / LM Studio / custom local endpoint; saves keys + base URLs)
+- `/clear-cache` — purge cached responses
 - `/plan` / `/act` — switch between **plan** (numbered plan only, no code)
   and **act** modes; shown in the header
-- `/thinking` — show/hide the model's reasoning/thinking output (💭) when the
-  provider returns it
 - `/quit` / `/exit` — leave
 
-Both preferences persist across sessions in the user env file
-(`MUGIL_IDE_TUI_MODE`, `MUGIL_IDE_TUI_THINKING` — same file `login` uses).
+Preferences persist across sessions in the user env file (`MUGIL_IDE_TUI_MODE`,
+`MUGIL_IDE_TUI_THINKING`, `MUGIL_IDE_MODEL`, `MUGIL_IDE_THINKING_LEVEL` — the
+same file `login` uses).
 
 ### Markdown documentation
 
@@ -180,10 +190,34 @@ mugil-ide logout openai                  # remove one provider's key
 mugil-ide logout --all                   # remove every saved key
 ```
 
-Providers: **OpenRouter (primary)**, OpenAI, Anthropic, plus custom
-OpenAI- or Anthropic-compatible endpoints (custom base URL). The engine
-picks the provider automatically — OpenRouter wins when its key is set,
-then OpenAI, then Anthropic — or force one with `AI_PROVIDER`.
+Providers: **OpenRouter (primary)**, OpenAI, Anthropic, plus **Ollama**,
+**LM Studio**, and generic local OpenAI-compatible endpoints — connect any of
+them from the TUI with `/accounts` (local providers default to
+`http://localhost:11434/v1`, `:1234/v1`, `:8000/v1`). The engine picks the
+provider automatically — OpenRouter wins when its key is set, then OpenAI,
+then Anthropic — or force one with `AI_PROVIDER`
+(`openrouter | openai | anthropic | ollama | lmstudio | local`).
+
+### Provider setup in the TUI — `/accounts`
+
+You don't need to leave the chat to connect a provider. Type `/accounts` and
+a menu lists every provider with its connection state
+(`[Connected: sk-••••abcd]` / `[Not Configured]`). Navigate with **↑/↓**,
+press **Enter** to pick one, and **Esc** to return to chat.
+
+- **Cloud providers (OpenRouter / OpenAI / Anthropic)** — select the
+  provider, paste your API key (it's masked as you type), press Enter. The
+  key is saved to the user env file and the provider becomes active
+  immediately — just start typing prompts.
+- **Local AI (Ollama / LM Studio / custom endpoint)** — select the provider
+  and press Enter to use its default port (`11434`, `1234`, `8000`), or type
+  a custom port / full URL. The TUI probes the endpoint and **auto-discovers
+  your installed models**; open `/model` afterwards to pick which one to chat
+  with. The selected model is authoritative — requests never silently fall
+  back to a different model.
+
+Everything is saved in the same user env file `login` uses — see it masked
+with `mugil-ide keys` and remove a provider with `mugil-ide logout <name>`.
 
 ### Code graph — `mugil-ide graph`
 
@@ -223,10 +257,16 @@ The npm packages use the `@mugil-ide/*` scope, matching the product brand
 | `ANTHROPIC_API_KEY` | — | Anthropic completions |
 | `ANTHROPIC_MODELS` | claude-3-5-haiku, claude-3-5-sonnet, claude-sonnet-4 | Anthropic model ladder |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Anthropic-compatible endpoint base URL |
-| `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` |
+| `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` \| `ollama` \| `lmstudio` \| `local` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint (local AI) |
+| `OLLAMA_MODELS` | llama3.2, deepseek-r1:8b, qwen2.5-coder, mistral | Ollama model ladder (discovered models are written here by `/accounts`) |
+| `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | LM Studio endpoint |
+| `LOCAL_BASE_URL` | `http://localhost:8000/v1` | Generic local / OpenAI-compatible endpoint |
 | `MUGIL_IDE_ENV_FILE` | `~/.config/mugil-ide/.env` | User env file storing saved API keys |
 | `MUGIL_IDE_TUI_MODE` | `act` | Persisted TUI mode: `act` \| `plan` |
-| `MUGIL_IDE_TUI_THINKING` | `hide` | Persisted TUI thinking pref: `show` \| `hide` |
+| `MUGIL_IDE_TUI_THINKING` | `hide` | Persisted TUI thinking-output pref: `show` \| `hide` |
+| `MUGIL_IDE_MODEL` | first model in ladder | Persisted TUI model selection (written by `/model`) |
+| `MUGIL_IDE_THINKING_LEVEL` | `off` | Persisted TUI thinking level: `off` \| `low` \| `medium` \| `high` (written by `/thinking`) |
 | `REDIS_URL` | — | Redis cache (single node); absent → file cache |
 | `REDIS_CLUSTER_URLS` | — | Comma-separated node URLs; enables the Redis Cluster backend (used when `REDIS_URL` is unset) |
 | `MUGIL_IDE_CACHE_DIR` | `~/.cache/mugil-ide` | File-cache location |
@@ -281,6 +321,7 @@ to MCP clients via `PipelineEvent`s.
 - ✅ Registration + API-key management — `login`/`logout`/`keys` commands; safe key saving in a user-level env file (0600) for OpenRouter (primary), OpenAI, and Anthropic providers, incl. custom compatible endpoints
 - ✅ Codegraph module (credited to `colbymchenry/codegraph`; symbols, import + call edges, context queries via `mugil-ide graph`)
 - ✅ Release tooling (`npm run release`: version/bump/pack/tag; `--publish` ships in dependency order)
+- ✅ Multi-provider model selection — TUI `/model` dropdown, thinking levels, in-chat `/accounts` provider setup (OpenRouter / OpenAI / Anthropic / Ollama / LM Studio / local endpoints), `@file` attachment, `/clear-cache`; an explicitly chosen model is authoritative (no silent ladder fallback) and the cache is scoped per model
 
 ## License
 

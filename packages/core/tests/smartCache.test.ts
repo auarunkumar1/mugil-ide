@@ -44,6 +44,26 @@ describe('SmartCache', () => {
     expect(entry).toBeUndefined();
   });
 
+  it('scopes exact entries to the requested model', async () => {
+    const cache = makeCache();
+    await cache.store('Write a fibonacci function.', 'fib A', 'model-a', undefined, 'model-a');
+    const other = await cache.lookup('Write a fibonacci function.', { model: 'model-b' });
+    expect(other.entry).toBeUndefined();
+    const own = await cache.lookup('Write a fibonacci function.', { model: 'model-a' });
+    expect(own.kind).toBe('exact');
+    expect(own.entry?.response).toBe('fib A');
+  });
+
+  it('semantic hits respect the model scope', async () => {
+    const cache = makeCache(0.3);
+    await cache.store('How do I sort an array of numbers?', 'Use .sort()', 'm-a', undefined, 'm-a');
+    const other = await cache.lookup('What is the best way to sort a list of numbers?', { model: 'm-b' });
+    expect(other.entry).toBeUndefined();
+    const own = await cache.lookup('What is the best way to sort a list of numbers?', { model: 'm-a' });
+    expect(own.kind).toBe('semantic');
+    expect(own.entry?.response).toBe('Use .sort()');
+  });
+
   it('partial hit returns the delta', async () => {
     const cache = makeCache();
     await cache.store('Write a function that adds two numbers.', 'add(a, b)', 'm');

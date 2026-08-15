@@ -48,7 +48,13 @@ npm workspaces monorepo — packages in `packages/*`, root is private.
   (lexical fallback + OpenAI-compatible remote).
 - `modules/handoff` — provider clients (`OpenRouterClient`, `OpenAiClient`,
   `AnthropicClient` behind a shared `ProviderClient` interface) +
-  `HandoffManager` (cost-based routing, fallback chains, offline mock mode).
+  `HandoffManager` (cost-based routing, fallback chains, offline mock mode)
+  and `models.ts` (`fetchProviderModels` — per-provider catalog probes for
+  OpenRouter / OpenAI / Anthropic / Ollama / LM Studio / local endpoints,
+  with an in-memory 60s cache and curated fallback ladders when offline).
+- `contextResolver.ts` — `resolveFileContext()`: `@file` / `@path` attachment
+  support used by the TUI prompt box (resolves paths relative to the cwd and
+  injects file contents).
 - `update/updateManager.ts` — check / apply / periodic watch against a module
   registry + npm registry.
 - `token/tokenizer.ts` — tiktoken loaded **lazily** (type-only import + guarded
@@ -104,8 +110,11 @@ and an `ATTRIBUTIONS.md` entry; rules live in versioned JSON and are updatable:
 
 **Engine subsystems** (`packages/core/src`) — `smart-cache` (exact → partial →
 semantic; memory / file / Redis(+Cluster) backends; lexical + OpenAI-compatible
-embeddings), `handoff` (OpenRouter client, cost-based routing, fallback chains,
-offline mock), `pipeline` (signature → refine → cache → handoff → store,
+embeddings; **model-scoped keys** — see gotcha 9), `handoff` (OpenRouter /
+OpenAI / Anthropic / Ollama / LM Studio / local clients, cost-based routing,
+fallback chains, offline mock; an explicitly requested model is
+**authoritative** and never silently escalates into the ladder — see
+gotcha 9), `pipeline` (signature → refine → cache → handoff → store,
 streaming `PipelineEvent`s), `refine` (caveman → rtk → truncate), `token`
 (lazy tiktoken + estimator), `update` (UpdateManager check/apply/watch),
 `branding`, `browser.ts` (browser-safe entry), `config` / `createEngine`.
@@ -117,9 +126,11 @@ streaming `PipelineEvent`s), `refine` (caveman → rtk → truncate), `token`
 
 ```bash
 npm install
+npm run dev           # build and launch the interactive TUI
+npm start             # launch the interactive TUI directly
 npm run build         # all packages
 npm run typecheck     # all packages
-npm run test          # 153 tests across 4 packages (incl. cli command + TUI suites)
+npm run test          # 174 tests across 4 packages (incl. cli command + TUI suites)
 npm run lint          # eslint (flat config, eslint.config.mjs)
 npm run pack          # build + pack all four tarballs into dist-packages/
 npm run release       # release plan (dry-run) — --bump / --publish for real
@@ -141,15 +152,73 @@ See `.env.example`. The important ones:
 | `OPENROUTER_MODELS` | OpenRouter model ladder (cheap → smart) |
 | `OPENAI_API_KEY` / `OPENAI_MODELS` / `OPENAI_BASE_URL` | OpenAI completions + ladder + compatible-endpoint base URL |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODELS` / `ANTHROPIC_BASE_URL` | Anthropic completions + ladder + compatible-endpoint base URL |
-| `AI_PROVIDER` | Force the completion provider: `openrouter` \| `openai` \| `anthropic` |
+| `AI_PROVIDER` | Force the completion provider: `openrouter` \| `openai` \| `anthropic` \| `ollama` \| `lmstudio` \| `local` |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODELS` | Ollama endpoint (default `http://localhost:11434/v1`) + model ladder; `OLLAMA_API_KEY` is set to `local` on connect |
+| `LMSTUDIO_BASE_URL` / `LMSTUDIO_MODELS` | LM Studio endpoint (default `http://localhost:1234/v1`) + ladder |
+| `LOCAL_BASE_URL` / `LOCAL_MODELS` | Generic local/OpenAI-compatible endpoint (default `http://localhost:8000/v1`) + ladder |
 | `MUGIL_IDE_ENV_FILE` | User env file storing saved API keys (default `~/.config/mugil-ide/.env`) |
-| `MUGIL_IDE_TUI_MODE` / `MUGIL_IDE_TUI_THINKING` | Persisted TUI prefs: plan/act mode + show/hide thinking (written by `/plan` `/act` `/thinking`) |
+| `MUGIL_IDE_TUI_MODE` / `MUGIL_IDE_TUI_THINKING` | Persisted TUI prefs: plan/act mode + show/hide thinking output (written by `/plan` `/act` `/thinking-view`) |
+| `MUGIL_IDE_MODEL` / `MUGIL_IDE_THINKING_LEVEL` | Persisted TUI model selection + thinking level (`off` \| `low` \| `medium` \| `high`; written by `/model` `/thinking`) |
 | `REDIS_URL` / `REDIS_CLUSTER_URLS` | Redis cache (single / multi-node cluster) |
 | `MUGIL_IDE_CACHE_DIR` | File-cache location (default `~/.cache/mugil-ide`) |
 | `CACHE_TTL`, `TOKEN_BUDGET` | Cache TTL (s), per-prompt token budget |
 | `MUGIL_IDE_MODULES_REGISTRY` | Remote rules registry for `mugil-ide update` |
 | `MUGIL_IDE_MODULES_DIR` | Local rules override store (`~/.config/mugil-ide/modules`) |
 | `NODE_ENV` | `test` makes caches hermetic; controls override-store gating |
+
+## Provider setup flow (`/accounts`)
+
+Type `/accounts` (aliases `/account`, `/login`) in the TUI to open the
+`AccountsMenu` (`packages/cli/src/components/accounts.tsx`) — an in-TUI
+superset of the standalone `mugil-ide login` wizard. It renders as a modal
+(the chat input is hidden until you close it with Esc / `q` or the
+"← Back to Chat" entry). Both UIs share one source of truth: the
+`PROVIDERS` table in `packages/cli/src/components/login.tsx`.
+
+| Provider | Kind | Flow | Defaults |
+| --- | --- | --- | --- |
+| OpenRouter (primary) | remote | paste API key | — |
+| OpenAI | remote | paste API key | `https://api.openai.com/v1` |
+| Anthropic | remote | paste API key | `https://api.anthropic.com` |
+| Ollama (Local AI) | local | port / endpoint probe | `http://localhost:11434/v1` (:11434) |
+| LM Studio (Local AI) | local | port / endpoint probe | `http://localhost:1234/v1` (:1234) |
+| Custom Local / OpenAI Endpoint | local | port / endpoint probe | `http://localhost:8000/v1` (:8000) |
+
+Each row shows its connection state — `[Connected: <masked key or base URL>]`
+(via `maskKey`: first 4 + `••••` + last 4) or `[Not Configured]`. A provider
+counts as connected when it is the active `config.provider`, its key var is
+set in the user env file, or the matching `*ApiKey` is in config.
+
+**Remote flow** (OpenRouter / OpenAI / Anthropic): select the provider →
+paste the API key (masked `•` input) → Enter. `handleKeySubmit` writes
+`{ <KEY_VAR>: key, AI_PROVIDER: <id> }` (plus the base URL if one was
+entered) to the user env file **and** `process.env`, then calls
+`onKeyUpdated()` → `ChatApp.reloadConfig()` → `engine.reconfigure()` — the
+new provider is live immediately. Success screen shows "API key saved!".
+
+**Local flow** (Ollama / LM Studio / local): select the provider →
+"Connect <label>:" shows the default endpoint; Enter accepts the default
+port, or type a port number (→ `http://localhost:<port>/v1`) or a full URL
+(`/v1` is appended when missing). `handlePortSubmit` writes
+`{ AI_PROVIDER: <id>, <BASE_VAR>: endpoint, <KEY_VAR>: 'local' }`, then
+probes the endpoint with `fetchProviderModels()` (OpenAI-style `/v1/models`
+first, Ollama's native `/api/tags` as a fallback):
+
+- models found → their IDs are written to `<MODELS_VAR>` (e.g.
+  `OLLAMA_MODELS`) and the success screen reports "Discovered N model(s): …";
+- reachable but empty / probe error → endpoint saved anyway, with a hint to
+  pick a model via `/model` afterwards.
+
+Either way `onKeyUpdated()` fires, so config and the handoff ladder reload
+with the discovered catalog, and `/model` then lists the real local models
+(see gotcha 9 — an explicit selection survives the refresh).
+
+Everything persists in the user env file (`MUGIL_IDE_ENV_FILE`, default
+`~/.config/mugil-ide/.env`, 0600) — the same store `mugil-ide login` /
+`keys` / `logout` use — and `AI_PROVIDER` is always written, so the chosen
+provider takes effect without restarting. Provider precedence still applies:
+when no `AI_PROVIDER` is set, OpenRouter wins if its key is present, then
+OpenAI, then Anthropic (see `loadConfig()` in `config.ts`).
 
 ## Conventions & gotchas (learned the hard way)
 
@@ -180,11 +249,40 @@ See `.env.example`. The important ones:
    (`tests/helpers/renderApp.ts`) with a real `Readable`-based fake stdin
    that (a) resolves only after ink attaches its input listener, (b) pushes
    text and `\r` as separate chunks — Node merges synchronous pushes into one
-   `read()` — and (c) delays Enter until React has re-rendered, because
-   ink-text-input submits the value captured in its closure and a premature
-   Enter submits a stale empty string. Note the input placeholder literally
-   contains `/plan · /act · /thinking`, so don't try to detect typing via
-   frame contents.
+   `read()` — (c) tracks and cleans up timers on unmount to prevent open-handle
+   leaks, and (d) strips ANSI escape codes (`stripAnsi`) in `lastFrame()` so
+   style/color codes do not break substring assertions. Tests use async
+   `waitFor(...)` polling rather than static sleep timers. Note the input
+   placeholder literally contains `/model · /thinking · /accounts · /plan`,
+   so don't try to detect typing via frame contents.
+8. **Logo ASCII Art & Pseudo-3D**: `LOGO_GRID` glyphs in `branding.ts` have
+   strictly uniform width per row (64 chars total per row) to ensure clean
+   monospace alignment across terminals. `MugilLogo` implements pseudo-3D
+   directional surface lighting (top/left highlights, base/right drop shadows),
+   a traveling specular sheen beam, and disables animation timers during
+   `NODE_ENV === 'test'`.
+9. **Model selection is authoritative — never silently swapped**: three layers
+   enforce that a user-picked model is what actually answers. (a) `HandoffManager`
+   pins the chain to `[preferred, ...fallbackChain]` when `preferredModel` is
+   set — it does **not** escalate into the rest of the ladder on failure, so a
+   failed local model surfaces an error instead of a DeepSeek response from the
+   fallback ladder. Only auto-routing (no `preferredModel`) walks the full
+   ladder. (b) `SmartCache` scopes entries by the requested model
+   (`lookup(prompt, { model })` / `store(..., keyModel)`) — a cached answer
+   produced under one selection is never served for another; `openrouter/auto`
+   stays shared because it routes dynamically. (c) The TUI never clobbers an
+   explicit pick: background catalog refreshes only replace the *untouched
+   config default*, `reloadConfig()` only resets the selection when the provider
+   actually changed, and catalog matching ignores Ollama's `:latest` tag alias
+   (`llama3.2` ↔ `llama3.2:latest`).
+10. **Dropdown navigation clamps, it does not wrap**: `Dropdown`'s ↑/↓ clamp at
+    the ends instead of wrapping around. Wrap-around + a leading pseudo-item
+    ("✏ Custom Model ID…") used to jump the cursor there on a single ↓ press;
+    Enter then launched the custom-model screen mid-conversation and swallowed
+    the user's typing ("the UI breaks"). The custom entry now sits at the *end*
+    of the model list, and the initial highlight always lands on a real model.
+    Note the dropdown can open with the small config-default catalog while the
+    real provider catalog is still loading — keep Enter safe at that size too.
 
 ## Status / roadmap
 
@@ -197,9 +295,13 @@ safe env-file key storage plus OpenAI/Anthropic provider clients — and the
 **codegraph** module (symbols, import + call edges, context queries), release
 tooling (`npm run release`: bump/pack/tag, `--publish` in dependency order),
 and TUI polish (animated working spinner, live pipeline/token streaming,
-`/plan` `/act` modes, `/thinking` show/hide), plus **automated CLI + TUI test
-suites** (spawned-binary command tests + ink-rendered ChatApp behavior
-tests). **153 tests pass.**
+`/plan` `/act` modes, thinking levels via `/thinking` (off/low/medium/high),
+`/thinking-view` show/hide, `/model` selection dropdown with custom model IDs,
+`/accounts` provider & local-AI setup menu (Ollama / LM Studio / local
+endpoints), `/clear-cache`, `@file` attachment, pseudo-3D logo with specular
+wave and monospace alignment), plus **automated CLI + TUI test suites**
+(spawned-binary command tests + ink-rendered ChatApp behavior tests).
+**174 tests pass.**
 
 ### Pending todos
 

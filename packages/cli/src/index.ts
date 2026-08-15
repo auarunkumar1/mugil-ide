@@ -34,6 +34,7 @@ program
   .option('--no-cache', 'skip the cache')
   .option('--no-ponytail', 'disable output minimization')
   .option('--output-budget <tokens>', 'cap completion tokens (ponytail)')
+  .option('-t, --thinking <level>', 'thinking/reasoning level: off | low | medium | high')
   .action(async (promptParts: string[], options: Record<string, unknown>) => {
     const prompt = promptParts.join(' ');
     if (!prompt) {
