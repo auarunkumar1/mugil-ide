@@ -35,32 +35,46 @@ export class SmartCache {
     this.threshold = options.semanticThreshold ?? 0.85;
   }
 
-  async lookup(prompt: string): Promise<CacheLookupResult> {
+  async lookup(prompt: string, options: { model?: string } = {}): Promise<CacheLookupResult> {
     const normalized = normalizePrompt(prompt);
     if (normalized.length === 0) return {};
+    const model = options.model;
 
     // 1. Exact
-    const exact = await this.backend.get(exactKey(normalized));
+    const exact = await this.backend.get(cacheKeyFor(normalized, model));
     if (exact) return { entry: exact, kind: 'exact' };
 
     // 2. Partial — a stored prompt that is a literal prefix of this one is a
     // stronger signal than fuzzy similarity, so it beats semantic.
-    const partial = await this.partialLookup(normalized);
+    const partial = await this.partialLookup(normalized, model);
     if (partial) return partial;
 
     // 3. Semantic
-    const semantic = await this.semanticLookup(normalized);
+    const semantic = await this.semanticLookup(normalized, model);
     if (semantic) return { entry: semantic.entry, kind: 'semantic' };
 
     return {};
   }
 
-  async store(prompt: string, response: string, model: string, usage?: Usage): Promise<void> {
+  /**
+   * Stores a response. `keyModel` scopes the cache entry to a specific
+   * requested model (e.g. the model the user selected), so a cached answer
+   * produced under one model is never served for another. When omitted the
+   * entry is stored unscoped (shared across models) — the historical
+   * behavior.
+   */
+  async store(
+    prompt: string,
+    response: string,
+    model: string,
+    usage?: Usage,
+    keyModel?: string,
+  ): Promise<void> {
     const normalized = normalizePrompt(prompt);
     if (normalized.length === 0) return;
     const now = Date.now();
     const entry: CacheEntry = {
-      key: exactKey(normalized),
+      key: cacheKeyFor(normalized, keyModel),
       prompt: normalized,
       response,
       model,
@@ -82,6 +96,7 @@ export class SmartCache {
 
   private async semanticLookup(
     normalized: string,
+    model?: string,
   ): Promise<{ entry: CacheEntry } | undefined> {
     const query = await this.embedding.embed(normalized);
     let best: CacheEntry | undefined;
@@ -89,6 +104,7 @@ export class SmartCache {
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
       if (!entry?.embedding) continue;
+      if (model && !matchesModelScope(entry, model)) continue;
       const score = cosineSimilarity(query, entry.embedding);
       if (score > bestScore) {
         best = entry;
@@ -100,11 +116,13 @@ export class SmartCache {
 
   private async partialLookup(
     normalized: string,
+    model?: string,
   ): Promise<CacheLookupResult | undefined> {
     let best: CacheEntry | undefined;
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
       if (!entry) continue;
+      if (model && !matchesModelScope(entry, model)) continue;
       if (
         normalized.startsWith(entry.prompt) &&
         normalized.length > entry.prompt.length &&
@@ -120,4 +138,14 @@ export class SmartCache {
       delta: normalized.slice(best.prompt.length).trim(),
     };
   }
+}
+
+/** Cache key for a normalized prompt, optionally scoped to a requested model. */
+function cacheKeyFor(normalized: string, model?: string): string {
+  return model ? exactKey(`${model}\n${normalized}`) : exactKey(normalized);
+}
+
+/** True when the entry was stored under the given model scope. */
+function matchesModelScope(entry: CacheEntry, model: string): boolean {
+  return entry.key === cacheKeyFor(normalizePrompt(entry.prompt), model);
 }

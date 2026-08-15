@@ -43,6 +43,16 @@ export function truncateToBudget(text: string, budgetTokens: number): StrategyRe
     const candidate = out + sentence;
     if (countTokens(candidate) <= effectiveBudget) {
       out = candidate;
+    } else if (out === '') {
+      // First sentence exceeds effective budget: split by words so we don't drop entire prompt
+      const words = sentence.split(/(\s+)/);
+      for (const word of words) {
+        if (countTokens(out + word) <= effectiveBudget) {
+          out += word;
+        } else {
+          trimmed += countTokens(word);
+        }
+      }
     } else {
       trimmed += countTokens(sentence);
     }

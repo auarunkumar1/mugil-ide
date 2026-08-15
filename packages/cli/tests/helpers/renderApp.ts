@@ -18,6 +18,15 @@ import type { ReactNode } from 'react';
 
 const WAIT_TIMEOUT_MS = 2000;
 
+// ANSI codes start with a literal ESC (0x1B); inject it via fromCharCode so
+// the source never contains a control-character escape (no-control-regex).
+const ESC = String.fromCharCode(27);
+const ANSI_REGEX = new RegExp(`${ESC}(?:[@-Z_-]|\\[[0-?]*[ -/]*[@-~])`, 'g');
+
+export function stripAnsi(str: string): string {
+  return str.replace(ANSI_REGEX, '');
+}
+
 class FakeStdout extends EventEmitter {
   frames: string[] = [];
   private last = '';
@@ -30,7 +39,7 @@ class FakeStdout extends EventEmitter {
     return true;
   };
 
-  lastFrame = (): string => this.last;
+  lastFrame = (): string => stripAnsi(this.last);
 }
 
 class FakeStderr {
@@ -39,6 +48,8 @@ class FakeStderr {
 
 class FakeStdin extends Readable {
   isTTY = true;
+  private timers = new Set<NodeJS.Timeout>();
+
   ref = (): void => {};
   unref = (): void => {};
   setRawMode = (): void => {};
@@ -54,14 +65,21 @@ class FakeStdin extends Readable {
         process.nextTick(pushNext);
         return;
       }
-      // Mimic human typing: give React time to commit the typed text and
-      // flush the input-handler re-subscription before delivering Enter.
-      // ink-text-input submits the value captured in its closure, so a
-      // premature Enter submits the stale empty string.
-      setTimeout(pushNext, 150);
+      const t = setTimeout(() => {
+        this.timers.delete(t);
+        pushNext();
+      }, 50);
+      this.timers.add(t);
     };
     pushNext();
     return true;
+  };
+
+  clearTimers = (): void => {
+    for (const t of this.timers) {
+      clearTimeout(t);
+    }
+    this.timers.clear();
   };
 }
 
@@ -108,10 +126,18 @@ export async function renderApp(node: ReactNode): Promise<RenderResult> {
     instance.unmount();
     throw new Error('Ink app did not become input-ready in time');
   }
+  const unmount = (): void => {
+    stdin.clearTimers();
+    instance.unmount();
+  };
+  const cleanup = (): void => {
+    stdin.clearTimers();
+    instance.cleanup();
+  };
   return {
     rerender: instance.rerender,
-    unmount: instance.unmount,
-    cleanup: instance.cleanup,
+    unmount,
+    cleanup,
     stdin,
     stdout,
     lastFrame: stdout.lastFrame,

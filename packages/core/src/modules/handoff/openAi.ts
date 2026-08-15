@@ -20,7 +20,12 @@ export class OpenAiClient implements ProviderClient {
   constructor(options: OpenAiClientOptions = {}) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
-    this.mock = !this.apiKey;
+    const isLocal =
+      this.baseUrl.includes('localhost') ||
+      this.baseUrl.includes('127.0.0.1') ||
+      this.baseUrl.includes('0.0.0.0') ||
+      this.baseUrl.includes('::1');
+    this.mock = !this.apiKey && !isLocal;
   }
 
   async complete(
@@ -28,18 +33,42 @@ export class OpenAiClient implements ProviderClient {
     options: ProviderCompleteOptions,
   ): Promise<CompletionResult> {
     if (this.mock) return mockCompletion(messages, options, 'OPENAI_API_KEY');
+    const isLocal =
+      this.baseUrl.includes('localhost') ||
+      this.baseUrl.includes('127.0.0.1') ||
+      this.baseUrl.includes('0.0.0.0') ||
+      this.baseUrl.includes('::1');
+
+    const isOpenAiReasoning =
+      !isLocal &&
+      (options.model.startsWith('o1') ||
+        options.model.startsWith('o3') ||
+        (options.thinkingLevel && options.thinkingLevel !== 'off'));
+
+    const body: Record<string, unknown> = {
+      model: options.model,
+      messages,
+    };
+
+    if (isOpenAiReasoning) {
+      if (options.maxTokens) body.max_completion_tokens = options.maxTokens;
+      if (options.thinkingLevel && options.thinkingLevel !== 'off') {
+        body.reasoning_effort = options.thinkingLevel;
+      }
+    } else {
+      if (options.maxTokens) body.max_tokens = options.maxTokens;
+      if (!options.model.startsWith('o1') && !options.model.startsWith('o3')) {
+        body.temperature = options.temperature ?? 0.7;
+      }
+    }
+
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey || 'local'}`,
       },
-      body: JSON.stringify({
-        model: options.model,
-        messages,
-        max_tokens: options.maxTokens,
-        temperature: options.temperature ?? 0.7,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -61,8 +90,17 @@ export class OpenAiClient implements ProviderClient {
     };
 
     const message = data.choices?.[0]?.message;
-    const content = message?.content ?? '';
-    const thinking = message?.reasoning_content ?? message?.reasoning;
+    let content = message?.content ?? '';
+    let thinking = message?.reasoning_content ?? message?.reasoning;
+
+    // For local models like DeepSeek-R1 that stream <think>...</think> within content
+    if (!thinking && content.includes('<think>')) {
+      const match = content.match(/<think>([\s\S]*?)<\/think>/i);
+      if (match) {
+        thinking = match[1]?.trim();
+        content = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
+      }
+    }
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);

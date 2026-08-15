@@ -56,6 +56,20 @@ export class OpenRouterClient implements ProviderClient {
     messages: ChatMessage[],
     options: OpenRouterCompleteOptions,
   ): Promise<CompletionResult> {
+    const body: Record<string, unknown> = {
+      model: options.model,
+      messages,
+      max_tokens: options.maxTokens,
+      temperature: options.temperature ?? 0.7,
+    };
+
+    if (options.thinkingLevel && options.thinkingLevel !== 'off') {
+      body.reasoning = {
+        effort: options.thinkingLevel,
+        ...(options.thinkingBudgetTokens ? { max_tokens: options.thinkingBudgetTokens } : {}),
+      };
+    }
+
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -64,12 +78,7 @@ export class OpenRouterClient implements ProviderClient {
         'HTTP-Referer': this.appUrl,
         'X-Title': this.appTitle,
       },
-      body: JSON.stringify({
-        model: options.model,
-        messages,
-        max_tokens: options.maxTokens,
-        temperature: options.temperature ?? 0.7,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {

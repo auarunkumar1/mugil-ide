@@ -37,7 +37,23 @@ export class AnthropicClient implements ProviderClient {
   ): Promise<CompletionResult> {
     if (this.mock) return mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
     const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-    const chat = messages.filter((m) => m.role !== 'system');
+    let chat = messages.filter((m) => m.role !== 'system');
+    if (chat.length === 0) {
+      chat = [{ role: 'user', content: system || 'hello' }];
+    }
+
+    const thinkingLevel = options.thinkingLevel;
+    let thinkingConfig: { type: 'enabled'; budget_tokens: number } | undefined;
+    let maxTokens = options.maxTokens ?? 1024;
+    let temperature = options.temperature;
+
+    if (thinkingLevel && thinkingLevel !== 'off') {
+      const budgetMap = { low: 1024, medium: 4096, high: 16384 };
+      const budget = options.thinkingBudgetTokens ?? budgetMap[thinkingLevel] ?? 2048;
+      thinkingConfig = { type: 'enabled', budget_tokens: budget };
+      maxTokens = Math.max(maxTokens, budget + 1024);
+      temperature = undefined; // Anthropic requires temperature=1 or omitted with thinking
+    }
 
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
@@ -48,10 +64,11 @@ export class AnthropicClient implements ProviderClient {
       },
       body: JSON.stringify({
         model: options.model,
-        max_tokens: options.maxTokens ?? 1024,
+        max_tokens: maxTokens,
         system: system.trim().length > 0 ? system : undefined,
         messages: chat,
-        temperature: options.temperature,
+        temperature,
+        thinking: thinkingConfig,
       }),
     });
 

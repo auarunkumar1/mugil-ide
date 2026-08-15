@@ -12,6 +12,7 @@ export interface ChatMessage {
 }
 
 export type ModelTier = 'cheap' | 'standard' | 'smart';
+export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high';
 
 /** Cost figures are USD per 1M tokens, used for routing and budget decisions. */
 export interface ModelSpec {
@@ -20,6 +21,7 @@ export interface ModelSpec {
   costPerMTokIn: number;
   costPerMTokOut: number;
   contextWindow: number;
+  supportsThinking?: boolean;
 }
 
 export interface CompletionResult {
@@ -41,6 +43,10 @@ export interface HandoffOptions {
   preferredModel?: string;
   /** Ordered list of model ids to try after the preferred/routed model fails. */
   fallbackChain?: string[];
+  /** Reasoning/thinking level requested ('off' | 'low' | 'medium' | 'high'). */
+  thinkingLevel?: ThinkingLevel;
+  /** Explicit token budget for thinking (e.g. Anthropic budget_tokens). */
+  thinkingBudgetTokens?: number;
 }
 
 export interface StrategyResult {

@@ -1,5 +1,5 @@
 import { diffWords } from 'diff';
-import type { Engine, AskOptions } from '@mugil-ide/core';
+import type { Engine, AskOptions, ThinkingLevel } from '@mugil-ide/core';
 
 export interface RunOptions {
   model?: string;
@@ -9,6 +9,7 @@ export interface RunOptions {
   cache?: boolean;
   ponytail?: boolean;
   outputBudget?: string;
+  thinking?: string;
 }
 
 /** Runs a single prompt through the pipeline and prints the result. */
@@ -24,9 +25,16 @@ export async function runOnce(
       : options.outputBudget
         ? { outputBudget: Number(options.outputBudget) }
         : true;
+  const thinkingVal = options.thinking?.toLowerCase();
+  const thinkingLevel: ThinkingLevel | undefined =
+    thinkingVal === 'low' || thinkingVal === 'medium' || thinkingVal === 'high' || thinkingVal === 'off'
+      ? thinkingVal
+      : undefined;
+
   const askOptions: AskOptions = {
     preferredModel: options.model,
     maxTokens: budget,
+    thinkingLevel,
     noRefine: options.refine === false,
     noCache: options.cache === false,
     ponytail,
@@ -79,6 +87,12 @@ export async function runOnce(
       if (part.added) process.stdout.write(`  ${green('+')} ${green(part.value)}`);
       else if (part.removed) process.stdout.write(`  ${red('-')} ${red(part.value)}`);
     }
+    console.log('');
+  }
+
+  if (result.thinking) {
+    console.log('💭 thinking:\n');
+    console.log(result.thinking);
     console.log('');
   }
 

@@ -26,6 +26,8 @@ export interface AskOptions extends HandoffOptions {
   noCache?: boolean;
   /** Skip token refinement for this request. */
   noRefine?: boolean;
+  /** Override the token budget for this request (defaults to pipeline.tokenBudget or model context window). */
+  tokenBudget?: number;
   systemPrompt?: string;
   /** Live progress callback; emitted synchronously as the pipeline runs. */
   onEvent?: (event: PipelineEvent) => void;
@@ -47,7 +49,7 @@ const DEFAULT_SYSTEM_PROMPT =
 export class Pipeline {
   private readonly cache: SmartCache;
   private readonly handoff: HandoffManager;
-  private readonly tokenBudget: number;
+  public tokenBudget: number;
   private readonly refineOptions: RefineOptions;
   private readonly ponytailEnabled: boolean;
 
@@ -61,6 +63,7 @@ export class Pipeline {
 
   async ask(prompt: string, options: AskOptions = {}): Promise<AskResult> {
     const emit = options.onEvent ?? (() => {});
+    const effectiveBudget = options.tokenBudget ?? this.tokenBudget;
 
     // 1. Signature removal + refinement
     emit({ type: 'stage', stage: 'signature' });
@@ -68,18 +71,33 @@ export class Pipeline {
     emit({ type: 'stage', stage: 'refine' });
     const refine = refinePrompt(stripped.text, {
       ...this.refineOptions,
-      budgetTokens: this.tokenBudget,
+      budgetTokens: effectiveBudget,
     });
     emit({ type: 'refined', refine });
 
     // 2. Cache lookup
     emit({ type: 'stage', stage: 'cache' });
     let cacheLookup: CacheLookupResult = {};
+    // Scope the cache to the explicitly requested model so a cached answer
+    // produced under another selection (e.g. DeepSeek) is never served for a
+    // local model. `openrouter/auto` routes dynamically — keep it shared.
+    const cacheModel =
+      options.preferredModel && options.preferredModel !== 'openrouter/auto'
+        ? options.preferredModel
+        : undefined;
     if (!options.noCache) {
-      cacheLookup = await this.cache.lookup(prompt);
+      cacheLookup = await this.cache.lookup(prompt, { model: cacheModel });
+      // If we are currently running with a LIVE provider, ignore any stale cached mock responses!
+      if (
+        cacheLookup.entry &&
+        cacheLookup.entry.response.includes('[mock]') &&
+        !this.handoff.isMock
+      ) {
+        cacheLookup = {};
+      }
     }
     emit({ type: 'cache', hit: Boolean(cacheLookup.entry), kind: cacheLookup.kind });
-    if (cacheLookup.entry) {
+    if (cacheLookup.entry && cacheLookup.kind !== 'partial') {
       const usage = cacheLookup.entry.usage ?? {
         promptTokens: refine.originalTokens,
         completionTokens: countTokens(cacheLookup.entry.response),
@@ -119,7 +137,7 @@ export class Pipeline {
     messages.push({ role: 'user', content: effectivePrompt });
 
     const outputBudget = ponytailOutputBudget(ponytailOpts);
-    const defaultMax = Math.max(256, this.tokenBudget - refine.refinedTokens);
+    const defaultMax = Math.max(256, effectiveBudget - refine.refinedTokens);
     const maxTokens = outputBudget !== undefined ? Math.min(defaultMax, outputBudget) : options.maxTokens ?? defaultMax;
     emit({ type: 'stage', stage: 'handoff' });
     const completion = await this.handoff.complete(messages, { ...options, maxTokens });
@@ -133,9 +151,13 @@ export class Pipeline {
     // 4. Strip AI provenance watermarks from the generated content, store in
     //    cache (original prompt so future variants can hit), and return.
     emit({ type: 'stage', stage: 'store' });
-    const response = stripWatermarks(completion.content).text;
+    const strippedNew = stripWatermarks(completion.content).text;
+    const response =
+      cacheLookup.kind === 'partial' && cacheLookup.entry
+        ? `${cacheLookup.entry.response}\n\n${strippedNew}`
+        : strippedNew;
     if (!options.noCache) {
-      await this.cache.store(prompt, response, completion.model, completion.usage);
+      await this.cache.store(prompt, response, completion.model, completion.usage, cacheModel);
     }
     emit({ type: 'done', usage: completion.usage });
 
