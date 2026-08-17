@@ -115,7 +115,9 @@ if (mode === 'bump' || mode === 'publish') {
 if (mode === 'publish') {
   for (const pkg of PUBLISH_ORDER) {
     console.log(`\n📦 publishing ${pkg} …`);
-    execFileSync('npm', ['publish', path.join(root, pkg), '--access', 'public'], {
+    // `./` prefix: npm 11 misparses a bare path ("packages/core") as the
+    // GitHub shorthand github:packages/core and tries `git ls-remote`.
+    execFileSync('npm', ['publish', `./${pkg}`, '--access', 'public'], {
       cwd: root,
       stdio: 'inherit',
       shell: true,
