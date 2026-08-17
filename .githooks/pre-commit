@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the secret guard before every commit.
+# Enable with: git config core.hooksPath .githooks
+node "$(git rev-parse --show-toplevel)/scripts/guard-secrets.mjs" || exit 1
