@@ -4,6 +4,7 @@ import { statSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { Command } from 'commander';
 import {
+  VERSION,
   createEngine,
   deleteUserEnvKeys,
   loadConfig,
@@ -20,7 +21,7 @@ const program = new Command();
 program
   .name('mugil-ide')
   .description('Mugil IDE — token-efficient AI IDE: PTY + xterm.js UI, refines prompts, caches aggressively, hands off models automatically.')
-  .version('0.1.0');
+  .version(VERSION);
 
 program
   .command('ui')

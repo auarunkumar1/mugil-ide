@@ -96,7 +96,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.0
+mugil-ide --version         # 0.1.1
 mugil-ide                   # starts the local server and opens your browser
 ```
 
