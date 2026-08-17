@@ -8,6 +8,11 @@
 ██║ ╚═╝ ██║  ╚██████╔╝   ╚██████╔╝   ██║   ███████╗     ██║   ██████╔╝   ███████╗
 ```
 
+[![npm version](https://img.shields.io/npm/v/mugil-ide?label=npm&color=cb3837)](https://www.npmjs.com/package/mugil-ide)
+[![npm downloads](https://img.shields.io/npm/dm/mugil-ide?label=downloads)](https://www.npmjs.com/package/mugil-ide)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](package.json)
+
 **Mugil IDE** is an open-source, token-efficient autonomous AI IDE. It runs
 entirely in the browser — an xterm.js two-pane workspace where a coding agent
 reads, edits, and tests your code, alongside a shell PTY, a file explorer, and
@@ -85,9 +90,30 @@ into the shipped web client** today:
 - **Skills prompt injection (wired)**: `skillsContextBlock(cwd)` lists
   available `.agents/skills` / `.claude/skills` in the system prompt.
 
-## Getting started
+## Install from npm
 
-From source:
+Requires **Node.js >= 20**. The web IDE is a single global install:
+
+```bash
+npm i -g mugil-ide          # the browser web IDE
+mugil-ide --version         # 0.1.0
+mugil-ide                   # starts the local server and opens your browser
+```
+
+All four packages are published on the [npm registry](https://www.npmjs.com/):
+
+| Package | What it is | Install |
+| --- | --- | --- |
+| [mugil-ide](https://www.npmjs.com/package/mugil-ide) | The browser web IDE — server, xterm.js two-pane UI, PTY shell, headless one-shot mode | `npm i -g mugil-ide` |
+| [@mugil-ide/core](https://www.npmjs.com/package/@mugil-ide/core) | Engine modules — token efficiency, smart cache, auto handoff, tool loop, undo, MCP client | `npm i @mugil-ide/core` |
+| [@mugil-ide/docs](https://www.npmjs.com/package/@mugil-ide/docs) | MD Generator — automated markdown docs from source | `npm i @mugil-ide/docs` |
+| [@mugil-ide/mcp](https://www.npmjs.com/package/@mugil-ide/mcp) | MCP stdio server exposing the engine as tools (provides the `mugil-ide-mcp` binary) | `npm i -g @mugil-ide/mcp` |
+
+The `mugil-ide` tarball ships compiled `dist/` **including the vendored
+xterm.js assets**, so an installed client serves its UI fully offline — no
+CDN, no Node-gyp surprises.
+
+## From source (contributors)
 
 ```bash
 npm install
@@ -96,13 +122,6 @@ npm test               # 335 unit tests
 npm run typecheck
 npm run smoke:question-picker   # real-browser smoke of the question-picker modal (needs Chrome)
 npm run smoke:diff-viewer       # real-browser smoke of the Diff Viewer tab (needs Chrome)
-```
-
-Or install globally from npm:
-
-```bash
-npm i -g mugil-ide        # provides `mugil-ide` + `mugil-ide-mcp`
-mugil-ide --help
 ```
 
 Packaging / publishing the monorepo:
