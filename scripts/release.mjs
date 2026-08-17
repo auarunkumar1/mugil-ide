@@ -64,6 +64,7 @@ console.log(`\n📦 Mugil IDE release plan [${mode}]\n`);
 console.log(`  · version: ${rootPkg.version} -> ${newVersion} (${bumpArg})`);
 console.log('  · bump: package.json, packages/*/package.json, branding.ts VERSION, registry.json');
 console.log('  · pack: npm run pack (regenerates dist-packages/)');
+console.log('  · changelog: [Unreleased] → [newVersion] - date');
 if (mode === 'bump' || mode === 'publish') {
   console.log(`  · git: commit "Release v${newVersion}" + tag v${newVersion}`);
 }
@@ -73,6 +74,36 @@ if (mode === 'publish') {
 console.log('');
 
 if (mode === 'dry-run') process.exit(0);
+
+/**
+ * Moves the CHANGELOG [Unreleased] section to the new version with today's
+ * date, re-adds a fresh empty [Unreleased] heading, and appends the version
+ * link reference. No-op (with a note) when CHANGELOG.md or the section is
+ * missing.
+ */
+function updateChangelog(version) {
+  const changelogPath = path.join(root, 'CHANGELOG.md');
+  if (!existsSync(changelogPath)) {
+    console.log('  ⚠ CHANGELOG.md not found — changelog not updated');
+    return;
+  }
+  let md = readFileSync(changelogPath, 'utf8');
+  // [ \t]* (not \s): \s would swallow the blank line after the heading
+  const unreleased = /^## \[Unreleased\][ \t]*$/m;
+  if (!unreleased.test(md)) {
+    console.log('  ⚠ no [Unreleased] section found — changelog not updated');
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  md = md.replace(unreleased, `## [${version}] - ${today}`);
+  const firstVersion = md.indexOf('## [');
+  md = md.slice(0, firstVersion) + '## [Unreleased]\n\n' + md.slice(firstVersion);
+  if (!md.includes(`[${version}]:`)) {
+    md = `${md.trimEnd()}\n\n[${version}]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v${version}\n`;
+  }
+  writeFileSync(changelogPath, md, 'utf8');
+  console.log(`  ✓ changelog: [Unreleased] → [${version}] - ${today}`);
+}
 
 // --- apply version bumps
 function setVersion(pkgPath) {
@@ -101,6 +132,8 @@ writeFileSync(
 const registry = readJson('packages/core/src/rules/registry.json');
 registry.package.version = newVersion;
 writeJson('packages/core/src/rules/registry.json', registry);
+
+updateChangelog(newVersion);
 
 console.log(`  ✓ bumped to ${newVersion}`);
 execFileSync('npm', ['run', 'pack'], { cwd: root, stdio: 'inherit', shell: true });
