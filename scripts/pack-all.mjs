@@ -25,9 +25,10 @@ rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 for (const pkg of packages) {
-  const dir = path.join(root, pkg);
   console.log(`\n📦 packing ${pkg} …`);
-  execFileSync('npm', ['pack', dir, '--pack-destination', outDir], {
+  // `./` prefix: npm 11 misparses a bare path ("packages/core") as the
+  // GitHub shorthand github:packages/core and tries `git ls-remote`.
+  execFileSync('npm', ['pack', `./${pkg}`, '--pack-destination', outDir], {
     cwd: root,
     stdio: 'inherit',
     // npm is npm.cmd on Windows; a shell resolves the shim.
