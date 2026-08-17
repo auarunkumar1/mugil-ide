@@ -137,7 +137,7 @@ export class AnthropicClient implements ProviderClient {
 
     const data = (await res.json()) as AnthropicResponse;
     const blocks = data.content ?? [];
-    const content = blocks
+    let content = blocks
       .filter((block) => block.type === 'text' && typeof block.text === 'string')
       .map((block) => block.text!)
       .join('');
@@ -148,6 +148,11 @@ export class AnthropicClient implements ProviderClient {
     const toolCalls: ToolCall[] = blocks
       .filter((b) => b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string')
       .map((b) => ({ id: b.id!, name: b.name!, arguments: JSON.stringify(b.input ?? {}) }));
+    // Thinking-only replies (max_tokens exhausted mid-reasoning) contain no
+    // text block; surface the reasoning rather than a blank response.
+    if (content.trim().length === 0 && toolCalls.length === 0 && thinking.trim().length > 0) {
+      content = thinking;
+    }
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.input_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.output_tokens ?? countTokens(content);

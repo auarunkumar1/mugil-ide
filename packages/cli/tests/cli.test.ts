@@ -53,7 +53,7 @@ describe('mugil-ide CLI (spawned)', () => {
 
   it('lists the commands in --help', async () => {
     const { stdout } = await runCli(['--help']);
-    for (const cmd of ['run', 'graph', 'login', 'logout', 'keys', 'update', 'docs']) {
+    for (const cmd of ['ui', 'run', 'graph', 'logout', 'keys', 'update', 'docs']) {
       expect(stdout).toContain(cmd);
     }
   });
@@ -97,11 +97,6 @@ describe('mugil-ide CLI (spawned)', () => {
     const { code, stderr } = await runCli(['logout']);
     expect(code).not.toBe(0);
     expect(stderr).toContain('provide a provider');
-  });
-
-  it('login explains it needs an interactive terminal when piped', async () => {
-    const { stdout } = await runCli(['login']);
-    expect(stdout).toContain('interactive terminal');
   });
 
   it('update --check --no-npm reports up to date', async () => {

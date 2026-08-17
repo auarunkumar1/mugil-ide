@@ -69,6 +69,8 @@ export class SmartCache {
     model: string,
     usage?: Usage,
     keyModel?: string,
+    /** True when the response came from the offline mock client. */
+    mock?: boolean,
   ): Promise<void> {
     const normalized = normalizePrompt(prompt);
     if (normalized.length === 0) return;
@@ -82,6 +84,7 @@ export class SmartCache {
       expiresAt: now + this.ttlSeconds * 1000,
       usage,
       embedding: await this.embedding.embed(normalized),
+      mock,
     };
     await this.backend.set(entry);
   }

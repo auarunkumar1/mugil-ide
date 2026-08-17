@@ -1,8 +1,5 @@
 import type { ModelSpec } from '../../types.js';
 import {
-  DEFAULT_OPENROUTER_MODELS,
-  DEFAULT_OPENAI_MODELS,
-  DEFAULT_ANTHROPIC_MODELS,
   modelSupportsThinking,
   modelSupportsTools,
   type CompletionProvider,
@@ -199,25 +196,8 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
       }
     }
   } catch {
-    // Network probe failed or timed out — fallback to defaults below
+    // Network probe failed or timed out — return empty list
   }
 
-  // Fallback defaults when server is unreachable or offline
-  if (provider === 'ollama') {
-    return [
-      { id: 'llama3.2', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
-      { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
-      { id: 'qwen2.5-coder', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
-      { id: 'mistral', tier: 'standard', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 32000 },
-    ];
-  }
-  if (provider === 'lmstudio' || provider === 'local') {
-    return [
-      { id: 'local-model', tier: 'standard', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
-      { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
-    ];
-  }
-  if (provider === 'openai') return DEFAULT_OPENAI_MODELS;
-  if (provider === 'anthropic') return DEFAULT_ANTHROPIC_MODELS;
-  return DEFAULT_OPENROUTER_MODELS;
+  return [];
 }

@@ -110,7 +110,7 @@ describe('UpdateManager', () => {
     expect(result.registryUrl).toBe(REGISTRY_URL);
     expect(result.updates).toHaveLength(1);
     expect(result.updates[0]).toMatchObject({ id: 'caveman', current: '1.0.0', latest: '2.0.0' });
-    expect(result.npm).toEqual({ current: '1.0.0', latest: '9.9.9' });
+    expect(result.npm).toEqual({ current: '0.1.0', latest: '9.9.9' });
   });
 
   it('reports nothing when unconfigured', async () => {
