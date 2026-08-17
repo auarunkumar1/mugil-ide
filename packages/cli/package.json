@@ -1,9 +1,19 @@
 {
   "name": "mugil-ide",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Token-efficient Mugil IDE web IDE server (browser xterm.js UI + PTY + headless one-shot mode)",
-  "keywords": ["ai", "ide", "agent", "coding-assistant", "terminal", "xterm", "token-efficient", "mcp", "mugil-ide"],
+  "keywords": [
+    "ai",
+    "ide",
+    "agent",
+    "coding-assistant",
+    "terminal",
+    "xterm",
+    "token-efficient",
+    "mcp",
+    "mugil-ide"
+  ],
   "author": "Mugil IDE Contributors",
   "homepage": "https://github.com/auarunkumar1/mugil-ide#readme",
   "repository": {
@@ -24,7 +34,8 @@
   "scripts": {
     "dev": "npm run build && node dist/index.js",
     "start": "node dist/index.js",
-    "prepack": "npm run build",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepack": "npm run clean && npm run build",
     "prebuild": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
     "pretypecheck": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
     "build": "tsc -p tsconfig.json && node scripts/vendor-xterm.mjs",
@@ -35,8 +46,8 @@
     "smoke:diff-viewer": "npm run build && node scripts/smoke-diff-viewer.mjs"
   },
   "dependencies": {
-    "@mugil-ide/core": "0.1.0",
-    "@mugil-ide/docs": "0.1.0",
+    "@mugil-ide/core": "0.1.1",
+    "@mugil-ide/docs": "0.1.1",
     "@xterm/addon-fit": "0.10.0",
     "@xterm/addon-web-links": "0.11.0",
     "@xterm/xterm": "5.5.0",

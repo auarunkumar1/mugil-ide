@@ -1,9 +1,16 @@
 {
   "name": "@mugil-ide/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "MCP server exposing the Mugil IDE engine modules as tools",
-  "keywords": ["mcp", "model-context-protocol", "ai", "tools", "agent", "mugil-ide"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "tools",
+    "agent",
+    "mugil-ide"
+  ],
   "author": "Mugil IDE Contributors",
   "homepage": "https://github.com/auarunkumar1/mugil-ide#readme",
   "repository": {
@@ -19,9 +26,12 @@
   },
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "prepack": "npm run build",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepack": "npm run clean && npm run build",
     "prebuild": "npm run build -w @mugil-ide/core",
     "pretypecheck": "npm run build -w @mugil-ide/core",
     "build": "tsc -p tsconfig.json",
@@ -29,7 +39,7 @@
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
   },
   "dependencies": {
-    "@mugil-ide/core": "0.1.0",
+    "@mugil-ide/core": "0.1.1",
     "@modelcontextprotocol/sdk": "^1.18.0",
     "zod": "^3.23.8"
   },

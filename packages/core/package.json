@@ -1,8 +1,17 @@
 {
   "name": "@mugil-ide/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Token Efficiency Manager, Smart Cache, Auto Handoff, Signature Stripper",
-  "keywords": ["ai", "llm", "tokens", "token-efficiency", "cache", "semantic-cache", "handoff", "mugil-ide"],
+  "keywords": [
+    "ai",
+    "llm",
+    "tokens",
+    "token-efficiency",
+    "cache",
+    "semantic-cache",
+    "handoff",
+    "mugil-ide"
+  ],
   "author": "Mugil IDE Contributors",
   "homepage": "https://github.com/auarunkumar1/mugil-ide#readme",
   "repository": {
@@ -15,9 +24,12 @@
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "prepack": "npm run build",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prepack": "npm run clean && npm run build",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest --runInBand"
