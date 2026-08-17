@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/vendor/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -16,6 +16,9 @@ export default tseslint.config(
         process: 'readonly',
         __dirname: 'readonly',
         console: 'readonly',
+        // Standard Node globals used by scripts (e.g. the browser smoke).
+        setTimeout: 'readonly',
+        fetch: 'readonly',
       },
     },
   },

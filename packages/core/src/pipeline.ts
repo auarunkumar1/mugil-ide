@@ -1,4 +1,4 @@
-import type { AskResult, CacheLookupResult, ChatMessage, HandoffOptions, PipelineEvent } from './types.js';
+import type { AskResult, CacheLookupResult, ChatMessage, HandoffOptions, PipelineEvent, ToolCall } from './types.js';
 import { SmartCache } from './modules/smart-cache/index.js';
 import { stripSignatures } from './modules/signature-remover/index.js';
 import { stripWatermarks } from './modules/watermark-remover/index.js';
@@ -11,6 +11,7 @@ import { refinePrompt, type RefineOptions } from './refine.js';
 import { countTokens } from './token/tokenizer.js';
 import type { HandoffManager } from './modules/handoff/index.js';
 import { ToolLoop, type ToolLoopResult, type ToolRegistry } from './modules/tool-loop/index.js';
+import { fireWebhooks, parseWebhookConfigs, type WebhookConfig } from './modules/webhooks.js';
 
 export interface PipelineOptions {
   cache: SmartCache;
@@ -30,6 +31,8 @@ export interface AskOptions extends HandoffOptions {
   /** Override the token budget for this request (defaults to pipeline.tokenBudget or model context window). */
   tokenBudget?: number;
   systemPrompt?: string;
+  /** Multi-turn conversation history before this prompt. */
+  history?: ChatMessage[];
   /**
    * Executors for the declared tools. Required when `tools` is set — a
    * declared tool without an executor throws before any request is sent.
@@ -37,6 +40,11 @@ export interface AskOptions extends HandoffOptions {
   toolRegistry?: ToolRegistry;
   /** Max tool-loop iterations before a forced final answer. Default 6. */
   maxToolIterations?: number;
+  /**
+   * Gates each tool call (allow/ask/deny). A denied call is fed back to the
+   * model as a tool result. Absent = allow all (backwards compatible).
+   */
+  permission?: (call: ToolCall) => boolean | Promise<boolean>;
   /** Live progress callback; emitted synchronously as the pipeline runs. */
   onEvent?: (event: PipelineEvent) => void;
   /**
@@ -44,6 +52,15 @@ export interface AskOptions extends HandoffOptions {
    * the system prompt; pass `{ outputBudget }` to also cap completion tokens.
    */
   ponytail?: boolean | PonytailOptions;
+  /**
+   * Webhook endpoints to notify (`turn.started` / `tool.executed` /
+   * `turn.completed` / `turn.error`). Defaults to `MUGIL_IDE_WEBHOOKS` /
+   * `MUGIL_IDE_WEBHOOKS_CONFIG`. Delivery is fire-and-forget and never
+   * slows the loop.
+   */
+  webhooks?: WebhookConfig[];
+  /** Injectable fetch for webhook delivery (tests). */
+  webhookFetch?: typeof fetch;
 }
 
 const DEFAULT_SYSTEM_PROMPT =
@@ -51,8 +68,11 @@ const DEFAULT_SYSTEM_PROMPT =
 
 /**
  * The engine pipeline: signature-strip -> token-efficient refinement ->
- * smart-cache lookup -> model handoff -> cache store. Every stage degrades
- * gracefully (offline mock completions, in-memory cache, estimator tokens).
+ * smart-cache lookup -> handoff -> watermark strip -> cache store. The handoff
+ * stage forks: plain asks go to the handoff ladder, while asks that declare
+ * tools run the bounded ToolLoop instead — and tool-bearing asks bypass the
+ * cache entirely (lookup and store). Every stage degrades gracefully (offline
+ * mock completions, in-memory cache, estimator tokens).
  */
 export class Pipeline {
   private readonly cache: SmartCache;
@@ -70,6 +90,41 @@ export class Pipeline {
   }
 
   async ask(prompt: string, options: AskOptions = {}): Promise<AskResult> {
+    const webhooks = options.webhooks ?? parseWebhookConfigs();
+    const startedAt = Date.now();
+    void fireWebhooks(webhooks, 'turn.started', { prompt }, options.webhookFetch);
+    try {
+      const result = await this.runAsk(prompt, options, webhooks);
+      void fireWebhooks(
+        webhooks,
+        'turn.completed',
+        {
+          response: result.response,
+          model: result.model,
+          provider: result.provider,
+          usage: result.usage,
+          toolCalls: result.toolCalls,
+          durationMs: Date.now() - startedAt,
+        },
+        options.webhookFetch,
+      );
+      return result;
+    } catch (err) {
+      void fireWebhooks(
+        webhooks,
+        'turn.error',
+        { error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - startedAt },
+        options.webhookFetch,
+      );
+      throw err;
+    }
+  }
+
+  private async runAsk(
+    prompt: string,
+    options: AskOptions,
+    webhooks: WebhookConfig[],
+  ): Promise<AskResult> {
     const emit = options.onEvent ?? (() => {});
     const effectiveBudget = options.tokenBudget ?? this.tokenBudget;
     // Tool-bearing requests bypass the cache entirely (lookup AND store): a
@@ -99,11 +154,17 @@ export class Pipeline {
         : undefined;
     if (!options.noCache && !hasTools) {
       cacheLookup = await this.cache.lookup(prompt, { model: cacheModel });
-      // If we are currently running with a LIVE provider, ignore any stale cached mock responses!
+      // If we are currently running with a LIVE provider, ignore any stale
+      // cached mock responses! The stored `mock` flag is authoritative; legacy
+      // entries (written before the flag existed) fall back to the [mock]
+      // content marker. An entry flagged mock:false is served even when its
+      // text happens to contain "[mock]".
       if (
         cacheLookup.entry &&
-        cacheLookup.entry.response.includes('[mock]') &&
-        !this.handoff.isMock
+        !this.handoff.isMock &&
+        (cacheLookup.entry.mock === true ||
+          (cacheLookup.entry.mock === undefined &&
+            cacheLookup.entry.response.includes('[mock]')))
       ) {
         cacheLookup = {};
       }
@@ -147,17 +208,40 @@ export class Pipeline {
     const messages: ChatMessage[] = [];
     const system = systemParts.filter((p) => p.trim().length > 0).join('\n\n');
     if (system.trim().length > 0) messages.push({ role: 'system', content: system });
+    if (options.history && options.history.length > 0) {
+      messages.push(...options.history);
+    }
     messages.push({ role: 'user', content: effectivePrompt });
 
     const outputBudget = ponytailOutputBudget(ponytailOpts);
-    const defaultMax = Math.max(256, effectiveBudget - refine.refinedTokens);
+    // Reserve safety headroom for system prompt & tokenizer variance,
+    // and cap default generation max_tokens at standard output limit (8192).
+    const remainingHeadroom = Math.max(256, Math.floor(effectiveBudget - refine.refinedTokens - 1024));
+    const defaultMax = Math.min(8192, remainingHeadroom);
     const maxTokens = outputBudget !== undefined ? Math.min(defaultMax, outputBudget) : options.maxTokens ?? defaultMax;
     emit({ type: 'stage', stage: 'handoff' });
     const completion = hasTools
       ? await new ToolLoop({
           handoff: this.handoff,
           maxIterations: options.maxToolIterations,
-          onTool: (call) => emit({ type: 'tool', name: call.name }),
+          onTool: (call, index) => {
+            emit({ type: 'tool', name: call.name, args: call.arguments, index });
+            void fireWebhooks(
+              webhooks,
+              'tool.executed',
+              { name: call.name, args: call.arguments },
+              options.webhookFetch,
+            );
+          },
+          onToolResult: (call, outcome, index) => {
+            emit({
+              type: 'tool-result',
+              name: call.name,
+              index,
+              ok: outcome.ok,
+              result: outcome.content,
+            });
+          },
         }).run(messages, {
           ...options,
           tools: options.tools!,
@@ -180,8 +264,26 @@ export class Pipeline {
       cacheLookup.kind === 'partial' && cacheLookup.entry
         ? `${cacheLookup.entry.response}\n\n${strippedNew}`
         : strippedNew;
+    // Never surface a blank "success": a model that consumed tokens without
+    // producing text (even with no reasoning to fall back on) becomes a clear
+    // error instead of an invisible empty response in the TUI.
+    if (response.trim().length === 0) {
+      throw new Error(
+        `model returned an empty response (${completion.model}); tokens were consumed but no text was produced`,
+      );
+    }
     if (!options.noCache && !hasTools) {
-      await this.cache.store(prompt, response, completion.model, completion.usage, cacheModel);
+      await this.cache.store(
+        prompt,
+        response,
+        completion.model,
+        completion.usage,
+        cacheModel,
+        // Always write an explicit flag: `mock` absent on a completion means
+        // a live provider, so the entry must be marked mock:false — otherwise
+        // a later run would fall back to the ambiguous [mock] text scan.
+        completion.mock ?? false,
+      );
     }
     emit({ type: 'done', usage: completion.usage });
 
