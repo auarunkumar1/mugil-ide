@@ -23,6 +23,7 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
     "redis": "^4.7.0",
     "tiktoken": "^1.0.17"
   },
