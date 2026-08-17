@@ -7,3 +7,5 @@ coverage/
 .env.local
 .cache/
 .smoke/
+# OpenCode fork source snapshot (was the retired fork base; gitignored so re-fetches don't pollute status)
+vendor/

@@ -118,15 +118,24 @@ export class OpenRouterClient implements ProviderClient {
     };
 
     const message = data.choices?.[0]?.message;
-    const content = message?.content ?? '';
+    let content = message?.content ?? '';
     const thinking = message?.reasoning_content ?? message?.reasoning;
+    // Only require a function name — some OpenAI-compatible endpoints omit
+    // the `type: 'function'` field on tool_calls; requiring it would silently
+    // drop the model's tool request (e.g. a write_file that never runs).
     const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
-      .filter((tc) => tc?.type === 'function' && Boolean(tc.function?.name))
+      .filter((tc) => Boolean(tc?.function?.name))
       .map((tc) => ({
         id: tc.id ?? '',
         name: tc.function!.name!,
         arguments: tc.function!.arguments ?? '{}',
       }));
+    // Reasoning-only replies (e.g. DeepSeek-R1 that answers inside
+    // reasoning_content with empty content) must not surface as a blank
+    // response that consumes tokens without producing visible text.
+    if (content.trim().length === 0 && toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
+      content = thinking;
+    }
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);

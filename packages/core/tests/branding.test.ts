@@ -9,12 +9,11 @@ describe('branding', () => {
   it('renders MUGIL IDE in the logo grid', () => {
     expect(LOGO_GRID).toHaveLength(5);
     const flat = LOGO_GRID.join('\n');
-    // Letter shapes: M chevron, U cup, G bar, I stem, L base, D/E bars.
-    expect(flat).toContain('\\/');
-    expect(flat).toContain('_   _');
-    expect(flat).toContain(' ____ ');
-    expect(flat).toContain('|____|');
-    expect(flat).toContain('|_____|');
+    expect(flat).toContain('███╗');
+    expect(flat).toContain('████╗');
+    expect(flat).toContain('██╔════╝');
+    expect(flat).toContain('██████╗');
+    expect(flat).toContain('███████╗');
   });
 
   it('pads every banner row to the same width (monospace-safe)', () => {

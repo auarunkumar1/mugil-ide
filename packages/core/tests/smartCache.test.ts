@@ -20,6 +20,19 @@ describe('SmartCache', () => {
     expect(entry?.response).toBe('function fib(n) {}');
   });
 
+  it('persists the mock flag on stored entries', async () => {
+    const cache = makeCache();
+    await cache.store('Write a fibonacci function.', 'fib A', 'model-a', undefined, 'model-a', true);
+    const live = await cache.lookup('Write a fibonacci function.', { model: 'model-a' });
+    expect(live.kind).toBe('exact');
+    expect(live.entry?.mock).toBe(true);
+    // Without the flag the entry is explicitly non-mock (authoritative, so the
+    // pipeline can serve it even if the text contains the [mock] marker).
+    await cache.store('Another prompt.', 'mentions [mock] in text', 'model-a', undefined, 'model-a', false);
+    const nonMock = await cache.lookup('Another prompt.', { model: 'model-a' });
+    expect(nonMock.entry?.mock).toBe(false);
+  });
+
   it('exact lookup ignores whitespace differences', async () => {
     const cache = makeCache();
     await cache.store('Write a  parser.', 'ok', 'm');

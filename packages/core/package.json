@@ -1,7 +1,18 @@
 {
   "name": "@mugil-ide/core",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Token Efficiency Manager, Smart Cache, Auto Handoff, Signature Stripper",
+  "keywords": ["ai", "llm", "tokens", "token-efficiency", "cache", "semantic-cache", "handoff", "mugil-ide"],
+  "author": "Mugil IDE Contributors",
+  "homepage": "https://github.com/auarunkumar1/mugil-ide#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/auarunkumar1/mugil-ide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/auarunkumar1/mugil-ide/issues"
+  },
+  "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist"],

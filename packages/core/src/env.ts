@@ -94,23 +94,29 @@ export function writeUserEnv(
       return '';
     }
   })();
+  const serialized = serializeEnvFile(entries, existing);
   const tmp = path.join(dir, `.env.tmp-${process.pid}-${Date.now()}`);
-  fs.writeFileSync(tmp, serializeEnvFile(entries, existing), { mode: 0o600 });
   try {
-    fs.renameSync(tmp, file);
-  } catch (err) {
+    fs.writeFileSync(tmp, serialized, { mode: 0o600 });
+    if (process.platform === 'win32' && fs.existsSync(file)) {
+      fs.copyFileSync(tmp, file);
+      fs.rmSync(tmp, { force: true });
+    } else {
+      fs.renameSync(tmp, file);
+    }
+  } catch {
+    fs.writeFileSync(file, serialized, { mode: 0o600 });
     try {
       fs.rmSync(tmp, { force: true });
     } catch {
-      // best-effort cleanup
+      // ignore — temp file cleanup is best-effort
     }
-    throw err;
   }
-  // POSIX: ensure owner-only permissions even if umask or rename changed them.
+  // POSIX: ensure owner-only permissions even if umask changed them.
   try {
     fs.chmodSync(file, 0o600);
   } catch {
-    // Windows: chmod is a no-op; the ACL is out of scope.
+    // Windows: chmod is a no-op
   }
   return file;
 }

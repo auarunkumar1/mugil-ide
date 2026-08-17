@@ -83,6 +83,90 @@ export type {
   ToolLoopRunOptions,
   ToolLoopResult,
 } from './modules/tool-loop/index.js';
+export {
+  createWorkspaceTools,
+  WORKSPACE_TOOL_DEFINITIONS,
+} from './modules/tools/workspaceTools.js';
+export type { WorkspaceToolsOptions } from './modules/tools/workspaceTools.js';
+
+// Post-edit diagnostics (tsc --noEmit fed back to the model)
+export {
+  runDiagnostics,
+  findNearestTsconfig,
+  diagnosticsEnabledFromEnv,
+} from './modules/tools/diagnostics.js';
+export type { DiagnosticsOptions, DiagnosticsResult } from './modules/tools/diagnostics.js';
+
+// Tool permissions (allow / ask / deny) + environment context injection
+export {
+  defaultPolicyForMode,
+  resolveToolPermission,
+  createPermissionCheck,
+  applyPermissionOverrides,
+  patternToRegExp,
+  READ_TOOLS,
+  WRITE_TOOLS,
+  EXEC_TOOLS,
+} from './modules/tools/permissions.js';
+export type {
+  ToolPermissionAction,
+  PermissionPolicy,
+  BashRule,
+  PermissionCheck,
+} from './modules/tools/permissions.js';
+export {
+  buildEnvironmentContext,
+  findProjectContextFiles,
+  PROJECT_CONTEXT_FILES,
+} from './modules/tools/context.js';
+export type { ProjectContextFile } from './modules/tools/context.js';
+
+// Skills harness (Claude Code style SKILL.md discovery + lazy loading)
+export {
+  discoverSkills,
+  loadSkill,
+  skillsContextBlock,
+  parseSkillFrontmatter,
+  SKILL_DIRS,
+} from './modules/skills/index.js';
+export type { SkillInfo } from './modules/skills/index.js';
+
+// Token-aware conversation history trimming
+export { budgetConversationHistory, renderConversationForSummary } from './history.js';
+export type { ConversationTurn, HistoryBudgetResult } from './history.js';
+
+// TUI session persistence (save / restore / clear / named sessions)
+export {
+  sessionFilePath,
+  namedSessionPath,
+  listSessions,
+  clearNamedSession,
+  saveSession,
+  loadSession,
+  clearSession,
+} from './modules/sessions.js';
+export type { SessionEntry, SessionFile, SessionInfo } from './modules/sessions.js';
+
+// Tool-edit undo/redo snapshots (write_file / edit_file / apply_patch)
+export { captureFile, pushEdit, undoLast, redoLast, undoDepth, redoDepth, getRecordedEdits } from './modules/undo.js';
+export type { FileState, UndoEdit, UndoResult } from './modules/undo.js';
+
+// LSP client (language-server code intelligence)
+export { getLspClient, closeLspClients, LanguageServerClient, formatLspLocations, hoverText, languageIdFor } from './modules/lsp/index.js';
+export type { LspClient } from './modules/lsp/index.js';
+
+// Webhook integrations (notify external endpoints about pipeline events)
+export { parseWebhookConfigs, fireWebhooks, WEBHOOK_EVENTS } from './modules/webhooks.js';
+export type { WebhookConfig, WebhookResult, WebhookEvent } from './modules/webhooks.js';
+
+// MCP client (consume MCP servers as agent tools)
+export {
+  parseMcpServerConfigs,
+  connectMcpServers,
+  mcpToolName,
+  mcpResultToString,
+} from './modules/mcp-client/index.js';
+export type { McpServerConfig, McpToolsBundle, McpConnection, McpConnector } from './modules/mcp-client/index.js';
 
 // Auto Handoff (OpenRouter / OpenAI / Anthropic providers)
 export { OpenRouterClient, OpenRouterError } from './modules/handoff/openRouter.js';
@@ -97,7 +181,7 @@ export { HandoffManager } from './modules/handoff/index.js';
 export type { HandoffManagerOptions, HandoffResult } from './modules/handoff/index.js';
 
 // Branding
-export { BRAND, BRAND_SLUG, VERSION, BANNER_ART, LOGO_GRID, getBanner } from './branding.js';
+export { BRAND, BRAND_SLUG, VERSION, BANNER_ART, LOGO_GRID, getBanner, getColoredBanner } from './branding.js';
 
 // --- Composition layer ------------------------------------------------------
 

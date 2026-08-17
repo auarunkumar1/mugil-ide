@@ -43,7 +43,7 @@ function text(content: string) {
 
 /** Builds the MCP server with the engine's tools registered. */
 export function createMcpServer(engine: Engine = createEngine(loadConfig())): McpServer {
-  const server = new McpServer({ name: 'mugil-ide', version: '1.0.0' });
+  const server = new McpServer({ name: 'mugil-ide', version: '0.1.0' });
 
   server.registerTool(
     'count_tokens',

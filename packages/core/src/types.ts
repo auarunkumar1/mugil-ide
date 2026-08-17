@@ -107,6 +107,12 @@ export interface CacheEntry {
   usage?: Usage;
   /** Feature vector used for semantic lookup; optional for non-semantic stores. */
   embedding?: number[];
+  /**
+   * True when the entry was produced by the offline mock client. The pipeline
+   * discards such entries when a live provider is active — the [mock] content
+   * marker alone is ambiguous, so the flag is authoritative.
+   */
+  mock?: boolean;
 }
 
 export interface AskResult {
@@ -132,6 +138,7 @@ export type PipelineEvent =
   | { type: 'refined'; refine: RefineResult }
   | { type: 'cache'; hit: boolean; kind?: CacheHitKind }
   | { type: 'handoff'; attempts: string[]; model: string; mock?: boolean }
-  | { type: 'tool'; name: string }
+  | { type: 'tool'; name: string; args?: string; index?: number }
+  | { type: 'tool-result'; name: string; index?: number; ok: boolean; result: string }
   | { type: 'done'; usage: Usage };
 

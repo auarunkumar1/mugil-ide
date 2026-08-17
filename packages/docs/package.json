@@ -1,7 +1,18 @@
 {
   "name": "@mugil-ide/docs",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "MD Generator — automated, periodic markdown documentation for a project",
+  "keywords": ["documentation", "markdown", "docs", "generator", "ai", "mugil-ide"],
+  "author": "Mugil IDE Contributors",
+  "homepage": "https://github.com/auarunkumar1/mugil-ide#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/auarunkumar1/mugil-ide.git"
+  },
+  "bugs": {
+    "url": "https://github.com/auarunkumar1/mugil-ide/issues"
+  },
+  "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist"],
@@ -14,7 +25,7 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@mugil-ide/core": "1.0.0"
+    "@mugil-ide/core": "0.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

@@ -3,8 +3,6 @@ import 'dotenv/config';
 import { statSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { Command } from 'commander';
-import { render } from 'ink';
-import React from 'react';
 import {
   createEngine,
   deleteUserEnvKeys,
@@ -12,16 +10,28 @@ import {
   readUserEnv,
   userEnvPath,
 } from '@mugil-ide/core';
-import { ChatApp } from './components/app.js';
-import { LoginWizard, PROVIDERS, maskKey, providerById, type LoginResult } from './components/login.js';
 import { runOnce } from './run.js';
+import { startIdeServer } from './server/server.js';
+import { PROVIDERS, maskKey } from './providers.js';
+import { bold, cyan, green, dim } from './terminal/ansi.js';
 
 const program = new Command();
 
 program
   .name('mugil-ide')
-  .description('Mugil IDE — token-efficient AI IDE: refines prompts, caches aggressively, hands off models automatically.')
-  .version('1.0.0');
+  .description('Mugil IDE — token-efficient AI IDE: PTY + xterm.js UI, refines prompts, caches aggressively, hands off models automatically.')
+  .version('0.1.0');
+
+program
+  .command('ui')
+  .description('Launch the modern PTY + xterm.js Web UI')
+  .option('-p, --port <number>', 'server port', '3000')
+  .option('-h, --host <string>', 'server host', 'localhost')
+  .option('-m, --model <id>', 'initial model id')
+  .option('--no-open', 'do not automatically open the browser')
+  .action(async (options: { port: string; host: string; model?: string; open?: boolean }) => {
+    await launchUi(options);
+  });
 
 program
   .command('run')
@@ -117,23 +127,17 @@ program
   });
 
 program
-  .command('login')
-  .description('Register with a provider and save your API key safely (user env file, owner-only permissions)')
-  .option('-p, --provider <name>', 'preselect provider: openrouter | openai | anthropic | openai-custom | anthropic-custom')
-  .action(async (options: { provider?: string }) => {
-    await runLogin(options.provider);
-  });
-
-program
   .command('logout')
   .description('Remove a saved API key for a provider (--all removes every key)')
-  .argument('[provider]', 'openrouter | openai | anthropic')
+  .argument('[provider]', 'openrouter | openai | anthropic | ollama | lmstudio')
   .option('--all', 'remove all saved provider keys')
   .action(async (provider: string | undefined, options: { all?: boolean }) => {
     const keyVarByProvider: Record<string, string> = {
       openrouter: 'OPENROUTER_API_KEY',
       openai: 'OPENAI_API_KEY',
       anthropic: 'ANTHROPIC_API_KEY',
+      ollama: 'OLLAMA_BASE_URL',
+      lmstudio: 'LMSTUDIO_BASE_URL',
     };
     const keys = options.all
       ? Object.values(keyVarByProvider)
@@ -141,7 +145,7 @@ program
         ? [keyVarByProvider[provider]]
         : [];
     if (keys.length === 0 || keys.some((k) => !k)) {
-      program.error('error: provide a provider (openrouter | openai | anthropic) or --all');
+      program.error('error: provide a provider (openrouter | openai | anthropic | ollama | lmstudio) or --all');
     }
     const { file, removed } = deleteUserEnvKeys(keys as string[]);
     if (removed.length === 0) {
@@ -169,11 +173,14 @@ program
       }
     }
     for (const p of PROVIDERS.filter((x) => x.custom)) {
-      const base = env[p.baseVar];
-      if (base) console.log(`  ${p.id.padEnd(12)} base: ${base}`);
+      const base = env[p.keyVar] || (p.baseVar ? env[p.baseVar] : undefined);
+      if (base) {
+        any = true;
+        console.log(`  ${p.id.padEnd(12)} base: ${base}`);
+      }
     }
     if (!any) {
-      console.log('  none configured — run "mugil-ide login" to add a key');
+      console.log('  none configured — use the web UI Accounts & Keys modal to add a key');
     }
     try {
       const mode = statSync(file).mode;
@@ -215,9 +222,54 @@ program
     }
   });
 
-program.action(() => {
-  void interactive();
+// Default behavior when invoked without arguments: launch UI
+program.action(async () => {
+  await launchUi({ port: '3000', host: 'localhost', open: true });
 });
+
+async function launchUi(options: { port: string; host: string; model?: string; open?: boolean }): Promise<void> {
+  const engine = createEngine(loadConfig());
+  const server = await startIdeServer({
+    port: Number(options.port || 3000),
+    host: options.host || 'localhost',
+    engine,
+    model: options.model,
+  });
+
+  console.log(`\n  ${bold('☁️ Mugil IDE')} ${dim('— Token-Efficient PTY + xterm.js Interface')}`);
+  console.log(`  ${green('✓')} Running at: ${bold(cyan(server.url))}`);
+  console.log(`  ${dim('Press Ctrl+C to stop server.\n')}`);
+
+  if (options.open !== false) {
+    try {
+      const { exec } = await import('node:child_process');
+      const startCmd =
+        process.platform === 'win32'
+          ? `start ${server.url}`
+          : process.platform === 'darwin'
+            ? `open ${server.url}`
+            : `xdg-open ${server.url}`;
+      exec(startCmd);
+    } catch {
+      // ignore
+    }
+  }
+
+  // Keep alive until SIGINT (process.exit in the handler terminates the app).
+  await new Promise<void>(() => {
+    process.on('SIGINT', async () => {
+      console.log('\n  Shutting down server...');
+      try {
+        await server.close();
+        await engine.backend.close();
+      } finally {
+        // node-pty on Windows leaks its named-pipe sockets on kill(); exit
+        // explicitly so Ctrl+C always terminates cleanly.
+        process.exit(0);
+      }
+    });
+  });
+}
 
 function printUpdates(
   result: { configured: boolean; registryUrl?: string; updates: Array<{ id: string; current: string; latest: string; applied?: boolean }>; npm: { current: string; latest: string } | null },
@@ -242,50 +294,6 @@ function printUpdates(
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
-}
-
-async function runLogin(provider?: string): Promise<void> {
-  if (provider && !providerById(provider)) {
-    program.error(
-      'error: unknown provider "' + provider + '" — use openrouter | openai | anthropic | openai-custom | anthropic-custom',
-    );
-  }
-  if (!process.stdin.isTTY) {
-    console.log(
-      '  login needs an interactive terminal — set the key manually in your env file, or run: mugil-ide login',
-    );
-    return;
-  }
-  let resolveResult!: (r: LoginResult) => void;
-  const done = new Promise<LoginResult>((res) => {
-    resolveResult = res;
-  });
-  const app = render(React.createElement(LoginWizard, { initialProvider: provider, onDone: resolveResult }));
-  const result = await done;
-  app.unmount();
-  if (result.ok && result.provider && result.file) {
-    const p = providerById(result.provider)!;
-    console.log(`\n  ✓ ${p.label} configured — key saved to ${result.file}`);
-    console.log(`    run "mugil-ide run <prompt>" — model calls will use ${p.keyVar}\n`);
-  } else if (result.error === 'cancelled') {
-    console.log('\n  login cancelled — nothing saved\n');
-  } else {
-    console.log(`\n  ✗ login failed: ${result.error ?? 'unknown error'}\n`);
-  }
-}
-
-async function interactive(): Promise<void> {
-  const engine = createEngine(loadConfig());
-  let resolveExit!: () => void;
-  const done = new Promise<void>((resolve) => {
-    resolveExit = resolve;
-  });
-  const app = render(
-    React.createElement(ChatApp, { engine, onExit: () => resolveExit() }),
-  );
-  await done;
-  app.unmount();
-  await engine.backend.close();
 }
 
 program.parseAsync().catch((err) => {

@@ -120,13 +120,23 @@ export class OpenAiClient implements ProviderClient {
         content = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
       }
     }
+    // Only require a function name — some OpenAI-compatible endpoints (local
+    // Ollama/LM Studio builds, proxies) omit the `type: 'function'` field on
+    // tool_calls. Requiring it silently dropped the model's request, so a
+    // write_file call never executed and the file was never created.
     const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
-      .filter((tc) => tc?.type === 'function' && Boolean(tc.function?.name))
+      .filter((tc) => Boolean(tc?.function?.name))
       .map((tc) => ({
         id: tc.id ?? '',
         name: tc.function!.name!,
         arguments: tc.function!.arguments ?? '{}',
       }));
+    // Reasoning-only replies (e.g. DeepSeek-R1 that answers inside
+    // reasoning_content with empty content) must not surface as a blank
+    // response that consumes tokens without producing visible text.
+    if (content.trim().length === 0 && toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
+      content = thinking;
+    }
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);

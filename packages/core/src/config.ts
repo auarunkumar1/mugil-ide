@@ -339,7 +339,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                     ? 'anthropic'
                     : 'openrouter';
 
-  const models =
+  const rawModels =
     provider === 'openai'
       ? parseModels(merged.OPENAI_MODELS, DEFAULT_OPENAI_MODELS)
       : provider === 'anthropic'
@@ -351,6 +351,29 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
             : provider === 'local'
               ? parseModels(merged.LOCAL_MODELS, DEFAULT_LOCAL_MODELS)
               : parseModels(merged.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS);
+
+  let models = rawModels;
+  const preferredModelId = merged.MUGIL_IDE_MODEL || merged.AI_MODEL;
+  if (preferredModelId) {
+    const existingIndex = models.findIndex((m) => m.id === preferredModelId);
+    if (existingIndex > 0) {
+      const preferred = models[existingIndex]!;
+      models = [preferred, ...models.slice(0, existingIndex), ...models.slice(existingIndex + 1)];
+    } else if (existingIndex === -1) {
+      models = [
+        {
+          id: preferredModelId,
+          tier: 'standard',
+          costPerMTokIn: 0,
+          costPerMTokOut: 0,
+          contextWindow: 128000,
+          supportsThinking: modelSupportsThinking(preferredModelId),
+          supportsTools: modelSupportsTools(preferredModelId),
+        },
+        ...models,
+      ];
+    }
+  }
 
   return {
     provider,

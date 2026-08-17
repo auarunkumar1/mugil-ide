@@ -86,6 +86,28 @@ describe('OpenAiClient', () => {
     expect(result.mock).toBe(true);
     expect(result.content).toContain('[mock]');
   });
+
+  it('falls back to reasoning content when a reply is reasoning-only', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'deepseek/deepseek-r1',
+        choices: [
+          {
+            message: { content: null, reasoning_content: 'the final answer is 42' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const result = await client.complete([{ role: 'user', content: 'what is the answer' }], {
+      model: 'deepseek/deepseek-r1',
+    });
+    // Tokens were consumed but content was null — the reasoning must surface.
+    expect(result.content).toBe('the final answer is 42');
+  });
 });
 
 describe('AnthropicClient', () => {
@@ -183,6 +205,25 @@ describe('AnthropicClient', () => {
 
     expect(result.thinking).toBe('let me ponder this problem deeply');
     expect(result.content).toBe('final answer');
+  });
+
+  it('falls back to thinking text when a response has only thinking blocks', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-3-7-sonnet',
+        content: [{ type: 'thinking', thinking: 'reasoning only, no text block' }],
+        usage: { input_tokens: 10, output_tokens: 20 },
+        stop_reason: 'max_tokens',
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new AnthropicClient({ apiKey: 'sk-ant-test' });
+    const result = await client.complete([{ role: 'user', content: 'deep question' }], {
+      model: 'claude-3-7-sonnet',
+      thinkingLevel: 'high',
+    });
+    // max_tokens exhausted mid-reasoning -> no text block; surface the thinking.
+    expect(result.content).toBe('reasoning only, no text block');
   });
 
   it('configures thinking budget when thinkingLevel is specified', async () => {
@@ -391,6 +432,35 @@ describe('tool calling (OpenAI family)', () => {
     });
     expect(result.toolCalls).toEqual([{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }]);
     expect(result.finishReason).toBe('tool_calls');
+  });
+
+  it('parses tool_calls that omit the type field (local OpenAI-compatible endpoints)', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'local-model',
+        choices: [
+          {
+            message: {
+              content: '',
+              // No `type: 'function'` — some Ollama/LM Studio builds and
+              // proxies omit it; the call must still be executed.
+              tool_calls: [{ id: 'call_1', function: { name: 'write_file', arguments: '{"path":"index.html"}' } }],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const result = await client.complete([{ role: 'user', content: 'create a file' }], {
+      model: 'local-model',
+      tools: [{ name: 'write_file', description: 'write a file', parameters: {} }],
+    });
+    expect(result.toolCalls).toEqual([
+      { id: 'call_1', name: 'write_file', arguments: '{"path":"index.html"}' },
+    ]);
   });
 
   it('round-trips assistant toolCalls and tool results through the request body', async () => {
