@@ -1,19 +1,21 @@
 # Mugil IDE
 
 ```
- __  __  _   _   ____   _____  _
+ __  __  _   _  ____  _____  _
 |  \/  | | | | | / ___| |_   _| | |
-| |\/| | | |_| | | |  _   | |   | |
-| |  | | |  _  | | |_| |   | |   | |___
-|_|  |_| |_| |_|  \____|   |_|   |_____|
+| |\/| | | |_| | | |  _   | | | |
+| |  | | |  _  | | |_| |   | | | |___
+|_|  |_| |_| |_| \____|   |_| |_____
 ```
 
-**Mugil IDE** is a token-efficient autonomous AI IDE that runs as a
-**browser-based web IDE** (xterm.js two-pane UI) and an MCP stdio server. It
-refines prompts before they hit the model, caches aggressively (exact /
-semantic / partial), routes and hands off models automatically via
-OpenRouter, and strips signature boilerplate — all to minimize token cost
-while maximizing AI productivity.
+**Mugil IDE** is an open-source, token-efficient autonomous AI IDE. It runs
+entirely in the browser — an xterm.js two-pane workspace where a coding agent
+reads, edits, and tests your code, alongside a shell PTY, a file explorer, and
+a live diff viewer with one-click undo. Under the hood it refines prompts
+before they hit the model, caches aggressively (exact / semantic / partial),
+routes across models via OpenRouter, and strips prompt and watermark
+boilerplate — all to minimize token cost while maximizing AI productivity. An
+MCP stdio server exposes the same engine as tools.
 
 The product is **browser-only** — there is **no TUI and no terminal CLI**. The
 Ink TUI was deleted and the console REPL retired; all interactive use happens
