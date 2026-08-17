@@ -5,6 +5,7 @@ import { UpdateManager } from '../src/update/updateManager.js';
 import { clearRulesCache } from '../src/modules/overrides.js';
 import { readOverrideSync, writeOverrideSync } from '../src/modules/overridesNode.js';
 import { cavemanStrategy } from '../src/modules/caveman/index.js';
+import { VERSION } from '../src/branding.js';
 
 const REGISTRY_URL = 'https://registry.example.test/registry.json';
 const REGISTRY = {
@@ -110,7 +111,7 @@ describe('UpdateManager', () => {
     expect(result.registryUrl).toBe(REGISTRY_URL);
     expect(result.updates).toHaveLength(1);
     expect(result.updates[0]).toMatchObject({ id: 'caveman', current: '1.0.0', latest: '2.0.0' });
-    expect(result.npm).toEqual({ current: '0.1.0', latest: '9.9.9' });
+    expect(result.npm).toEqual({ current: VERSION, latest: '9.9.9' });
   });
 
   it('reports nothing when unconfigured', async () => {

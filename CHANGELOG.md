@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-17
+
 ## [0.1.0] - 2026-08-17
 
 Initial development release — first publish to npm and GitHub. The product is
@@ -47,3 +49,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
   contain long-form provider API keys or committed `.env` files.
 
 [0.1.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.0
+
+[0.1.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.1
