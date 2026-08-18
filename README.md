@@ -1,12 +1,4 @@
-# Mugil IDE
-
-```
-███╗   ███╗  ██╗   ██╗    ██████╗    ██╗   ██╗          ██╗   ██████╗    ███████╗
-████╗ ████║  ██║   ██║   ██╔════╝    ██║   ██║          ██║   ██╔══██╗   ██╔════╝
-██╔████╔██║  ██║   ██║   ██║  ███╗   ██║   ██║          ██║   ██║  ██║    █████╗
-██║╚██╔╝██║  ██║   ██║   ██║   ██║   ██║   ██║          ██║   ██║  ██║    ██╔══╝
-██║ ╚═╝ ██║  ╚██████╔╝   ╚██████╔╝   ██║   ███████╗     ██║   ██████╔╝   ███████╗
-```
+<h1 align="center">Mugil IDE</h1>
 
 [![npm version](https://img.shields.io/npm/v/mugil-ide?label=npm&color=cb3837)](https://www.npmjs.com/package/mugil-ide)
 [![npm downloads](https://img.shields.io/npm/dm/mugil-ide?label=downloads)](https://www.npmjs.com/package/mugil-ide)
@@ -22,11 +14,11 @@ routes across models via OpenRouter, and strips prompt and watermark
 boilerplate — all to minimize token cost while maximizing AI productivity. An
 MCP stdio server exposes the same engine as tools.
 
-The product is **browser-only** — there is **no TUI and no terminal CLI**. The
-Ink TUI was deleted and the console REPL retired; all interactive use happens
-in the browser (the local server opens your default browser automatically).
-The terminal front-end (xterm.js) is **vendored into the package**, so an
-installed client runs fully offline — no CDN, no Node-gyp surprises.
+The product is **browser-only** — there is **no TUI and no terminal CLI**; all
+interactive use happens in the browser (the local server opens your default
+browser automatically). The terminal front-end (xterm.js) is **vendored into
+the package**, so an installed client runs fully offline — no CDN, no
+Node-gyp surprises.
 
 ## Features
 
