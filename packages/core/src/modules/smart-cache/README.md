@@ -18,6 +18,12 @@ under the same scope — so a cached answer produced under one selected model
 `openrouter/auto` is exempt and keeps a shared cache because it routes
 dynamically.
 
+**Workspace-scoped entries.** `SmartCacheOptions.namespace` (the engine
+passes `process.cwd()`) is folded into every cache key and into the
+partial/semantic scope check, so two projects that happen to ask the same
+question never receive each other's cached answer — the same isolation the
+session auto-save gets.
+
 **Credits:** Redis for the distributed backend; the exact/semantic caching
 pattern from OpenAI's embedding docs. See
 [ATTRIBUTIONS.md](../../../../ATTRIBUTIONS.md).

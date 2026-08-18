@@ -8,6 +8,7 @@ import type {
   ToolPermissionAction,
   McpToolsBundle,
   SessionEntry,
+  SessionStats,
 } from '@mugil-ide/core';
 import {
   fetchProviderModels,
@@ -29,7 +30,7 @@ import {
   skillsContextBlock,
   renderConversationForSummary,
   saveSession,
-  loadSession,
+  loadSessionFile,
   listSessions,
   clearSession,
   namedSessionPath,
@@ -93,15 +94,7 @@ export class AgentRepl {
   private shimmerInterval: NodeJS.Timeout | null = null;
   private shimmerHue = 0;
   private mcpConnecting: Promise<McpToolsBundle> | null = null;
-  public stats: ReplSessionStats = {
-    promptTokens: 0,
-    completionTokens: 0,
-    totalTokens: 0,
-    cacheHits: 0,
-    requests: 0,
-    tokensSaved: 0,
-    filesModified: new Set<string>(),
-  };
+  public stats: ReplSessionStats = AgentRepl.defaultStats();
 
   constructor(engine: Engine, io: ReplIO, initialModel?: string, options: AgentReplOptions = {}) {
     this.engine = engine;
@@ -112,8 +105,24 @@ export class AgentRepl {
       process.env.MUGIL_IDE_MODEL ||
       (engine.config.models && engine.config.models[0]?.id) ||
       'openrouter/auto';
-    // Auto-resume the last session (no-op when none is saved).
-    this.restoreSessionEntries(loadSession());
+    // Auto-resume the last session for this workspace (no-op when none is
+    // saved) — restores the conversation AND its token/savings stats.
+    const resumed = loadSessionFile();
+    this.restoreSessionEntries(resumed.entries);
+    this.restoreSessionStats(resumed.stats);
+  }
+
+  /** Fresh zeroed stats — used at construction and on `/reset`. */
+  private static defaultStats(): ReplSessionStats {
+    return {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheHits: 0,
+      requests: 0,
+      tokensSaved: 0,
+      filesModified: new Set<string>(),
+    };
   }
 
   /** Closes long-lived connections (MCP stdio children). */
@@ -332,6 +341,8 @@ export class AgentRepl {
           if (snapshot) {
             this.io.write(`\r\n  ${green('✓')} Reverted edit to: ${bold(snapshot.path)}\r\n\r\n`);
             this.stats.filesModified.delete(snapshot.path);
+            // Keep the auto-saved session in sync with the updated stats.
+            void this.saveCurrentSession();
           } else {
             this.io.write(`\r\n  ${yellow('ℹ')} Nothing to undo.\r\n\r\n`);
           }
@@ -367,13 +378,14 @@ export class AgentRepl {
           break;
         }
         {
-          const entries = loadSession(namedSessionPath(argStr));
-          if (entries.length === 0) {
+          const resumed = loadSessionFile(namedSessionPath(argStr));
+          if (resumed.entries.length === 0) {
             this.io.write(`\r\n  ${yellow('ℹ')} No saved session named ${bold(argStr)}. Try ${cyan('/sessions')}.\r\n\r\n`);
             break;
           }
-          this.restoreSessionEntries(entries);
-          this.io.write(`\r\n  ${green('✓')} Resumed session ${bold(argStr)} (${entries.length} turns).\r\n\r\n`);
+          this.restoreSessionEntries(resumed.entries);
+          this.restoreSessionStats(resumed.stats);
+          this.io.write(`\r\n  ${green('✓')} Resumed session ${bold(argStr)} (${resumed.entries.length} turns).\r\n\r\n`);
         }
         break;
 
@@ -389,7 +401,11 @@ export class AgentRepl {
       case 'reset':
         this.messageHistory = [];
         this.turns = [];
-        this.io.write(`\r\n  ${green('✓')} Conversation context reset.\r\n\r\n`);
+        this.stats = AgentRepl.defaultStats();
+        // Also clear the auto-saved session file so a later launch doesn't
+        // resurrect the reset conversation (or its stats).
+        clearSession();
+        this.io.write(`\r\n  ${green('✓')} Conversation context reset — the next launch starts fresh.\r\n\r\n`);
         break;
 
       case 'exit':
@@ -675,7 +691,18 @@ export class AgentRepl {
   private async saveCurrentSession(file?: string): Promise<string> {
     const entries = this.sessionEntries();
     if (entries.length === 0) return '';
-    return saveSession(entries, file);
+    return saveSession(entries, file, this.statsToSession());
+  }
+
+  /** Session metrics in the JSON-friendly shape persisted with the session. */
+  private statsToSession(): SessionStats {
+    return { ...this.stats, filesModified: Array.from(this.stats.filesModified) };
+  }
+
+  /** Restores persisted session metrics (no-op when the file had none). */
+  private restoreSessionStats(stats: SessionStats | null): void {
+    if (!stats) return;
+    this.stats = { ...stats, filesModified: new Set(stats.filesModified) };
   }
 
   /** Rebuilds message history + turn list from persisted entries. */

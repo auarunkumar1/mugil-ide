@@ -7,6 +7,7 @@ import {
   HandoffManager,
   Pipeline,
   saveSession,
+  sessionFilePath,
   pushEdit,
 } from '@mugil-ide/core';
 import type { Engine, ProviderClient } from '@mugil-ide/core';
@@ -182,7 +183,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     // shimmer must keep cycling until the user actually interacts.
     saveSession(
       [{ id: 1, prompt: 'previous question', response: 'previous answer' }],
-      join(cacheDir, 'last-session.json'),
+      sessionFilePath(),
     );
 
     const client: ProviderClient = {
@@ -564,10 +565,18 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     await waitForMessage(ws1, (m) => m.type === 'turn_complete');
     ws1.terminate();
 
-    const file = join(cacheDir, 'last-session.json');
+    const file = sessionFilePath();
     expect(existsSync(file)).toBe(true);
-    const saved = JSON.parse(readFileSync(file, 'utf8')) as { entries: Array<{ prompt: string }> };
+    // The auto-saved session is scoped to this workspace, not a global file.
+    expect(file).toMatch(/last-session-[0-9a-f]{10}\.json$/);
+    expect(file).not.toContain('last-session.json');
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as {
+      entries: Array<{ prompt: string }>;
+      stats: { requests: number };
+    };
     expect(saved.entries.some((e) => e.prompt === 'hello')).toBe(true);
+    // Session metrics are persisted with the conversation (the one completed turn).
+    expect(saved.stats.requests).toBe(1);
 
     // Connection 2: auto-resume restores that turn into the new session's history.
     const ws2 = new WebSocket(url);
@@ -580,6 +589,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     expect(turn2.turn.response).toContain('second answer');
     // The second prompt saw the restored history.
     expect(fedBack[1]).toContain('first answer');
+    // The restored stats carried into connection 2 and accumulated: the file
+    // now shows 2 requests (1 restored + the new turn), not just 1.
+    const saved2 = JSON.parse(readFileSync(file, 'utf8')) as { stats: { requests: number } };
+    expect(saved2.stats.requests).toBe(2);
     ws2.terminate();
 
     await server.close();
