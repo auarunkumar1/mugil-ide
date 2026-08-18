@@ -138,14 +138,16 @@ export type { ConversationTurn, HistoryBudgetResult } from './history.js';
 // TUI session persistence (save / restore / clear / named sessions)
 export {
   sessionFilePath,
+  removeLegacySessionFile,
   namedSessionPath,
   listSessions,
   clearNamedSession,
   saveSession,
   loadSession,
+  loadSessionFile,
   clearSession,
 } from './modules/sessions.js';
-export type { SessionEntry, SessionFile, SessionInfo } from './modules/sessions.js';
+export type { SessionEntry, SessionFile, SessionInfo, SessionStats } from './modules/sessions.js';
 
 // Tool-edit undo/redo snapshots (write_file / edit_file / apply_patch)
 export { captureFile, pushEdit, undoLast, redoLast, undoDepth, redoDepth, getRecordedEdits } from './modules/undo.js';
@@ -274,6 +276,9 @@ export function createEngine(config: AppConfig) {
     backend: cacheBackend,
     ttlSeconds: currentConfig.cacheTtlSeconds,
     embedding,
+    // Scope cached answers to the workspace directory so the same question in
+    // two different projects never serves the other project's answer.
+    namespace: process.cwd(),
   });
   let client = createClient(currentConfig);
   const handoff = new HandoffManager({ client, models: currentConfig.models });

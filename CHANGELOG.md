@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Persistent session metrics** — `/stats` (token usage, cache hits, files
+  modified) is saved with the auto-saved conversation (session format v2)
+  and restored on resume, so metrics survive a reconnect; the auto-save file
+  is kept in sync automatically after every turn and after `/undo` / `/reset`.
+
+### Fixed
+
+- **Cross-project isolation** — the auto-saved session and the smart cache
+  were global, so closing the app in one project and reopening it in another
+  resumed the previous project's conversation (the model kept referencing
+  that project's `readme.md` / `context.md` files) and identical prompts
+  could serve the other project's cached answers. Both are now scoped per
+  workspace: sessions auto-save to `last-session-<workspace>.json`, cache
+  keys are namespaced by the workspace directory, and the legacy global
+  `last-session.json` is swept up on startup. Named `/session` files remain
+  global and explicit.
+
 ## [0.1.1] - 2026-08-17
 
 ## [0.1.0] - 2026-08-17

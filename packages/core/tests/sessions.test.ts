@@ -6,9 +6,13 @@ import {
   clearSession,
   listSessions,
   loadSession,
+  loadSessionFile,
   namedSessionPath,
+  removeLegacySessionFile,
   saveSession,
+  sessionFilePath,
   type SessionEntry,
+  type SessionStats,
 } from '../src/modules/sessions.js';
 
 const entry = (id: number, prompt = `prompt-${id}`): SessionEntry => ({
@@ -110,5 +114,130 @@ describe('sessions', () => {
     expect(clearSession(file)).toBe(true);
     expect(fs.existsSync(file)).toBe(false);
     expect(loadSession(file)).toEqual([]);
+  });
+
+  it('scopes the auto-saved session file per workspace', () => {
+    const env = { MUGIL_IDE_CACHE_DIR: dir } as NodeJS.ProcessEnv;
+    const alpha = sessionFilePath(env, '/projects/alpha');
+    const beta = sessionFilePath(env, '/projects/beta');
+    // Two projects never share the auto-save file.
+    expect(alpha).not.toBe(beta);
+    // Stable per workspace across calls.
+    expect(sessionFilePath(env, '/projects/alpha')).toBe(alpha);
+    expect(sessionFilePath(env, '/projects/beta')).toBe(beta);
+    // The old global `last-session.json` name is gone — auto-resume can no
+    // longer leak one project's conversation into another.
+    expect(path.basename(alpha)).toMatch(/^last-session-[0-9a-f]{10}\.json$/);
+    expect(path.basename(alpha)).not.toBe('last-session.json');
+  });
+
+  it('auto-save/load/clear round-trip through the workspace-scoped default path', () => {
+    const prev = process.env.MUGIL_IDE_CACHE_DIR;
+    process.env.MUGIL_IDE_CACHE_DIR = dir;
+    try {
+      const file = sessionFilePath();
+      saveSession([entry(1)]);
+      expect(fs.existsSync(file)).toBe(true);
+      expect(loadSession()).toHaveLength(1);
+      expect(clearSession()).toBe(true);
+      expect(fs.existsSync(file)).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.MUGIL_IDE_CACHE_DIR;
+      else process.env.MUGIL_IDE_CACHE_DIR = prev;
+    }
+  });
+
+  it('auto-resume sweeps up the legacy global last-session.json', () => {
+    // Simulate a pre-workspace-scoping install: a global last-session.json.
+    const legacy = path.join(dir, 'last-session.json');
+    fs.writeFileSync(legacy, JSON.stringify({ version: 1, savedAt: 1, entries: [entry(1)] }), 'utf-8');
+    const prev = process.env.MUGIL_IDE_CACHE_DIR;
+    process.env.MUGIL_IDE_CACHE_DIR = dir;
+    try {
+      // Loading the workspace-scoped default (auto-resume) path removes it.
+      // The legacy contents are not served — they can't be attributed to any
+      // workspace, and serving them would re-introduce the cross-project leak.
+      expect(loadSession()).toEqual([]);
+      expect(fs.existsSync(legacy)).toBe(false);
+      // Idempotent: a second startup finds nothing to remove.
+      expect(removeLegacySessionFile()).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.MUGIL_IDE_CACHE_DIR;
+      else process.env.MUGIL_IDE_CACHE_DIR = prev;
+    }
+  });
+
+  it('persists session stats (version 2) and restores them', () => {
+    // NOTE: a dedicated file — the describe-level `file` is the legacy
+    // `last-session.json` name, which the cleanup test expects to be absent.
+    const statsFile = path.join(dir, 'stats-test.json');
+    const stats: SessionStats = {
+      promptTokens: 100,
+      completionTokens: 50,
+      totalTokens: 150,
+      cacheHits: 2,
+      requests: 3,
+      tokensSaved: 40,
+      filesModified: ['src/a.ts', 'README.md'],
+    };
+    saveSession([entry(1)], statsFile, stats);
+    const saved = JSON.parse(fs.readFileSync(statsFile, 'utf-8')) as { version: number; stats: SessionStats };
+    expect(saved.version).toBe(2);
+    expect(saved.stats).toEqual(stats);
+
+    const loaded = loadSessionFile(statsFile);
+    expect(loaded.entries).toHaveLength(1);
+    expect(loaded.stats).toEqual(stats);
+    // loadSession keeps returning just the entries (backward compat).
+    expect(loadSession(statsFile)).toHaveLength(1);
+  });
+
+  it('loads version-1 files (entries, no stats) and sanitizes garbage stats', () => {
+    const statsFile = path.join(dir, 'stats-test.json');
+    // Pre-stats (version 1) files still load — stats are null.
+    fs.writeFileSync(statsFile, JSON.stringify({ version: 1, savedAt: 1, entries: [entry(1)] }), 'utf-8');
+    const v1 = loadSessionFile(statsFile);
+    expect(v1.entries).toHaveLength(1);
+    expect(v1.stats).toBeNull();
+
+    // Version-2 files with malformed stats are coerced to zeros / valid strings.
+    fs.writeFileSync(
+      statsFile,
+      JSON.stringify({
+        version: 2,
+        savedAt: 1,
+        entries: [entry(1)],
+        stats: { promptTokens: 'bad', requests: 4, filesModified: [1, 'ok.txt', null] },
+      }),
+      'utf-8',
+    );
+    const v2 = loadSessionFile(statsFile);
+    expect(v2.stats).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cacheHits: 0,
+      requests: 4,
+      tokensSaved: 0,
+      filesModified: ['ok.txt'],
+    });
+  });
+
+  it('removeLegacySessionFile leaves named and per-workspace sessions alone', () => {
+    const env = { MUGIL_IDE_CACHE_DIR: dir } as NodeJS.ProcessEnv;
+    expect(removeLegacySessionFile(env)).toBe(false); // no-op when absent
+
+    const named = namedSessionPath('keep me', env);
+    saveSession([entry(1)], named);
+    const scoped = sessionFilePath(env, '/projects/alpha');
+    saveSession([entry(1)], scoped);
+    const legacy = path.join(dir, 'last-session.json');
+    fs.writeFileSync(legacy, '{}', 'utf-8');
+
+    expect(removeLegacySessionFile(env)).toBe(true);
+    expect(fs.existsSync(legacy)).toBe(false);
+    // Named + per-workspace session files are untouched.
+    expect(fs.existsSync(named)).toBe(true);
+    expect(fs.existsSync(scoped)).toBe(true);
   });
 });

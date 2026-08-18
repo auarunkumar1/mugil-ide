@@ -75,8 +75,16 @@ into the shipped web client** today:
   `MUGIL_IDE_MCP_CONFIG` servers surface as `mcp__<server>__<tool>` tools
   (ask-gated in act mode, denied in plan mode, soft connection failures).
 - **Sessions (wired)**: every turn auto-saves to `MUGIL_IDE_CACHE_DIR` and
-  the latest session resumes on launch; `/session <name>`, `/sessions`,
-  `/resume <name>`, `/clear-session` manage named sessions.
+  the latest session resumes on launch; the auto-save is **scoped per
+  workspace** (`last-session-<workspace>.json`), so closing the app and
+  reopening it in a different project folder never resumes — or leaks — the
+  previous project's conversation (e.g. similarly-named `readme.md` /
+  `context.md` files); the legacy global `last-session.json` from older
+  versions is swept up on startup so it doesn't linger on disk; the file is
+  rewritten automatically after every completed turn and carries the
+  session's token/savings metrics, so `/stats` survives a reconnect;
+  `/session <name>`, `/sessions`, `/resume <name>`, `/clear-session` manage
+  named sessions (named files stay global and explicit).
 - **`/compact` (wired)**: summarizes the conversation via a dedicated model
   call and continues from the summary.
 - **Skills prompt injection (wired)**: `skillsContextBlock(cwd)` lists

@@ -8,6 +8,12 @@ export interface SmartCacheOptions {
   embedding?: EmbeddingProvider;
   /** Minimum cosine similarity for a semantic hit. */
   semanticThreshold?: number;
+  /**
+   * Scopes every cache key to a namespace (e.g. the workspace directory), so
+   * one project's cached answers are never served for another project that
+   * happens to ask the same question.
+   */
+  namespace?: string;
 }
 
 /**
@@ -27,12 +33,14 @@ export class SmartCache {
   private readonly ttlSeconds: number;
   private readonly embedding: EmbeddingProvider;
   private readonly threshold: number;
+  private readonly namespace: string | undefined;
 
   constructor(options: SmartCacheOptions) {
     this.backend = options.backend;
     this.ttlSeconds = options.ttlSeconds;
     this.embedding = options.embedding ?? new LexicalEmbedding();
     this.threshold = options.semanticThreshold ?? 0.85;
+    this.namespace = options.namespace;
   }
 
   async lookup(prompt: string, options: { model?: string } = {}): Promise<CacheLookupResult> {
@@ -41,7 +49,7 @@ export class SmartCache {
     const model = options.model;
 
     // 1. Exact
-    const exact = await this.backend.get(cacheKeyFor(normalized, model));
+    const exact = await this.backend.get(cacheKeyFor(normalized, model, this.namespace));
     if (exact) return { entry: exact, kind: 'exact' };
 
     // 2. Partial — a stored prompt that is a literal prefix of this one is a
@@ -76,7 +84,7 @@ export class SmartCache {
     if (normalized.length === 0) return;
     const now = Date.now();
     const entry: CacheEntry = {
-      key: cacheKeyFor(normalized, keyModel),
+      key: cacheKeyFor(normalized, keyModel, this.namespace),
       prompt: normalized,
       response,
       model,
@@ -107,7 +115,7 @@ export class SmartCache {
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
       if (!entry?.embedding) continue;
-      if (model && !matchesModelScope(entry, model)) continue;
+      if (!matchesScope(entry, model, this.namespace)) continue;
       const score = cosineSimilarity(query, entry.embedding);
       if (score > bestScore) {
         best = entry;
@@ -125,7 +133,7 @@ export class SmartCache {
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
       if (!entry) continue;
-      if (model && !matchesModelScope(entry, model)) continue;
+      if (!matchesScope(entry, model, this.namespace)) continue;
       if (
         normalized.startsWith(entry.prompt) &&
         normalized.length > entry.prompt.length &&
@@ -143,12 +151,21 @@ export class SmartCache {
   }
 }
 
-/** Cache key for a normalized prompt, optionally scoped to a requested model. */
-function cacheKeyFor(normalized: string, model?: string): string {
-  return model ? exactKey(`${model}\n${normalized}`) : exactKey(normalized);
+/**
+ * Cache key for a normalized prompt, optionally scoped to a namespace
+ * (workspace) and a requested model — so a cached answer is never served
+ * for another project or another model.
+ */
+function cacheKeyFor(normalized: string, model?: string, namespace?: string): string {
+  const scope = [namespace, model].filter(Boolean).join('\n');
+  return scope ? exactKey(`${scope}\n${normalized}`) : exactKey(normalized);
 }
 
-/** True when the entry was stored under the given model scope. */
-function matchesModelScope(entry: CacheEntry, model: string): boolean {
-  return entry.key === cacheKeyFor(normalizePrompt(entry.prompt), model);
+/**
+ * True when the entry's key matches the given namespace + model scope.
+ * Always checked (namespace is instance-level; model is per-lookup), so a
+ * project or model never receives another's semantically-matched answer.
+ */
+function matchesScope(entry: CacheEntry, model: string | undefined, namespace: string | undefined): boolean {
+  return entry.key === cacheKeyFor(normalizePrompt(entry.prompt), model, namespace);
 }

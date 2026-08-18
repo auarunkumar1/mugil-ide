@@ -104,6 +104,56 @@ describe('SmartCache', () => {
     const { entry } = await cache.lookup('a');
     expect(entry).toBeUndefined();
   });
+
+  it('namespaces isolate entries between workspaces sharing one backend', async () => {
+    const backend = new MemoryBackend();
+    const cacheA = new SmartCache({
+      backend,
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+      namespace: '/workspace/a',
+    });
+    const cacheB = new SmartCache({
+      backend,
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+      namespace: '/workspace/b',
+    });
+    // Project A stores an answer for a prompt project B will ask verbatim.
+    await cacheA.store('Summarize context.md', 'Project A summary', 'm');
+    // Project B must NOT receive project A's answer.
+    const bLookup = await cacheB.lookup('Summarize context.md');
+    expect(bLookup.entry).toBeUndefined();
+    // Project A still gets its own cached answer.
+    const aLookup = await cacheA.lookup('Summarize context.md');
+    expect(aLookup.kind).toBe('exact');
+    expect(aLookup.entry?.response).toBe('Project A summary');
+  });
+
+  it('semantic lookups respect the workspace namespace', async () => {
+    const backend = new MemoryBackend();
+    const cacheA = new SmartCache({
+      backend,
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+      semanticThreshold: 0.3,
+      namespace: '/workspace/a',
+    });
+    const cacheB = new SmartCache({
+      backend,
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+      semanticThreshold: 0.3,
+      namespace: '/workspace/b',
+    });
+    await cacheA.store('How do I sort an array of numbers?', 'A: use sort', 'm');
+    // Reworded query in project B must not hit project A's semantic entry.
+    const b = await cacheB.lookup('What is the best way to sort a list of numbers?');
+    expect(b.entry).toBeUndefined();
+    const a = await cacheA.lookup('What is the best way to sort a list of numbers?');
+    expect(a.kind).toBe('semantic');
+    expect(a.entry?.response).toBe('A: use sort');
+  });
 });
 
 describe('cosineSimilarity', () => {
