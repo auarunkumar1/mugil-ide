@@ -2,7 +2,7 @@
 
 export const BRAND = 'Mugil IDE';
 export const BRAND_SLUG = 'mugil-ide';
-export const VERSION = '0.1.3';
+export const VERSION = '0.1.4';
 
 /**
  * 5-row modern ANSI Shadow 3D block glyphs used to build the "MUGIL IDE" logo.
