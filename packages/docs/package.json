@@ -1,6 +1,6 @@
 {
   "name": "@mugil-ide/docs",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "MD Generator — automated, periodic markdown documentation for a project",
   "keywords": [
     "documentation",
@@ -35,7 +35,7 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@mugil-ide/core": "0.1.4"
+    "@mugil-ide/core": "0.1.5"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
