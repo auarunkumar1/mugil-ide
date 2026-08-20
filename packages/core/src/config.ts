@@ -445,7 +445,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     vercelApiKey,
     vercelBaseUrl: merged.VERCEL_BASE_URL || 'https://api.vercel.ai/v1',
     cloudflareApiKey,
-    cloudflareAccountId: merged.CLOUDFLARE_ACCOUNT_ID || undefined,
+    cloudflareAccountId,
     cloudflareBaseUrl: merged.CLOUDFLARE_BASE_URL || 'https://api.cloudflare.com/client/v4',
     togetherApiKey,
     togetherBaseUrl: merged.TOGETHER_BASE_URL || 'https://api.together.xyz/v1',
