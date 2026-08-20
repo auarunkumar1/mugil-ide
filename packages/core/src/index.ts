@@ -5,6 +5,9 @@ import { createEmbeddingProvider } from './modules/smart-cache/embeddings.js';
 import { OpenRouterClient } from './modules/handoff/openRouter.js';
 import { OpenAiClient } from './modules/handoff/openAi.js';
 import { AnthropicClient } from './modules/handoff/anthropic.js';
+import { VercelClient } from './modules/handoff/vercel.js';
+import { CloudflareClient } from './modules/handoff/cloudflare.js';
+import { TogetherClient } from './modules/handoff/together.js';
 import type { ProviderClient } from './modules/handoff/provider.js';
 import { HandoffManager } from './modules/handoff/index.js';
 import { Pipeline } from './pipeline.js';
@@ -170,13 +173,19 @@ export {
 } from './modules/mcp-client/index.js';
 export type { McpServerConfig, McpToolsBundle, McpConnection, McpConnector } from './modules/mcp-client/index.js';
 
-// Auto Handoff (OpenRouter / OpenAI / Anthropic providers)
+// Auto Handoff (OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together providers)
 export { OpenRouterClient, OpenRouterError } from './modules/handoff/openRouter.js';
 export type { OpenRouterClientOptions, OpenRouterCompleteOptions } from './modules/handoff/openRouter.js';
 export { OpenAiClient } from './modules/handoff/openAi.js';
 export type { OpenAiClientOptions } from './modules/handoff/openAi.js';
 export { AnthropicClient } from './modules/handoff/anthropic.js';
 export type { AnthropicClientOptions } from './modules/handoff/anthropic.js';
+export { VercelClient } from './modules/handoff/vercel.js';
+export type { VercelClientOptions } from './modules/handoff/vercel.js';
+export { CloudflareClient } from './modules/handoff/cloudflare.js';
+export type { CloudflareClientOptions } from './modules/handoff/cloudflare.js';
+export { TogetherClient } from './modules/handoff/together.js';
+export type { TogetherClientOptions } from './modules/handoff/together.js';
 export { ProviderError, mockCompletion } from './modules/handoff/provider.js';
 export type { ProviderClient, ProviderCompleteOptions } from './modules/handoff/provider.js';
 export { HandoffManager } from './modules/handoff/index.js';
@@ -239,6 +248,9 @@ export {
   DEFAULT_OLLAMA_MODELS,
   DEFAULT_LMSTUDIO_MODELS,
   DEFAULT_LOCAL_MODELS,
+  DEFAULT_VERCEL_MODELS,
+  DEFAULT_CLOUDFLARE_MODELS,
+  DEFAULT_TOGETHER_MODELS,
 } from './config.js';
 export { fetchProviderModels } from './modules/handoff/models.js';
 export type { FetchModelsOptions } from './modules/handoff/models.js';
@@ -330,6 +342,19 @@ function createClient(config: AppConfig): ProviderClient {
   }
   if (config.provider === 'anthropic') {
     return new AnthropicClient({ apiKey: config.anthropicApiKey, baseUrl: config.anthropicBaseUrl });
+  }
+  if (config.provider === 'vercel') {
+    return new VercelClient({ apiKey: config.vercelApiKey, baseUrl: config.vercelBaseUrl });
+  }
+  if (config.provider === 'cloudflare') {
+    return new CloudflareClient({
+      apiKey: config.cloudflareApiKey,
+      accountId: config.cloudflareAccountId,
+      baseUrl: config.cloudflareBaseUrl,
+    });
+  }
+  if (config.provider === 'together') {
+    return new TogetherClient({ apiKey: config.togetherApiKey, baseUrl: config.togetherBaseUrl });
   }
   return new OpenRouterClient({
     apiKey: config.openRouterApiKey,

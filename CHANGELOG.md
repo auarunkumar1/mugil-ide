@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-20
+
+### Added
+
+- **Vercel AI Gateway provider** — OpenAI-compatible chat completions via
+  Vercel's AI SDK endpoint; set `VERCEL_API_KEY` and optionally
+  `VERCEL_MODELS` / `VERCEL_BASE_URL`.
+- **Cloudflare Workers AI provider** — direct Workers AI + AI Gateway
+  support for Llama, Qwen, and DeepSeek models; requires both
+  `CLOUDFLARE_API_KEY` and `CLOUDFLARE_ACCOUNT_ID`.
+- **Together AI provider** — OpenAI-compatible chat completions for Llama,
+  DeepSeek, Qwen, and Mistral models; set `TOGETHER_API_KEY` and optionally
+  `TOGETHER_MODELS` / `TOGETHER_BASE_URL`.
+- All three providers integrate into the existing Auto Handoff manager,
+  model routing, fallback chains, and the Accounts & Keys web UI modal.
+- `AI_PROVIDER` now accepts `vercel | cloudflare | together` to force a
+  provider, with automatic detection falling back to the next available key.
+
 ## [0.1.2] - 2026-08-18
 
 ### Added
@@ -74,3 +92,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.1
 
 [0.1.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.2
+
+[0.1.3]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.3

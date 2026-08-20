@@ -32,6 +32,25 @@ export const PROVIDERS: ProviderDef[] = [
     url: 'https://console.anthropic.com/settings/keys',
   },
   {
+    id: 'vercel',
+    label: 'Vercel AI Gateway (GPT-4o, Claude, DeepSeek)',
+    keyVar: 'VERCEL_API_KEY',
+    url: 'https://vercel.com/integrations',
+  },
+  {
+    id: 'cloudflare',
+    label: 'Cloudflare Workers AI (Llama, Qwen, DeepSeek)',
+    keyVar: 'CLOUDFLARE_API_KEY',
+    baseVar: 'CLOUDFLARE_ACCOUNT_ID',
+    url: 'https://dash.cloudflare.com/profile/api-tokens',
+  },
+  {
+    id: 'together',
+    label: 'Together AI (Llama, DeepSeek, Qwen)',
+    keyVar: 'TOGETHER_API_KEY',
+    url: 'https://api.together.xyz/settings/api-keys',
+  },
+  {
     id: 'ollama',
     label: 'Ollama (Local LLM — no API key required)',
     keyVar: 'OLLAMA_BASE_URL',

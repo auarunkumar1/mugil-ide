@@ -483,8 +483,8 @@ export class AgentRepl {
       try {
         const cloud = await fetchProviderModels({
           provider: cloudProvider,
-          apiKey: this.engine.config.openRouterApiKey || this.engine.config.openaiApiKey || this.engine.config.anthropicApiKey,
-          baseUrl: this.engine.config.openRouterBaseUrl || this.engine.config.openaiBaseUrl || this.engine.config.anthropicBaseUrl,
+          apiKey: this.engine.config.openRouterApiKey || this.engine.config.openaiApiKey || this.engine.config.anthropicApiKey || this.engine.config.vercelApiKey || this.engine.config.cloudflareApiKey || this.engine.config.togetherApiKey,
+          baseUrl: this.engine.config.openRouterBaseUrl || this.engine.config.openaiBaseUrl || this.engine.config.anthropicBaseUrl || this.engine.config.vercelBaseUrl || this.engine.config.cloudflareBaseUrl || this.engine.config.togetherBaseUrl,
           timeoutMs: 3000,
         });
         if (cloud && cloud.length > 0) {

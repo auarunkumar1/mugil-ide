@@ -158,10 +158,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           // ignore — LM Studio not reachable, continue to other providers
         }
 
-        // 3. Probe cloud providers with configured keys (OpenRouter, Anthropic, OpenAI)
+        // 3. Probe cloud providers with configured keys (OpenRouter, Anthropic, OpenAI, Vercel, Cloudflare, Together)
         const openRouterKey = process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || engine.config.openRouterApiKey;
         const openaiKey = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || engine.config.openaiApiKey;
         const anthropicKey = process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || engine.config.anthropicApiKey;
+        const vercelKey = process.env.VERCEL_API_KEY || env.VERCEL_API_KEY || engine.config.vercelApiKey;
+        const cloudflareKey = process.env.CLOUDFLARE_API_KEY || env.CLOUDFLARE_API_KEY || engine.config.cloudflareApiKey;
+        const togetherKey = process.env.TOGETHER_API_KEY || env.TOGETHER_API_KEY || engine.config.togetherApiKey;
 
         if (openRouterKey) {
           try {
@@ -208,6 +211,54 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             }
           } catch {
             // ignore — Anthropic probe failed (missing key / network), continue
+          }
+        }
+
+        if (vercelKey) {
+          try {
+            const cModels = await fetchProviderModels({
+              provider: 'vercel',
+              apiKey: vercelKey,
+              baseUrl: engine.config.vercelBaseUrl,
+              timeoutMs: 4000,
+            });
+            if (cModels && cModels.length > 0) {
+              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'vercel', isLocal: false, providerLabel: 'Vercel AI' }));
+            }
+          } catch {
+            // ignore — Vercel probe failed
+          }
+        }
+
+        if (cloudflareKey) {
+          try {
+            const cModels = await fetchProviderModels({
+              provider: 'cloudflare',
+              apiKey: cloudflareKey,
+              baseUrl: engine.config.cloudflareBaseUrl,
+              timeoutMs: 4000,
+            });
+            if (cModels && cModels.length > 0) {
+              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'cloudflare', isLocal: false, providerLabel: 'Cloudflare' }));
+            }
+          } catch {
+            // ignore — Cloudflare probe failed
+          }
+        }
+
+        if (togetherKey) {
+          try {
+            const cModels = await fetchProviderModels({
+              provider: 'together',
+              apiKey: togetherKey,
+              baseUrl: engine.config.togetherBaseUrl,
+              timeoutMs: 4000,
+            });
+            if (cModels && cModels.length > 0) {
+              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'together', isLocal: false, providerLabel: 'Together AI' }));
+            }
+          } catch {
+            // ignore — Together probe failed
           }
         }
 
@@ -407,6 +458,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             if (baseVar === 'ANTHROPIC_BASE_URL') engine.config.anthropicBaseUrl = baseUrl;
             if (baseVar === 'OLLAMA_BASE_URL') engine.config.ollamaBaseUrl = baseUrl;
             if (baseVar === 'LMSTUDIO_BASE_URL') engine.config.lmstudioBaseUrl = baseUrl;
+            if (baseVar === 'VERCEL_BASE_URL') engine.config.vercelBaseUrl = baseUrl;
+            if (baseVar === 'CLOUDFLARE_BASE_URL') engine.config.cloudflareBaseUrl = baseUrl;
+            if (baseVar === 'TOGETHER_BASE_URL') engine.config.togetherBaseUrl = baseUrl;
           }
           if (provider) {
             toSave.AI_PROVIDER = provider;
@@ -419,6 +473,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             ...(toSave.OPENROUTER_API_KEY ? { openRouterApiKey: toSave.OPENROUTER_API_KEY } : {}),
             ...(toSave.OPENAI_API_KEY ? { openaiApiKey: toSave.OPENAI_API_KEY } : {}),
             ...(toSave.ANTHROPIC_API_KEY ? { anthropicApiKey: toSave.ANTHROPIC_API_KEY } : {}),
+            ...(toSave.VERCEL_API_KEY ? { vercelApiKey: toSave.VERCEL_API_KEY } : {}),
+            ...(toSave.CLOUDFLARE_API_KEY ? { cloudflareApiKey: toSave.CLOUDFLARE_API_KEY } : {}),
+            ...(toSave.TOGETHER_API_KEY ? { togetherApiKey: toSave.TOGETHER_API_KEY } : {}),
             ...(toSave.AI_PROVIDER ? { provider: toSave.AI_PROVIDER as any } : {}),
           });
           res.writeHead(200, { 'Content-Type': 'application/json' });
