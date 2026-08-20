@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-20
+
+### Fixed
+
+- Update hardcoded `VERSION` constant in branding.ts to match package version.
+
 ## [0.1.3] - 2026-08-20
 
 ### Added
@@ -94,3 +100,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.2
 
 [0.1.3]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.3
+
+[0.1.4]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.4
