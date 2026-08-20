@@ -33,7 +33,7 @@ The engine is a set of **separate, credited modules** — see
 | **Signature Remover** | Strips Anthropic/OpenAI prompt signatures **and** AI-generated code signatures (headers, attribution comments, watermark chars) | Anthropic/OpenAI formats; community de-AI tooling |
 | **Watermark Remover** | Strips AI provenance watermarks from generated text — invisible Unicode carriers (zero-width chars, bidi, tag chars, exotic spaces) and vendor attribution lines | [guillaumemeyer/watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) |
 | **Smart Cache** | `exact` → `partial` (prefix + delta) → `semantic` (embedding similarity); memory / Redis / file backends with TTL; entries can be scoped to the requested model so one model's answer is never served for another | Redis; semantic-caching pattern |
-| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); tool declarations forwarded in each provider's wire format; offline mock mode | [OpenRouter](https://openrouter.ai) |
+| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Vercel / Cloudflare / Together AI / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); tool declarations forwarded in each provider's wire format; offline mock mode | [OpenRouter](https://openrouter.ai) |
 | **Tool Loop** | Bounded agentic function calling with **16 workspace tools** (`read_file`, `list_files`, `search_code`, `codegraph`, `write_file`, `edit_file`, `apply_patch`, `run_command`, `todowrite`, `todoread`, `skill`, `webfetch`, `websearch`, `lsp`, `question`, `task`), error capture for unknown/failed tools, a forced final summary after `maxIterations`, and a full cache bypass for tool-bearing asks. Module-level extras (permission gate, env-context injection, skills prompt injection, post-edit diagnostics, MCP client, sessions) — see **Tool loop wiring** below | [OpenCode](https://github.com/sst/opencode) · [Pi](https://github.com/earendil-works/pi) — established coding-agent patterns |
 | **Auto Update Manager** | Versioned, updatable module rules (JSON) + check/apply/periodic-watch against a registry + npm version check | — |
 | **MCP Server** | Engine modules as MCP tools (`ask`, `refine_prompt`, `count_tokens`, `strip_*`, `compress_command_output`, `list_models`) over stdio | [Model Context Protocol](https://modelcontextprotocol.io) |
@@ -42,7 +42,7 @@ The engine is a set of **separate, credited modules** — see
 | **Codegraph** | Knowledge graph of a codebase — every symbol, import/dependency edge and same-file call edge — so the agent gets exactly the code it needs in one call | [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph) |
 | **CLI package** | The browser-only web IDE server (HTTP + WebSocket, xterm.js two-pane UI) + non-interactive utilities (`run`, `graph`, `docs`, `update`, `keys`, `logout`) | — |
 
-Everything degrades gracefully: no `OPENROUTER_API_KEY` → deterministic mock
+Everything degrades gracefully: no API key → deterministic mock
 completions; no Redis → file cache in `~/.cache/mugil-ide` (or in-memory in
 tests); tiktoken unavailable → heuristic token estimator.
 
@@ -96,7 +96,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.1
+mugil-ide --version         # 0.1.3
 mugil-ide                   # starts the local server and opens your browser
 ```
 
@@ -260,13 +260,14 @@ mugil-ide logout openai                  # remove one provider's key
 mugil-ide logout --all                   # remove every saved key
 ```
 
-Providers: **OpenRouter (primary)**, OpenAI, Anthropic, plus **Ollama**,
+Providers: **OpenRouter (primary)**, OpenAI, Anthropic, **Vercel AI Gateway**,
+**Cloudflare Workers AI**, **Together AI**, plus **Ollama**,
 **LM Studio**, and generic local OpenAI-compatible endpoints — connect any of
 them from the Accounts modal (local providers default to
 `http://localhost:11434/v1`, `:1234/v1`, `:8000/v1`). The engine picks the
 provider automatically — OpenRouter wins when its key is set, then OpenAI,
-then Anthropic — or force one with `AI_PROVIDER`
-(`openrouter | openai | anthropic | ollama | lmstudio | local`).
+then Anthropic, then Vercel, then Cloudflare, then Together — or force one with `AI_PROVIDER`
+(`openrouter | openai | anthropic | vercel | cloudflare | together | ollama | lmstudio | local`).
 
 ### Code graph — `mugil-ide graph`
 
@@ -306,7 +307,17 @@ The npm packages use the `@mugil-ide/*` scope, matching the product brand
 | `ANTHROPIC_API_KEY` | — | Anthropic completions |
 | `ANTHROPIC_MODELS` | claude-3-5-haiku, claude-3-5-sonnet, claude-sonnet-4 | Anthropic model ladder |
 | `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Anthropic-compatible endpoint base URL |
-| `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` \| `ollama` \| `lmstudio` \| `local` |
+| `VERCEL_API_KEY` | — | Vercel AI Gateway completions |
+| `VERCEL_MODELS` | gpt-4o-mini, gpt-4o, claude-3-5-sonnet-latest | Vercel model ladder |
+| `VERCEL_BASE_URL` | `https://api.vercel.ai/v1` | Vercel AI endpoint base URL |
+| `CLOUDFLARE_API_KEY` | — | Cloudflare Workers AI completions |
+| `CLOUDFLARE_ACCOUNT_ID` | — | Cloudflare account ID (required for Workers AI) |
+| `CLOUDFLARE_MODELS` | @cf/meta/llama-3.3-70b-instruct, @cf/meta/llama-3.1-8b-instruct | Cloudflare model ladder |
+| `CLOUDFLARE_BASE_URL` | `https://api.cloudflare.com/client/v4` | Cloudflare API base URL |
+| `TOGETHER_API_KEY` | — | Together AI completions |
+| `TOGETHER_MODELS` | meta-llama/Llama-3.3-70B-Instruct-Turbo, deepseek-ai/DeepSeek-R1 | Together AI model ladder |
+| `TOGETHER_BASE_URL` | `https://api.together.xyz/v1` | Together AI endpoint base URL |
+| `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` \| `vercel` \| `cloudflare` \| `together` \| `ollama` \| `lmstudio` \| `local` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint (local AI) |
 | `OLLAMA_MODELS` | llama3.2, deepseek-r1:8b, qwen2.5-coder, mistral | Ollama model ladder |
 | `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | LM Studio endpoint |
@@ -345,7 +356,7 @@ packages/
 │   │   ├── watermark-remover/ AI provenance watermark stripping (Layer A)
 │   │   ├── codegraph/         code knowledge graph (symbols, imports, calls)
 │   │   ├── smart-cache/      exact/partial/semantic cache, backends, embeddings
-│   │   ├── handoff/          OpenRouter client + Auto Handoff Manager
+│   │   ├── handoff/          OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together clients + Auto Handoff Manager
 │   │   ├── tool-loop/        bounded agentic function-calling loop
 │   │   ├── tools/            workspace tools + permissions + diagnostics + context
 │   │   ├── skills/           SKILL.md discovery + lazy loading
@@ -412,6 +423,9 @@ Done and shipped:
 - ✅ **Session persistence** — auto-save/resume + `/session` `/sessions` `/resume` `/clear-session`
 - ✅ **`/compact`** conversation summarization (dedicated model call, continues from the summary)
 - ✅ Skills **prompt injection** (`skillsContextBlock` descriptions in the system prompt)
+- ✅ **Vercel AI Gateway** provider — OpenAI-compatible chat completions via Vercel's AI SDK endpoint
+- ✅ **Cloudflare Workers AI** provider — direct Workers AI + AI Gateway support (Llama, Qwen, DeepSeek)
+- ✅ **Together AI** provider — OpenAI-compatible chat completions (Llama, DeepSeek, Qwen, Mistral)
 
 ## License
 

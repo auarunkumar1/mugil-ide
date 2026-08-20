@@ -195,6 +195,100 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
         }
       }
     }
+
+    // Vercel AI Gateway — OpenAI-compatible /v1/models
+    if (provider === 'vercel') {
+      const ep = baseUrl || 'https://api.vercel.ai/v1';
+      if (apiKey) {
+        try {
+          const res = await fetch(`${ep}/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { data?: Array<{ id: string }> };
+            if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+              const list: ModelSpec[] = json.data.map((m) => ({
+                id: m.id,
+                tier: m.id.includes('mini') || m.id.includes('small') ? 'cheap' : m.id.includes('r1') || m.id.includes('thinking') ? 'smart' : 'standard',
+                costPerMTokIn: 0,
+                costPerMTokOut: 0,
+                contextWindow: 128000,
+                supportsThinking: modelSupportsThinking(m.id),
+                supportsTools: modelSupportsTools(m.id),
+              }));
+              modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
+              return list;
+            }
+          }
+        } catch {
+          // fall through to curated list
+        }
+      }
+    }
+
+    // Cloudflare Workers AI — OpenAI-compatible /ai/v1/models
+    if (provider === 'cloudflare') {
+      const ep = baseUrl || 'https://api.cloudflare.com/client/v4';
+      const accountId = options.baseUrl?.match(/accounts\/([^/]+)/)?.[1];
+      if (apiKey && accountId) {
+        try {
+          const res = await fetch(`${ep}/accounts/${accountId}/ai/models/search`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { result?: Array<{ id: string; name?: string }> };
+            if (json.result && Array.isArray(json.result) && json.result.length > 0) {
+              const list: ModelSpec[] = json.result.map((m) => ({
+                id: m.id,
+                tier: 'standard',
+                costPerMTokIn: 0,
+                costPerMTokOut: 0,
+                contextWindow: 128000,
+                supportsThinking: modelSupportsThinking(m.id),
+                supportsTools: modelSupportsTools(m.id),
+              }));
+              modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
+              return list;
+            }
+          }
+        } catch {
+          // fall through to curated list
+        }
+      }
+    }
+
+    // Together AI — OpenAI-compatible /v1/models
+    if (provider === 'together') {
+      const ep = baseUrl || 'https://api.together.xyz/v1';
+      if (apiKey) {
+        try {
+          const res = await fetch(`${ep}/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(timeoutMs),
+          });
+          if (res.ok) {
+            const json = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
+            if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+              const list: ModelSpec[] = json.data.map((m) => ({
+                id: m.id,
+                tier: m.id.includes('turbo') || m.id.includes('small') ? 'cheap' : m.id.includes('r1') || m.id.includes('qwq') ? 'smart' : 'standard',
+                costPerMTokIn: 0,
+                costPerMTokOut: 0,
+                contextWindow: 128000,
+                supportsThinking: modelSupportsThinking(m.id),
+                supportsTools: modelSupportsTools(m.id),
+              }));
+              modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
+              return list;
+            }
+          }
+        } catch {
+          // fall through to curated list
+        }
+      }
+    }
   } catch {
     // Network probe failed or timed out — return empty list
   }
