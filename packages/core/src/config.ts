@@ -173,6 +173,33 @@ export const DEFAULT_LOCAL_MODELS: ModelSpec[] = [
   { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
 ];
 
+/** Default Vercel AI Gateway ladder. */
+export const DEFAULT_VERCEL_MODELS: ModelSpec[] = [
+  { id: 'gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000 },
+  { id: 'gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, contextWindow: 128000 },
+  { id: 'claude-3-5-sonnet-latest', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000 },
+  { id: 'claude-3-7-sonnet-latest', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000, supportsThinking: true },
+  { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0.55, costPerMTokOut: 2.19, contextWindow: 160000, supportsThinking: true },
+];
+
+/** Default Cloudflare Workers AI ladder. */
+export const DEFAULT_CLOUDFLARE_MODELS: ModelSpec[] = [
+  { id: '@cf/meta/llama-3.3-70b-instruct', tier: 'standard', costPerMTokIn: 0.12, costPerMTokOut: 0.3, contextWindow: 128000 },
+  { id: '@cf/meta/llama-3.1-8b-instruct', tier: 'cheap', costPerMTokIn: 0.05, costPerMTokOut: 0.15, contextWindow: 128000 },
+  { id: '@cf/meta/llama-3.2-3b-instruct', tier: 'cheap', costPerMTokIn: 0.02, costPerMTokOut: 0.08, contextWindow: 128000 },
+  { id: '@cf/qwen/qwq-32b', tier: 'smart', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000, supportsThinking: true },
+  { id: '@cf/deepseek/deepseek-r1-distill-qwen-32b', tier: 'smart', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000, supportsThinking: true },
+];
+
+/** Default Together AI ladder. */
+export const DEFAULT_TOGETHER_MODELS: ModelSpec[] = [
+  { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', tier: 'standard', costPerMTokIn: 0.12, costPerMTokOut: 0.3, contextWindow: 128000 },
+  { id: 'meta-llama/Llama-3.1-8B-Instruct-Turbo', tier: 'cheap', costPerMTokIn: 0.05, costPerMTokOut: 0.15, contextWindow: 128000 },
+  { id: 'deepseek-ai/DeepSeek-R1', tier: 'smart', costPerMTokIn: 0.55, costPerMTokOut: 2.19, contextWindow: 160000, supportsThinking: true },
+  { id: 'Qwen/Qwen3-30B-A3B-Turbo', tier: 'smart', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000, supportsThinking: true },
+  { id: 'mistralai/Mistral-Small-24B-Instruct-2501', tier: 'cheap', costPerMTokIn: 0.1, costPerMTokOut: 0.3, contextWindow: 32000 },
+];
+
 /** Fetches available models from provider API with fallback to static catalog. */
 export async function fetchRemoteModels(
   provider: CompletionProvider,
@@ -232,10 +259,10 @@ export function isLocalUrl(url?: string): boolean {
   );
 }
 
-export type CompletionProvider = 'openrouter' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'local';
+export type CompletionProvider = 'openrouter' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'local' | 'vercel' | 'cloudflare' | 'together';
 
 export interface AppConfig {
-  /** The provider the engine talks to (OpenRouter primary; else OpenAI/Anthropic/Ollama/LM Studio/Local). */
+  /** The provider the engine talks to (OpenRouter primary; else OpenAI/Anthropic/Ollama/LM Studio/Local/Vercel/Cloudflare/Together). */
   provider: CompletionProvider;
   openRouterApiKey?: string;
   openRouterBaseUrl: string;
@@ -246,6 +273,13 @@ export interface AppConfig {
   ollamaBaseUrl: string;
   lmstudioBaseUrl: string;
   localBaseUrl: string;
+  vercelApiKey?: string;
+  vercelBaseUrl: string;
+  cloudflareApiKey?: string;
+  cloudflareAccountId?: string;
+  cloudflareBaseUrl: string;
+  togetherApiKey?: string;
+  togetherBaseUrl: string;
   redisUrl?: string;
   redisClusterUrls?: string[];
   cacheDir?: string;
@@ -317,6 +351,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const openRouterApiKey = merged.OPENROUTER_API_KEY || undefined;
   const openaiApiKey = merged.OPENAI_API_KEY || undefined;
   const anthropicApiKey = merged.ANTHROPIC_API_KEY || undefined;
+  const vercelApiKey = merged.VERCEL_API_KEY || undefined;
+  const cloudflareApiKey = merged.CLOUDFLARE_API_KEY || undefined;
+  const cloudflareAccountId = merged.CLOUDFLARE_ACCOUNT_ID || undefined;
+  const togetherApiKey = merged.TOGETHER_API_KEY || undefined;
 
   // Provider resolution: OpenRouter is primary; AI_PROVIDER overrides.
   const requested = (merged.AI_PROVIDER ?? '').toLowerCase();
@@ -331,13 +369,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
             ? 'openai'
             : requested === 'anthropic'
               ? 'anthropic'
-              : openRouterApiKey
-                ? 'openrouter'
-                : openaiApiKey
-                  ? 'openai'
-                  : anthropicApiKey
-                    ? 'anthropic'
-                    : 'openrouter';
+              : requested === 'vercel'
+                ? 'vercel'
+                : requested === 'cloudflare'
+                  ? 'cloudflare'
+                  : requested === 'together'
+                    ? 'together'
+                    : openRouterApiKey
+                      ? 'openrouter'
+                      : openaiApiKey
+                        ? 'openai'
+                        : anthropicApiKey
+                          ? 'anthropic'
+                          : vercelApiKey
+                            ? 'vercel'
+                            : cloudflareApiKey
+                              ? 'cloudflare'
+                              : togetherApiKey
+                                ? 'together'
+                                : 'openrouter';
 
   const rawModels =
     provider === 'openai'
@@ -350,7 +400,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
             ? parseModels(merged.LMSTUDIO_MODELS, DEFAULT_LMSTUDIO_MODELS)
             : provider === 'local'
               ? parseModels(merged.LOCAL_MODELS, DEFAULT_LOCAL_MODELS)
-              : parseModels(merged.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS);
+              : provider === 'vercel'
+                ? parseModels(merged.VERCEL_MODELS, DEFAULT_VERCEL_MODELS)
+                : provider === 'cloudflare'
+                  ? parseModels(merged.CLOUDFLARE_MODELS, DEFAULT_CLOUDFLARE_MODELS)
+                  : provider === 'together'
+                    ? parseModels(merged.TOGETHER_MODELS, DEFAULT_TOGETHER_MODELS)
+                    : parseModels(merged.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS);
 
   let models = rawModels;
   const preferredModelId = merged.MUGIL_IDE_MODEL || merged.AI_MODEL;
@@ -386,6 +442,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ollamaBaseUrl: merged.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
     lmstudioBaseUrl: merged.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1',
     localBaseUrl: merged.LOCAL_BASE_URL || 'http://localhost:8000/v1',
+    vercelApiKey,
+    vercelBaseUrl: merged.VERCEL_BASE_URL || 'https://api.vercel.ai/v1',
+    cloudflareApiKey,
+    cloudflareAccountId: merged.CLOUDFLARE_ACCOUNT_ID || undefined,
+    cloudflareBaseUrl: merged.CLOUDFLARE_BASE_URL || 'https://api.cloudflare.com/client/v4',
+    togetherApiKey,
+    togetherBaseUrl: merged.TOGETHER_BASE_URL || 'https://api.together.xyz/v1',
     redisUrl: merged.REDIS_URL || undefined,
     redisClusterUrls: parseList(merged.REDIS_CLUSTER_URLS),
     cacheDir: merged.MUGIL_IDE_CACHE_DIR || defaultCacheDir,
