@@ -51,6 +51,12 @@ export const PROVIDERS: ProviderDef[] = [
     url: 'https://api.together.xyz/settings/api-keys',
   },
   {
+    id: 'opencode',
+    label: 'OpenCode Zen (Claude, Qwen, DeepSeek, Kimi — one curated key)',
+    keyVar: 'OPENCODE_API_KEY',
+    url: 'https://opencode.ai/auth',
+  },
+  {
     id: 'ollama',
     label: 'Ollama (Local LLM — no API key required)',
     keyVar: 'OLLAMA_BASE_URL',

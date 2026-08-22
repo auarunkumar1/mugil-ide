@@ -158,7 +158,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           // ignore — LM Studio not reachable, continue to other providers
         }
 
-        // 3. Probe cloud providers with configured keys (OpenRouter, Anthropic, OpenAI, Vercel, Cloudflare, Together)
+        // 3. Probe cloud providers with configured keys (OpenRouter, Anthropic, OpenAI, Vercel, Cloudflare, Together, OpenCode)
         const openRouterKey = process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || engine.config.openRouterApiKey;
         const openaiKey = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || engine.config.openaiApiKey;
         const anthropicKey = process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || engine.config.anthropicApiKey;
@@ -259,6 +259,23 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             }
           } catch {
             // ignore — Together probe failed
+          }
+        }
+
+        const opencodeKey = process.env.OPENCODE_API_KEY || env.OPENCODE_API_KEY || engine.config.opencodeApiKey;
+        if (opencodeKey) {
+          try {
+            const zModels = await fetchProviderModels({
+              provider: 'opencode',
+              apiKey: opencodeKey,
+              baseUrl: engine.config.opencodeBaseUrl,
+              timeoutMs: 4000,
+            });
+            if (zModels && zModels.length > 0) {
+              zModels.forEach((m) => cloudModels.push({ ...m, provider: 'opencode', isLocal: false, providerLabel: 'OpenCode Zen' }));
+            }
+          } catch {
+            // ignore — OpenCode Zen probe failed
           }
         }
 
@@ -461,6 +478,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             if (baseVar === 'VERCEL_BASE_URL') engine.config.vercelBaseUrl = baseUrl;
             if (baseVar === 'CLOUDFLARE_BASE_URL') engine.config.cloudflareBaseUrl = baseUrl;
             if (baseVar === 'TOGETHER_BASE_URL') engine.config.togetherBaseUrl = baseUrl;
+            if (baseVar === 'OPENCODE_BASE_URL') engine.config.opencodeBaseUrl = baseUrl;
           }
           if (provider) {
             toSave.AI_PROVIDER = provider;
@@ -476,6 +494,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             ...(toSave.VERCEL_API_KEY ? { vercelApiKey: toSave.VERCEL_API_KEY } : {}),
             ...(toSave.CLOUDFLARE_API_KEY ? { cloudflareApiKey: toSave.CLOUDFLARE_API_KEY } : {}),
             ...(toSave.TOGETHER_API_KEY ? { togetherApiKey: toSave.TOGETHER_API_KEY } : {}),
+            ...(toSave.OPENCODE_API_KEY ? { opencodeApiKey: toSave.OPENCODE_API_KEY } : {}),
             ...(toSave.AI_PROVIDER ? { provider: toSave.AI_PROVIDER as any } : {}),
           });
           res.writeHead(200, { 'Content-Type': 'application/json' });
