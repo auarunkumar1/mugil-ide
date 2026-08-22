@@ -1,5 +1,6 @@
 import { AnthropicClient } from '../src/modules/handoff/anthropic.js';
 import { OpenAiClient } from '../src/modules/handoff/openAi.js';
+import { OpenCodeClient } from '../src/modules/handoff/openCode.js';
 import { fetchProviderModels } from '../src/modules/handoff/models.js';
 import { createEngine, loadConfig } from '../src/index.js';
 import type { ToolDefinition } from '../src/types.js';
@@ -247,6 +248,75 @@ describe('AnthropicClient', () => {
     };
     expect(body.thinking).toEqual({ type: 'enabled', budget_tokens: 4096 });
     expect(body.max_tokens).toBeGreaterThanOrEqual(4096 + 1024);
+  });
+});
+
+describe('OpenCodeClient', () => {
+  it('runs in mock mode without an API key', async () => {
+    const client = new OpenCodeClient();
+    const result = await client.complete([{ role: 'user', content: 'hi' }], { model: 'qwen3-coder' });
+    expect(result.mock).toBe(true);
+    expect(result.content).toContain('[mock] no OPENCODE_API_KEY');
+  });
+
+  it('routes claude models to the Anthropic-format /v1/messages endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-haiku-4-5',
+        content: [{ type: 'text', text: 'hello from zen' }],
+        usage: { input_tokens: 5, output_tokens: 2 },
+        stop_reason: 'end_turn',
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-test' });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'claude-haiku-4-5',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/v1/messages',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'x-api-key': 'oc-test' }),
+      }),
+    );
+    expect(result.provider).toBe('opencode');
+    expect(result.model).toBe('claude-haiku-4-5');
+  });
+
+  it('routes all other models through chat completions with a Bearer key', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'qwen3-coder',
+        choices: [{ message: { content: 'hello again' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 4, completion_tokens: 3, total_tokens: 7 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-test' });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'qwen3-coder',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/v1/chat/completions',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer oc-test' }),
+      }),
+    );
+    expect(result.provider).toBe('opencode');
+    expect(result.content).toBe('hello again');
+    expect(result.usage.totalTokens).toBe(7);
+  });
+
+  it('rejects gpt/codex models with a non-retryable error (Responses API unsupported)', async () => {
+    global.fetch = jest.fn() as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-test' });
+    await expect(
+      client.complete([{ role: 'user', content: 'hi' }], { model: 'gpt-5.6-sol' }),
+    ).rejects.toMatchObject({ status: 400, retryable: false });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
 
