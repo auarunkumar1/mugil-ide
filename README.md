@@ -33,7 +33,7 @@ The engine is a set of **separate, credited modules** — see
 | **Signature Remover** | Strips Anthropic/OpenAI prompt signatures **and** AI-generated code signatures (headers, attribution comments, watermark chars) | Anthropic/OpenAI formats; community de-AI tooling |
 | **Watermark Remover** | Strips AI provenance watermarks from generated text — invisible Unicode carriers (zero-width chars, bidi, tag chars, exotic spaces) and vendor attribution lines | [guillaumemeyer/watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) |
 | **Smart Cache** | `exact` → `partial` (prefix + delta) → `semantic` (embedding similarity); memory / Redis / file backends with TTL; entries can be scoped to the requested model so one model's answer is never served for another | Redis; semantic-caching pattern |
-| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Vercel / Cloudflare / Together AI / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); tool declarations forwarded in each provider's wire format; offline mock mode | [OpenRouter](https://openrouter.ai) |
+| **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Vercel / Cloudflare / Together AI / OpenCode Zen / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); tool declarations forwarded in each provider's wire format; offline mock mode | [OpenRouter](https://openrouter.ai) |
 | **Tool Loop** | Bounded agentic function calling with **16 workspace tools** (`read_file`, `list_files`, `search_code`, `codegraph`, `write_file`, `edit_file`, `apply_patch`, `run_command`, `todowrite`, `todoread`, `skill`, `webfetch`, `websearch`, `lsp`, `question`, `task`), error capture for unknown/failed tools, a forced final summary after `maxIterations`, and a full cache bypass for tool-bearing asks. Module-level extras (permission gate, env-context injection, skills prompt injection, post-edit diagnostics, MCP client, sessions) — see **Tool loop wiring** below | [OpenCode](https://github.com/sst/opencode) · [Pi](https://github.com/earendil-works/pi) — established coding-agent patterns |
 | **Auto Update Manager** | Versioned, updatable module rules (JSON) + check/apply/periodic-watch against a registry + npm version check | — |
 | **MCP Server** | Engine modules as MCP tools (`ask`, `refine_prompt`, `count_tokens`, `strip_*`, `compress_command_output`, `list_models`) over stdio | [Model Context Protocol](https://modelcontextprotocol.io) |
@@ -261,13 +261,13 @@ mugil-ide logout --all                   # remove every saved key
 ```
 
 Providers: **OpenRouter (primary)**, OpenAI, Anthropic, **Vercel AI Gateway**,
-**Cloudflare Workers AI**, **Together AI**, plus **Ollama**,
+**Cloudflare Workers AI**, **Together AI**, **OpenCode Zen**, plus **Ollama**,
 **LM Studio**, and generic local OpenAI-compatible endpoints — connect any of
 them from the Accounts modal (local providers default to
 `http://localhost:11434/v1`, `:1234/v1`, `:8000/v1`). The engine picks the
 provider automatically — OpenRouter wins when its key is set, then OpenAI,
-then Anthropic, then Vercel, then Cloudflare, then Together — or force one with `AI_PROVIDER`
-(`openrouter | openai | anthropic | vercel | cloudflare | together | ollama | lmstudio | local`).
+then Anthropic, then Vercel, then Cloudflare, then Together, then OpenCode — or force one with `AI_PROVIDER`
+(`openrouter | openai | anthropic | vercel | cloudflare | together | opencode | ollama | lmstudio | local`).
 
 ### Code graph — `mugil-ide graph`
 
@@ -317,7 +317,10 @@ The npm packages use the `@mugil-ide/*` scope, matching the product brand
 | `TOGETHER_API_KEY` | — | Together AI completions |
 | `TOGETHER_MODELS` | meta-llama/Llama-3.3-70B-Instruct-Turbo, deepseek-ai/DeepSeek-R1 | Together AI model ladder |
 | `TOGETHER_BASE_URL` | `https://api.together.xyz/v1` | Together AI endpoint base URL |
-| `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` \| `vercel` \| `cloudflare` \| `together` \| `ollama` \| `lmstudio` \| `local` |
+| `OPENCODE_API_KEY` | — | OpenCode Zen completions (claude-* models use the Messages endpoint) |
+| `OPENCODE_MODELS` | claude-haiku-4-5, claude-sonnet-4-5, claude-opus-4-5 | OpenCode Zen model ladder |
+| `OPENCODE_BASE_URL` | `https://opencode.ai/zen/v1` | OpenCode Zen endpoint base URL |
+| `AI_PROVIDER` | auto | Force a provider: `openrouter` \| `openai` \| `anthropic` \| `vercel` \| `cloudflare` \| `together` \| `opencode` \| `ollama` \| `lmstudio` \| `local` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint (local AI) |
 | `OLLAMA_MODELS` | llama3.2, deepseek-r1:8b, qwen2.5-coder, mistral | Ollama model ladder |
 | `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | LM Studio endpoint |
@@ -356,7 +359,7 @@ packages/
 │   │   ├── watermark-remover/ AI provenance watermark stripping (Layer A)
 │   │   ├── codegraph/         code knowledge graph (symbols, imports, calls)
 │   │   ├── smart-cache/      exact/partial/semantic cache, backends, embeddings
-│   │   ├── handoff/          OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together clients + Auto Handoff Manager
+│   │   ├── handoff/          OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together / OpenCode clients + Auto Handoff Manager
 │   │   ├── tool-loop/        bounded agentic function-calling loop
 │   │   ├── tools/            workspace tools + permissions + diagnostics + context
 │   │   ├── skills/           SKILL.md discovery + lazy loading
@@ -426,6 +429,7 @@ Done and shipped:
 - ✅ **Vercel AI Gateway** provider — OpenAI-compatible chat completions via Vercel's AI SDK endpoint
 - ✅ **Cloudflare Workers AI** provider — direct Workers AI + AI Gateway support (Llama, Qwen, DeepSeek)
 - ✅ **Together AI** provider — OpenAI-compatible chat completions (Llama, DeepSeek, Qwen, Mistral)
+- ✅ **OpenCode Zen** provider — one key for Anthropic Messages + OpenAI chat-completions wire formats (claude-* via Zen's Messages endpoint)
 
 ## License
 
