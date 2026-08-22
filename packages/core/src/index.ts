@@ -8,6 +8,7 @@ import { AnthropicClient } from './modules/handoff/anthropic.js';
 import { VercelClient } from './modules/handoff/vercel.js';
 import { CloudflareClient } from './modules/handoff/cloudflare.js';
 import { TogetherClient } from './modules/handoff/together.js';
+import { OpenCodeClient } from './modules/handoff/openCode.js';
 import type { ProviderClient } from './modules/handoff/provider.js';
 import { HandoffManager } from './modules/handoff/index.js';
 import { Pipeline } from './pipeline.js';
@@ -173,7 +174,7 @@ export {
 } from './modules/mcp-client/index.js';
 export type { McpServerConfig, McpToolsBundle, McpConnection, McpConnector } from './modules/mcp-client/index.js';
 
-// Auto Handoff (OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together providers)
+// Auto Handoff (OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together / OpenCode providers)
 export { OpenRouterClient, OpenRouterError } from './modules/handoff/openRouter.js';
 export type { OpenRouterClientOptions, OpenRouterCompleteOptions } from './modules/handoff/openRouter.js';
 export { OpenAiClient } from './modules/handoff/openAi.js';
@@ -186,6 +187,8 @@ export { CloudflareClient } from './modules/handoff/cloudflare.js';
 export type { CloudflareClientOptions } from './modules/handoff/cloudflare.js';
 export { TogetherClient } from './modules/handoff/together.js';
 export type { TogetherClientOptions } from './modules/handoff/together.js';
+export { OpenCodeClient } from './modules/handoff/openCode.js';
+export type { OpenCodeClientOptions } from './modules/handoff/openCode.js';
 export { ProviderError, mockCompletion } from './modules/handoff/provider.js';
 export type { ProviderClient, ProviderCompleteOptions } from './modules/handoff/provider.js';
 export { HandoffManager } from './modules/handoff/index.js';
@@ -251,6 +254,7 @@ export {
   DEFAULT_VERCEL_MODELS,
   DEFAULT_CLOUDFLARE_MODELS,
   DEFAULT_TOGETHER_MODELS,
+  DEFAULT_OPENCODE_MODELS,
 } from './config.js';
 export { fetchProviderModels } from './modules/handoff/models.js';
 export type { FetchModelsOptions } from './modules/handoff/models.js';
@@ -355,6 +359,9 @@ function createClient(config: AppConfig): ProviderClient {
   }
   if (config.provider === 'together') {
     return new TogetherClient({ apiKey: config.togetherApiKey, baseUrl: config.togetherBaseUrl });
+  }
+  if (config.provider === 'opencode') {
+    return new OpenCodeClient({ apiKey: config.opencodeApiKey, baseUrl: config.opencodeBaseUrl });
   }
   return new OpenRouterClient({
     apiKey: config.openRouterApiKey,

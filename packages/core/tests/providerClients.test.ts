@@ -661,3 +661,13 @@ describe('fetchProviderModels', () => {
     expect(models[0]).toMatchObject({ tier: 'standard', contextWindow: 200000 });
   });
 });
+
+describe('opencode engine wiring', () => {
+  it('createEngine wires OpenCodeClient when provider is opencode', () => {
+    const engine = createEngine(
+      loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'opencode', OPENCODE_API_KEY: 'oc-test' }),
+    );
+    expect(engine.client).toBeInstanceOf(OpenCodeClient);
+    expect(engine.handoff.isMock).toBe(false);
+  });
+});
