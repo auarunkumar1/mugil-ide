@@ -111,3 +111,38 @@ describe('loadConfig merge precedence', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
+
+describe('opencode provider', () => {
+  it('is selected via AI_PROVIDER with default base url and model ladder', () => {
+    const cfg = loadConfig({
+      NODE_ENV: 'test',
+      AI_PROVIDER: 'opencode',
+      OPENCODE_API_KEY: 'oc-test',
+    });
+    expect(cfg.provider).toBe('opencode');
+    expect(cfg.opencodeApiKey).toBe('oc-test');
+    expect(cfg.opencodeBaseUrl).toBe('https://opencode.ai/zen/v1');
+    expect(cfg.models.map((m) => m.id)).toEqual([
+      'claude-haiku-4-5',
+      'claude-sonnet-4-5',
+      'claude-opus-4-5',
+    ]);
+  });
+
+  it('is auto-detected when only OPENCODE_API_KEY is set', () => {
+    const cfg = loadConfig({ NODE_ENV: 'test', OPENCODE_API_KEY: 'oc-test' });
+    expect(cfg.provider).toBe('opencode');
+  });
+
+  it('honors OPENCODE_BASE_URL and OPENCODE_MODELS overrides', () => {
+    const cfg = loadConfig({
+      NODE_ENV: 'test',
+      AI_PROVIDER: 'opencode',
+      OPENCODE_API_KEY: 'oc-test',
+      OPENCODE_BASE_URL: 'http://localhost:9/v1',
+      OPENCODE_MODELS: 'qwen3-coder',
+    });
+    expect(cfg.opencodeBaseUrl).toBe('http://localhost:9/v1');
+    expect(cfg.models.map((m) => m.id)).toEqual(['qwen3-coder']);
+  });
+});

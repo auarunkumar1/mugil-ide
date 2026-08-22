@@ -200,6 +200,13 @@ export const DEFAULT_TOGETHER_MODELS: ModelSpec[] = [
   { id: 'mistralai/Mistral-Small-24B-Instruct-2501', tier: 'cheap', costPerMTokIn: 0.1, costPerMTokOut: 0.3, contextWindow: 32000 },
 ];
 
+/** Default OpenCode Zen ladder. */
+export const DEFAULT_OPENCODE_MODELS: ModelSpec[] = [
+  { id: 'claude-haiku-4-5', tier: 'cheap', costPerMTokIn: 1, costPerMTokOut: 5, contextWindow: 200000 },
+  { id: 'claude-sonnet-4-5', tier: 'standard', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000 },
+  { id: 'claude-opus-4-5', tier: 'smart', costPerMTokIn: 5, costPerMTokOut: 25, contextWindow: 200000 },
+];
+
 /** Fetches available models from provider API with fallback to static catalog. */
 export async function fetchRemoteModels(
   provider: CompletionProvider,
@@ -259,7 +266,7 @@ export function isLocalUrl(url?: string): boolean {
   );
 }
 
-export type CompletionProvider = 'openrouter' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'local' | 'vercel' | 'cloudflare' | 'together';
+export type CompletionProvider = 'openrouter' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'local' | 'vercel' | 'cloudflare' | 'together' | 'opencode';
 
 export interface AppConfig {
   /** The provider the engine talks to (OpenRouter primary; else OpenAI/Anthropic/Ollama/LM Studio/Local/Vercel/Cloudflare/Together). */
@@ -280,6 +287,8 @@ export interface AppConfig {
   cloudflareBaseUrl: string;
   togetherApiKey?: string;
   togetherBaseUrl: string;
+  opencodeApiKey?: string;
+  opencodeBaseUrl: string;
   redisUrl?: string;
   redisClusterUrls?: string[];
   cacheDir?: string;
@@ -355,6 +364,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloudflareApiKey = merged.CLOUDFLARE_API_KEY || undefined;
   const cloudflareAccountId = merged.CLOUDFLARE_ACCOUNT_ID || undefined;
   const togetherApiKey = merged.TOGETHER_API_KEY || undefined;
+  const opencodeApiKey = merged.OPENCODE_API_KEY || undefined;
 
   // Provider resolution: OpenRouter is primary; AI_PROVIDER overrides.
   const requested = (merged.AI_PROVIDER ?? '').toLowerCase();
@@ -375,6 +385,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                   ? 'cloudflare'
                   : requested === 'together'
                     ? 'together'
+                  : requested === 'opencode'
+                    ? 'opencode'
                     : openRouterApiKey
                       ? 'openrouter'
                       : openaiApiKey
@@ -387,6 +399,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                               ? 'cloudflare'
                               : togetherApiKey
                                 ? 'together'
+                              : opencodeApiKey
+                                ? 'opencode'
                                 : 'openrouter';
 
   const rawModels =
@@ -406,6 +420,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                   ? parseModels(merged.CLOUDFLARE_MODELS, DEFAULT_CLOUDFLARE_MODELS)
                   : provider === 'together'
                     ? parseModels(merged.TOGETHER_MODELS, DEFAULT_TOGETHER_MODELS)
+                  : provider === 'opencode'
+                    ? parseModels(merged.OPENCODE_MODELS, DEFAULT_OPENCODE_MODELS)
                     : parseModels(merged.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS);
 
   let models = rawModels;
@@ -449,6 +465,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cloudflareBaseUrl: merged.CLOUDFLARE_BASE_URL || 'https://api.cloudflare.com/client/v4',
     togetherApiKey,
     togetherBaseUrl: merged.TOGETHER_BASE_URL || 'https://api.together.xyz/v1',
+    opencodeApiKey,
+    opencodeBaseUrl: merged.OPENCODE_BASE_URL || 'https://opencode.ai/zen/v1',
     redisUrl: merged.REDIS_URL || undefined,
     redisClusterUrls: parseList(merged.REDIS_CLUSTER_URLS),
     cacheDir: merged.MUGIL_IDE_CACHE_DIR || defaultCacheDir,
