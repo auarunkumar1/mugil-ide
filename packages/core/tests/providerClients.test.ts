@@ -634,4 +634,30 @@ describe('fetchProviderModels', () => {
     expect(models[0]!.id).toBe('llama3.2:latest');
     expect(models[1]!.supportsThinking).toBe(true);
   });
+
+  it('lists OpenCode Zen models from GET /models', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        data: [
+          { id: 'claude-haiku-4-5', context_length: 200000 },
+          { id: 'qwen3-coder', context_length: 128000 },
+        ],
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const models = await fetchProviderModels({
+      provider: 'opencode',
+      apiKey: 'oc-test',
+      baseUrl: 'https://opencode.ai/zen/v1',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/zen/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer oc-test' }),
+      }),
+    );
+    expect(models.map((m) => m.id)).toEqual(['claude-haiku-4-5', 'qwen3-coder']);
+    expect(models[0]).toMatchObject({ tier: 'standard', contextWindow: 200000 });
+  });
 });
