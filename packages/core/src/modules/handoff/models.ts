@@ -68,6 +68,32 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
       }
     }
 
+    if (provider === 'opencode') {
+      const url = `${baseUrl || 'https://opencode.ai/zen/v1'}/models`;
+      const res = await fetch(url, {
+        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as {
+          data?: Array<{ id: string; context_length?: number }>;
+        };
+        if (json.data && json.data.length > 0) {
+          const list: ModelSpec[] = json.data.map((m) => ({
+            id: m.id,
+            tier: 'standard' as const,
+            costPerMTokIn: 0,
+            costPerMTokOut: 0,
+            contextWindow: m.context_length || 128000,
+            supportsThinking: modelSupportsThinking(m.id),
+            supportsTools: modelSupportsTools(m.id),
+          }));
+          modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
+          return list;
+        }
+      }
+    }
+
     if (provider === 'ollama') {
       const ep = baseUrl || 'http://localhost:11434/v1';
       const endpointsToTry = [
