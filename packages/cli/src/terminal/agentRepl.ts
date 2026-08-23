@@ -25,6 +25,7 @@ import {
   applyPermissionOverrides,
   diagnosticsEnabledFromEnv,
   readUserEnv,
+  writeUserEnv,
   connectMcpServers,
   parseMcpServerConfigs,
   skillsContextBlock,
@@ -105,6 +106,11 @@ export class AgentRepl {
       process.env.MUGIL_IDE_MODEL ||
       (engine.config.models && engine.config.models[0]?.id) ||
       'openrouter/auto';
+    // Restore persisted mode (default: 'act').
+    const savedMode = process.env.MUGIL_IDE_MODE || readUserEnv().MUGIL_IDE_MODE;
+    if (savedMode === 'plan' || savedMode === 'act') {
+      this.mode = savedMode;
+    }
     // Auto-resume the last session for this workspace (no-op when none is
     // saved) — restores the conversation AND its token/savings stats.
     const resumed = loadSessionFile();
@@ -313,11 +319,13 @@ export class AgentRepl {
 
       case 'plan':
         this.setMode('plan');
+        try { writeUserEnv({ MUGIL_IDE_MODE: 'plan' }); } catch { /* best-effort */ }
         this.io.write(`\r\n  ${yellow('🔒 Plan mode')} ${dim('— writes, edits and commands are denied outright.')}\r\n\r\n`);
         break;
 
       case 'act':
         this.setMode('act');
+        try { writeUserEnv({ MUGIL_IDE_MODE: 'act' }); } catch { /* best-effort */ }
         this.io.write(`\r\n  ${green('⚡ Act mode')} ${dim('— writes, edits and commands ask for your approval.')}\r\n\r\n`);
         break;
 
