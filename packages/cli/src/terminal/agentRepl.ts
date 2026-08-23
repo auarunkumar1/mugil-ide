@@ -486,20 +486,45 @@ export class AgentRepl {
         // ignore — LM Studio not reachable, continue to other providers
       }
 
-      // 3. Configured cloud provider
-      const cloudProvider = this.engine.config.provider === 'ollama' || this.engine.config.provider === 'lmstudio' ? 'openrouter' : this.engine.config.provider;
-      try {
-        const cloud = await fetchProviderModels({
-          provider: cloudProvider,
-          apiKey: this.engine.config.openRouterApiKey || this.engine.config.openaiApiKey || this.engine.config.anthropicApiKey || this.engine.config.vercelApiKey || this.engine.config.cloudflareApiKey || this.engine.config.togetherApiKey || this.engine.config.opencodeApiKey,
-          baseUrl: this.engine.config.openRouterBaseUrl || this.engine.config.openaiBaseUrl || this.engine.config.anthropicBaseUrl || this.engine.config.vercelBaseUrl || this.engine.config.cloudflareBaseUrl || this.engine.config.togetherBaseUrl || this.engine.config.opencodeBaseUrl,
-          timeoutMs: 3000,
-        });
-        if (cloud && cloud.length > 0) {
-          cloud.forEach((m) => allFound.push({ ...m, provider: cloudProvider, isLocal: false }));
+      // 3. Probe every cloud provider with a configured key (parity with the
+      // web UI /api/models endpoint) so no provider's models are hidden.
+      const env = readUserEnv();
+      const keyFor = (names: string[]): string | undefined => {
+        for (const n of names) {
+          const k = process.env[n] || env[n];
+          if (k) return k;
         }
-      } catch {
-        // ignore — cloud probe failed (missing key / network), continue
+        return undefined;
+      };
+      const cloudTargets: Array<{
+        provider: 'openrouter' | 'openai' | 'anthropic' | 'vercel' | 'cloudflare' | 'together' | 'opencode';
+        label: string;
+        apiKey?: string;
+        baseUrl?: string;
+      }> = [
+        { provider: 'openrouter', label: 'OpenRouter', apiKey: keyFor(['OPENROUTER_API_KEY']), baseUrl: this.engine.config.openRouterBaseUrl },
+        { provider: 'openai', label: 'OpenAI', apiKey: keyFor(['OPENAI_API_KEY']), baseUrl: this.engine.config.openaiBaseUrl },
+        { provider: 'anthropic', label: 'Anthropic', apiKey: keyFor(['ANTHROPIC_API_KEY']), baseUrl: this.engine.config.anthropicBaseUrl },
+        { provider: 'vercel', label: 'Vercel AI', apiKey: keyFor(['VERCEL_API_KEY']), baseUrl: this.engine.config.vercelBaseUrl },
+        { provider: 'cloudflare', label: 'Cloudflare', apiKey: keyFor(['CLOUDFLARE_API_KEY']), baseUrl: this.engine.config.cloudflareBaseUrl },
+        { provider: 'together', label: 'Together AI', apiKey: keyFor(['TOGETHER_API_KEY']), baseUrl: this.engine.config.togetherBaseUrl },
+        { provider: 'opencode', label: 'OpenCode Zen', apiKey: keyFor(['OPENCODE_API_KEY']), baseUrl: this.engine.config.opencodeBaseUrl },
+      ];
+      for (const target of cloudTargets) {
+        if (!target.apiKey && target.provider !== 'openrouter') continue;
+        try {
+          const found = await fetchProviderModels({
+            provider: target.provider,
+            apiKey: target.apiKey,
+            baseUrl: target.baseUrl,
+            timeoutMs: 3000,
+          });
+          if (found && found.length > 0) {
+            found.forEach((m) => allFound.push({ ...m, provider: target.provider, isLocal: false }));
+          }
+        } catch {
+          // ignore — provider probe failed (missing key / network), continue
+        }
       }
 
       this.lastListedModels = allFound;
