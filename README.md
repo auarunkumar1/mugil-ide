@@ -10,7 +10,8 @@ entirely in the browser — an xterm.js two-pane workspace where a coding agent
 reads, edits, and tests your code, alongside a shell PTY, a file explorer, and
 a live diff viewer with one-click undo. Under the hood it refines prompts
 before they hit the model, caches aggressively (exact / semantic / partial),
-routes across models via OpenRouter, and strips prompt and watermark
+routes across models via OpenRouter, enforces plan/act mode policies (read-only
+planning vs. approval-gated execution), and strips prompt and watermark
 boilerplate — all to minimize token cost while maximizing AI productivity. An
 MCP stdio server exposes the same engine as tools.
 
@@ -62,10 +63,13 @@ into the shipped web client** today:
   engine's handoff; subagent tool calls stream as dim status lines.
 - **Permission gate (wired)**: every tool call is gated `allow`/`ask`/`deny`
   per mode — `/plan` (read-only: writes/edits/commands denied outright) vs
-  `/act` (asks first). `ask`-gated calls (writes, edits, commands, MCP)
-  trigger an **approval modal** in the browser; deny/allow feeds back to the
-  model as a `Permission denied` tool result. Per-mode overrides can be set
-  via `MUGIL_IDE_TOOL_PERMISSIONS` in the user env file.
+  `/act` (asks first). Switch modes via the **⚡/🔒 toggle button** in the
+  header, or type `/plan` / `/act` in the terminal. The mode persists across
+  sessions via `MUGIL_IDE_MODE` in the user env file. `ask`-gated calls
+  (writes, edits, commands, MCP) trigger an **approval modal** in the
+  browser; deny/allow feeds back to the model as a `Permission denied` tool
+  result. Per-mode overrides can be set via `MUGIL_IDE_TOOL_PERMISSIONS` in
+  the user env file.
 - **Environment-context injection (wired)**: the system prompt carries cwd,
   platform, date, and any `AGENTS.md` / `CLAUDE.md` found walking up from
   the workspace.
@@ -168,10 +172,11 @@ The two-pane interface has:
 
 Slash commands (type them in the quick input / agent terminal):
 
-`/help`, `/models`, `/model <name|number>`, `/plan` (read-only), `/act`
-(asks before writes), `/undo`, `/graph`, `/stats`, `/history`, `/reset`,
-`/clear`, `/compact` (summarize and continue), `/session <name>` (save),
-`/sessions` (list), `/resume <name>` (restore), `/clear-session` (wipe).
+`/help`, `/models`, `/model <name|number>`, `/plan` (read-only — persists),
+`/act` (asks before writes — persists), `/undo`, `/graph`, `/stats`,
+`/history`, `/reset`, `/clear`, `/compact` (summarize and continue),
+`/session <name>` (save), `/sessions` (list), `/resume <name>` (restore),
+`/clear-session` (wipe).
 
 Preferences persist in the user env file (`MUGIL_IDE_MODEL`, `AI_PROVIDER`,
 provider keys — written by the web UI).
@@ -328,6 +333,7 @@ The npm packages use the `@mugil-ide/*` scope, matching the product brand
 | `MUGIL_IDE_ENV_FILE` | `~/.config/mugil-ide/.env` | User env file storing saved API keys |
 | `MUGIL_IDE_MODEL` | first model in ladder | Persisted model selection (written by the web UI's model selector) |
 | `MUGIL_IDE_TOOL_PERMISSIONS` | — | Per-mode permission overrides JSON (`{"act":{"write_file":"deny"}}`) — applied by the session driver on top of mode defaults; env-file editing only |
+| `MUGIL_IDE_MODE` | `act` | Persisted plan/act mode: `plan` (read-only) or `act` (asks before writes); set by the header toggle or `/plan` `/act` commands |
 | `MUGIL_IDE_TOOL_DIAGNOSTICS` | `false` | Post-edit `tsc --noEmit` feedback fed back to the model (`1` to enable — the client honors it) |
 | `MUGIL_IDE_MCP_SERVERS` / `MUGIL_IDE_MCP_CONFIG` | — | MCP servers to consume (JSON / JSON file) — surfaced as `mcp__*` agent tools (ask-gated in act mode, denied in plan) |
 | `MUGIL_IDE_ENABLE_EXA` | `false` | Enable the `websearch` agent tool (delegates to Exa AI's hosted MCP, no key needed) |
@@ -430,6 +436,7 @@ Done and shipped:
 - ✅ **Cloudflare Workers AI** provider — direct Workers AI + AI Gateway support (Llama, Qwen, DeepSeek)
 - ✅ **Together AI** provider — OpenAI-compatible chat completions (Llama, DeepSeek, Qwen, Mistral)
 - ✅ **OpenCode Zen** provider — one key for Anthropic Messages + OpenAI chat-completions wire formats (claude-* via Zen's Messages endpoint)
+- ✅ **Plan/Act mode toggle** — header button + WebSocket handler + `MUGIL_IDE_MODE` persistence; `/plan` `/act` slash commands with mode preserved across sessions
 
 ## License
 
