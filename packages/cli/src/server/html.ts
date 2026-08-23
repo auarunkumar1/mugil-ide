@@ -569,6 +569,10 @@ export function getWebUiHtml(): string {
         <span>⚡ Token Modules</span>
       </button>
 
+      <button class="btn" id="mode-toggle" onclick="toggleMode()" title="Switch between Plan (read-only) and Act (asks before writes)">
+        <span id="mode-icon">⚡</span> <span id="mode-label">Act</span>
+      </button>
+
       <span class="metric-pill" id="token-savings">Savings: 0%</span>
       <button class="btn btn-undo" onclick="triggerUndo()">↩ Undo Edit</button>
       <button class="btn" onclick="sendAgentCmd('/stats')">📊 Stats</button>
@@ -965,6 +969,7 @@ export function getWebUiHtml(): string {
               document.getElementById('header-active-model').textContent = msg.activeModel;
               const modeLabel = msg.mode === 'plan' ? 'plan' : 'act';
               document.getElementById('status-model').textContent = 'Model: ' + msg.activeModel + ' · Mode: ' + modeLabel;
+              updateModeUI(msg.mode);
             }
             if (msg.stats) {
               document.getElementById('status-tokens').textContent = 'Used: ' + msg.stats.totalTokens + ' tok';
@@ -984,6 +989,30 @@ export function getWebUiHtml(): string {
           agentTerm.scrollToBottom();
         }
       };
+    }
+
+    // --- Plan/Act mode toggle ---
+    let currentMode = 'act';
+
+    function toggleMode() {
+      currentMode = currentMode === 'act' ? 'plan' : 'act';
+      ws.send(JSON.stringify({ type: 'set_mode', mode: currentMode }));
+      updateModeUI(currentMode);
+    }
+
+    function updateModeUI(mode) {
+      currentMode = mode;
+      const icon = document.getElementById('mode-icon');
+      const label = document.getElementById('mode-label');
+      if (mode === 'plan') {
+        icon.textContent = '🔒';
+        label.textContent = 'Plan';
+        label.style.color = 'var(--warning, #f0ad4e)';
+      } else {
+        icon.textContent = '⚡';
+        label.textContent = 'Act';
+        label.style.color = 'var(--accent, #58a6ff)';
+      }
     }
 
     // --- Mid-task question picker (server -> browser -> server) ---
