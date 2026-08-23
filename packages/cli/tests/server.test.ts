@@ -23,6 +23,9 @@ beforeEach(() => {
   // Isolate session auto-save/resume (and never touch the real user cache).
   cacheDir = mkdtempSync(join(tmpdir(), 'mugil-cache-'));
   process.env.MUGIL_IDE_CACHE_DIR = cacheDir;
+  // Isolate the user env file: /plan, /act, set_mode and set_model persist
+  // MUGIL_IDE_MODE/MUGIL_IDE_MODEL there via writeUserEnv.
+  process.env.MUGIL_IDE_ENV_FILE = join(cacheDir, 'user.env');
 });
 
 beforeAll(() => {
@@ -33,6 +36,7 @@ beforeAll(() => {
 
 afterAll(async () => {
   delete process.env.MUGIL_IDE_CACHE_DIR;
+  delete process.env.MUGIL_IDE_ENV_FILE;
   delete process.env.MUGIL_IDE_PTY_BACKEND;
   // Close undici's pooled keep-alive sockets (Node's global fetch dispatcher)
   // so they don't hold the jest process open after the servers are closed.
@@ -494,6 +498,60 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(turn.turn.response).toContain('Plan only');
       expect(messages.some((m) => m.type === 'approval')).toBe(false);
       expect(fedBack.some((s) => s.includes('Permission denied'))).toBe(true);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
+  it('switches mode via set_mode WebSocket message', async () => {
+    let calls = 0;
+    const fedBack: string[] = [];
+    const client: ProviderClient = {
+      mock: false,
+      complete: async (messages) => {
+        fedBack.push(JSON.stringify(messages));
+        calls += 1;
+        if (calls === 1) {
+          // A write attempt while still in plan mode — denied outright.
+          return scriptedResult({
+            finishReason: 'tool_calls',
+            toolCalls: [
+              { id: 'c1', name: 'write_file', arguments: JSON.stringify({ path: 'plan-test.txt', content: 'nope' }) },
+            ],
+          });
+        }
+        return scriptedResult({ content: 'Done in act mode.' });
+      },
+    };
+    const engine = scriptedEngine(client);
+    const server = await startIdeServer({ engine, port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+
+    try {
+      // First switch to plan mode
+      ws.on('open', () => {
+        ws.send(JSON.stringify({ type: 'set_mode', mode: 'plan' }));
+      });
+
+      // NOTE: predicate must include the mode — the server broadcasts an
+      // initial `status` (mode 'act') on connect, so filtering on type alone
+      // is racy.
+      const planStatus = await waitForMessage<{ mode: string }>(ws, (m) => m.type === 'status' && m.mode === 'plan');
+      expect(planStatus.mode).toBe('plan');
+
+      // Now send a prompt — the write tool call should be denied in plan mode
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'write a file\r' }));
+
+      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      expect(turn.turn.response).toContain('Done in act mode.');
+      // The plan-mode denial was fed back to the model as a tool result.
+      expect(fedBack.some((s) => s.includes('Permission denied'))).toBe(true);
+
+      // Switch back to act mode
+      ws.send(JSON.stringify({ type: 'set_mode', mode: 'act' }));
+      const actStatus = await waitForMessage<{ mode: string }>(ws, (m) => m.type === 'status' && m.mode === 'act');
+      expect(actStatus.mode).toBe('act');
     } finally {
       ws.terminate();
       await server.close();
