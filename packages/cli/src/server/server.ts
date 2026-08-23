@@ -807,6 +807,18 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           sendAgentData(`\r\n\x1b[32m✓\x1b[0m Active model changed to: \x1b[1m\x1b[36m${newModel}\x1b[0m${engine.config.provider ? ` \x1b[2m(${engine.config.provider})\x1b[0m` : ''}\r\n\r\n`);
           repl.printPrompt();
           sendStatus();
+        } else if (msg.type === 'set_mode') {
+          const newMode = msg.mode === 'plan' ? 'plan' : 'act';
+          repl.setMode(newMode);
+          // Persist to user env file so the mode survives restarts.
+          try {
+            writeUserEnv({ MUGIL_IDE_MODE: newMode });
+          } catch {
+            // ignore — persistence is best-effort
+          }
+          sendAgentData(`\r\n\x1b[32m✓\x1b[0m Mode changed to: \x1b[1m\x1b[33m${newMode}\x1b[0m\r\n\r\n`);
+          repl.printPrompt();
+          sendStatus();
         } else if (msg.type === 'question_answer') {
           const entry = questionResolvers.get(Number(msg.id));
           if (entry) {
