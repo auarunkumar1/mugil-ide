@@ -133,3 +133,49 @@ describe('createPermissionCheck', () => {
     expect(check(call('run_command', { command: 'npm test' }))).toBe(false);
   });
 });
+
+describe('plan/act mode semantics', () => {
+  it('plan mode denies all write tools without prompting', () => {
+    const policy = defaultPolicyForMode('plan');
+    const writeTools = ['write_file', 'edit_file', 'apply_patch', 'todowrite'];
+    for (const tool of writeTools) {
+      expect(resolveToolPermission(policy, call(tool))).toBe('deny');
+    }
+    expect(resolveToolPermission(policy, call('run_command', { command: 'ls' }))).toBe('deny');
+  });
+
+  it('plan mode allows all read tools', () => {
+    const policy = defaultPolicyForMode('plan');
+    const readTools = ['read_file', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+    for (const tool of readTools) {
+      expect(resolveToolPermission(policy, call(tool))).toBe('allow');
+    }
+  });
+
+  it('act mode asks for write tools', () => {
+    const policy = defaultPolicyForMode('act');
+    const writeTools = ['write_file', 'edit_file', 'apply_patch', 'todowrite'];
+    for (const tool of writeTools) {
+      expect(resolveToolPermission(policy, call(tool))).toBe('ask');
+    }
+  });
+
+  it('act mode allows read tools', () => {
+    const policy = defaultPolicyForMode('act');
+    const readTools = ['read_file', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+    for (const tool of readTools) {
+      expect(resolveToolPermission(policy, call(tool))).toBe('allow');
+    }
+  });
+
+  it('plan mode denies mcp_ prefix tools', () => {
+    const policy = defaultPolicyForMode('plan');
+    expect(resolveToolPermission(policy, call('mcp__web__fetch'))).toBe('deny');
+    expect(resolveToolPermission(policy, call('mcp__server__tool'))).toBe('deny');
+  });
+
+  it('act mode asks for mcp_ prefix tools', () => {
+    const policy = defaultPolicyForMode('act');
+    expect(resolveToolPermission(policy, call('mcp__web__fetch'))).toBe('ask');
+  });
+});
