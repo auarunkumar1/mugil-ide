@@ -819,7 +819,10 @@ export class AgentRepl {
         budgetedHistory.push({ role: 'assistant', content: t.response });
       }
 
-      const contextBlocks = [buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
+      const agentInstruction = [
+        'You are an autonomous coding agent with access to tools. When the user asks to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. Do not just describe what you would do — do it using your tools. Read first if you need context, then write.',
+      ].join('\n');
+      const contextBlocks = [agentInstruction, buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
       const result = await this.engine.pipeline.ask(prompt, {
