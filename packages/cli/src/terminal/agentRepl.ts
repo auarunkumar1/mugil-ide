@@ -820,7 +820,7 @@ export class AgentRepl {
       }
 
       const agentInstruction = [
-        'You are an autonomous coding agent with access to tools. When the user asks to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. Do not just describe what you would do — do it using your tools. Read first if you need context, then write.',
+        'You are an autonomous coding agent with access to tools. When the user asks to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. Do not just describe what you would do — do it using your tools. Do not stop at planning. Read if you need context, then immediately execute the changes using your tools. Never return a plan or todo list without also executing the work.',
       ].join('\n');
       const contextBlocks = [agentInstruction, buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
         .filter((b) => b.trim().length > 0)
