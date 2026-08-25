@@ -139,7 +139,7 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'todowrite',
     description:
-      'Replace the current task list with a new list of todo items. Use this to track multi-step work: write the plan, mark items in_progress/completed as you go, and finish with a completed list. Items carry a status: pending, in_progress, completed, or canceled.',
+      'Replace the current task list with a new list of todo items. Use this to track multi-step work: write the plan, mark items in_progress/completed as you go, and finish with a completed list. Items carry a status: pending, in_progress, completed, or canceled. IMPORTANT: todowrite is only for tracking — you must also execute each task using write_file, edit_file, apply_patch, or run_command. Never stop at just listing tasks.',
     parameters: {
       type: 'object',
       properties: {
