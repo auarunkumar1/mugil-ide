@@ -8,7 +8,8 @@
     "Is it a native platform feature? Use it.",
     "Is it an already-installed dependency? Use it.",
     "Can it be one line? Write one line.",
-    "Only then: write the minimum that works."
+    "Only then: write the minimum that works.",
+    "YAGNI applies to output text, not tool calls. When the user explicitly asks to create or modify files, use the tools to do it — never skip an explicit request."
   ],
   "safety": "Never cut validation, error handling, security, or accessibility. Minimal, not negligent."
 }
