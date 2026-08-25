@@ -12,7 +12,7 @@ import {
 } from '@mugil-ide/core';
 import type { Engine, ProviderClient } from '@mugil-ide/core';
 import { startIdeServer } from '../src/server/server.js';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import WebSocket from 'ws';
@@ -793,5 +793,74 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     ws.terminate();
     await server.close();
     await engine.backend.close();
+  });
+
+  it('writes file to disk in act mode after user approval', async () => {
+    const testFile = 'act-write-test-output.txt';
+    const testContent = 'hello from act mode write test';
+    // Clean up any leftover file from a prior run.
+    try { rmSync(testFile, { force: true }); } catch { /* ignore */ }
+
+    let calls = 0;
+    const fedBack: string[] = [];
+    const client: ProviderClient = {
+      mock: false,
+      complete: async (messages) => {
+        fedBack.push(JSON.stringify(messages));
+        calls += 1;
+        if (calls === 1) {
+          return scriptedResult({
+            finishReason: 'tool_calls',
+            toolCalls: [
+              {
+                id: 'w1',
+                name: 'write_file',
+                arguments: JSON.stringify({ path: testFile, content: testContent }),
+              },
+            ],
+          });
+        }
+        return scriptedResult({ content: 'File written successfully.' });
+      },
+    };
+    const engine = scriptedEngine(client);
+    const server = await startIdeServer({ engine, port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+
+    try {
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'create the file\r' })));
+
+      // The write_file tool should trigger an approval modal.
+      const approval = await waitForMessage<{ id: number; tool: string; args: string }>(
+        ws,
+        (m) => m.type === 'approval',
+      );
+      expect(approval.tool).toBe('write_file');
+      expect(approval.args).toContain(testFile);
+
+      // User approves.
+      ws.send(JSON.stringify({ type: 'approval_answer', id: approval.id, granted: true }));
+
+      const turn = await waitForMessage<{ turn: { response: string; toolsCalled: Array<{ name: string }> } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
+      expect(turn.turn.response).toContain('File written successfully.');
+
+      // The write_file tool was actually called.
+      expect(turn.turn.toolsCalled.map((t) => t.name)).toContain('write_file');
+
+      // The file must exist on disk with the expected content.
+      expect(existsSync(testFile)).toBe(true);
+      expect(readFileSync(testFile, 'utf-8')).toBe(testContent);
+
+      // The agent instruction should be in the system prompt.
+      expect(fedBack[0]).toContain('autonomous coding agent');
+    } finally {
+      ws.terminate();
+      await server.close();
+      // Clean up.
+      try { rmSync(testFile, { force: true }); } catch { /* ignore */ }
+    }
   });
 });
