@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.1.10] - 2026-08-26
+
+### Changed
+
+- Web IDE now opens at a random available open port by default instead of fixed port 3000 to prevent EADDRINUSE conflicts.
+
 ## [0.1.6] - 2026-08-22
 
 - Added OpenCode Zen (opencode.ai/zen) as a completion provider: `OPENCODE_API_KEY` + optional `OPENCODE_BASE_URL`/`OPENCODE_MODELS`, auto-detected when only its key is set; claude-* models use Zen's Messages endpoint, others chat completions; gpt-*/codex-* (Responses API) not yet supported.
@@ -116,3 +124,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.5]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.5
 
 [0.1.6]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.6
+
+[0.1.10]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.10

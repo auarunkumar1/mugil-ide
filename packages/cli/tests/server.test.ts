@@ -181,6 +181,20 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     await engine.backend.close();
   });
 
+  it('binds to a random available port when port is omitted', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    try {
+      expect(server.port).toBeGreaterThan(0);
+      expect(server.url).toContain(`http://localhost:${server.port}`);
+      const res = await fetch(`${server.url}/api/status`);
+      expect(res.status).toBe(200);
+    } finally {
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
   it('keeps the RGB banner shimmering on the idle screen even after session resume', async () => {
     // Simulate a returning user: the repl constructor auto-resumes the saved
     // last-session, so turns.length > 0 at connect time. The idle-screen
