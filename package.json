@@ -1,6 +1,6 @@
 {
   "name": "mugil-ide",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "private": true,
   "description": "Token-efficient Mugil IDE — core engine + web IDE",
   "license": "MIT",
