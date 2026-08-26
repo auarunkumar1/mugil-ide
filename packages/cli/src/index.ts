@@ -26,11 +26,11 @@ program
 program
   .command('ui')
   .description('Launch the modern PTY + xterm.js Web UI')
-  .option('-p, --port <number>', 'server port', '3000')
+  .option('-p, --port <number>', 'server port (default: random open port)')
   .option('-h, --host <string>', 'server host', 'localhost')
   .option('-m, --model <id>', 'initial model id')
   .option('--no-open', 'do not automatically open the browser')
-  .action(async (options: { port: string; host: string; model?: string; open?: boolean }) => {
+  .action(async (options: { port?: string; host: string; model?: string; open?: boolean }) => {
     await launchUi(options);
   });
 
@@ -225,13 +225,13 @@ program
 
 // Default behavior when invoked without arguments: launch UI
 program.action(async () => {
-  await launchUi({ port: '3000', host: 'localhost', open: true });
+  await launchUi({ host: 'localhost', open: true });
 });
 
-async function launchUi(options: { port: string; host: string; model?: string; open?: boolean }): Promise<void> {
+async function launchUi(options: { port?: string; host: string; model?: string; open?: boolean }): Promise<void> {
   const engine = createEngine(loadConfig());
   const server = await startIdeServer({
-    port: Number(options.port || 3000),
+    port: options.port !== undefined ? Number(options.port) : undefined,
     host: options.host || 'localhost',
     engine,
     model: options.model,

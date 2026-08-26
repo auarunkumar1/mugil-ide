@@ -1,6 +1,6 @@
 {
   "name": "mugil-ide",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "description": "Token-efficient Mugil IDE web IDE server (browser xterm.js UI + PTY + headless one-shot mode)",
   "keywords": [
@@ -46,8 +46,8 @@
     "smoke:diff-viewer": "npm run build && node scripts/smoke-diff-viewer.mjs"
   },
   "dependencies": {
-    "@mugil-ide/core": "0.1.9",
-    "@mugil-ide/docs": "0.1.9",
+    "@mugil-ide/core": "0.1.10",
+    "@mugil-ide/docs": "0.1.10",
     "@xterm/addon-fit": "0.10.0",
     "@xterm/addon-web-links": "0.11.0",
     "@xterm/xterm": "5.5.0",

@@ -909,12 +909,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     });
   });
 
-  const desiredPort = options.port || Number(process.env.PORT || 3000);
+  const desiredPort = options.port !== undefined ? options.port : Number(process.env.PORT || 0);
   const host = options.host || 'localhost';
 
   return new Promise<RunningServer>((resolve, reject) => {
     server.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE' && !options.port) {
+      if (err.code === 'EADDRINUSE' && options.port === undefined) {
         // Try random available port
         server.listen(0, host);
       } else {
