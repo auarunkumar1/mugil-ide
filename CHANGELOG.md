@@ -7,14 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned (Smart Cache Optimizations & Telemetry)
-
-- **MemoryBackend Bounded LRU & Sweep**: Implement TTL cleanup on `keys()` and bounded max entries / LRU eviction in `MemoryBackend` to prevent unbounded memory growth.
-- **Indexed Partial Prefix Lookup**: Add Trie/radix prefix indexing to `SmartCache.partialLookup` to replace $O(n)$ full key iteration.
-- **Asynchronous Cache Storage**: Offload `store()` embedding calculation and persistence off the critical response latency path.
-- **Configurable Models Cache TTL**: Add `options.cacheTtlMs` to `fetchProviderModels` and environment variable `MUGIL_IDE_MODELS_CACHE_TTL`.
-- **Cache Observability & Metrics**: Add `getMetrics()` to `SmartCache` with hit/miss rates, exact/partial/semantic distribution, and TTL utilization telemetry.
-
 ## [0.1.11] - 2026-08-31
 
 ### Added
@@ -22,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Provider-Side Prompt Caching**: Integrated Anthropic `cache_control: { type: 'ephemeral' }` on system instructions and tool definitions to leverage Anthropic prompt caching discounts on recurring agent loops.
 - **Universal Tool Output Compaction**: Automatically passes tool execution returns >400 chars through `compressCommandOutput` and enforces a 16,000 character safety bound to prevent runaway tool outputs from exhausting context.
 - **History Turn Compaction**: Added `compactOlderTurns` option to `budgetConversationHistory` using Caveman and RTK strategies on older turns to fit ~25-35% more context in the window.
+- **MemoryBackend Bounded LRU & Expired Sweep**: Added `maxEntries` LRU capacity eviction and active expired-key sweeping on `keys()` in `MemoryBackend` to avoid unbounded memory retention.
+- **Optimized Partial Prefix Lookup**: Length-pruned candidate matching in `SmartCache.partialLookup` to accelerate prefix cache lookups.
+- **Asynchronous Cache Storage**: Added `asyncStore` support to `PipelineOptions` and `AskOptions` to allow non-blocking background embedding generation and storage.
+- **Configurable Models Cache TTL**: Made `fetchProviderModels` TTL configurable via `cacheTtlMs` option and `MUGIL_IDE_MODELS_CACHE_TTL` env var, with exported `clearModelsCache()`.
+- **Cache Observability & Metrics**: Added `getMetrics()` and `resetMetrics()` to `SmartCache` (`CacheMetrics` tracking lookups, exact/partial/semantic hits, misses, hit rate percentage, and store calls).
 - **Dark Theme Custom Scrollbars**: Replaced light browser scrollbars with custom `#30363d` on `#0d1117` cross-browser scrollbars across all panes, viewers, and modals.
 - **UI Typography & Zoom Controls**: Increased default UI font sizes for improved readability and added dynamic `A-` / `A+` zoom controls (and `Ctrl + / -` shortcuts) in the header with `localStorage` persistence and automatic xterm terminal font resizing.
 

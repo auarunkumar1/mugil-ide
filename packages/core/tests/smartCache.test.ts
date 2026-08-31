@@ -154,6 +154,85 @@ describe('SmartCache', () => {
     expect(a.kind).toBe('semantic');
     expect(a.entry?.response).toBe('A: use sort');
   });
+
+  it('tracks cache metrics and hit rates', async () => {
+    const cache = makeCache(0.3);
+    await cache.store('Add two numbers.', 'sum(a, b)', 'm');
+    expect(cache.getMetrics().stores).toBe(1);
+
+    // Exact hit
+    await cache.lookup('Add two numbers.');
+    // Semantic hit
+    await cache.lookup('Compute the sum of two numbers.');
+    // Miss
+    await cache.lookup('What is the weather today?');
+
+    const metrics = cache.getMetrics();
+    expect(metrics.lookups).toBe(3);
+    expect(metrics.exactHits).toBe(1);
+    expect(metrics.semanticHits).toBe(1);
+    expect(metrics.misses).toBe(1);
+    expect(metrics.hits).toBe(2);
+    expect(metrics.hitRatePct).toBe(67);
+
+    cache.resetMetrics();
+    expect(cache.getMetrics().lookups).toBe(0);
+  });
+
+  it('MemoryBackend cleans expired keys and bounds capacity with LRU eviction', async () => {
+    const backend = new MemoryBackend({ maxEntries: 2 });
+    const now = Date.now();
+
+    // Expired entry
+    await backend.set({
+      key: 'expired-1',
+      prompt: 'expired',
+      response: 'old',
+      model: 'm',
+      createdAt: now - 5000,
+      expiresAt: now - 1000,
+    });
+
+    // Live entries
+    await backend.set({
+      key: 'live-1',
+      prompt: 'live 1',
+      response: 'v1',
+      model: 'm',
+      createdAt: now,
+      expiresAt: now + 60000,
+    });
+
+    await backend.set({
+      key: 'live-2',
+      prompt: 'live 2',
+      response: 'v2',
+      model: 'm',
+      createdAt: now,
+      expiresAt: now + 60000,
+    });
+
+    const keys = await backend.keys();
+    expect(keys).not.toContain('expired-1');
+    expect(keys).toContain('live-1');
+    expect(keys).toContain('live-2');
+
+    // Setting a 3rd live item should evict oldest live-1 when capacity is 2
+    await backend.set({
+      key: 'live-3',
+      prompt: 'live 3',
+      response: 'v3',
+      model: 'm',
+      createdAt: now,
+      expiresAt: now + 60000,
+    });
+
+    const updatedKeys = await backend.keys();
+    expect(updatedKeys).toHaveLength(2);
+    expect(updatedKeys).not.toContain('live-1');
+    expect(updatedKeys).toContain('live-2');
+    expect(updatedKeys).toContain('live-3');
+  });
 });
 
 describe('cosineSimilarity', () => {
