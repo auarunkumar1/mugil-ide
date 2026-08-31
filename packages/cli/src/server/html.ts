@@ -26,10 +26,36 @@ export function getWebUiHtml(): string {
       --diff-add-text: #56d364;
       --diff-del: #da363322;
       --diff-del-text: #ffa198;
+      --font-scale: 1;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: #30363d #0d1117;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0d1117;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #30363d;
+      border-radius: 4px;
+      border: 1px solid #0d1117;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #484f58;
+    }
+    ::-webkit-scrollbar-corner {
+      background: #0d1117;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: calc(13px * var(--font-scale));
       background: var(--bg);
       color: var(--text);
       height: 100vh;
@@ -45,7 +71,7 @@ export function getWebUiHtml(): string {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      height: 46px;
+      height: 48px;
       z-index: 10;
     }
     .logo-container {
@@ -53,7 +79,7 @@ export function getWebUiHtml(): string {
       align-items: center;
       gap: 8px;
       font-weight: bold;
-      font-size: 15px;
+      font-size: calc(15px * var(--font-scale));
       color: var(--accent);
       user-select: none;
     }
@@ -92,22 +118,22 @@ export function getWebUiHtml(): string {
       color: var(--accent);
       padding: 2px 6px;
       border-radius: 4px;
-      font-size: 10px;
+      font-size: calc(11px * var(--font-scale));
       font-weight: 700;
       border: 1px solid #1f6feb66;
     }
     .controls {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
     .btn {
       background: var(--card-bg);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 4px 10px;
+      padding: 5px 11px;
       border-radius: 4px;
-      font-size: 11px;
+      font-size: calc(12px * var(--font-scale));
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -125,7 +151,7 @@ export function getWebUiHtml(): string {
       border: 1px solid #23863666;
       padding: 3px 8px;
       border-radius: 12px;
-      font-size: 11px;
+      font-size: calc(11.5px * var(--font-scale));
       font-weight: 600;
     }
 
@@ -159,7 +185,7 @@ export function getWebUiHtml(): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 38px;
+      height: 40px;
     }
     .pane-tabs {
       display: flex;
@@ -169,8 +195,8 @@ export function getWebUiHtml(): string {
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-dim);
-      padding: 4px 10px;
-      font-size: 12px;
+      padding: 5px 12px;
+      font-size: calc(12.5px * var(--font-scale));
       font-weight: 500;
       cursor: pointer;
       border-radius: 4px;
@@ -186,15 +212,15 @@ export function getWebUiHtml(): string {
       display: flex;
       gap: 6px;
       overflow-x: auto;
-      padding: 4px 8px;
+      padding: 5px 10px;
       background: #11151c;
       border-bottom: 1px solid var(--border);
-      font-size: 11px;
+      font-size: calc(11.5px * var(--font-scale));
     }
     .turn-chip {
       background: #161b22;
       border: 1px solid var(--border);
-      padding: 2px 8px;
+      padding: 2px 9px;
       border-radius: 12px;
       white-space: nowrap;
       cursor: pointer;
@@ -235,9 +261,9 @@ export function getWebUiHtml(): string {
       background: #0d1117;
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 6px 10px;
+      padding: 7px 11px;
       border-radius: 6px;
-      font-size: 12px;
+      font-size: calc(13px * var(--font-scale));
       outline: none;
     }
     .quick-input:focus { border-color: var(--accent); }
@@ -265,9 +291,9 @@ export function getWebUiHtml(): string {
       background: #0d1117;
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 5px 8px;
+      padding: 6px 10px;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: calc(12.5px * var(--font-scale));
       outline: none;
     }
     .search-input:focus { border-color: var(--accent); }
@@ -288,7 +314,7 @@ export function getWebUiHtml(): string {
       min-height: 0;
       padding: 6px 12px;
       font-family: monospace;
-      font-size: 12px;
+      font-size: calc(12.5px * var(--font-scale));
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -320,7 +346,7 @@ export function getWebUiHtml(): string {
       padding: 6px 12px;
       background: #161b22;
       border-bottom: 1px solid var(--border);
-      font-size: 12px;
+      font-size: calc(12.5px * var(--font-scale));
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -332,8 +358,8 @@ export function getWebUiHtml(): string {
       min-height: 0;
       padding: 12px;
       font-family: "Consolas", "Fira Code", monospace;
-      font-size: 12px;
-      line-height: 1.5;
+      font-size: calc(13px * var(--font-scale));
+      line-height: 1.55;
       white-space: pre;
       color: var(--text);
     }
@@ -345,7 +371,7 @@ export function getWebUiHtml(): string {
       border-bottom: 1px solid var(--border);
       display: flex;
       gap: 12px;
-      font-size: 11px;
+      font-size: calc(11.5px * var(--font-scale));
       color: var(--text-dim);
       flex-wrap: wrap;
       flex-shrink: 0;
@@ -383,7 +409,7 @@ export function getWebUiHtml(): string {
       align-items: center;
     }
     .symbol-kind {
-      font-size: 10px;
+      font-size: calc(10.5px * var(--font-scale));
       font-weight: 700;
       text-transform: uppercase;
       padding: 1px 5px;
@@ -393,14 +419,14 @@ export function getWebUiHtml(): string {
     }
     .symbol-sig {
       font-family: monospace;
-      font-size: 12px;
+      font-size: calc(12.5px * var(--font-scale));
       color: var(--green);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .symbol-loc {
-      font-size: 11px;
+      font-size: calc(11.5px * var(--font-scale));
       color: var(--text-dim);
     }
 
@@ -572,6 +598,12 @@ export function getWebUiHtml(): string {
       <button class="btn" id="mode-toggle" onclick="toggleMode()" title="Switch between Plan (read-only) and Act (asks before writes)">
         <span id="mode-icon">⚡</span> <span id="mode-label">Act</span>
       </button>
+
+      <div class="zoom-controls" style="display:flex; align-items:center; background:var(--card-bg); border:1px solid var(--border); border-radius:4px; overflow:hidden;" title="Adjust text & terminal zoom size">
+        <button class="btn" style="border:none; border-radius:0; padding:3px 7px; font-weight:bold; font-size:11px;" onclick="changeZoom(-0.1)" title="Zoom Out (Ctrl -)">A−</button>
+        <span id="zoom-label" style="font-size:11px; color:var(--text-dim); padding:0 4px; min-width:36px; text-align:center; user-select:none;">100%</span>
+        <button class="btn" style="border:none; border-radius:0; padding:3px 7px; font-weight:bold; font-size:11px;" onclick="changeZoom(0.1)" title="Zoom In (Ctrl +)">A+</button>
+      </div>
 
       <span class="metric-pill" id="token-savings">Savings: 0%</span>
       <button class="btn btn-undo" onclick="triggerUndo()">↩ Undo Edit</button>
@@ -785,10 +817,58 @@ export function getWebUiHtml(): string {
     let modifiedFiles = [];
     let currentSelectedPath = '';
 
+    // --- UI Font Scaling & Zoom ---
+    let currentZoom = parseFloat(localStorage.getItem('mugil_ui_zoom') || '1.0');
+    if (isNaN(currentZoom) || currentZoom < 0.7 || currentZoom > 2.0) currentZoom = 1.0;
+
+    function applyZoom(zoom) {
+      currentZoom = Math.min(1.8, Math.max(0.8, Math.round(zoom * 100) / 100));
+      localStorage.setItem('mugil_ui_zoom', currentZoom.toString());
+      document.documentElement.style.setProperty('--font-scale', currentZoom.toString());
+      const zoomLabel = document.getElementById('zoom-label');
+      if (zoomLabel) zoomLabel.textContent = Math.round(currentZoom * 100) + '%';
+      const termFont = Math.round(14 * currentZoom);
+      if (agentTerm) {
+        agentTerm.options.fontSize = termFont;
+        if (agentFit) agentFit.fit();
+      }
+      if (ptyTerm) {
+        ptyTerm.options.fontSize = termFont;
+        if (ptyFit) ptyFit.fit();
+      }
+      notifyResize();
+    }
+
+    function changeZoom(delta) {
+      applyZoom(currentZoom + delta);
+    }
+
+    // Apply saved zoom immediately on load
+    document.documentElement.style.setProperty('--font-scale', currentZoom.toString());
+    window.addEventListener('DOMContentLoaded', () => {
+      const zoomLabel = document.getElementById('zoom-label');
+      if (zoomLabel) zoomLabel.textContent = Math.round(currentZoom * 100) + '%';
+    });
+
+    // Keyboard shortcuts for zooming (Ctrl + / Ctrl - / Ctrl 0)
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        changeZoom(0.1);
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === '-' || e.key === '_')) {
+        e.preventDefault();
+        changeZoom(-0.1);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        applyZoom(1.0);
+      }
+    });
+
     function initTerminals() {
+      const termFontSize = Math.round(14 * currentZoom);
       agentTerm = new Terminal({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: termFontSize,
         fontFamily: 'Consolas, "Fira Code", "Courier New", monospace',
         theme: {
           background: '#0d1117',
@@ -822,7 +902,7 @@ export function getWebUiHtml(): string {
 
       ptyTerm = new Terminal({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: termFontSize,
         fontFamily: 'Consolas, "Fira Code", "Courier New", monospace',
         theme: {
           background: '#000000',

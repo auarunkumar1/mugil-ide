@@ -10,10 +10,17 @@
  * See ATTRIBUTIONS.md at the repository root for the full credit list.
  */
 import { countTokens } from './token/tokenizer.js';
+import { cavemanStrategy } from './modules/caveman/index.js';
+import { rtkStrategy } from './modules/rtk/index.js';
 
 export interface ConversationTurn {
   prompt: string;
   response: string;
+}
+
+export interface HistoryBudgetOptions {
+  /** When true, compresses older turns (all except the newest) with Caveman/RTK before budgeting. */
+  compactOlderTurns?: boolean;
 }
 
 export interface HistoryBudgetResult {
@@ -33,12 +40,20 @@ export interface HistoryBudgetResult {
 export function budgetConversationHistory(
   turns: ConversationTurn[],
   budgetTokens: number,
+  options: HistoryBudgetOptions = {},
 ): HistoryBudgetResult {
   const kept: ConversationTurn[] = [];
   let tokens = 0;
   let dropped = 0;
   for (let i = turns.length - 1; i >= 0; i -= 1) {
-    const turn = turns[i]!;
+    let turn = turns[i]!;
+    // Compact older turns to fit ~25-35% more context in the window
+    if (options.compactOlderTurns && i < turns.length - 1) {
+      turn = {
+        prompt: cavemanStrategy(turn.prompt).text,
+        response: rtkStrategy(turn.response).text,
+      };
+    }
     const cost = countTokens(turn.prompt) + countTokens(turn.response);
     if (tokens + cost > budgetTokens && kept.length > 0) {
       dropped += 1;
