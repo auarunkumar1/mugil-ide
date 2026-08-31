@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned (Smart Cache Optimizations & Telemetry)
+
+- **MemoryBackend Bounded LRU & Sweep**: Implement TTL cleanup on `keys()` and bounded max entries / LRU eviction in `MemoryBackend` to prevent unbounded memory growth.
+- **Indexed Partial Prefix Lookup**: Add Trie/radix prefix indexing to `SmartCache.partialLookup` to replace $O(n)$ full key iteration.
+- **Asynchronous Cache Storage**: Offload `store()` embedding calculation and persistence off the critical response latency path.
+- **Configurable Models Cache TTL**: Add `options.cacheTtlMs` to `fetchProviderModels` and environment variable `MUGIL_IDE_MODELS_CACHE_TTL`.
+- **Cache Observability & Metrics**: Add `getMetrics()` to `SmartCache` with hit/miss rates, exact/partial/semantic distribution, and TTL utilization telemetry.
+
 ## [0.1.11] - 2026-08-31
 
 ### Added
