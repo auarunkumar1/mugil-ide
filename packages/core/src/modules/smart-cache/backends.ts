@@ -20,7 +20,12 @@ export interface CacheBackend {
 
 export class MemoryBackend implements CacheBackend {
   readonly name = 'memory';
-  private store = new Map<string, CacheEntry>();
+  private readonly store = new Map<string, CacheEntry>();
+  private readonly maxEntries: number;
+
+  constructor(options: { maxEntries?: number } = {}) {
+    this.maxEntries = options.maxEntries ?? 2000;
+  }
 
   async get(key: string): Promise<CacheEntry | undefined> {
     const entry = this.store.get(key);
@@ -29,10 +34,34 @@ export class MemoryBackend implements CacheBackend {
       this.store.delete(key);
       return undefined;
     }
+    // Re-insert to refresh LRU order
+    this.store.delete(key);
+    this.store.set(key, entry);
     return entry;
   }
 
   async set(entry: CacheEntry): Promise<void> {
+    // If key already exists, delete it first to maintain LRU order
+    this.store.delete(entry.key);
+
+    // If capacity reached, sweep expired entries first
+    if (this.store.size >= this.maxEntries) {
+      const now = Date.now();
+      for (const [k, e] of this.store.entries()) {
+        if (now > e.expiresAt) {
+          this.store.delete(k);
+        }
+      }
+    }
+
+    // If still at capacity, evict the oldest entry
+    if (this.store.size >= this.maxEntries) {
+      const oldestKey = this.store.keys().next().value;
+      if (oldestKey !== undefined) {
+        this.store.delete(oldestKey);
+      }
+    }
+
     this.store.set(entry.key, entry);
   }
 
@@ -41,7 +70,16 @@ export class MemoryBackend implements CacheBackend {
   }
 
   async keys(): Promise<string[]> {
-    return Array.from(this.store.keys());
+    const now = Date.now();
+    const liveKeys: string[] = [];
+    for (const [key, entry] of this.store.entries()) {
+      if (now > entry.expiresAt) {
+        this.store.delete(key);
+      } else {
+        liveKeys.push(key);
+      }
+    }
+    return liveKeys;
   }
 
   async clear(): Promise<void> {

@@ -21,6 +21,8 @@ export interface PipelineOptions {
   refine?: RefineOptions;
   /** Enable output minimization (Ponytail module). Default true. */
   ponytail?: boolean;
+  /** Store cache entries in the background asynchronously without blocking the return path. */
+  asyncStore?: boolean;
 }
 
 export interface AskOptions extends HandoffOptions {
@@ -28,6 +30,8 @@ export interface AskOptions extends HandoffOptions {
   noCache?: boolean;
   /** Skip token refinement for this request. */
   noRefine?: boolean;
+  /** Store cache entries in the background without awaiting storage/embeddings. */
+  asyncStore?: boolean;
   /** Override the token budget for this request (defaults to pipeline.tokenBudget or model context window). */
   tokenBudget?: number;
   systemPrompt?: string;
@@ -80,6 +84,7 @@ export class Pipeline {
   public tokenBudget: number;
   private readonly refineOptions: RefineOptions;
   private readonly ponytailEnabled: boolean;
+  private readonly asyncStore: boolean;
 
   constructor(options: PipelineOptions) {
     this.cache = options.cache;
@@ -87,6 +92,7 @@ export class Pipeline {
     this.tokenBudget = options.tokenBudget ?? Number.POSITIVE_INFINITY;
     this.refineOptions = options.refine ?? {};
     this.ponytailEnabled = options.ponytail ?? true;
+    this.asyncStore = options.asyncStore ?? false;
   }
 
   async ask(prompt: string, options: AskOptions = {}): Promise<AskResult> {
@@ -277,7 +283,8 @@ export class Pipeline {
       );
     }
     if (!options.noCache && !hasTools) {
-      await this.cache.store(
+      const isAsync = options.asyncStore ?? this.asyncStore;
+      const storeTask = this.cache.store(
         prompt,
         response,
         completion.model,
@@ -288,6 +295,11 @@ export class Pipeline {
         // a later run would fall back to the ambiguous [mock] text scan.
         completion.mock ?? false,
       );
+      if (isAsync) {
+        void storeTask.catch(() => {});
+      } else {
+        await storeTask;
+      }
     }
     emit({ type: 'done', usage: completion.usage });
 
