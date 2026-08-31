@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-08-31
+
+### Added
+
+- **Provider-Side Prompt Caching**: Integrated Anthropic `cache_control: { type: 'ephemeral' }` on system instructions and tool definitions to leverage Anthropic prompt caching discounts on recurring agent loops.
+- **Universal Tool Output Compaction**: Automatically passes tool execution returns >400 chars through `compressCommandOutput` and enforces a 16,000 character safety bound to prevent runaway tool outputs from exhausting context.
+- **History Turn Compaction**: Added `compactOlderTurns` option to `budgetConversationHistory` using Caveman and RTK strategies on older turns to fit ~25-35% more context in the window.
+- **Dark Theme Custom Scrollbars**: Replaced light browser scrollbars with custom `#30363d` on `#0d1117` cross-browser scrollbars across all panes, viewers, and modals.
+- **UI Typography & Zoom Controls**: Increased default UI font sizes for improved readability and added dynamic `A-` / `A+` zoom controls (and `Ctrl + / -` shortcuts) in the header with `localStorage` persistence and automatic xterm terminal font resizing.
+
 ## [0.1.10] - 2026-08-26
 
 ### Changed
@@ -126,3 +136,4 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.6]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.6
 
 [0.1.10]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.10
+[0.1.11]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.11

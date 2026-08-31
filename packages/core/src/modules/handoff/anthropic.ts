@@ -100,20 +100,36 @@ export class AnthropicClient implements ProviderClient {
       temperature = undefined; // Anthropic requires temperature=1 or omitted with thinking
     }
 
+    const systemBlocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [];
+    if (system.trim().length > 0) {
+      systemBlocks.push({
+        type: 'text',
+        text: system,
+        cache_control: { type: 'ephemeral' },
+      });
+    }
+
     const body: Record<string, unknown> = {
       model: options.model,
       max_tokens: maxTokens,
-      system: system.trim().length > 0 ? system : undefined,
+      system: systemBlocks.length > 0 ? systemBlocks : undefined,
       messages: chat,
       temperature,
       thinking: thinkingConfig,
     };
     if (options.tools && options.tools.length > 0) {
-      body.tools = options.tools.map((t: ToolDefinition) => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.parameters,
-      }));
+      body.tools = options.tools.map((t: ToolDefinition, idx: number) => {
+        const toolDef: Record<string, unknown> = {
+          name: t.name,
+          description: t.description,
+          input_schema: t.parameters,
+        };
+        // Place cache breakpoint on the final tool to cache the full tools bundle
+        if (idx === options.tools!.length - 1) {
+          toolDef.cache_control = { type: 'ephemeral' };
+        }
+        return toolDef;
+      });
     }
 
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
