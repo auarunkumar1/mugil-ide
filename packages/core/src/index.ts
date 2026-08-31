@@ -60,7 +60,7 @@ export type {
 
 // Smart Cache (exact / partial / semantic; Redis backend)
 export { SmartCache } from './modules/smart-cache/index.js';
-export type { SmartCacheOptions } from './modules/smart-cache/index.js';
+export type { SmartCacheOptions, CacheMetrics } from './modules/smart-cache/index.js';
 export {
   MemoryBackend,
   RedisBackend,

@@ -28,12 +28,29 @@ export interface SmartCacheOptions {
  *     cached response covers the shared part and only the delta needs a
  *     fresh completion.
  */
+export interface CacheMetrics {
+  lookups: number;
+  hits: number;
+  exactHits: number;
+  partialHits: number;
+  semanticHits: number;
+  misses: number;
+  hitRatePct: number;
+  stores: number;
+}
+
 export class SmartCache {
   private readonly backend: CacheBackend;
   private readonly ttlSeconds: number;
   private readonly embedding: EmbeddingProvider;
   private readonly threshold: number;
   private readonly namespace: string | undefined;
+  private lookups = 0;
+  private exactHits = 0;
+  private partialHits = 0;
+  private semanticHits = 0;
+  private misses = 0;
+  private stores = 0;
 
   constructor(options: SmartCacheOptions) {
     this.backend = options.backend;
@@ -43,24 +60,59 @@ export class SmartCache {
     this.namespace = options.namespace;
   }
 
+  getMetrics(): CacheMetrics {
+    const totalHits = this.exactHits + this.partialHits + this.semanticHits;
+    const hitRatePct = this.lookups > 0 ? Math.round((totalHits / this.lookups) * 100) : 0;
+    return {
+      lookups: this.lookups,
+      hits: totalHits,
+      exactHits: this.exactHits,
+      partialHits: this.partialHits,
+      semanticHits: this.semanticHits,
+      misses: this.misses,
+      hitRatePct,
+      stores: this.stores,
+    };
+  }
+
+  resetMetrics(): void {
+    this.lookups = 0;
+    this.exactHits = 0;
+    this.partialHits = 0;
+    this.semanticHits = 0;
+    this.misses = 0;
+    this.stores = 0;
+  }
+
   async lookup(prompt: string, options: { model?: string } = {}): Promise<CacheLookupResult> {
     const normalized = normalizePrompt(prompt);
     if (normalized.length === 0) return {};
+    this.lookups += 1;
     const model = options.model;
 
     // 1. Exact
     const exact = await this.backend.get(cacheKeyFor(normalized, model, this.namespace));
-    if (exact) return { entry: exact, kind: 'exact' };
+    if (exact) {
+      this.exactHits += 1;
+      return { entry: exact, kind: 'exact' };
+    }
 
     // 2. Partial — a stored prompt that is a literal prefix of this one is a
     // stronger signal than fuzzy similarity, so it beats semantic.
     const partial = await this.partialLookup(normalized, model);
-    if (partial) return partial;
+    if (partial) {
+      this.partialHits += 1;
+      return partial;
+    }
 
     // 3. Semantic
     const semantic = await this.semanticLookup(normalized, model);
-    if (semantic) return { entry: semantic.entry, kind: 'semantic' };
+    if (semantic) {
+      this.semanticHits += 1;
+      return { entry: semantic.entry, kind: 'semantic' };
+    }
 
+    this.misses += 1;
     return {};
   }
 
@@ -82,6 +134,7 @@ export class SmartCache {
   ): Promise<void> {
     const normalized = normalizePrompt(prompt);
     if (normalized.length === 0) return;
+    this.stores += 1;
     const now = Date.now();
     const entry: CacheEntry = {
       key: cacheKeyFor(normalized, keyModel, this.namespace),
@@ -130,15 +183,18 @@ export class SmartCache {
     model?: string,
   ): Promise<CacheLookupResult | undefined> {
     let best: CacheEntry | undefined;
+    const normLen = normalized.length;
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
       if (!entry) continue;
+      // Fast length pruning: candidate prefix must be strictly shorter than query
+      // and longer than the current best candidate
+      const promptLen = entry.prompt.length;
+      if (promptLen >= normLen || (best && promptLen <= best.prompt.length)) {
+        continue;
+      }
       if (!matchesScope(entry, model, this.namespace)) continue;
-      if (
-        normalized.startsWith(entry.prompt) &&
-        normalized.length > entry.prompt.length &&
-        (!best || entry.prompt.length > best.prompt.length)
-      ) {
+      if (normalized.startsWith(entry.prompt)) {
         best = entry;
       }
     }

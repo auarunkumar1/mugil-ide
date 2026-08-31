@@ -10,11 +10,17 @@ export interface FetchModelsOptions {
   apiKey?: string;
   baseUrl?: string;
   timeoutMs?: number;
+  /** Cache duration in milliseconds (defaults to MUGIL_IDE_MODELS_CACHE_TTL or 60,000ms). */
+  cacheTtlMs?: number;
 }
 
 /** In-memory cache of fetched models per provider+endpoint to avoid slow redundant network probes. */
 const modelsCache = new Map<string, { models: ModelSpec[]; timestamp: number }>();
-const CACHE_TTL_MS = 60_000; // 1 minute
+export const DEFAULT_MODELS_CACHE_TTL_MS = 60_000; // 1 minute
+
+export function clearModelsCache(): void {
+  modelsCache.clear();
+}
 
 /**
  * Fetches the available models directly from the provider endpoint.
@@ -22,9 +28,11 @@ const CACHE_TTL_MS = 60_000; // 1 minute
  */
 export async function fetchProviderModels(options: FetchModelsOptions): Promise<ModelSpec[]> {
   const { provider, apiKey, baseUrl, timeoutMs = 4000 } = options;
+  const envTtl = typeof process !== 'undefined' && process.env?.MUGIL_IDE_MODELS_CACHE_TTL ? Number(process.env.MUGIL_IDE_MODELS_CACHE_TTL) : undefined;
+  const effectiveTtl = options.cacheTtlMs ?? (envTtl !== undefined && !isNaN(envTtl) ? envTtl : DEFAULT_MODELS_CACHE_TTL_MS);
   const cacheKey = `${provider}:${baseUrl || 'default'}:${apiKey ? 'auth' : 'noauth'}`;
   const cached = modelsCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.timestamp < effectiveTtl) {
     return cached.models;
   }
 
