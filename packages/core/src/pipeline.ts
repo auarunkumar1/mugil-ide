@@ -213,10 +213,14 @@ export class Pipeline {
     }
     messages.push({ role: 'user', content: effectivePrompt });
 
+    const systemTokens = countTokens(system);
+    const historyTokens = options.history ? options.history.reduce((acc, m) => acc + countTokens(m.content), 0) : 0;
+    const toolsTokens = options.tools ? countTokens(JSON.stringify(options.tools)) : 0;
+    const totalPromptTokens = refine.refinedTokens + systemTokens + historyTokens + toolsTokens;
+
     const outputBudget = ponytailOutputBudget(ponytailOpts);
-    // Reserve safety headroom for system prompt & tokenizer variance,
-    // and cap default generation max_tokens at standard output limit (8192).
-    const remainingHeadroom = Math.max(256, Math.floor(effectiveBudget - refine.refinedTokens - 1024));
+    // Reserve safety headroom for generation token budget:
+    const remainingHeadroom = Math.max(256, Math.floor(effectiveBudget - totalPromptTokens - 512));
     const defaultMax = Math.min(8192, remainingHeadroom);
     const maxTokens = outputBudget !== undefined ? Math.min(defaultMax, outputBudget) : options.maxTokens ?? defaultMax;
     emit({ type: 'stage', stage: 'handoff' });

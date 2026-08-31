@@ -170,10 +170,12 @@ describe('AnthropicClient', () => {
     );
 
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
-      system?: string;
+      system?: Array<{ type: string; text: string; cache_control?: { type: string } }>;
       messages: unknown[];
     };
-    expect(body.system).toBe('you are a helpful assistant');
+    expect(body.system).toEqual([
+      { type: 'text', text: 'you are a helpful assistant', cache_control: { type: 'ephemeral' } },
+    ]);
     expect(body.messages).toHaveLength(1);
   });
 
@@ -383,10 +385,15 @@ describe('tool calling (Anthropic)', () => {
       tools: [{ name: 'add', description: 'add two numbers', parameters: { type: 'object' } }],
     });
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
-      tools?: Array<{ name: string; description: string; input_schema: unknown }>;
+      tools?: Array<{ name: string; description: string; input_schema: unknown; cache_control?: unknown }>;
     };
     expect(body.tools).toEqual([
-      { name: 'add', description: 'add two numbers', input_schema: { type: 'object' } },
+      {
+        name: 'add',
+        description: 'add two numbers',
+        input_schema: { type: 'object' },
+        cache_control: { type: 'ephemeral' },
+      },
     ]);
   });
 

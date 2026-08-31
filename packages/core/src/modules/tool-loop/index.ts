@@ -17,6 +17,7 @@
  */
 import type { ChatMessage, HandoffOptions, ToolCall, ToolDefinition, Usage } from '../../types.js';
 import type { HandoffManager, HandoffResult } from '../handoff/index.js';
+import { compressCommandOutput } from '../rtk/index.js';
 
 export type ToolExecutor = (call: ToolCall) => Promise<string>;
 export type ToolRegistry = Record<string, ToolExecutor>;
@@ -205,7 +206,18 @@ export class ToolLoop {
       }
     }
     try {
-      return { content: await executor(call), ok: true };
+      const raw = await executor(call);
+      let content = typeof raw === 'string' ? raw : String(raw ?? '');
+      if (content.length > 400) {
+        content = compressCommandOutput(content, { maxLineLength: 400 }).text;
+      }
+      const MAX_TOOL_OUTPUT_CHARS = 16_000;
+      if (content.length > MAX_TOOL_OUTPUT_CHARS) {
+        content =
+          content.slice(0, MAX_TOOL_OUTPUT_CHARS) +
+          `\n\n… [output truncated: ${content.length - MAX_TOOL_OUTPUT_CHARS} characters omitted to conserve context]`;
+      }
+      return { content, ok: true };
     } catch (err) {
       return { content: `Error: ${err instanceof Error ? err.message : String(err)}`, ok: false };
     }
