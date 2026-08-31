@@ -93,6 +93,12 @@ into the shipped web client** today:
   call and continues from the summary.
 - **Skills prompt injection (wired)**: `skillsContextBlock(cwd)` lists
   available `.agents/skills` / `.claude/skills` in the system prompt.
+- **Prompt Caching & Smart Cache Optimizations (wired)**: Anthropic `cache_control: { type: 'ephemeral' }`
+  on system prompts and tools for 90% input token discounts; `MemoryBackend` bounded LRU
+  eviction (2,000 entries) + TTL sweeps; async non-blocking cache storage; and `CacheMetrics` observability.
+- **Dark Theme Custom Scrollbars & Dynamic Zoom (wired)**: Sleek `#30363d` dark scrollbars
+  across all panes, modals, and terminals; increased default typography; and header `A-` / `A+`
+  zoom controls (`Ctrl + / -`) with `localStorage` persistence and automatic xterm font resizing.
 
 ## Install from npm
 
@@ -100,7 +106,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.3
+mugil-ide --version         # 0.1.11
 mugil-ide                   # starts the local server and opens your browser
 ```
 
