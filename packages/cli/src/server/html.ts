@@ -71,7 +71,9 @@ export function getWebUiHtml(): string {
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      height: 48px;
+      min-height: 48px;
+      height: auto;
+      flex-shrink: 0;
       z-index: 10;
     }
     .logo-container {
@@ -82,6 +84,8 @@ export function getWebUiHtml(): string {
       font-size: calc(15px * var(--font-scale));
       color: var(--accent);
       user-select: none;
+      min-width: 0;
+      flex: 1;
     }
     .shimmer-logo {
       background: linear-gradient(
@@ -563,13 +567,13 @@ export function getWebUiHtml(): string {
 <body>
   <header>
     <div class="logo-container">
-      <div style="display:flex; flex-direction:column;">
-        <div style="display:flex; align-items:center; gap:8px;">
+      <div style="display:flex; flex-direction:column; min-width:0; max-width:100%;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span>☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
           <span class="logo-badge">TOKEN EFFICIENT</span>
         </div>
-        <span id="logo-model-sub" style="font-size:10px; color:var(--text-dim); font-weight:normal; margin-top:2px;">Active: <b id="sub-active-model" style="color:var(--accent);">Detecting...</b></span>
-        <div class="header-credits-bar" style="font-size:9.5px; color:var(--text-dim); margin-top:3px; display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+        <span id="logo-model-sub" style="font-size:10px; color:var(--text-dim); font-weight:normal; margin-top:2px; word-break:break-word; overflow-wrap:anywhere; line-height:1.3;">Active: <b id="sub-active-model" style="color:var(--accent); word-break:break-word; overflow-wrap:anywhere;">Detecting...</b></span>
+        <div class="header-credits-bar" style="font-size:9.5px; color:var(--text-dim); margin-top:3px; display:flex; gap:4px; flex-wrap:wrap; align-items:center; line-height:1.3;">
           <span>Credited:</span>
           <a href="https://github.com/JuliusBrussee/caveman" target="_blank" style="color:var(--accent); text-decoration:none;">Caveman</a> ·
           <a href="https://github.com/rtk-ai/rtk" target="_blank" style="color:var(--accent); text-decoration:none;">RTK</a> ·

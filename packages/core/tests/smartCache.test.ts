@@ -1,4 +1,4 @@
-import { SmartCache } from '../src/modules/smart-cache/index.js';
+import { SmartCache, PrefixTrie } from '../src/modules/smart-cache/index.js';
 import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { cosineSimilarity, LexicalEmbedding } from '../src/modules/smart-cache/embeddings.js';
 
@@ -260,5 +260,26 @@ describe('LexicalEmbedding', () => {
     const a = await emb.embed('same input');
     const b = await emb.embed('same input');
     expect(a).toEqual(b);
+  });
+});
+
+describe('PrefixTrie', () => {
+  it('finds the longest matching prefix for a query', () => {
+    const trie = new PrefixTrie<string>();
+    trie.insert('hello', 'val1');
+    trie.insert('hello world', 'val2');
+
+    const match = trie.findLongestPrefix('hello world and more');
+    expect(match).toBeDefined();
+    expect(match?.prefix).toBe('hello world');
+    expect(match?.value).toBe('val2');
+
+    const match2 = trie.findLongestPrefix('hello there');
+    expect(match2).toBeDefined();
+    expect(match2?.prefix).toBe('hello');
+    expect(match2?.value).toBe('val1');
+
+    const noMatch = trie.findLongestPrefix('goodbye');
+    expect(noMatch).toBeUndefined();
   });
 });

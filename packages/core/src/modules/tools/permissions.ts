@@ -37,7 +37,7 @@ export interface PermissionPolicy {
 }
 
 /** Reads tools — safe to expose to every agent without approval. */
-export const READ_TOOLS = ['read_file', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+export const READ_TOOLS = ['read_file', 'read_skeleton', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
 /** Write tools — mutate the workspace. */
 export const WRITE_TOOLS = ['write_file', 'edit_file', 'apply_patch', 'todowrite'];
 /** Execution tools — run arbitrary shell commands. */

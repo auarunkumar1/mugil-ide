@@ -21,6 +21,7 @@ import type { ToolCall, ToolDefinition } from '../../types.js';
 import { ToolLoop, parseToolArguments, type ToolRegistry } from '../tool-loop/index.js';
 import type { HandoffManager } from '../handoff/index.js';
 import { buildCodeGraph, queryCodeGraph } from '../codegraph/index.js';
+import { cavemanStrategy } from '../caveman/index.js';
 import { compressCommandOutput } from '../rtk/index.js';
 import { discoverSkills, loadSkill } from '../skills/index.js';
 import { createPermissionCheck, defaultPolicyForMode, type PermissionCheck } from './permissions.js';
@@ -40,6 +41,18 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
         path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
         startLine: { type: 'number', description: 'Optional 1-indexed start line (inclusive).' },
         endLine: { type: 'number', description: 'Optional 1-indexed end line (inclusive).' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'read_skeleton',
+    description:
+      'Extract the AST skeleton/outline of a code file (interfaces, types, classes, methods, functions, exported symbols) omitting internal function bodies. Provides 70-80% token reduction when exploring large files. Paths may be relative to the workspace root.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
       },
       required: ['path'],
     },
@@ -473,6 +486,118 @@ export interface WorkspaceToolsOptions {
   lspConnect?: (root: string) => Promise<LspClient>;
 }
 
+export function extractCodeSkeleton(content: string, filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const lines = content.split(/\r?\n/);
+  const out: string[] = [];
+
+  if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
+    let inBlockComment = false;
+    let braceDepth = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      const trimmed = line.trim();
+
+      if (inBlockComment) {
+        if (trimmed.includes('*/')) inBlockComment = false;
+        continue;
+      }
+      if (trimmed.startsWith('/*')) {
+        if (!trimmed.includes('*/')) inBlockComment = true;
+        continue;
+      }
+      if (trimmed.startsWith('//')) {
+        continue;
+      }
+
+      // Track braces
+      const opens = (line.match(/\{/g) || []).length;
+      const closes = (line.match(/\}/g) || []).length;
+
+      // Imports / exports
+      if (trimmed.startsWith('import ') || trimmed.startsWith('export *') || trimmed.startsWith('export default')) {
+        out.push(`${i + 1}: ${trimmed}`);
+        braceDepth += (opens - closes);
+        continue;
+      }
+
+      // Interface / Type / Enum definitions
+      if (/^(export\s+)?(type|interface|enum)\s+/.test(trimmed)) {
+        out.push(`${i + 1}: ${line}`);
+        braceDepth += (opens - closes);
+        continue;
+      }
+
+      // Class / Abstract Class
+      if (/^(export\s+)?(abstract\s+)?class\s+/.test(trimmed)) {
+        out.push(`${i + 1}: ${line.replace(/\{.*$/, '{')}`);
+        braceDepth += (opens - closes);
+        continue;
+      }
+
+      // Function / Method declarations
+      if (
+        /^(export\s+)?(async\s+)?function(\s+\w+)?\s*\(/.test(trimmed) ||
+        /^(public|private|protected|static|override|async|readonly)*\s*(get\s+|set\s+)?(\w+)\s*\([^)]*\)\s*(:\s*[^{;]+)?\s*(\{|;|$)/.test(trimmed) ||
+        /^(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*(=>|:)/.test(trimmed)
+      ) {
+        if (opens > 0 && closes >= opens) {
+          out.push(`${i + 1}: ${line.replace(/\{.*\}/, '{ … }')}`);
+        } else if (opens > 0) {
+          out.push(`${i + 1}: ${line.replace(/\{.*$/, '{ … }')}`);
+        } else {
+          out.push(`${i + 1}: ${trimmed}`);
+        }
+        braceDepth += (opens - closes);
+        continue;
+      }
+
+      // Inside interface / type / class top-level
+      if (braceDepth === 1 && (trimmed.endsWith(';') || trimmed.endsWith(','))) {
+        out.push(`${i + 1}: ${line}`);
+      } else if (braceDepth > 0 && closes > 0 && braceDepth - closes === 0) {
+        out.push(`${i + 1}: ${line}`);
+      }
+
+      braceDepth = Math.max(0, braceDepth + opens - closes);
+    }
+    return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
+  }
+
+  if (['.py'].includes(ext)) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      const trimmed = line.trim();
+      if (
+        trimmed.startsWith('class ') ||
+        trimmed.startsWith('def ') ||
+        trimmed.startsWith('async def ') ||
+        trimmed.startsWith('import ') ||
+        trimmed.startsWith('from ') ||
+        trimmed.startsWith('@')
+      ) {
+        out.push(`${i + 1}: ${line}`);
+      }
+    }
+    return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
+  }
+
+  // Fallback for general languages
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const trimmed = line.trim();
+    if (
+      /^(pub\s+)?(fn|struct|enum|trait|impl|type)\s+/.test(trimmed) ||
+      /^(func|type|struct|interface)\s+/.test(trimmed) ||
+      /^(public|private|protected|class|interface|void|int|string|boolean)/.test(trimmed)
+    ) {
+      out.push(`${i + 1}: ${line}`);
+    }
+  }
+  return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
+}
+
 export function createWorkspaceTools(
   workspaceRoot: string = process.cwd(),
   options: WorkspaceToolsOptions = {},
@@ -557,6 +682,26 @@ export function createWorkspaceTools(
       return out;
     },
 
+    read_skeleton: async (call: ToolCall): Promise<string> => {
+      const args = parseToolArguments(call) as { path: string };
+      if (!args.path) return 'Error: path parameter is required.';
+      const { target, error } = resolveInWorkspace(args.path);
+      if (error) return error;
+      if (!fs.existsSync(target)) {
+        return `Error: file not found: ${args.path}`;
+      }
+      const stat = fs.statSync(target);
+      if (stat.isDirectory()) {
+        return `Error: ${args.path} is a directory, use list_files instead.`;
+      }
+      if (isBinaryFile(target)) {
+        return `Error: ${args.path} appears to be a binary file and cannot be read as text.`;
+      }
+      const content = fs.readFileSync(target, 'utf-8');
+      const skeleton = extractCodeSkeleton(content, target);
+      return compressCommandOutput(skeleton, { maxLineLength: 300 }).text;
+    },
+
     list_files: async (call: ToolCall): Promise<string> => {
       const args = (parseToolArguments(call) as { dir?: string; pattern?: string }) || {};
       let targetDir = root;
@@ -597,7 +742,7 @@ export function createWorkspaceTools(
     search_code: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { query: string; extension?: string };
       if (!args.query) return 'Error: query parameter is required.';
-      const matches: string[] = [];
+      const matches: Array<{ file: string; line: number; text: string }> = [];
       const queryLower = args.query.toLowerCase();
 
       function walk(current: string) {
@@ -619,7 +764,7 @@ export function createWorkspaceTools(
                 if (matches.length >= 40) break;
                 if (lines[i]!.toLowerCase().includes(queryLower)) {
                   const rel = path.relative(root, fullPath).replace(/\\/g, '/');
-                  matches.push(`${rel}:${i + 1}: ${lines[i]!.trim()}`);
+                  matches.push({ file: rel, line: i + 1, text: lines[i]!.trim() });
                 }
               }
             } catch {
@@ -631,9 +776,25 @@ export function createWorkspaceTools(
 
       walk(root);
       if (matches.length === 0) return `(no matches found for "${args.query}")`;
-      // rtk-style compression: keeps the match lines but truncates very long
-      // content and collapses repeats so broad searches stay token-cheap.
-      return compressCommandOutput(matches.join('\n'), { maxLineLength: 400 }).text;
+
+      // Group matches by file
+      const grouped = new Map<string, Array<{ line: number; text: string }>>();
+      for (const m of matches) {
+        if (!grouped.has(m.file)) grouped.set(m.file, []);
+        grouped.get(m.file)!.push({ line: m.line, text: m.text });
+      }
+
+      const formatted: string[] = [];
+      for (const [file, hits] of grouped.entries()) {
+        formatted.push(`📁 ${file} (${hits.length} match${hits.length > 1 ? 'es' : ''}):`);
+        for (const h of hits) {
+          const truncated =
+            h.text.length > 200 ? `${h.text.slice(0, 200)}… (+${h.text.length - 200} chars)` : h.text;
+          formatted.push(`  L${h.line}: ${truncated}`);
+        }
+      }
+
+      return compressCommandOutput(formatted.join('\n'), { maxLineLength: 400 }).text;
     },
 
     codegraph: async (call: ToolCall): Promise<string> => {
@@ -984,11 +1145,12 @@ export function createWorkspaceTools(
           maxTokens: 2048,
         },
       );
-      const content = result.content.trim();
+      let content = result.content.trim();
       if (content.length === 0) return `[subagent (${mode}) returned no text]`;
-      return content.length > 4000
-        ? `${content.slice(0, 4000)}\n… (subagent output truncated at 4000 chars)`
-        : content;
+      if (content.length > 4000) {
+        content = `${content.slice(0, 4000)}\n… (subagent output truncated at 4000 chars)`;
+      }
+      return compressCommandOutput(cavemanStrategy(content).text, { maxLineLength: 400 }).text;
     },
   };
 
