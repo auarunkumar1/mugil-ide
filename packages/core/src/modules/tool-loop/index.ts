@@ -24,7 +24,7 @@ export type ToolRegistry = Record<string, ToolExecutor>;
 
 export interface ToolLoopOptions {
   handoff: HandoffManager;
-  /** Bounded iterations; a forced no-tools completion follows when exhausted. Default 6. */
+  /** Bounded iterations; a forced no-tools completion follows when exhausted. Default 15. */
   maxIterations?: number;
   /** Called with each executed tool call (for live progress events). */
   onTool?: (call: ToolCall, index: number) => void;
@@ -88,7 +88,8 @@ export class ToolLoop {
 
   constructor(options: ToolLoopOptions) {
     this.handoff = options.handoff;
-    this.maxIterations = options.maxIterations ?? 6;
+    const envLimit = process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS ? Number(process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS) : NaN;
+    this.maxIterations = options.maxIterations ?? (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 15);
     this.onTool = options.onTool;
     this.onToolResult = options.onToolResult;
   }
@@ -211,7 +212,8 @@ export class ToolLoop {
       if (content.length > 400) {
         content = compressCommandOutput(content, { maxLineLength: 400 }).text;
       }
-      const MAX_TOOL_OUTPUT_CHARS = 16_000;
+      const envMaxChars = process.env.MUGIL_IDE_MAX_TOOL_CHARS ? Number(process.env.MUGIL_IDE_MAX_TOOL_CHARS) : NaN;
+      const MAX_TOOL_OUTPUT_CHARS = Number.isFinite(envMaxChars) && envMaxChars > 0 ? Math.floor(envMaxChars) : 48_000;
       if (content.length > MAX_TOOL_OUTPUT_CHARS) {
         content =
           content.slice(0, MAX_TOOL_OUTPUT_CHARS) +

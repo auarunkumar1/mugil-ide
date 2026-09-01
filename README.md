@@ -35,7 +35,7 @@ The engine is a set of **separate, credited modules** — see
 | **Watermark Remover** | Strips AI provenance watermarks from generated text — invisible Unicode carriers (zero-width chars, bidi, tag chars, exotic spaces) and vendor attribution lines | [guillaumemeyer/watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover) |
 | **Smart Cache** | `exact` → `partial` (prefix + delta) → `semantic` (embedding similarity); memory / Redis / file backends with TTL; provider-level prompt caching (`cache_control: { type: 'ephemeral' }` on Anthropic) for instant 90% input discounts; entries can be scoped to the requested model so one model's answer is never served for another | Redis; semantic-caching pattern |
 | **Auto Handoff** | OpenRouter (primary) / OpenAI / Anthropic / Vercel / Cloudflare / Together AI / OpenCode Zen / Ollama / LM Studio / local clients with cost-based routing and fallback chains; an explicitly selected model is authoritative (no silent ladder fallback); tool declarations forwarded in each provider's wire format with prompt caching breakpoints; offline mock mode | [OpenRouter](https://openrouter.ai) |
-| **Tool Loop** | Bounded agentic function calling with **16 workspace tools** (`read_file`, `list_files`, `search_code`, `codegraph`, `write_file`, `edit_file`, `apply_patch`, `run_command`, `todowrite`, `todoread`, `skill`, `webfetch`, `websearch`, `lsp`, `question`, `task`), automatic RTK tool output compaction + safety bounds, error capture for unknown/failed tools, a forced final summary after `maxIterations`, and a full cache bypass for tool-bearing asks. Module-level extras (permission gate, env-context injection, skills prompt injection, post-edit diagnostics, MCP client, sessions) — see **Tool loop wiring** below | [OpenCode](https://github.com/sst/opencode) · [Pi](https://github.com/earendil-works/pi) — established coding-agent patterns |
+| **Tool Loop** | Bounded agentic function calling with **17 workspace tools** (`read_file`, `read_skeleton`, `list_files`, `search_code`, `codegraph`, `write_file`, `edit_file`, `apply_patch`, `run_command`, `todowrite`, `todoread`, `skill`, `webfetch`, `websearch`, `lsp`, `question`, `task`), automatic RTK tool output compaction + safety bounds, error capture for unknown/failed tools, a forced final summary after `maxIterations`, and a full cache bypass for tool-bearing asks. Module-level extras (permission gate, env-context injection, skills prompt injection, post-edit diagnostics, MCP client, sessions) — see **Tool loop wiring** below | [OpenCode](https://github.com/sst/opencode) · [Pi](https://github.com/earendil-works/pi) — established coding-agent patterns |
 | **Auto Update Manager** | Versioned, updatable module rules (JSON) + check/apply/periodic-watch against a registry + npm version check | — |
 | **MCP Server** | Engine modules as MCP tools (`ask`, `refine_prompt`, `count_tokens`, `strip_*`, `compress_command_output`, `list_models`) over stdio | [Model Context Protocol](https://modelcontextprotocol.io) |
 | **MCP Client** | Consumes stdio / streamable-HTTP MCP servers as `mcp__<server>__<tool>` tools (lazy per-session connection, soft failures). **Wired** — powers `websearch` (Exa) and surfaces `MUGIL_IDE_MCP_SERVERS` / `MUGIL_IDE_MCP_CONFIG` servers as agent tools (ask-gated in act mode, denied in plan) | [Model Context Protocol](https://modelcontextprotocol.io) · OpenCode MCP consumption |
@@ -49,10 +49,9 @@ tests); tiktoken unavailable → heuristic token estimator.
 
 ### Tool loop wiring
 
-The engine modules are built and unit-tested, but **only a subset is wired
-into the shipped web client** today:
+The engine modules are built and unit-tested, but **only a subset is wired into the shipped web client** today:
 
-- **In the agent loop**: `read_file`, `list_files`, `search_code`, `codegraph`,
+- **In the agent loop**: `read_file`, `read_skeleton`, `list_files`, `search_code`, `codegraph`,
   `write_file`, `edit_file`, `apply_patch`, `run_command`, `todowrite`,
   `todoread`, `skill`, `webfetch` — always available (writes/edits are
   undoable via the web UI). `websearch` (needs `MUGIL_IDE_ENABLE_EXA=1`) and
@@ -68,8 +67,9 @@ into the shipped web client** today:
   sessions via `MUGIL_IDE_MODE` in the user env file. `ask`-gated calls
   (writes, edits, commands, MCP) trigger an **approval modal** in the
   browser; deny/allow feeds back to the model as a `Permission denied` tool
-  result. Per-mode overrides can be set via `MUGIL_IDE_TOOL_PERMISSIONS` in
-  the user env file.
+  result so the agent can explain or try another approach. Subagents
+  share the gate (`explore` mode is strictly read-only; `general` inherits
+  the outer approval policy).
 - **Environment-context injection (wired)**: the system prompt carries cwd,
   platform, date, and any `AGENTS.md` / `CLAUDE.md` found walking up from
   the workspace.
@@ -78,24 +78,19 @@ into the shipped web client** today:
 - **MCP client consumption (wired)**: `MUGIL_IDE_MCP_SERVERS` /
   `MUGIL_IDE_MCP_CONFIG` servers surface as `mcp__<server>__<tool>` tools
   (ask-gated in act mode, denied in plan mode, soft connection failures).
-- **Sessions (wired)**: every turn auto-saves to `MUGIL_IDE_CACHE_DIR` and
-  the latest session resumes on launch; the auto-save is **scoped per
-  workspace** (`last-session-<workspace>.json`), so closing the app and
-  reopening it in a different project folder never resumes — or leaks — the
-  previous project's conversation (e.g. similarly-named `readme.md` /
-  `context.md` files); the legacy global `last-session.json` from older
-  versions is swept up on startup so it doesn't linger on disk; the file is
-  rewritten automatically after every completed turn and carries the
-  session's token/savings metrics, so `/stats` survives a reconnect;
+- **Auto-saved per-workspace sessions (wired)**: conversations auto-save to
+  `~/.cache/mugil-ide/last-session-<workspace-tag>.json` and restore on
+  launch, with token metrics persisted for `/stats`. Slash commands
   `/session <name>`, `/sessions`, `/resume <name>`, `/clear-session` manage
   named sessions (named files stay global and explicit).
 - **`/compact` (wired)**: summarizes the conversation via a dedicated model
   call and continues from the summary.
 - **Skills prompt injection (wired)**: `skillsContextBlock(cwd)` lists
   available `.agents/skills` / `.claude/skills` in the system prompt.
-- **Prompt Caching & Smart Cache Optimizations (wired)**: Anthropic `cache_control: { type: 'ephemeral' }`
-  on system prompts and tools for 90% input token discounts; `MemoryBackend` bounded LRU
-  eviction (2,000 entries) + TTL sweeps; async non-blocking cache storage; and `CacheMetrics` observability.
+- **Prompt Caching, Prefix Trie & Smart Cache (wired)**: Anthropic `cache_control: { type: 'ephemeral' }`
+  on system prompts and tools for 90% input token discounts; $O(L)$ `PrefixTrie` for instant
+  longest-prefix partial caching; `MemoryBackend` bounded LRU eviction (2,000 entries) + TTL sweeps;
+  async non-blocking cache storage; and `CacheMetrics` observability in `/stats`.
 - **Dark Theme Custom Scrollbars & Dynamic Zoom (wired)**: Sleek `#30363d` dark scrollbars
   across all panes, modals, and terminals; increased default typography; and header `A-` / `A+`
   zoom controls (`Ctrl + / -`) with `localStorage` persistence and automatic xterm font resizing.
@@ -106,7 +101,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.11
+mugil-ide --version         # 0.1.12
 mugil-ide                   # starts the local server and opens your browser
 ```
 
@@ -411,7 +406,18 @@ Webhooks fire on `turn.started` / `tool.executed` / `turn.completed` /
 
 ## Roadmap
 
-Done and shipped:
+### In progress / Next release:
+
+- ⏳ **Autonomous Context Compaction**: Proactive background compaction triggered when conversation history approaches budget thresholds, preserving critical project state and decisions without manual `/compact` or turn eviction.
+- ⏳ **Dynamic History Budget & Limit Scaling**: Configurable history sliding window (16k–32k tokens via `MUGIL_IDE_HISTORY_BUDGET`), tool iteration bump (15–20), adaptive prompt budget (32k–64k), and higher tool output bounds (48k–64k chars).
+- ⏳ **Cross-Provider Prompt Caching & Prefix Stability**: Strict byte-level prefix stability for system prompts, tools, and static context across Anthropic, OpenAI, DeepSeek, and Gemini for consistent 90%+ prompt cache hit rates.
+- ⏳ **Subagent Output Condensation**: Auto-compressing `task` subagent results through Caveman and RTK before injecting into parent agent history (saving 50–60% parent context).
+- ⏳ **AST / Skeletonized Code Reading**: `read_skeleton` / `outline` tool to inspect type signatures, interfaces, and function headers without reading full implementation bodies (70–80% token savings).
+- ⏳ **Unified Git Diff & Command Minimization**: 1-line context diff compression and test/build log noise reduction.
+- ⏳ **Code Search Grouping & Deduplication**: Grouping search hits by file and capping individual match line lengths.
+- ⏳ **Smart Cache Prefix Trie & Telemetry**: Prefix Tree (Trie) for $O(L)$ `partialLookup`, periodic memory backend sweeps, deterministic tool caching, and surfacing `CacheMetrics` in `/stats` and Web UI.
+
+### Done and shipped:
 
 - ✅ Core engine + web IDE (browser-only, xterm.js, vendored offline assets)
 - ✅ Credited module split (caveman / rtk / ponytail / signature-remover / smart-cache / handoff)
@@ -443,6 +449,8 @@ Done and shipped:
 - ✅ **Together AI** provider — OpenAI-compatible chat completions (Llama, DeepSeek, Qwen, Mistral)
 - ✅ **OpenCode Zen** provider — one key for Anthropic Messages + OpenAI chat-completions wire formats (claude-* via Zen's Messages endpoint)
 - ✅ **Plan/Act mode toggle** — header button + WebSocket handler + `MUGIL_IDE_MODE` persistence; `/plan` `/act` slash commands with mode preserved across sessions
+- ✅ **AST / Skeletonized code reading** — `read_skeleton` tool extracts signatures & declarations for 70-80% token savings
+- ✅ **Dynamic history budget & Smart Cache PrefixTrie** — `MUGIL_IDE_HISTORY_BUDGET` (16k default), 15 iterations limit, $O(L)$ prefix lookup, and search grouping
 
 ## License
 

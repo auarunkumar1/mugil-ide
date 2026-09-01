@@ -17,8 +17,8 @@ import {
   queryCodeGraph,
   createWorkspaceTools,
   budgetConversationHistory,
+  getHistoryBudget,
   countTokens,
-  getColoredBanner,
   buildEnvironmentContext,
   createPermissionCheck,
   defaultPolicyForMode,
@@ -174,30 +174,8 @@ export class AgentRepl {
     return [...this.turns];
   }
 
-  public startLogoAnimation(intervalMs = 120): void {
-    if (this.shimmerInterval) return;
-    this.shimmerInterval = setInterval(() => {
-      // Idle-screen shimmer: keep cycling until the agent actually starts
-      // working. Submitting a prompt already stops it via handleInput, and
-      // processing stops it here. Resumed sessions (turns restored from the
-      // auto-saved last-session) must NOT kill it — the logo stays animated
-      // on the idle screen until the user interacts.
-      if (this.isProcessing) {
-        this.stopLogoAnimation();
-        return;
-      }
-      this.shimmerHue = (this.shimmerHue + 8) % 360;
-      const rows = getColoredBanner(this.shimmerHue).split('\n');
-      let buf = '\x1b[s\x1b[?25l';
-      for (let r = 0; r < rows.length; r++) {
-        buf += `\x1b[${r + 2};3H${rows[r]}`;
-      }
-      buf += '\x1b[?25h\x1b[u';
-      this.io.write(buf);
-    }, intervalMs);
-    if (this.shimmerInterval && typeof this.shimmerInterval.unref === 'function') {
-      this.shimmerInterval.unref();
-    }
+  public startLogoAnimation(_intervalMs = 120): void {
+    // No-op: ASCII logo removed from terminal
   }
 
   public stopLogoAnimation(): void {
@@ -209,14 +187,8 @@ export class AgentRepl {
 
   public printBanner(): void {
     this.stopLogoAnimation();
-    const coloredLogo = getColoredBanner(this.shimmerHue)
-      .split('\n')
-      .map((line) => '  ' + line)
-      .join('\r\n');
     const modeLabel = this.mode === 'plan' ? yellow('plan (read-only)') : green('act (asks before writes)');
     const banner = [
-      '',
-      coloredLogo,
       '',
       `  ${c('☁️ MUGIL IDE', ANSI.bold, ANSI.brightGreen)} ${dim('— Token-Efficient Autonomous AI IDE')}`,
       `  ${dim('Model:')} ${bold(cyan(this.getActiveModel()))}  ${dim('Workspace:')} ${yellow(process.cwd())}`,
@@ -228,7 +200,6 @@ export class AgentRepl {
     ].join('\r\n');
     this.io.write(banner + '\r\n');
     this.printPrompt();
-    this.startLogoAnimation();
   }
 
   public printPrompt(): void {
@@ -557,6 +528,7 @@ export class AgentRepl {
     const savingsPct = s.promptTokens + s.tokensSaved > 0
       ? Math.round((s.tokensSaved / (s.promptTokens + s.tokensSaved)) * 100)
       : 0;
+    const cm = this.engine.cache?.getMetrics?.();
 
     const lines = [
       '',
@@ -566,7 +538,7 @@ export class AgentRepl {
       `  ${dim('Completion Tokens:')}  ${magenta(s.completionTokens)}`,
       `  ${dim('Total Tokens Used:')}  ${bold(s.totalTokens)}`,
       `  ${dim('Tokens Saved:')}       ${green(s.tokensSaved)} ${green(`(${savingsPct}% reduction)`)}`,
-      `  ${dim('Smart Cache Hits:')}   ${yellow(s.cacheHits)}`,
+      `  ${dim('Smart Cache Hits:')}   ${yellow(s.cacheHits)}${cm ? dim(` (lookups: ${cm.lookups}, hit rate: ${cm.hitRatePct}%)`) : ''}`,
       `  ${dim('Files Modified:')}     ${cyan(s.filesModified.size)} ${dim(Array.from(s.filesModified).join(', ') || '(none)')}`,
       '',
     ];
@@ -800,7 +772,7 @@ export class AgentRepl {
       const allTools = [...workspace.tools, ...mcp.tools];
       const allRegistry = { ...workspace.toolRegistry, ...mcp.registry };
 
-      // Prepare token-budgeted conversation history (max 3000 tokens of history to prevent token waste)
+      // Prepare token-budgeted conversation history (MUGIL_IDE_HISTORY_BUDGET, default 16,000 tokens)
       const turnsForBudget: ConversationTurn[] = [];
       let totalRawHistoryTokens = 0;
       for (let i = 0; i < this.messageHistory.length; i += 2) {
@@ -811,7 +783,8 @@ export class AgentRepl {
           totalRawHistoryTokens += countTokens(u.content) + countTokens(a.content);
         }
       }
-      const budgeted = budgetConversationHistory(turnsForBudget, 3000);
+      const historyBudget = getHistoryBudget();
+      const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, { compactOlderTurns: true });
       const historyTokensSaved = Math.max(0, totalRawHistoryTokens - budgeted.tokens);
       const budgetedHistory: ChatMessage[] = [];
       for (const t of budgeted.turns) {
@@ -832,7 +805,7 @@ export class AgentRepl {
         tools: allTools,
         toolRegistry: allRegistry,
         permission,
-        maxToolIterations: 8,
+        maxToolIterations: 15,
         ponytail: true,
         onEvent: (event: PipelineEvent) => {
           if (event.type === 'stage') {

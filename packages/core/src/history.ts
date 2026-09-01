@@ -32,6 +32,17 @@ export interface HistoryBudgetResult {
   tokens: number;
 }
 
+export const DEFAULT_HISTORY_BUDGET = 16_000;
+
+export function getHistoryBudget(env: NodeJS.ProcessEnv = process.env): number {
+  const custom = env.MUGIL_IDE_HISTORY_BUDGET;
+  if (custom) {
+    const parsed = Number(custom);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  }
+  return DEFAULT_HISTORY_BUDGET;
+}
+
 /**
  * Keeps the newest turns that fit within `budgetTokens`, in original order.
  * The newest turn is always kept even if it alone exceeds the budget, so
@@ -39,7 +50,7 @@ export interface HistoryBudgetResult {
  */
 export function budgetConversationHistory(
   turns: ConversationTurn[],
-  budgetTokens: number,
+  budgetTokens: number = DEFAULT_HISTORY_BUDGET,
   options: HistoryBudgetOptions = {},
 ): HistoryBudgetResult {
   const kept: ConversationTurn[] = [];

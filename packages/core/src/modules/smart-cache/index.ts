@@ -39,12 +39,55 @@ export interface CacheMetrics {
   stores: number;
 }
 
+interface TrieNode<T> {
+  children: Map<string, TrieNode<T>>;
+  value?: T;
+  isEnd?: boolean;
+}
+
+export class PrefixTrie<T> {
+  private root: TrieNode<T> = { children: new Map() };
+
+  insert(prefix: string, value: T): void {
+    let node = this.root;
+    for (const char of prefix) {
+      if (!node.children.has(char)) {
+        node.children.set(char, { children: new Map() });
+      }
+      node = node.children.get(char)!;
+    }
+    node.value = value;
+    node.isEnd = true;
+  }
+
+  findLongestPrefix(query: string): { prefix: string; value: T } | undefined {
+    let node = this.root;
+    let longest: { prefix: string; value: T } | undefined;
+    let curr = '';
+
+    for (const char of query) {
+      if (!node.children.has(char)) break;
+      node = node.children.get(char)!;
+      curr += char;
+      if (node.isEnd && node.value !== undefined && curr.length < query.length) {
+        longest = { prefix: curr, value: node.value };
+      }
+    }
+    return longest;
+  }
+
+  clear(): void {
+    this.root = { children: new Map() };
+  }
+}
+
 export class SmartCache {
   private readonly backend: CacheBackend;
   private readonly ttlSeconds: number;
   private readonly embedding: EmbeddingProvider;
   private readonly threshold: number;
   private readonly namespace: string | undefined;
+  private readonly prefixTrie = new PrefixTrie<string>();
   private lookups = 0;
   private exactHits = 0;
   private partialHits = 0;
@@ -148,13 +191,16 @@ export class SmartCache {
       mock,
     };
     await this.backend.set(entry);
+    this.prefixTrie.insert(normalized, entry.key);
   }
 
   async clear(): Promise<void> {
+    this.prefixTrie.clear();
     await this.backend.clear();
   }
 
   async close(): Promise<void> {
+    this.prefixTrie.clear();
     await this.backend.close();
   }
 
@@ -182,6 +228,20 @@ export class SmartCache {
     normalized: string,
     model?: string,
   ): Promise<CacheLookupResult | undefined> {
+    // 1. Fast Trie lookup for longest prefix
+    const trieHit = this.prefixTrie.findLongestPrefix(normalized);
+    if (trieHit) {
+      const entry = await this.backend.get(trieHit.value);
+      if (entry && matchesScope(entry, model, this.namespace) && normalized.startsWith(entry.prompt)) {
+        return {
+          entry,
+          kind: 'partial',
+          delta: normalized.slice(entry.prompt.length).trim(),
+        };
+      }
+    }
+
+    // 2. Scan backend keys for persistent or pre-populated backends
     let best: CacheEntry | undefined;
     const normLen = normalized.length;
     for (const key of await this.backend.keys()) {

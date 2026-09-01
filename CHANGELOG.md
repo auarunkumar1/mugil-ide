@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-09-01
+
+### Added
+
+- **AST / Skeletonized Code Reading (`read_skeleton`)**: Added `read_skeleton` tool for extracting code signatures, interfaces, classes, methods, and functions without internal bodies for 70-80% token savings when exploring files.
+- **Smart Cache Prefix Trie ($O(L)$ `partialLookup`)**: Implemented `PrefixTrie` for fast prefix caching and retrieval.
+- **Dynamic History Budget**: Added `DEFAULT_HISTORY_BUDGET` (16,000 tokens) and `getHistoryBudget()` supporting `MUGIL_IDE_HISTORY_BUDGET` override and automated older turn compaction.
+- **Subagent Output Condensation**: Auto-compresses subagent execution returns in `task` tool via Caveman and RTK before injecting into parent context.
+
+### Changed
+
+- **Relaxed Tool Loop Limits**: Default tool iteration limit raised from 6 to 15 (customizable via `MUGIL_IDE_MAX_TOOL_ITERATIONS`), and max tool output char bound raised from 16k to 48k chars (`MUGIL_IDE_MAX_TOOL_CHARS`).
+- **Code Search Grouping & Truncation (`search_code`)**: Grouped search hits by file header and capped match line lengths with truncation indicators to eliminate redundant headers and keep searches token-efficient.
+- **Stats Observability**: Surfaced Smart Cache lookup counts and hit rate percentage in `/stats`.
+- **Terminal REPL Cleanup**: Removed ASCII art banner and cursor shimmer animation from terminal REPL startup for cleaner terminal output.
+- **Web UI Header Robustness**: Updated top-left header logo container and `<header>` with responsive auto-height and text wrapping (`word-break: break-word`, `overflow-wrap: anywhere`), preventing header and logo clipping when long model names span multiple lines.
+
 ## [0.1.11] - 2026-08-31
 
 ### Added
@@ -142,3 +159,4 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 
 [0.1.10]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.10
 [0.1.11]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.11
+[0.1.12]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.12
