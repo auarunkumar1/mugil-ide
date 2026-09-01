@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { createWorkspaceTools, WORKSPACE_TOOL_DEFINITIONS } from '../src/modules/tools/workspaceTools.js';
+import { createWorkspaceTools, WORKSPACE_TOOL_DEFINITIONS, extractCodeSkeleton } from '../src/modules/tools/workspaceTools.js';
 import type { ToolCall } from '../src/types.js';
 
 describe('Workspace Tools', () => {
@@ -10,6 +10,7 @@ describe('Workspace Tools', () => {
   it('exposes the standard tool definitions', () => {
     const names = tools.map((t) => t.name);
     expect(names).toContain('read_file');
+    expect(names).toContain('read_skeleton');
     expect(names).toContain('list_files');
     expect(names).toContain('search_code');
     expect(names).toContain('codegraph');
@@ -251,5 +252,39 @@ describe('Workspace Tools', () => {
     await toolRegistry.todowrite(clearCall);
     const after = await toolRegistry.todoread(readCall);
     expect(after).toContain('no todos yet');
+  });
+
+  it('read_skeleton extracts code outline and signatures', async () => {
+    const tsCode = `
+import { foo } from './foo';
+export interface User {
+  id: string;
+  name: string;
+}
+export class AccountService {
+  constructor(private db: any) {}
+  async getAccount(id: string): Promise<User> {
+    const user = await this.db.find(id);
+    return user;
+  }
+}
+`;
+    const skeleton = extractCodeSkeleton(tsCode, 'service.ts');
+    expect(skeleton).toContain('export interface User');
+    expect(skeleton).toContain('export class AccountService');
+    expect(skeleton).toContain('async getAccount');
+    expect(skeleton).not.toContain('const user = await this.db.find(id);');
+  });
+
+  it('search_code groups matches by file', async () => {
+    const searchCall: ToolCall = {
+      id: 's1',
+      name: 'search_code',
+      arguments: JSON.stringify({ query: 'createWorkspaceTools' }),
+    };
+    const res = await toolRegistry.search_code(searchCall);
+    expect(res).toContain('📁');
+    expect(res).toContain('matches');
+    expect(res).toContain('L');
   });
 });

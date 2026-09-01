@@ -195,10 +195,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
-  it('keeps the RGB banner shimmering on the idle screen even after session resume', async () => {
+  it('prints clean banner without ASCII logo on connection even after session resume', async () => {
     // Simulate a returning user: the repl constructor auto-resumes the saved
-    // last-session, so turns.length > 0 at connect time. The idle-screen
-    // shimmer must keep cycling until the user actually interacts.
+    // last-session, so turns.length > 0 at connect time.
     saveSession(
       [{ id: 1, prompt: 'previous question', response: 'previous answer' }],
       sessionFilePath(),
@@ -212,16 +211,12 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     const server = await startIdeServer({ engine, port: 0 });
     const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
 
-    const animationFrames: string[] = [];
-    let sawColoredBanner = false;
+    const receivedData: string[] = [];
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString());
         if (msg.type === 'agent_data' && typeof msg.data === 'string') {
-          // Animation frames are cursor-positioned banner redraws; the static
-          // banner and every animated frame carry the 24-bit RGB colour codes.
-          if (msg.data.includes('\x1b[s\x1b[?25l')) animationFrames.push(msg.data);
-          if (msg.data.includes('\x1b[38;2;')) sawColoredBanner = true;
+          receivedData.push(msg.data);
         }
       } catch {
         // raw frames — ignore
@@ -233,10 +228,12 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         ws.on('open', resolve);
         ws.on('error', reject);
       });
-      // Wait a few 120ms shimmer ticks: a resumed session must not stop it.
-      await new Promise((r) => setTimeout(r, 900));
-      expect(sawColoredBanner).toBe(true);
-      expect(animationFrames.length).toBeGreaterThanOrEqual(2);
+      await new Promise((r) => setTimeout(r, 500));
+      const combined = receivedData.join('');
+      expect(combined).toContain('MUGIL IDE');
+      expect(combined).toContain('Token-Efficient Autonomous AI IDE');
+      // No 24-bit RGB cursor-animated ASCII banner
+      expect(combined).not.toContain('\x1b[s\x1b[?25l');
     } finally {
       ws.terminate();
       await server.close();
