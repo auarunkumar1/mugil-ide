@@ -17,6 +17,7 @@
  */
 import type { ChatMessage, HandoffOptions, ToolCall, ToolDefinition, Usage } from '../../types.js';
 import type { HandoffManager, HandoffResult } from '../handoff/index.js';
+import { streamCompletion, type StreamCompletionOptions, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
 
 export type ToolExecutor = (call: ToolCall) => Promise<string>;
@@ -41,6 +42,12 @@ export interface ToolLoopOptions {
    * undefined keeps the original value.
    */
   sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
+  /**
+   * Called with each streamed text fragment as it arrives. The text is
+   * provisional: a completion that streams and then requests tool calls makes
+   * the consumer discard what it rendered.
+   */
+  onDelta?: (text: string) => void;
 }
 
 export interface ToolLoopRunOptions extends HandoffOptions {
@@ -94,6 +101,8 @@ export class ToolLoop {
   private readonly onTool?: (call: ToolCall, index: number) => void;
   private readonly onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
   private readonly sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
+  private readonly onDelta?: (text: string) => void;
+  private readonly handlers: StreamHandlers;
 
   constructor(options: ToolLoopOptions) {
     this.handoff = options.handoff;
@@ -102,6 +111,16 @@ export class ToolLoop {
     this.onTool = options.onTool;
     this.onToolResult = options.onToolResult;
     this.sizeMaxTokens = options.sizeMaxTokens;
+    this.onDelta = options.onDelta;
+    this.handlers = {
+      onDelta: this.onDelta
+        ? (text) => {
+            // Provisional: if this completion turns out to carry tool calls,
+            // the consumer discards what it rendered. See agentRepl.ts.
+            this.onDelta?.(text);
+          }
+        : undefined,
+    };
   }
 
   async run(messages: ChatMessage[], options: ToolLoopRunOptions): Promise<ToolLoopResult> {
@@ -122,7 +141,12 @@ export class ToolLoop {
 
     for (let i = 0; i < this.maxIterations; i += 1) {
       if (options.signal?.aborted) throw options.signal.reason ?? new Error('aborted');
-      const completion = await this.handoff.complete(msgs, this.sized(msgs, options));
+      const completion = await streamCompletion(
+        this.handoff,
+        msgs,
+        this.streamOptions(this.sized(msgs, options)),
+        this.handlers,
+      );
       usage = this.sum(usage, completion.usage);
       if (!completion.toolCalls || completion.toolCalls.length === 0) {
         return this.finish(completion, msgs, options, usage, toolCalls);
@@ -169,10 +193,12 @@ export class ToolLoop {
 
     // Bounded: force a final answer without tools so we never return empty.
     const forcedMessages = [...msgs, { role: 'user' as const, content: MAX_ITERATION_PROMPT }];
-    const final = await this.handoff.complete(forcedMessages, {
-      ...this.sized(forcedMessages, options),
-      tools: undefined,
-    });
+    const final = await streamCompletion(
+      this.handoff,
+      forcedMessages,
+      this.streamOptions({ ...this.sized(forcedMessages, options), tools: undefined }),
+      this.handlers,
+    );
     usage = this.sum(usage, final.usage);
     return this.finish(final, forcedMessages, options, usage, toolCalls);
   }
@@ -182,6 +208,16 @@ export class ToolLoop {
     if (!this.sizeMaxTokens) return options;
     const maxTokens = this.sizeMaxTokens(messages);
     return maxTokens === undefined ? options : { ...options, maxTokens };
+  }
+
+  /**
+   * Streaming is on unless the caller explicitly turned it off. The handoff
+   * manager (not a bare client) receives the request so streaming walks the
+   * same failover ladder as the buffered path; a client with no `stream()`
+   * replays the whole answer as one delta.
+   */
+  private streamOptions(options: StreamCompletionOptions): StreamCompletionOptions {
+    return { ...options, stream: options.stream !== false };
   }
 
   /**
@@ -215,10 +251,12 @@ export class ToolLoop {
     } else {
       retryMessages.push({ role: 'user', content: retryPrompt });
     }
-    const retry = await this.handoff.complete(retryMessages, {
-      ...this.sized(retryMessages, options),
-      tools: undefined,
-    });
+    const retry = await streamCompletion(
+      this.handoff,
+      retryMessages,
+      this.streamOptions({ ...this.sized(retryMessages, options), tools: undefined }),
+      this.handlers,
+    );
     usage = this.sum(usage, retry.usage);
     if (retry.content.trim().length > 0) {
       return { ...retry, usage, toolCalls };

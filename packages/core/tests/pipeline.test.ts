@@ -428,4 +428,97 @@ describe('Pipeline', () => {
       expect(second.truncated).toBe(false);
     });
   });
+
+  it('emits delta events while streaming and stops when stream is false', async () => {
+    const streaming = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'm',
+        content: 'streamed',
+        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        finishReason: 'stop',
+      }),
+      stream: jest.fn(async (_m: unknown, _o: unknown, h: any) => {
+        h?.onDelta?.('str');
+        h?.onDelta?.('eamed');
+        return {
+          provider: 'openai',
+          model: 'm',
+          content: 'streamed',
+          usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+          finishReason: 'stop',
+        };
+      }),
+    };
+    const mk = () =>
+      new Pipeline({
+        cache: new SmartCache({
+          backend: new MemoryBackend(),
+          ttlSeconds: 3600,
+          embedding: new LexicalEmbedding(),
+        }),
+        handoff: new HandoffManager({ client: streaming as unknown as ProviderClient, models: MODELS }),
+      });
+
+    const seen: string[] = [];
+    const result = await mk().ask('hello', {
+      noCache: true,
+      onEvent: (e) => {
+        if (e.type === 'delta') seen.push(e.text);
+      },
+    });
+    expect(seen).toEqual(['str', 'eamed']);
+    expect(result.response).toBe('streamed');
+    expect(streaming.complete).not.toHaveBeenCalled();
+
+    const seenOff: string[] = [];
+    await mk().ask('hello', {
+      noCache: true,
+      stream: false,
+      onEvent: (e) => {
+        if (e.type === 'delta') seenOff.push(e.text);
+      },
+    });
+    expect(streaming.complete).toHaveBeenCalledTimes(1);
+    // Fallback path still emits deltas, just not incrementally.
+    expect(seenOff).toEqual(['streamed']);
+  });
+
+  it('honours MUGIL_IDE_NO_STREAM=1 as the global streaming kill switch', async () => {
+    const streaming = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'm',
+        content: 'buffered',
+        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        finishReason: 'stop',
+      }),
+      stream: jest.fn(),
+    };
+    const pipeline = new Pipeline({
+      cache: new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
+      }),
+      handoff: new HandoffManager({ client: streaming as unknown as ProviderClient, models: MODELS }),
+    });
+
+    process.env.MUGIL_IDE_NO_STREAM = '1';
+    try {
+      const seen: string[] = [];
+      await pipeline.ask('hello', {
+        noCache: true,
+        onEvent: (e) => {
+          if (e.type === 'delta') seen.push(e.text);
+        },
+      });
+      expect(streaming.stream).not.toHaveBeenCalled();
+      expect(seen).toEqual(['buffered']);
+    } finally {
+      delete process.env.MUGIL_IDE_NO_STREAM;
+    }
+  });
 });

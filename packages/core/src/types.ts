@@ -75,6 +75,13 @@ export interface HandoffOptions {
   signal?: AbortSignal;
   /** Hard wall-clock cap for the provider request. */
   timeoutMs?: number;
+  /**
+   * Stream tokens as they arrive. Default true. Set false (or
+   * MUGIL_IDE_NO_STREAM=1) to force a single buffered completion. Declared
+   * here rather than on the callers so every `{ ...options }` spread carries
+   * the request-scoped choice down to the provider request.
+   */
+  stream?: boolean;
 }
 
 export interface StrategyResult {
@@ -161,5 +168,12 @@ export type PipelineEvent =
   | { type: 'tool'; name: string; args?: string; index?: number }
   | { type: 'tool-result'; name: string; index?: number; ok: boolean; result: string }
   | { type: 'truncated'; finishReason: string; maxTokens: number }
-  | { type: 'done'; usage: Usage };
+  | { type: 'done'; usage: Usage }
+  /**
+   * A live text fragment as it arrives. Provisional: a completion that streams
+   * text and THEN requests tool calls makes the consumer discard what it
+   * rendered. Consumers must treat this as "display progress", not as the
+   * final answer — `AskResult.response` is the authoritative text.
+   */
+  | { type: 'delta'; text: string };
 
