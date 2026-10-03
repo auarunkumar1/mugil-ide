@@ -2,6 +2,7 @@ import type { AskResult, CacheLookupResult, ChatMessage, HandoffOptions, Pipelin
 import { SmartCache } from './modules/smart-cache/index.js';
 import { stripSignatures } from './modules/signature-remover/index.js';
 import { stripWatermarks } from './modules/watermark-remover/index.js';
+import { streamCompletion } from './modules/handoff/stream.js';
 import {
   ponytailInstruction,
   ponytailOutputBudget,
@@ -298,18 +299,25 @@ export class Pipeline {
               result: outcome.content,
             });
           },
+          // Provisional text: a streamed fragment that is followed by tool
+          // calls must be discarded by the consumer. Renderers own that
+          // decision; the pipeline only reports what arrived.
+          onDelta: (text) => emit({ type: 'delta', text }),
         }).run(messages, {
           ...options,
+          // Resolve the flag here, not in the loop: the kill switch is global,
+          // so a tool-bearing turn must honour it too.
+          stream: this.streamingEnabled(options),
           tools: options.tools!,
           registry: options.toolRegistry ?? {},
           maxTokens,
         })
-      : await this.handoff.complete(messages, {
-          ...options,
-          maxTokens,
-          signal: options.signal,
-          timeoutMs: options.timeoutMs,
-        });
+      : await streamCompletion(
+          this.handoff,
+          messages,
+          { ...options, maxTokens, stream: this.streamingEnabled(options) },
+          { onDelta: (text) => emit({ type: 'delta', text }) },
+        );
     emit({
       type: 'handoff',
       attempts: completion.attempts,
@@ -375,5 +383,11 @@ export class Pipeline {
       finishReason,
       truncated,
     };
+  }
+
+  /** Streaming is on unless the caller or the environment turns it off. */
+  private streamingEnabled(options: AskOptions): boolean {
+    if (options.stream !== undefined) return options.stream;
+    return process.env.MUGIL_IDE_NO_STREAM !== '1';
   }
 }

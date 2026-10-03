@@ -377,6 +377,48 @@ describe('ToolLoop', () => {
     expect(out.usage).toEqual({ promptTokens: 50, completionTokens: 15, totalTokens: 65 });
   });
 
+  it('forwards streamed deltas through onDelta', async () => {
+    const client = scriptedClient([result({ content: 'par', finishReason: 'stop' })]);
+    const deltas: string[] = [];
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      onDelta: (t) => deltas.push(t),
+    });
+    await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
+    // The scripted client has no stream(), so the dispatcher replays the whole
+    // answer as a single delta — proving the wiring, not the transport.
+    expect(deltas).toEqual(['par']);
+  });
+
+  it('splits deltas across a real stream() and suppresses them when stream is false', async () => {
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue(result({ content: 'partial', finishReason: 'stop' })),
+      stream: jest.fn(async (_m: unknown, _o: unknown, h: any) => {
+        h?.onDelta?.('par');
+        h?.onDelta?.('tial');
+        return result({ content: 'partial', finishReason: 'stop' });
+      }),
+    } as unknown as ProviderClient;
+    const deltas: string[] = [];
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      onDelta: (t) => deltas.push(t),
+    });
+
+    await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
+    expect(deltas).toEqual(['par', 'tial']);
+    expect(client.complete).not.toHaveBeenCalled();
+
+    deltas.length = 0;
+    (client.stream as unknown as jest.Mock).mockClear();
+    await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry, stream: false });
+    // Buffered path: one delta carrying the whole answer, and no stream() call.
+    expect(deltas).toEqual(['partial']);
+    expect(client.stream).not.toHaveBeenCalled();
+    expect(client.complete).toHaveBeenCalledTimes(1);
+  });
+
   it('parseToolArguments throws ToolError on invalid JSON', () => {
     expect(() => parseToolArguments({ id: 'c', name: 'add', arguments: 'not json' })).toThrow(ToolError);
     expect(parseToolArguments({ id: 'c', name: 'add', arguments: '{"a":1}' })).toEqual({ a: 1 });
