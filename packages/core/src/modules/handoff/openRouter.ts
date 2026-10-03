@@ -2,12 +2,14 @@ import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
   mockCompletion,
+  openAiStreamResult,
   toOpenAiMessages,
   toOpenAiTools,
   requestSignal,
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
+import { parseOpenAiSse, type StreamHandlers } from './stream.js';
 
 export interface OpenRouterClientOptions {
   apiKey?: string;
@@ -59,10 +61,16 @@ export class OpenRouterClient implements ProviderClient {
     return this.remoteComplete(messages, options);
   }
 
-  private async remoteComplete(
+  /**
+   * Builds the request body. `stream: true` adds the SSE flag plus
+   * `stream_options.include_usage`; without it OpenRouter omits `usage` from
+   * streamed chunks and token counts fall back to estimates.
+   */
+  private buildBody(
     messages: ChatMessage[],
     options: OpenRouterCompleteOptions,
-  ): Promise<CompletionResult> {
+    stream = false,
+  ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: options.model,
       messages: toOpenAiMessages(messages),
@@ -80,6 +88,54 @@ export class OpenRouterClient implements ProviderClient {
       };
     }
 
+    if (stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
+    return body;
+  }
+
+  async stream(
+    messages: ChatMessage[],
+    options: OpenRouterCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const result = this.mockComplete(messages, options);
+      if (result.content.length > 0) handlers.onDelta?.(result.content);
+      return result;
+    }
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+        'HTTP-Referer': this.appUrl,
+        'X-Title': this.appTitle,
+      },
+      body: JSON.stringify(this.buildBody(messages, options, true)),
+      signal: requestSignal(options),
+    });
+
+    if (!res.ok) {
+      const retryable = res.status === 429 || res.status >= 500;
+      throw new OpenRouterError(
+        `OpenRouter ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
+        res.status,
+        retryable,
+      );
+    }
+    if (!res.body) throw new OpenRouterError('OpenRouter returned no body to stream', res.status, true);
+    const streamed = await parseOpenAiSse(res.body, handlers);
+    return openAiStreamResult('openrouter', messages, options, streamed);
+  }
+
+  private async remoteComplete(
+    messages: ChatMessage[],
+    options: OpenRouterCompleteOptions,
+  ): Promise<CompletionResult> {
+    const body = this.buildBody(messages, options);
+
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -89,7 +145,7 @@ export class OpenRouterClient implements ProviderClient {
         'X-Title': this.appTitle,
       },
       body: JSON.stringify(body),
-    signal: requestSignal(options),
+      signal: requestSignal(options),
     });
 
     if (!res.ok) {

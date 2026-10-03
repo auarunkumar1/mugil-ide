@@ -12,6 +12,8 @@
  * result. No provider knowledge, no I/O.
  */
 import type { ToolCall } from '../../types.js';
+import type { ChatMessage, CompletionResult } from '../../types.js';
+import type { ProviderClient, ProviderCompleteOptions } from './provider.js';
 
 export interface StreamHandlers {
   /** Called for each visible text fragment, in order. */
@@ -228,4 +230,24 @@ export async function parseAnthropicSse(
           }
         : undefined,
   };
+}
+
+/**
+ * Streams a completion when the provider supports it, otherwise falls back to
+ * `complete()` and replays the whole answer as one delta. Callers cannot tell
+ * the difference except by how many deltas they received.
+ */
+export async function streamCompletion(
+  client: ProviderClient,
+  messages: ChatMessage[],
+  options: ProviderCompleteOptions,
+  handlers: StreamHandlers = {},
+): Promise<CompletionResult> {
+  if (options.stream === false || !client.stream) {
+    const result = await client.complete(messages, options);
+    if (result.content.length > 0) handlers.onDelta?.(result.content);
+    if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
+    return result;
+  }
+  return client.stream(messages, options, handlers);
 }

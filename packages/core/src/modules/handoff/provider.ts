@@ -1,5 +1,6 @@
 import type { ChatMessage, CompletionResult, ThinkingLevel, ToolDefinition } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
+import type { StreamedCompletion, StreamHandlers } from './stream.js';
 
 export interface ProviderCompleteOptions {
   model: string;
@@ -19,6 +20,11 @@ export interface ProviderCompleteOptions {
    * the connection and then stalls hangs the turn forever.
    */
   timeoutMs?: number;
+  /**
+   * Opt out of streaming for this request even when the provider supports it.
+   * Defaults to streaming when a client implements `stream()`.
+   */
+  stream?: boolean;
 }
 
 /**
@@ -88,6 +94,64 @@ export function toOpenAiMessages(messages: ChatMessage[]): Array<Record<string, 
 export interface ProviderClient {
   readonly mock: boolean;
   complete(messages: ChatMessage[], options: ProviderCompleteOptions): Promise<CompletionResult>;
+  /**
+   * Optional streaming completion. When absent the dispatcher falls back to
+   * `complete()` and emits a single delta, so every provider keeps working.
+   */
+  stream?(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers?: StreamHandlers,
+  ): Promise<CompletionResult>;
+}
+
+/**
+ * Assembles a `CompletionResult` from OpenAI-wire-format streamed output.
+ * Shared by openAi / openRouter / vercel / together / cloudflare so all five
+ * produce byte-identical results from the same bytes.
+ *
+ * Two post-processing rules mirror the non-streaming `complete()` paths, and
+ * both matter for streamed turns:
+ *   - a `<think>...</think>` block inside `content` (local DeepSeek-R1 style)
+ *     is lifted into `thinking` and stripped from `content`;
+ *   - a reasoning-only turn (empty content, no tool calls) promotes its
+ *     `thinking` to `content`, so it can never render blank.
+ */
+export function openAiStreamResult(
+  provider: string,
+  messages: ChatMessage[],
+  options: ProviderCompleteOptions,
+  streamed: StreamedCompletion,
+): CompletionResult {
+  let content = streamed.content;
+  let thinking: string | undefined = streamed.thinking;
+
+  if (!thinking && content.includes('<think>')) {
+    const match = content.match(/<think>([\s\S]*?)<\/think>/i);
+    if (match) {
+      thinking = match[1]?.trim();
+      content = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
+    }
+  }
+  if (content.trim().length === 0 && streamed.toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
+    content = thinking;
+  }
+
+  const promptTokens = streamed.usage?.promptTokens ?? countTokens(messages.map((m) => m.content).join('\n'));
+  const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
+  return {
+    provider,
+    model: options.model,
+    content,
+    usage: {
+      promptTokens,
+      completionTokens,
+      totalTokens: streamed.usage?.totalTokens ?? promptTokens + completionTokens,
+    },
+    finishReason: streamed.finishReason,
+    toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
+    thinking: thinking && thinking.length > 0 ? thinking : undefined,
+  };
 }
 
 export class ProviderError extends Error {

@@ -7,6 +7,7 @@ import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
   mockCompletion,
+  openAiStreamResult,
   ProviderError,
   toOpenAiMessages,
   toOpenAiTools,
@@ -14,6 +15,7 @@ import {
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
+import { parseOpenAiSse, type StreamHandlers } from './stream.js';
 
 export interface OpenAiClientOptions {
   apiKey?: string;
@@ -31,24 +33,30 @@ export class OpenAiClient implements ProviderClient {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
     this.extraHeaders = options.headers;
-    const isLocal =
-      this.baseUrl.includes('localhost') ||
-      this.baseUrl.includes('127.0.0.1') ||
-      this.baseUrl.includes('0.0.0.0') ||
-      this.baseUrl.includes('::1');
-    this.mock = !this.apiKey && !isLocal;
+    this.mock = !this.apiKey && !this.isLocalEndpoint();
   }
 
-  async complete(
-    messages: ChatMessage[],
-    options: ProviderCompleteOptions,
-  ): Promise<CompletionResult> {
-    if (this.mock) return mockCompletion(messages, options, 'OPENAI_API_KEY');
-    const isLocal =
+  private isLocalEndpoint(): boolean {
+    return (
       this.baseUrl.includes('localhost') ||
       this.baseUrl.includes('127.0.0.1') ||
       this.baseUrl.includes('0.0.0.0') ||
-      this.baseUrl.includes('::1');
+      this.baseUrl.includes('::1')
+    );
+  }
+
+  /**
+   * Builds the request body. `stream: true` adds the SSE flag plus
+   * `stream_options.include_usage` — without it OpenAI omits `usage` from every
+   * streamed chunk, so the streaming path would fall back to token estimates
+   * while the non-streaming path reports real API counts.
+   */
+  private buildBody(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    stream = false,
+  ): Record<string, unknown> {
+    const isLocal = this.isLocalEndpoint();
 
     const isOpenAiReasoning =
       !isLocal &&
@@ -76,6 +84,18 @@ export class OpenAiClient implements ProviderClient {
       }
     }
 
+    if (stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
+    return body;
+  }
+
+  private async post(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    stream = false,
+  ): Promise<Response> {
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -83,8 +103,8 @@ export class OpenAiClient implements ProviderClient {
         Authorization: `Bearer ${this.apiKey || 'local'}`,
         ...this.extraHeaders,
       },
-      body: JSON.stringify(body),
-    signal: requestSignal(options),
+      body: JSON.stringify(this.buildBody(messages, options, stream)),
+      signal: requestSignal(options),
     });
 
     if (!res.ok) {
@@ -95,6 +115,36 @@ export class OpenAiClient implements ProviderClient {
         retryable,
       );
     }
+    return res;
+  }
+
+  /**
+   * Streaming variant of `complete()`. Same request body plus `stream: true`;
+   * `choices[0].delta` fragments are aggregated by `parseOpenAiSse` so the
+   * returned CompletionResult is identical to the non-streaming one.
+   */
+  async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const result = mockCompletion(messages, options, 'OPENAI_API_KEY');
+      if (result.content.length > 0) handlers.onDelta?.(result.content);
+      return result;
+    }
+    const res = await this.post(messages, options, true);
+    if (!res.body) throw new ProviderError('OpenAI returned no body to stream', res.status, true);
+    const streamed = await parseOpenAiSse(res.body, handlers);
+    return openAiStreamResult('openai', messages, options, streamed);
+  }
+
+  async complete(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Promise<CompletionResult> {
+    if (this.mock) return mockCompletion(messages, options, 'OPENAI_API_KEY');
+    const res = await this.post(messages, options);
 
     const data = (await res.json()) as {
       model?: string;

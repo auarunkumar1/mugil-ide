@@ -13,6 +13,7 @@ import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
   mockCompletion,
+  openAiStreamResult,
   ProviderError,
   toOpenAiMessages,
   toOpenAiTools,
@@ -20,6 +21,7 @@ import {
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
+import { parseOpenAiSse, type StreamHandlers } from './stream.js';
 
 export interface CloudflareClientOptions {
   apiKey?: string;
@@ -40,25 +42,29 @@ export class CloudflareClient implements ProviderClient {
     this.accountId = options.accountId;
     this.gatewayId = options.gatewayId;
     this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
-    this.mock = !this.apiKey || !this.accountId;
+this.mock = !this.apiKey || !this.accountId;
   }
 
-  async complete(
-    messages: ChatMessage[],
-    options: ProviderCompleteOptions,
-  ): Promise<CompletionResult> {
-    if (this.mock) return mockCompletion(messages, options, 'CLOUDFLARE_API_KEY');
-
-    // Build the endpoint URL
-    let endpoint: string;
+  /** AI Gateway endpoint when a gateway is configured, else direct Workers AI. */
+  private endpoint(): string {
     if (this.gatewayId && this.accountId) {
       // AI Gateway endpoint (recommended)
-      endpoint = `${this.baseUrl.replace('/client/v4', '')}/gateway/accounts/${this.accountId}/gateways/${this.gatewayId}/openai/v1/chat/completions`;
-    } else {
-      // Direct Workers AI endpoint
-      endpoint = `${this.baseUrl}/accounts/${this.accountId}/ai/v1/chat/completions`;
+      return `${this.baseUrl.replace('/client/v4', '')}/gateway/accounts/${this.accountId}/gateways/${this.gatewayId}/openai/v1/chat/completions`;
     }
+    // Direct Workers AI endpoint
+    return `${this.baseUrl}/accounts/${this.accountId}/ai/v1/chat/completions`;
+  }
 
+  /**
+   * Builds the request body. `stream: true` adds the SSE flag plus
+   * `stream_options.include_usage`; without it Workers AI omits `usage` from
+   * streamed chunks and token counts fall back to estimates.
+   */
+  private buildBody(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    stream = false,
+  ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: options.model,
       messages: toOpenAiMessages(messages),
@@ -69,14 +75,62 @@ export class CloudflareClient implements ProviderClient {
       body.tools = toOpenAiTools(options.tools);
     }
 
-    const res = await fetch(endpoint, {
+    if (stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
+    return body;
+  }
+
+  async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const result = mockCompletion(messages, options, 'CLOUDFLARE_API_KEY');
+      if (result.content.length > 0) handlers.onDelta?.(result.content);
+      return result;
+    }
+    const res = await fetch(this.endpoint(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify(this.buildBody(messages, options, true)),
+      signal: requestSignal(options),
+    });
+
+    if (!res.ok) {
+      const retryable = res.status === 429 || res.status >= 500;
+      throw new ProviderError(
+        `Cloudflare ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
+        res.status,
+        retryable,
+      );
+    }
+    if (!res.body) throw new ProviderError('Cloudflare returned no body to stream', res.status, true);
+    const streamed = await parseOpenAiSse(res.body, handlers);
+    return openAiStreamResult('cloudflare', messages, options, streamed);
+  }
+
+  async complete(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Promise<CompletionResult> {
+    if (this.mock) return mockCompletion(messages, options, 'CLOUDFLARE_API_KEY');
+
+    const body = this.buildBody(messages, options);
+
+    const res = await fetch(this.endpoint(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
-    signal: requestSignal(options),
+      signal: requestSignal(options),
     });
 
     if (!res.ok) {
