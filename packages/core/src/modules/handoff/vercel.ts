@@ -7,6 +7,7 @@ import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
   mockCompletion,
+  openAiStreamResult,
   ProviderError,
   toOpenAiMessages,
   toOpenAiTools,
@@ -14,6 +15,7 @@ import {
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
+import { parseOpenAiSse, type StreamHandlers } from './stream.js';
 
 export interface VercelClientOptions {
   apiKey?: string;
@@ -28,15 +30,19 @@ export class VercelClient implements ProviderClient {
   constructor(options: VercelClientOptions = {}) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl ?? 'https://api.vercel.ai/v1';
-    this.mock = !this.apiKey;
+this.mock = !this.apiKey;
   }
 
-  async complete(
+  /**
+   * Builds the request body. `stream: true` adds the SSE flag plus
+   * `stream_options.include_usage`; without it the gateway omits `usage` from
+   * streamed chunks and token counts fall back to estimates.
+   */
+  private buildBody(
     messages: ChatMessage[],
     options: ProviderCompleteOptions,
-  ): Promise<CompletionResult> {
-    if (this.mock) return mockCompletion(messages, options, 'VERCEL_API_KEY');
-
+    stream = false,
+  ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: options.model,
       messages: toOpenAiMessages(messages),
@@ -54,6 +60,54 @@ export class VercelClient implements ProviderClient {
       };
     }
 
+    if (stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
+    return body;
+  }
+
+  async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const result = mockCompletion(messages, options, 'VERCEL_API_KEY');
+      if (result.content.length > 0) handlers.onDelta?.(result.content);
+      return result;
+    }
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify(this.buildBody(messages, options, true)),
+      signal: requestSignal(options),
+    });
+
+    if (!res.ok) {
+      const retryable = res.status === 429 || res.status >= 500;
+      throw new ProviderError(
+        `Vercel ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
+        res.status,
+        retryable,
+      );
+    }
+    if (!res.body) throw new ProviderError('Vercel returned no body to stream', res.status, true);
+    const streamed = await parseOpenAiSse(res.body, handlers);
+    return openAiStreamResult('vercel', messages, options, streamed);
+  }
+
+  async complete(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Promise<CompletionResult> {
+    if (this.mock) return mockCompletion(messages, options, 'VERCEL_API_KEY');
+
+    const body = this.buildBody(messages, options);
+
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -61,7 +115,7 @@ export class VercelClient implements ProviderClient {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
-    signal: requestSignal(options),
+      signal: requestSignal(options),
     });
 
     if (!res.ok) {

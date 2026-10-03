@@ -13,6 +13,7 @@ import {
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
+import { parseAnthropicSse, type StreamedCompletion, type StreamHandlers } from './stream.js';
 
 export interface AnthropicClientOptions {
   apiKey?: string;
@@ -85,11 +86,8 @@ export class AnthropicClient implements ProviderClient {
     this.mock = !this.apiKey;
   }
 
-  async complete(
-    messages: ChatMessage[],
-    options: ProviderCompleteOptions,
-  ): Promise<CompletionResult> {
-    if (this.mock) return mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
+  /** System block, `max_tokens`, thinking config and tools with cache breakpoints. */
+  private buildBody(messages: ChatMessage[], options: ProviderCompleteOptions): Record<string, unknown> {
     const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
     let chat = toAnthropicMessages(messages);
     if (chat.length === 0) {
@@ -140,7 +138,24 @@ export class AnthropicClient implements ProviderClient {
         return toolDef;
       });
     }
+    return body;
+  }
 
+  /**
+   * Streaming variant of `complete()`. Anthropic reports usage in
+   * `message_start` / `message_delta`, so no `stream_options` is sent — it would
+   * be rejected as an unknown field.
+   */
+  async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const result = mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
+      if (result.content.length > 0) handlers.onDelta?.(result.content);
+      return result;
+    }
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
@@ -149,8 +164,68 @@ export class AnthropicClient implements ProviderClient {
         'anthropic-version': '2023-06-01',
         ...this.extraHeaders,
       },
-      body: JSON.stringify(body),
-    signal: requestSignal(options),
+      body: JSON.stringify({ ...this.buildBody(messages, options), stream: true }),
+      signal: requestSignal(options),
+    });
+    if (!res.ok) {
+      const retryable = res.status === 429 || res.status >= 500;
+      throw new ProviderError(
+        `Anthropic ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
+        res.status,
+        retryable,
+      );
+    }
+    if (!res.body) throw new ProviderError('Anthropic returned no body to stream', res.status, true);
+    const streamed = await parseAnthropicSse(res.body, handlers);
+    return this.finalize(messages, options, streamed);
+  }
+
+  /** Turns aggregated stream output into the standard CompletionResult shape. */
+  private finalize(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    streamed: StreamedCompletion,
+  ): CompletionResult {
+    let content = streamed.content;
+    const thinking = streamed.thinking;
+    // Thinking-only replies (max_tokens exhausted mid-reasoning) contain no
+    // text block; surface the reasoning rather than a blank response.
+    if (content.trim().length === 0 && streamed.toolCalls.length === 0 && thinking.trim().length > 0) {
+      content = thinking;
+    }
+    const promptTokens =
+      streamed.usage?.promptTokens ?? countTokens(messages.map((m) => m.content).join('\n'));
+    const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
+    return {
+      provider: 'anthropic',
+      model: options.model,
+      content,
+      usage: {
+        promptTokens,
+        completionTokens,
+        totalTokens: streamed.usage?.totalTokens ?? promptTokens + completionTokens,
+      },
+      finishReason: streamed.finishReason,
+      toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
+      thinking: thinking.length > 0 ? thinking : undefined,
+    };
+  }
+
+  async complete(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Promise<CompletionResult> {
+    if (this.mock) return mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
+    const res = await fetch(`${this.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey!,
+        'anthropic-version': '2023-06-01',
+        ...this.extraHeaders,
+      },
+      body: JSON.stringify(this.buildBody(messages, options)),
+      signal: requestSignal(options),
     });
 
     if (!res.ok) {
