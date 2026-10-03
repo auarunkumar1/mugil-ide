@@ -10,6 +10,7 @@ import {
   ProviderError,
   toOpenAiMessages,
   toOpenAiTools,
+  requestSignal,
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
@@ -17,16 +18,19 @@ import {
 export interface OpenAiClientOptions {
   apiKey?: string;
   baseUrl?: string;
+  headers?: Record<string, string>;
 }
 
 export class OpenAiClient implements ProviderClient {
   private readonly apiKey?: string;
   private readonly baseUrl: string;
+  private readonly extraHeaders?: Record<string, string>;
   readonly mock: boolean;
 
   constructor(options: OpenAiClientOptions = {}) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
+    this.extraHeaders = options.headers;
     const isLocal =
       this.baseUrl.includes('localhost') ||
       this.baseUrl.includes('127.0.0.1') ||
@@ -77,8 +81,10 @@ export class OpenAiClient implements ProviderClient {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.apiKey || 'local'}`,
+        ...this.extraHeaders,
       },
       body: JSON.stringify(body),
+    signal: requestSignal(options),
     });
 
     if (!res.ok) {

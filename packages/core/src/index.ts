@@ -151,6 +151,9 @@ export {
   loadSession,
   loadSessionFile,
   clearSession,
+  modeFilePath,
+  loadMode,
+  saveMode,
 } from './modules/sessions.js';
 export type { SessionEntry, SessionFile, SessionInfo, SessionStats } from './modules/sessions.js';
 
@@ -206,7 +209,11 @@ export { getTokenizer, countTokens } from './token/tokenizer.js';
 export type { Tokenizer } from './token/tokenizer.js';
 
 // Pipeline
-export { Pipeline } from './pipeline.js';
+export {
+  Pipeline,
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  MIN_MAX_OUTPUT_TOKENS,
+} from './pipeline.js';
 export type { PipelineOptions, AskOptions } from './pipeline.js';
 
 // Auto Update Manager + rules override store

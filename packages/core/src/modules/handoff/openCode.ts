@@ -24,6 +24,14 @@ export interface OpenCodeClientOptions {
   baseUrl?: string;
 }
 
+/**
+ * Zen gates free-model access on client fingerprinting and answers third-party
+ * or missing User-Agents with a 429 `FreeUsageLimitError`. Pinned to the
+ * official client version — bump when tracking a new OpenCode release, and keep
+ * it in sync with model discovery in `models.ts` (both import this constant).
+ */
+export const OPENCODE_USER_AGENT = 'opencode/1.18.27';
+
 export class OpenCodeClient implements ProviderClient {
   private readonly openai: OpenAiClient;
   private readonly anthropic: AnthropicClient;
@@ -31,13 +39,19 @@ export class OpenCodeClient implements ProviderClient {
 
   constructor(options: OpenCodeClientOptions = {}) {
     const base = options.baseUrl ?? 'https://opencode.ai/zen/v1';
+    const headers = { 'User-Agent': OPENCODE_USER_AGENT };
     // AnthropicClient appends `/v1/messages`; strip our `/v1` so the combined
     // path is `{root}/v1/messages` exactly as Zen documents it.
     this.anthropic = new AnthropicClient({
       apiKey: options.apiKey,
       baseUrl: base.replace(/\/v1\/?$/, ''),
+      headers,
     });
-    this.openai = new OpenAiClient({ apiKey: options.apiKey, baseUrl: base });
+    this.openai = new OpenAiClient({
+      apiKey: options.apiKey,
+      baseUrl: base,
+      headers,
+    });
     this.mock = !options.apiKey;
   }
 

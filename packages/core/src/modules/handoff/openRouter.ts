@@ -4,6 +4,7 @@ import {
   mockCompletion,
   toOpenAiMessages,
   toOpenAiTools,
+  requestSignal,
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
@@ -88,6 +89,7 @@ export class OpenRouterClient implements ProviderClient {
         'X-Title': this.appTitle,
       },
       body: JSON.stringify(body),
+    signal: requestSignal(options),
     });
 
     if (!res.ok) {

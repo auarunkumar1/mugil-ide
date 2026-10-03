@@ -6,11 +6,18 @@
  */
 import type { ChatMessage, CompletionResult, ToolCall, ToolDefinition } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
-import { mockCompletion, ProviderError, type ProviderClient, type ProviderCompleteOptions } from './provider.js';
+import {
+  mockCompletion,
+  ProviderError,
+  requestSignal,
+  type ProviderClient,
+  type ProviderCompleteOptions,
+} from './provider.js';
 
 export interface AnthropicClientOptions {
   apiKey?: string;
   baseUrl?: string;
+  headers?: Record<string, string>;
 }
 
 interface AnthropicResponse {
@@ -68,11 +75,13 @@ function toAnthropicMessages(
 export class AnthropicClient implements ProviderClient {
   private readonly apiKey?: string;
   private readonly baseUrl: string;
+  private readonly extraHeaders?: Record<string, string>;
   readonly mock: boolean;
 
   constructor(options: AnthropicClientOptions = {}) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl ?? 'https://api.anthropic.com';
+    this.extraHeaders = options.headers;
     this.mock = !this.apiKey;
   }
 
@@ -138,8 +147,10 @@ export class AnthropicClient implements ProviderClient {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey!,
         'anthropic-version': '2023-06-01',
+        ...this.extraHeaders,
       },
       body: JSON.stringify(body),
+    signal: requestSignal(options),
     });
 
     if (!res.ok) {

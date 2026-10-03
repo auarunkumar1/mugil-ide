@@ -16,6 +16,7 @@ import {
   ProviderError,
   toOpenAiMessages,
   toOpenAiTools,
+  requestSignal,
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
@@ -75,6 +76,7 @@ export class CloudflareClient implements ProviderClient {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
+    signal: requestSignal(options),
     });
 
     if (!res.ok) {

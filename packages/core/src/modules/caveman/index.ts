@@ -23,6 +23,7 @@
 import type { StrategyResult } from '../../types.js';
 import defaultRules from '../../rules/caveman.json';
 import { currentRevision, loadRulesSync } from '../overrides.js';
+import { maskCodeBlocks, restoreCodeBlocks } from '../codeMask.js';
 
 interface CavemanRules {
   version: string;
@@ -59,7 +60,10 @@ function getRules(): CompiledRules {
 /** Compresses a prompt into terse caveman phrasing. */
 export function cavemanStrategy(text: string): StrategyResult {
   const { phrases, filler, polite } = getRules();
-  let out = text;
+  // Code first: the phrase/filler/polite regexes must never touch identifiers,
+  // comments, paths or shell commands pasted into the prompt.
+  const { masked, blocks } = maskCodeBlocks(text);
+  let out = masked;
   for (const [re, replacement] of phrases) {
     out = out.replace(re, replacement);
   }
@@ -67,6 +71,7 @@ export function cavemanStrategy(text: string): StrategyResult {
   out = out.replace(polite, ' ');
   out = out.replace(/[ \t]{2,}/g, ' ');
   out = out.replace(/\n{3,}/g, '\n\n');
+  out = restoreCodeBlocks(out, blocks);
   const changed = out !== text;
   return { text: out.trim(), changed };
 }

@@ -131,6 +131,65 @@ describe('ToolLoop', () => {
     ]);
   });
 
+  it('stops a model that keeps re-issuing the same denied call', async () => {
+    // A confused model in plan mode used to burn the whole iteration budget
+    // re-asking for a write, paying a full resend of the context each time.
+    const deniedCall: ToolCall = { id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' };
+    const client = scriptedClient([
+      result({ content: '', finishReason: 'tool_calls', toolCalls: [deniedCall] }),
+      result({ content: '', finishReason: 'tool_calls', toolCalls: [deniedCall] }),
+      result({ content: '', finishReason: 'tool_calls', toolCalls: [deniedCall] }),
+      result({ content: 'Here is the plan instead.', finishReason: 'stop' }),
+    ]);
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      maxIterations: 10,
+    });
+    const out = await loop.run([...system, { role: 'user', content: 'go' }], {
+      tools: [ADD],
+      registry,
+      permission: async () => false,
+    });
+
+    expect(out.content).toBe('Here is the plan instead.');
+    // 3 denied attempts, then the escalation message tells it to stop asking.
+    expect(out.toolCalls).toBe(3);
+    const lastMessages = (client.complete as jest.Mock).mock.calls.at(-1)![0] as ChatMessage[];
+    expect(lastMessages.at(-1)!.content).toContain('Do not retry this call');
+  });
+
+  it('re-sizes max_tokens against the context accumulated so far', async () => {
+    const client = scriptedClient([
+      result({
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+      }),
+      result({ content: 'done', finishReason: 'stop' }),
+    ]);
+    const seen: number[] = [];
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      sizeMaxTokens: (messages) => {
+        const n = messages.reduce((s, m) => s + m.content.length, 0);
+        seen.push(n);
+        return 4096;
+      },
+    });
+    await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+      maxTokens: 999,
+    });
+
+    // The sizer saw strictly more context on the second call, and the value it
+    // returned replaced the stale per-turn cap.
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(seen[1]!).toBeGreaterThan(seen[0]!);
+    expect((client.complete as jest.Mock).mock.calls[0]![1].maxTokens).toBe(4096);
+    expect((client.complete as jest.Mock).mock.calls[1]![1].maxTokens).toBe(4096);
+  });
+
   it('feeds back an error string for an unknown tool so the model can recover', async () => {
     const client = scriptedClient([
       result({

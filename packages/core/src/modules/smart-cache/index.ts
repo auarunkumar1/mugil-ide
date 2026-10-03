@@ -246,7 +246,7 @@ export class SmartCache {
     const normLen = normalized.length;
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
-      if (!entry) continue;
+      if (!entry || typeof entry.prompt !== 'string') continue;
       // Fast length pruning: candidate prefix must be strictly shorter than query
       // and longer than the current best candidate
       const promptLen = entry.prompt.length;

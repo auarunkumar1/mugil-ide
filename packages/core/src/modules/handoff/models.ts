@@ -1,4 +1,5 @@
 import type { ModelSpec } from '../../types.js';
+import { OPENCODE_USER_AGENT } from './openCode.js';
 import {
   modelSupportsThinking,
   modelSupportsTools,
@@ -79,7 +80,11 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
     if (provider === 'opencode') {
       const url = `${baseUrl || 'https://opencode.ai/zen/v1'}/models`;
       const res = await fetch(url, {
-        headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+        headers: {
+          // Zen rejects non-fingerprinted clients on free models.
+          'User-Agent': OPENCODE_USER_AGENT,
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.ok) {

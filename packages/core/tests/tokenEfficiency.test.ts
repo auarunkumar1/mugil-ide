@@ -22,6 +22,53 @@ describe('cavemanStrategy', () => {
     const result = cavemanStrategy('Fix the bug now.');
     expect(result.changed).toBe(false);
   });
+
+  it('never rewrites code inside a fenced block', () => {
+    const code = ['```ts', '// in order to fix this, please review', 'const kind = "really";', '```'].join('\n');
+    const prompt = `Please review this.\n\n${code}\n`;
+    const { text } = cavemanStrategy(prompt);
+    // The prose around the block is compressed...
+    expect(text).not.toContain('Please review this.');
+    // ...but the code comes back byte-identical.
+    expect(text).toContain('// in order to fix this, please review');
+    expect(text).toContain('const kind = "really";');
+  });
+
+  it('never rewrites inline code spans', () => {
+    const { text } = cavemanStrategy('Set `in order to please` in the config.');
+    expect(text).toContain('`in order to please`');
+  });
+});
+
+describe('rtkStrategy structure preservation', () => {
+  it('keeps newlines, lists and diffs intact', () => {
+    const prompt = [
+      'Fix the failing test.',
+      '',
+      '- first item',
+      '- second item',
+      '',
+      '```diff',
+      '- old line',
+      '+ new line',
+      '```',
+    ].join('\n');
+    const { text } = rtkStrategy(prompt);
+    expect(text).toContain('- first item\n- second item');
+    expect(text).toContain('```diff\n- old line\n+ new line\n```');
+  });
+
+  it('still de-duplicates repeated prose lines', () => {
+    const { text } = rtkStrategy('Run the tests.\nRun the tests.\nShip it.');
+    expect(text.match(/run the tests/gi)?.length).toBe(1);
+    expect(text).toContain('Ship it.');
+  });
+
+  it('still strips boilerplate closers', () => {
+    const { text } = rtkStrategy('Write a binary search. Let me know if you have any questions!');
+    expect(text).toContain('binary search');
+    expect(text).not.toMatch(/let me know/i);
+  });
 });
 
 describe('rtkStrategy', () => {
@@ -107,6 +154,15 @@ describe('refinePrompt', () => {
     const result = refinePrompt(long, { budgetTokens: 50 });
     expect(result.refinedTokens).toBeLessThanOrEqual(60);
     expect(result.appliedStrategies).toContain('truncate');
+    // The caller must be able to tell the user their input was cut.
+    expect(result.truncated).toBe(true);
+    expect(result.truncatedTokens).toBeGreaterThan(0);
+  });
+
+  it('reports no truncation when the prompt fits the budget', () => {
+    const result = refinePrompt('Please fix the bug.', { budgetTokens: 10_000 });
+    expect(result.truncated).toBe(false);
+    expect(result.truncatedTokens).toBe(0);
   });
 
   it('can run a single strategy', () => {

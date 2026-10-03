@@ -23,8 +23,9 @@ beforeEach(() => {
   // Isolate session auto-save/resume (and never touch the real user cache).
   cacheDir = mkdtempSync(join(tmpdir(), 'mugil-cache-'));
   process.env.MUGIL_IDE_CACHE_DIR = cacheDir;
-  // Isolate the user env file: /plan, /act, set_mode and set_model persist
-  // MUGIL_IDE_MODE/MUGIL_IDE_MODEL there via writeUserEnv.
+  // Isolate the user env file: set_model persists MUGIL_IDE_MODEL there via
+  // writeUserEnv. (/plan and set_mode persist to the workspace-scoped mode file
+  // in MUGIL_IDE_CACHE_DIR, which the line above already isolates.)
   process.env.MUGIL_IDE_ENV_FILE = join(cacheDir, 'user.env');
 });
 

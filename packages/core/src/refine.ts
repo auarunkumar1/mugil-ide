@@ -75,6 +75,8 @@ export function refinePrompt(prompt: string, options: RefineOptions = {}): Refin
   const appliedStrategies: string[] = [];
 
   let text = prompt;
+  let truncated = false;
+  let truncatedTokens = 0;
   for (const name of wanted) {
     const result: StrategyResult =
       name === 'caveman'
@@ -83,6 +85,10 @@ export function refinePrompt(prompt: string, options: RefineOptions = {}): Refin
           ? rtkStrategy(text)
           : truncateToBudget(text, budget);
     if (result.changed) appliedStrategies.push(name);
+    if (name === 'truncate' && result.changed) {
+      truncated = true;
+      truncatedTokens = Math.max(0, countTokens(text) - countTokens(result.text));
+    }
     text = result.text;
   }
 
@@ -98,5 +104,7 @@ export function refinePrompt(prompt: string, options: RefineOptions = {}): Refin
     refinedTokens,
     savingsPct,
     appliedStrategies,
+    truncated,
+    truncatedTokens,
   };
 }

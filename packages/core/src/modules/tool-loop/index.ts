@@ -33,6 +33,14 @@ export interface ToolLoopOptions {
    * to the model + whether it succeeded) so callers can render results.
    */
   onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
+  /**
+   * Recomputes `maxTokens` from the messages actually accumulated so far.
+   * The pipeline sizes the output budget once, before any tool result exists;
+   * by iteration 10 the context has grown by tens of thousands of tokens and a
+   * fixed cap no longer reflects what the model has room to say. Returning
+   * undefined keeps the original value.
+   */
+  sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
 }
 
 export interface ToolLoopRunOptions extends HandoffOptions {
@@ -85,6 +93,7 @@ export class ToolLoop {
   private readonly maxIterations: number;
   private readonly onTool?: (call: ToolCall, index: number) => void;
   private readonly onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
+  private readonly sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
 
   constructor(options: ToolLoopOptions) {
     this.handoff = options.handoff;
@@ -92,6 +101,7 @@ export class ToolLoop {
     this.maxIterations = options.maxIterations ?? (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 15);
     this.onTool = options.onTool;
     this.onToolResult = options.onToolResult;
+    this.sizeMaxTokens = options.sizeMaxTokens;
   }
 
   async run(messages: ChatMessage[], options: ToolLoopRunOptions): Promise<ToolLoopResult> {
@@ -103,9 +113,16 @@ export class ToolLoop {
     const msgs = [...messages];
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
     let toolCalls = 0;
+    // A model that keeps re-issuing a call the gate refused spends a full
+    // round-trip (and the whole resend context) per attempt. Count denials by
+    // call signature and, past the limit, tell it plainly that retrying is
+    // pointless instead of letting it burn the iteration budget.
+    const denials = new Map<string, number>();
+    const REPEAT_DENIAL_LIMIT = 2;
 
     for (let i = 0; i < this.maxIterations; i += 1) {
-      const completion = await this.handoff.complete(msgs, { ...options, tools: options.tools });
+      if (options.signal?.aborted) throw options.signal.reason ?? new Error('aborted');
+      const completion = await this.handoff.complete(msgs, this.sized(msgs, options));
       usage = this.sum(usage, completion.usage);
       if (!completion.toolCalls || completion.toolCalls.length === 0) {
         return this.finish(completion, msgs, options, usage, toolCalls);
@@ -122,6 +139,26 @@ export class ToolLoop {
         this.onTool?.(call, toolCalls);
         const outcome = await this.execute(call, options.registry, options.permission);
         this.onToolResult?.(call, outcome, toolCalls);
+        const signature = `${call.name}:${call.arguments}`;
+        const times = (denials.get(signature) ?? 0) + (outcome.ok ? 0 : 1);
+        denials.set(signature, times);
+        if (!outcome.ok && times > REPEAT_DENIAL_LIMIT && outcome.content.startsWith('Permission denied')) {
+          // Same call, same refusal — escalate the instruction once instead of
+          // letting the loop spend the remaining iterations re-asking.
+          msgs.push({
+            role: 'assistant',
+            content: `(repeating the denied call "${call.name}")`,
+            toolCalls: [call],
+          });
+          msgs.push({
+            role: 'tool',
+            toolCallId: call.id,
+            content:
+              `Permission denied again for "${call.name}" (${times} attempts). The permission policy will not change during this turn. ` +
+              'Do not retry this call. Either choose tools the policy allows, or finish your turn and tell the user exactly which call needs their approval.',
+          });
+          continue;
+        }
         msgs.push({
           role: 'tool',
           toolCallId: call.id,
@@ -132,9 +169,19 @@ export class ToolLoop {
 
     // Bounded: force a final answer without tools so we never return empty.
     const forcedMessages = [...msgs, { role: 'user' as const, content: MAX_ITERATION_PROMPT }];
-    const final = await this.handoff.complete(forcedMessages, { ...options, tools: undefined });
+    const final = await this.handoff.complete(forcedMessages, {
+      ...this.sized(forcedMessages, options),
+      tools: undefined,
+    });
     usage = this.sum(usage, final.usage);
     return this.finish(final, forcedMessages, options, usage, toolCalls);
+  }
+
+  /** Re-sizes the output budget against the context accumulated so far. */
+  private sized(messages: ChatMessage[], options: ToolLoopRunOptions): ToolLoopRunOptions {
+    if (!this.sizeMaxTokens) return options;
+    const maxTokens = this.sizeMaxTokens(messages);
+    return maxTokens === undefined ? options : { ...options, maxTokens };
   }
 
   /**
@@ -168,7 +215,10 @@ export class ToolLoop {
     } else {
       retryMessages.push({ role: 'user', content: retryPrompt });
     }
-    const retry = await this.handoff.complete(retryMessages, { ...options, tools: undefined });
+    const retry = await this.handoff.complete(retryMessages, {
+      ...this.sized(retryMessages, options),
+      tools: undefined,
+    });
     usage = this.sum(usage, retry.usage);
     if (retry.content.trim().length > 0) {
       return { ...retry, usage, toolCalls };

@@ -25,6 +25,7 @@
 import type { StrategyResult } from '../../types.js';
 import defaultRules from '../../rules/rtk.json';
 import { currentRevision, loadRulesSync } from '../overrides.js';
+import { isCodePlaceholder, maskCodeBlocks, restoreCodeBlocks } from '../codeMask.js';
 
 interface RtkRules {
   version: string;
@@ -57,41 +58,47 @@ function getRules(): CompiledRules {
 export function rtkStrategy(text: string): StrategyResult {
   const { boilerplate, intro } = getRules();
   const removed: string[] = [];
-  let out = text.replace(boilerplate, (m) => {
+
+  // Preserve code verbatim: the prose passes below must not rewrite it, and the
+  // line-splitting de-dupe must not reflow it.
+  const { masked, blocks } = maskCodeBlocks(text);
+
+  const stripped = masked.replace(boilerplate, (m) => {
     removed.push(m);
     return '';
   });
-  out = out.replace(intro, (m) => {
+  const out0 = stripped.replace(intro, (m) => {
     removed.push(m);
     return '';
   });
 
-  // Preserve markdown code blocks from being flattened
-  const codeBlocks: string[] = [];
-  let masked = out.replace(/```[\s\S]*?```/g, (m) => {
-    codeBlocks.push(m);
-    return `__RTK_CODE_BLOCK_${codeBlocks.length - 1}__`;
-  });
-
-  // De-duplicate repeated sentences in prose (case-insensitive, whitespace-normalized).
+  // De-duplicate repeated prose within each line. Working line-by-line keeps
+  // every newline, so markdown lists, YAML, diffs and multi-line structure
+  // survive — the previous version split on \n and rejoined with a space,
+  // flattening the whole prompt into a single paragraph.
   const seen = new Set<string>();
-  masked = masked
-    .split(/(?<=[.!?])\s+|\n+/)
-    .filter((chunk) => {
-      const norm = chunk.trim().toLowerCase();
-      if (norm.length === 0) return false;
-      if (norm.startsWith('__rtk_code_block_')) return true;
-      if (seen.has(norm)) {
-        removed.push(chunk);
-        return false;
-      }
-      seen.add(norm);
-      return true;
-    })
-    .join(' ');
+  const lines = out0.split('\n').map((line) => {
+    const parts = line
+      .split(/(?<=[.!?])\s+/)
+      .map((chunk) => chunk.trim())
+      .filter((chunk) => {
+        if (chunk.length === 0) return false;
+        if (isCodePlaceholder(chunk)) return true;
+        const norm = chunk.toLowerCase();
+        if (seen.has(norm)) {
+          removed.push(chunk);
+          return false;
+        }
+        seen.add(norm);
+        return true;
+      });
+    return parts.join(' ');
+  });
 
-  masked = masked.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n');
-  out = masked.replace(/__RTK_CODE_BLOCK_(\d+)__/g, (_, idx) => codeBlocks[Number(idx)] ?? '');
+  let out = lines.join('\n');
+  out = out.replace(/[ \t]{2,}/g, ' ');
+  out = out.replace(/\n{3,}/g, '\n\n');
+  out = restoreCodeBlocks(out, blocks);
   const changed = out !== text;
   return { text: out.trim(), changed, removed };
 }
