@@ -154,6 +154,7 @@ export class AnthropicClient implements ProviderClient {
     if (this.mock) {
       const result = mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
       if (result.content.length > 0) handlers.onDelta?.(result.content);
+      if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
       return result;
     }
     const res = await fetch(`${this.baseUrl}/v1/messages`, {

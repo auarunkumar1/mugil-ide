@@ -95,14 +95,44 @@ export interface ProviderClient {
   readonly mock: boolean;
   complete(messages: ChatMessage[], options: ProviderCompleteOptions): Promise<CompletionResult>;
   /**
-   * Optional streaming completion. When absent the dispatcher falls back to
-   * `complete()` and emits a single delta, so every provider keeps working.
+   * Optional streaming completion.
+   *
+   * Best-effort contract: returning a rejected promise (a provider that does
+   * not accept SSE, a body-less 200) degrades to the next model in the
+   * `HandoffManager` ladder, not to a crash — the caller sees the same
+   * behaviour as a retryable `complete()` failure. When the method is absent
+   * the manager falls back to `complete()` and replays the answer as a single
+   * delta, so every provider keeps working.
    */
   stream?(
     messages: ChatMessage[],
     options: ProviderCompleteOptions,
     handlers?: StreamHandlers,
   ): Promise<CompletionResult>;
+}
+
+/**
+ * Lifts a `<think>...</think>` block out of `content` into `thinking`.
+ *
+ * Local reasoning models (DeepSeek-R1 style) inline their reasoning in the
+ * answer text instead of a `reasoning_content` field, so without this the
+ * assistant renders `<think>…</think>answer` verbatim. `content` is returned
+ * untouched when there is no block — or when the provider already reported
+ * reasoning separately, which is a more trustworthy signal than a tag in the
+ * answer text. Used by every `complete()` path and by `openAiStreamResult()`
+ * so buffered and streamed results agree.
+ */
+export function extractThinkBlock(
+  content: string,
+  thinking?: string,
+): { content: string; thinking?: string } {
+  if (thinking || !content.includes('<think>')) return { content, thinking };
+  const match = content.match(/<think>([\s\S]*?)<\/think>/i);
+  if (!match) return { content, thinking };
+  return {
+    content: content.replace(/<think>[\s\S]*?<\/think>/i, '').trim(),
+    thinking: match[1]?.trim(),
+  };
 }
 
 /**
@@ -123,16 +153,10 @@ export function openAiStreamResult(
   options: ProviderCompleteOptions,
   streamed: StreamedCompletion,
 ): CompletionResult {
-  let content = streamed.content;
-  let thinking: string | undefined = streamed.thinking;
+  const split = extractThinkBlock(streamed.content, streamed.thinking || undefined);
+  let content = split.content;
+  const thinking = split.thinking;
 
-  if (!thinking && content.includes('<think>')) {
-    const match = content.match(/<think>([\s\S]*?)<\/think>/i);
-    if (match) {
-      thinking = match[1]?.trim();
-      content = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
-    }
-  }
   if (content.trim().length === 0 && streamed.toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
     content = thinking;
   }

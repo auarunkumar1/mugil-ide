@@ -8,12 +8,13 @@
  *   - Anthropic (`anthropic`): named events (`message_start`,
  *     `content_block_delta`, ...) with no terminator.
  *
- * These functions are pure: they take a byte stream and return the aggregated
- * result. No provider knowledge, no I/O.
+ * The parsers below are pure: they take a byte stream and return the aggregated
+ * result. No provider knowledge, no I/O. The exception is `streamCompletion` at
+ * the bottom of this file — it does I/O, through the `HandoffManager`, and is
+ * the streaming entry point for callers.
  */
-import type { ToolCall } from '../../types.js';
-import type { ChatMessage, CompletionResult } from '../../types.js';
-import type { ProviderClient, ProviderCompleteOptions } from './provider.js';
+import type { ChatMessage, HandoffOptions, ToolCall } from '../../types.js';
+import type { HandoffManager, HandoffResult } from './index.js';
 
 export interface StreamHandlers {
   /** Called for each visible text fragment, in order. */
@@ -232,22 +233,36 @@ export async function parseAnthropicSse(
   };
 }
 
+/** `HandoffOptions` plus a per-request opt-out of streaming. */
+export interface StreamCompletionOptions extends HandoffOptions {
+  /**
+   * Set false to force the buffered path even when the provider can stream.
+   * Defaults to streaming.
+   */
+  stream?: boolean;
+}
+
 /**
- * Streams a completion when the provider supports it, otherwise falls back to
- * `complete()` and replays the whole answer as one delta. Callers cannot tell
- * the difference except by how many deltas they received.
+ * Runs a completion through the handoff ladder, streaming where possible.
+ *
+ * Takes the `HandoffManager` rather than a bare `ProviderClient` so the request
+ * always walks the same ladder, `fallbackChain` and break policy as
+ * `complete()`. Streaming is best-effort: a client with no `stream()`, or a
+ * caller passing `stream: false`, replays the buffered answer as one delta,
+ * which is indistinguishable from a real stream; and a provider that rejects
+ * SSE degrades to the next model rather than crashing the turn.
  */
 export async function streamCompletion(
-  client: ProviderClient,
+  manager: HandoffManager,
   messages: ChatMessage[],
-  options: ProviderCompleteOptions,
+  options: StreamCompletionOptions = {},
   handlers: StreamHandlers = {},
-): Promise<CompletionResult> {
-  if (options.stream === false || !client.stream) {
-    const result = await client.complete(messages, options);
+): Promise<HandoffResult> {
+  if (options.stream === false) {
+    const result = await manager.complete(messages, options);
     if (result.content.length > 0) handlers.onDelta?.(result.content);
     if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
     return result;
   }
-  return client.stream(messages, options, handlers);
+  return manager.stream(messages, options, handlers);
 }

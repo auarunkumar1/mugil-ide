@@ -6,6 +6,7 @@
 import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
+  extractThinkBlock,
   mockCompletion,
   openAiStreamResult,
   ProviderError,
@@ -131,6 +132,7 @@ export class OpenAiClient implements ProviderClient {
     if (this.mock) {
       const result = mockCompletion(messages, options, 'OPENAI_API_KEY');
       if (result.content.length > 0) handlers.onDelta?.(result.content);
+      if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
       return result;
     }
     const res = await this.post(messages, options, true);
@@ -165,17 +167,11 @@ export class OpenAiClient implements ProviderClient {
     };
 
     const message = data.choices?.[0]?.message;
-    let content = message?.content ?? '';
-    let thinking = message?.reasoning_content ?? message?.reasoning;
-
-    // For local models like DeepSeek-R1 that stream <think>...</think> within content
-    if (!thinking && content.includes('<think>')) {
-      const match = content.match(/<think>([\s\S]*?)<\/think>/i);
-      if (match) {
-        thinking = match[1]?.trim();
-        content = content.replace(/<think>[\s\S]*?<\/think>/i, '').trim();
-      }
-    }
+    // For local models like DeepSeek-R1 that stream <think>...</think> within
+    // content, lift it into `thinking` — same rule as the streaming path.
+    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
+    let content = split.content;
+    const thinking = split.thinking;
     // Only require a function name — some OpenAI-compatible endpoints (local
     // Ollama/LM Studio builds, proxies) omit the `type: 'function'` field on
     // tool_calls. Requiring it silently dropped the model's request, so a

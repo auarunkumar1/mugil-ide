@@ -5,9 +5,15 @@ import {
   streamCompletion,
   streamFromChunks,
 } from '../src/modules/handoff/stream.js';
+import { HandoffManager } from '../src/modules/handoff/index.js';
+import { ProviderError, type ProviderClient, type ProviderCompleteOptions } from '../src/modules/handoff/provider.js';
 import { OpenAiClient } from '../src/modules/handoff/openAi.js';
 import { AnthropicClient } from '../src/modules/handoff/anthropic.js';
-import type { ChatMessage, CompletionResult } from '../src/types.js';
+import { OpenRouterClient } from '../src/modules/handoff/openRouter.js';
+import { VercelClient } from '../src/modules/handoff/vercel.js';
+import { TogetherClient } from '../src/modules/handoff/together.js';
+import { CloudflareClient } from '../src/modules/handoff/cloudflare.js';
+import type { ChatMessage, CompletionResult, ModelSpec } from '../src/types.js';
 
 const MSGS: ChatMessage[] = [{ role: 'user', content: 'hi' }];
 
@@ -112,6 +118,25 @@ function okResponse(body: string): Response {
   });
 }
 
+function spec(id: string): ModelSpec {
+  return { id, tier: 'standard', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 };
+}
+
+/** Manager over a three-model ladder, so a walk has somewhere to go. */
+function ladder(client: ProviderClient): HandoffManager {
+  return new HandoffManager({ client, models: ['a', 'b', 'c'].map(spec) });
+}
+
+function resultFor(model: string): CompletionResult {
+  return {
+    provider: 'test',
+    model,
+    content: 'answer',
+    usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+    finishReason: 'stop',
+  };
+}
+
 describe('streamCompletion dispatcher', () => {
   it('falls back to complete() and emits one delta for a provider with no stream()', async () => {
     const complete = jest.fn(async (): Promise<CompletionResult> => ({
@@ -122,7 +147,7 @@ describe('streamCompletion dispatcher', () => {
       finishReason: 'stop',
     }));
     const deltas: string[] = [];
-    const out = await streamCompletion({ mock: false, complete }, MSGS, { model: 'm' }, {
+    const out = await streamCompletion(ladder({ mock: false, complete }), MSGS, {}, {
       onDelta: (t) => deltas.push(t),
     });
 
@@ -135,28 +160,23 @@ describe('streamCompletion dispatcher', () => {
     const complete = jest.fn();
     const deltas: string[] = [];
     const out = await streamCompletion(
-      {
+      ladder({
         mock: false,
         complete: complete as never,
         stream: async (_m, _o, h) => {
           h?.onDelta?.('a');
           h?.onDelta?.('b');
-          return {
-            provider: 'openai',
-            model: 'm',
-            content: 'ab',
-            usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
-            finishReason: 'stop',
-          };
+          return resultFor('a');
         },
-      },
+      }),
       MSGS,
-      { model: 'm' },
+      {},
       { onDelta: (t) => deltas.push(t) },
     );
     expect(complete).not.toHaveBeenCalled();
     expect(deltas).toEqual(['a', 'b']);
-    expect(out.content).toBe('ab');
+    expect(out.content).toBe('answer');
+    expect(out.attempts).toEqual(['a']);
   });
 
   it('honours stream:false even when the provider can stream', async () => {
@@ -169,13 +189,80 @@ describe('streamCompletion dispatcher', () => {
     const stream = jest.fn();
     const deltas: string[] = [];
     await streamCompletion(
-      { mock: false, complete, stream: stream as never },
+      ladder({ mock: false, complete, stream: stream as never }),
       MSGS,
-      { model: 'm', stream: false },
+      { stream: false },
       { onDelta: (t) => deltas.push(t) },
     );
     expect(stream).not.toHaveBeenCalled();
     expect(deltas).toEqual(['whole']);
+  });
+
+  it('walks the ladder when a provider rejects the stream (I1/I3)', async () => {
+    const stream = jest.fn(async (_m: ChatMessage[], o: ProviderCompleteOptions) => {
+      if (o.model === 'a') throw new ProviderError('rate limited', 429, true);
+      return resultFor(o.model);
+    });
+    const out = await streamCompletion(ladder({ mock: false, complete: jest.fn() as never, stream }), MSGS);
+
+    expect(out.model).toBe('b');
+    expect(out.attempts).toEqual(['a', 'b']);
+    expect(stream.mock.calls.map((c) => c[1].model)).toEqual(['a', 'b']);
+  });
+
+  it('keeps preferredModel authoritative and never escalates past it', async () => {
+    const stream = jest.fn(async () => {
+      throw new ProviderError('model gone', 404, false);
+    });
+    await expect(
+      streamCompletion(ladder({ mock: false, complete: jest.fn() as never, stream }), MSGS, {
+        preferredModel: 'pinned',
+      }),
+    ).rejects.toThrow('model gone');
+    expect(stream.mock.calls.map((c) => c[1].model)).toEqual(['pinned']);
+  });
+
+  it('stops on a non-retryable 400 instead of walking the ladder', async () => {
+    const stream = jest.fn(async () => {
+      throw new ProviderError('bad request', 400, false);
+    });
+    await expect(
+      streamCompletion(ladder({ mock: false, complete: jest.fn() as never, stream }), MSGS),
+    ).rejects.toThrow('bad request');
+    expect(stream).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops on a user cancel instead of walking the ladder', async () => {
+    const abort = new Error('The operation was aborted');
+    abort.name = 'AbortError';
+    const stream = jest.fn(async () => {
+      throw abort;
+    });
+    await expect(
+      streamCompletion(ladder({ mock: false, complete: jest.fn() as never, stream }), MSGS),
+    ).rejects.toThrow('The operation was aborted');
+    expect(stream).toHaveBeenCalledTimes(1);
+  });
+
+  it('replays the buffered answer as one delta when the provider has no stream()', async () => {
+    const thinking: string[] = [];
+    const out = await streamCompletion(
+      ladder({
+        mock: false,
+        complete: async (): Promise<CompletionResult> => ({
+          provider: 'openai',
+          model: 'm',
+          content: 'buffered',
+          thinking: 'pondering',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        }),
+      }),
+      MSGS,
+      {},
+      { onThinking: (t) => thinking.push(t) },
+    );
+    expect(out.content).toBe('buffered');
+    expect(thinking).toEqual(['pondering']);
   });
 });
 
@@ -297,5 +384,78 @@ describe('AnthropicClient.stream', () => {
     const out = await client.stream!(MSGS, { model: 'claude-x' });
     expect(out.content).toBe('half a thought');
     expect(out.thinking).toBe('half a thought');
+  });
+});
+
+describe('OpenAI-format gateway clients stream', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  const CASES: Array<{ name: string; provider: string; client: ProviderClient }> = [
+    { name: 'openRouter', provider: 'openrouter', client: new OpenRouterClient({ apiKey: 'k' }) },
+    { name: 'vercel', provider: 'vercel', client: new VercelClient({ apiKey: 'k' }) },
+    { name: 'together', provider: 'together', client: new TogetherClient({ apiKey: 'k' }) },
+    {
+      name: 'cloudflare',
+      provider: 'cloudflare',
+      client: new CloudflareClient({ apiKey: 'k', accountId: 'acct' }),
+    },
+  ];
+
+  const SSE =
+    'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}\n\n' +
+    'data: [DONE]\n\n';
+
+  /** Routes on `stream` so one mocked fetch can serve both paths. */
+  function captureBodies(): { stream: Record<string, unknown>; complete: Record<string, unknown> } {
+    const seen = { stream: {} as Record<string, unknown>, complete: {} as Record<string, unknown> };
+    global.fetch = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
+      if (body.stream) {
+        seen.stream = body;
+        return okResponse(SSE);
+      }
+      seen.complete = body;
+      return new Response(
+        JSON.stringify({ model: 'srv', choices: [{ message: { content: 'buffered' } }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    return seen;
+  }
+
+  it.each(CASES)('$name sends stream:true + stream_options and tags its provider', async ({ client, provider }) => {
+    const seen = captureBodies();
+
+    const out = await client.stream!(MSGS, { model: 'm' });
+    expect(seen.stream.stream).toBe(true);
+    expect(seen.stream.stream_options).toEqual({ include_usage: true });
+    expect(out.provider).toBe(provider);
+    expect(out.content).toBe('ok');
+    expect(out.usage).toEqual({ promptTokens: 1, completionTokens: 1, totalTokens: 2 });
+  });
+
+  it.each(CASES)('$name keeps stream/stream_options out of the buffered body', async ({ client }) => {
+    const seen = captureBodies();
+
+    await client.complete(MSGS, { model: 'm' });
+    expect(seen.complete.stream).toBeUndefined();
+    expect(seen.complete.stream_options).toBeUndefined();
+  });
+
+  it.each(CASES)('$name splits <think> on the buffered path like the streaming path', async ({ client }) => {
+    global.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '<think>reason</think>answer' } }],
+        }),
+        { status: 200 },
+      )) as unknown as typeof fetch;
+
+    const out = await client.complete(MSGS, { model: 'deepseek-r1' });
+    expect(out.content).toBe('answer');
+    expect(out.thinking).toBe('reason');
   });
 });
