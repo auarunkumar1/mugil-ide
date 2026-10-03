@@ -875,4 +875,128 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       try { rmSync(testFile, { force: true }); } catch { /* ignore */ }
     }
   });
+
+  /** Concatenated `agent_data` payloads seen on a socket, in arrival order. */
+  const agentOutput = (chunks: string[]): string => chunks.join('');
+
+  const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
+
+  it('streams assistant text to the browser before the turn completes', async () => {
+    // The completion parks mid-flight so "the delta arrived while the turn was
+    // still running" is a fact the test can observe, not a race it hopes wins.
+    let release: () => void = () => {};
+    const midFlight = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const streaming = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'unused' }),
+      stream: async (_messages: unknown, _options: unknown, handlers: any) => {
+        handlers?.onDelta?.('Hello ');
+        await midFlight;
+        handlers?.onDelta?.('world');
+        return scriptedResult({
+          provider: 'openai',
+          model: 'm',
+          content: 'Hello world',
+          finishReason: 'stop',
+        });
+      },
+    } as unknown as ProviderClient;
+    const server = await startIdeServer({ engine: scriptedEngine(streaming), port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const chunks: string[] = [];
+
+    try {
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(String(raw));
+        if (msg.type === 'agent_data') chunks.push(msg.data as string);
+      });
+
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'hello there\r' }));
+
+      const deadline = Date.now() + 10000;
+      while (!agentOutput(chunks).includes('Hello ') && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      // The first token is already on the wire; the second is still inside the
+      // provider. Only token-by-token delivery can look like this.
+      const midTurn = agentOutput(chunks);
+      expect(midTurn).toContain('Hello ');
+      expect(midTurn).not.toContain('world');
+
+      release();
+      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      expect(turn.turn.response).toBe('Hello world');
+
+      // The streamed text is the answer, so the formatted response must not be
+      // printed a second time underneath it.
+      const out = agentOutput(chunks);
+      expect(occurrences(out, 'Hello world')).toBe(1);
+    } finally {
+      release();
+      ws.terminate();
+      await server.close();
+    }
+  });
+
+  it('discards provisional streamed text when the model then requests tools', async () => {
+    let calls = 0;
+    const client = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'unused' }),
+      stream: async (_messages: unknown, _options: unknown, handlers: any) => {
+        calls += 1;
+        if (calls === 1) {
+          // Narration, then a tool call: the narration was never the answer.
+          handlers?.onDelta?.('Let me look that up.');
+          return scriptedResult({
+            finishReason: 'tool_calls',
+            toolCalls: [
+              {
+                id: 'q1',
+                name: 'question',
+                arguments: JSON.stringify({ header: 'Runner', question: 'Which runner?', options: ['jest', 'vitest'] }),
+              },
+            ],
+          });
+        }
+        handlers?.onDelta?.('The answer.');
+        return scriptedResult({ content: 'The answer.' });
+      },
+    } as unknown as ProviderClient;
+    const server = await startIdeServer({ engine: scriptedEngine(client), port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const chunks: string[] = [];
+
+    try {
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(String(raw));
+        if (msg.type === 'agent_data') chunks.push(msg.data as string);
+      });
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'answer this\r' }));
+
+      const question = await waitForMessage<{ id: number }>(ws, (m) => m.type === 'question');
+      ws.send(JSON.stringify({ type: 'question_answer', id: question.id, answer: 'jest' }));
+
+      const turn = await waitForMessage<{ turn: { response: string; toolsCalled: Array<{ name: string }> } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
+      expect(turn.turn.response).toBe('The answer.');
+      expect(turn.turn.toolsCalled.map((t) => t.name)).toContain('question');
+
+      const out = agentOutput(chunks);
+      // The provisional narration is labelled as discarded, and the answer that
+      // actually ended the turn is printed exactly once.
+      expect(out).toContain('Partial reasoning discarded');
+      expect(occurrences(out, 'Let me look that up.')).toBe(1);
+      expect(occurrences(out, 'The answer.')).toBe(1);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
 });

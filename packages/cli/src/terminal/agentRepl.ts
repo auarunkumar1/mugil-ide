@@ -848,6 +848,20 @@ export class AgentRepl {
       const contextBlocks = [agentInstruction, buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
+
+      // Streaming render state. A `delta` event does NOT prove the answer is
+      // arriving incrementally: the buffered fallback (stream:false, no
+      // client.stream(), MUGIL_IDE_NO_STREAM=1) emits ONE delta holding the
+      // whole answer. So nothing here may assume more than one fragment, and
+      // `streamed` tracks the completion currently in flight, not the turn —
+      // it resets when a tool call proves a new completion has begun.
+      let streamed = '';
+      let streamingActive = false;
+      // Set when the handoff ladder tried more than one model. Every attempt
+      // gets the caller's handlers, so a stream that died mid-flight leaves
+      // another answer's deltas in the same region.
+      let ladderRetried = false;
+
       const result = await this.engine.pipeline.ask(prompt, {
         preferredModel: this.getActiveModel(),
         history: budgetedHistory,
@@ -880,6 +894,13 @@ export class AgentRepl {
               );
             }
           } else if (event.type === 'tool') {
+            // This completion asked for tools, so what it streamed was the model
+            // narrating intent, not the answer. Say so, then start the next
+            // completion's region clean so the two cannot splice together.
+            if (streamed.trim().length > 0) {
+              this.io.write(`\r\n  ${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`);
+              streamed = '';
+            }
             const argsObj = event.args ? (typeof event.args === 'string' ? JSON.parse(event.args) : event.args) : {};
             toolsCalled.push({ name: event.name, args: argsObj });
 
@@ -911,6 +932,22 @@ export class AgentRepl {
             } else {
               this.io.write(`  ${red('✗')} Tool Error: ${red(event.result || 'failed')}\r\n`);
             }
+          } else if (event.type === 'delta') {
+            if (!streamingActive) {
+              // First fragment: take over the blank line under the header.
+              streamingActive = true;
+              this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
+            }
+            streamed += event.text;
+            // Raw fragments carry bare `\n`, which steps down a line without
+            // returning the carriage in both the terminal and xterm, so text
+            // would staircase. Normalising each fragment on its own needs no
+            // cross-fragment state, and a lone `\r` fragment is harmless.
+            this.io.write(event.text.replace(/\r?\n/g, '\r\n'));
+          } else if (event.type === 'handoff') {
+            // More than one model tried, so a retry re-ran the same handlers:
+            // what is on screen can be two answers spliced together.
+            ladderRetried = event.attempts.length > 1;
           }
         },
       });
@@ -947,10 +984,27 @@ export class AgentRepl {
         this.io.write(`${formattedThinking}\r\n`);
       }
 
-      // Assistant Response
-      this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
-      const polishedResponse = formatMarkdown(result.response);
-      this.io.write(`${polishedResponse}\r\n`);
+      // Exactly one of the two paths below prints the answer. The streamed
+      // region counts as the answer only when the FINAL completion streamed it
+      // and no retry intervened; otherwise the formatted text is the only
+      // trustworthy copy and the fragments on screen were something else.
+      const streamedIsAnswer = streamed.trim().length > 0 && !ladderRetried;
+      if (streamingActive && !streamedIsAnswer) {
+        this.io.write(
+          `\r\n  ${yellow(ladderRetried ? '⚠ Stream restarted on another model — showing the final answer only.' : '⚠ Streamed text was not the final answer — showing it below.')}\r\n`,
+        );
+      }
+
+      // Assistant Response (the header is already on screen if anything streamed)
+      if (!streamingActive) {
+        this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
+      }
+      if (!streamedIsAnswer) {
+        this.io.write(`${formatMarkdown(result.response)}\r\n`);
+      } else {
+        // Start a fresh line so the footer never lands on the last streamed one.
+        this.io.write('\r\n');
+      }
 
       // Summary of changes applied to disk
       if (filesModifiedThisTurn.length > 0) {
