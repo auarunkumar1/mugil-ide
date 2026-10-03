@@ -280,7 +280,10 @@ describe('OpenCodeClient', () => {
       'https://opencode.ai/zen/v1/messages',
       expect.objectContaining({
         method: 'POST',
-        headers: expect.objectContaining({ 'x-api-key': 'oc-test' }),
+        headers: expect.objectContaining({
+          'x-api-key': 'oc-test',
+          'User-Agent': 'opencode/1.18.27',
+        }),
       }),
     );
     expect(result.provider).toBe('opencode');
@@ -304,7 +307,10 @@ describe('OpenCodeClient', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://opencode.ai/zen/v1/chat/completions',
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer oc-test' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer oc-test',
+          'User-Agent': 'opencode/1.18.27',
+        }),
       }),
     );
     expect(result.provider).toBe('opencode');

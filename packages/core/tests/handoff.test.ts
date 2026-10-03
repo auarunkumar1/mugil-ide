@@ -44,6 +44,54 @@ describe('OpenRouterClient', () => {
 });
 
 describe('HandoffManager', () => {
+  it('forwards the abort signal and timeout to the provider', async () => {
+    const seen: Array<{ signal?: AbortSignal; timeoutMs?: number }> = [];
+    const client = {
+      mock: false,
+      async complete(
+        _messages: ChatMessage[],
+        options: { signal?: AbortSignal; timeoutMs?: number },
+      ): Promise<CompletionResult> {
+        seen.push({ signal: options.signal, timeoutMs: options.timeoutMs });
+        return {
+          provider: 'openrouter',
+          model: 'cheap-1',
+          content: 'ok',
+          usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+        };
+      },
+    };
+    const manager = new HandoffManager({ client: client as unknown as OpenRouterClient, models: MODELS });
+    const controller = new AbortController();
+    await manager.complete([{ role: 'user', content: 'hi' }], {
+      signal: controller.signal,
+      timeoutMs: 1234,
+    });
+    expect(seen[0]!.signal).toBe(controller.signal);
+    expect(seen[0]!.timeoutMs).toBe(1234);
+  });
+
+  it('does not walk the fallback chain after a user cancel', async () => {
+    const attempted: string[] = [];
+    const client = {
+      mock: false,
+      async complete(
+        _messages: ChatMessage[],
+        options: { model: string },
+      ): Promise<CompletionResult> {
+        attempted.push(options.model);
+        const err = new Error('cancelled by user');
+        err.name = 'AbortError';
+        throw err;
+      },
+    };
+    const manager = new HandoffManager({ client: client as unknown as OpenRouterClient, models: MODELS });
+    await expect(manager.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow('cancelled');
+    // An abort is a user decision, not a model failure — retrying other models
+    // would restart the request the user just cancelled.
+    expect(attempted).toEqual(['cheap-1']);
+  });
+
   it('routes to cheapest model that fits the context', () => {
     const manager = new HandoffManager({ client: new OpenRouterClient({}), models: MODELS });
     expect(manager.route(100).id).toBe('cheap-1');

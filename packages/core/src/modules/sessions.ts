@@ -246,3 +246,44 @@ export function clearSession(file = sessionFilePath()): boolean {
     return false;
   }
 }
+
+/**
+ * Per-workspace plan/act mode, persisted next to the auto-saved session.
+ *
+ * Mode used to be written to the global user env file, so switching to plan
+ * mode in one repository silently made every other repository on the machine
+ * start read-only. Mode is a property of the workspace you are working in,
+ * not of the user, so it is scoped the same way the session is.
+ */
+export function modeFilePath(env: NodeJS.ProcessEnv = process.env, workspace = process.cwd()): string {
+  return path.join(sessionDir(env), `mode-${workspaceTag(workspace)}.json`);
+}
+
+/** Reads the persisted mode for a workspace; null when unset or unreadable. */
+export function loadMode(
+  env: NodeJS.ProcessEnv = process.env,
+  workspace = process.cwd(),
+): 'plan' | 'act' | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(modeFilePath(env, workspace), 'utf8')) as { mode?: string };
+    return raw.mode === 'plan' || raw.mode === 'act' ? raw.mode : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persists the mode for a workspace. Best-effort: never throws. */
+export function saveMode(
+  mode: 'plan' | 'act',
+  env: NodeJS.ProcessEnv = process.env,
+  workspace = process.cwd(),
+): boolean {
+  try {
+    const file = modeFilePath(env, workspace);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ mode, savedAt: Date.now() }), { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
+}

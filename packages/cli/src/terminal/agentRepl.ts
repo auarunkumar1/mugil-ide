@@ -24,9 +24,8 @@ import {
   defaultPolicyForMode,
   applyPermissionOverrides,
   diagnosticsEnabledFromEnv,
-  readUserEnv,
-  writeUserEnv,
-  connectMcpServers,
+readUserEnv,
+connectMcpServers,
   parseMcpServerConfigs,
   skillsContextBlock,
   renderConversationForSummary,
@@ -35,6 +34,8 @@ import {
   listSessions,
   clearSession,
   namedSessionPath,
+  loadMode,
+  saveMode,
   type ConversationTurn,
 } from '@mugil-ide/core';
 import { ANSI, c, bold, dim, cyan, green, yellow, red, magenta, formatMarkdown } from './ansi.js';
@@ -57,6 +58,24 @@ export interface SessionTurn {
   toolsCalled: Array<{ name: string; args: any; result?: string; ok?: boolean }>;
   filesModified: string[];
 }
+
+/**
+ * Act mode: the agent is expected to carry work out on disk, not describe it.
+ */
+const ACT_MODE_INSTRUCTION =
+  'You are an autonomous coding agent with access to tools. When the user asks to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. Do not just describe what you would do — do it using your tools. Do not stop at planning. Read if you need context, then immediately execute the changes using your tools. Never return a plan or todo list without also executing the work.';
+
+/**
+ * Plan mode: read-only. The permission layer denies writes and commands, so
+ * asking for them wastes a full model round-trip per attempt and produces a
+ * confusing denial in the transcript. The agent's job here is to produce a
+ * plan the user can approve, and to gather whatever context it needs first.
+ */
+const PLAN_MODE_INSTRUCTION =
+  'You are a planning agent in READ-ONLY plan mode. Use the read tools (read_file, read_skeleton, list_files, search_code, codegraph, lsp, skill, webfetch, websearch) and todowrite to gather context and build a plan. ' +
+  'Do NOT call write_file, edit_file, apply_patch or run_command — they are denied by policy in this mode, and asking again just wastes tokens. ' +
+  'Deliver: (1) the files and symbols you found, with file:line references, (2) a concrete ordered plan of the changes to make, (3) any risks, unknowns or decisions you need the user to make. ' +
+  'Be specific enough that the work can be executed mechanically. Do not write placeholder code — describe the changes instead.';
 
 export interface ReplSessionStats {
   promptTokens: number;
@@ -89,6 +108,8 @@ export class AgentRepl {
   private options: AgentReplOptions;
   private activeModel: string;
   private mode: 'plan' | 'act' = 'act';
+  /** Abort handle for the turn currently in flight; null when idle. */
+  private turnAbort: AbortController | null = null;
   private isProcessing = false;
   private messageHistory: ChatMessage[] = [];
   public turns: SessionTurn[] = [];
@@ -106,8 +127,11 @@ export class AgentRepl {
       process.env.MUGIL_IDE_MODEL ||
       (engine.config.models && engine.config.models[0]?.id) ||
       'openrouter/auto';
-    // Restore persisted mode (default: 'act').
-    const savedMode = process.env.MUGIL_IDE_MODE || readUserEnv().MUGIL_IDE_MODE;
+    // Restore persisted mode (default: 'act'). Scoped to this workspace, with
+    // an explicit env override taking precedence. MUGIL_IDE_MODE used to be
+    // written to the global user env file, which made plan mode in one repo
+    // silently apply to every other repo on the machine.
+    const savedMode = process.env.MUGIL_IDE_MODE || loadMode();
     if (savedMode === 'plan' || savedMode === 'act') {
       this.mode = savedMode;
     }
@@ -154,6 +178,24 @@ export class AgentRepl {
 
   public setMode(mode: 'plan' | 'act'): void {
     this.mode = mode;
+  }
+
+  /** True while a turn is in flight. */
+  public get isBusy(): boolean {
+    return this.isProcessing;
+  }
+
+  /**
+   * Aborts the in-flight turn (Ctrl-C). Returns false when nothing is running.
+   *
+   * Without this, a provider that stalls — or a tool loop grinding through
+   * iterations — could not be interrupted: `isProcessing` rejected all further
+   * input, so the session was wedged until the request eventually returned.
+   */
+  public cancelTurn(): boolean {
+    if (!this.turnAbort) return false;
+    this.turnAbort.abort(new Error('cancelled by user'));
+    return true;
   }
 
   public setActiveModel(model: string, provider?: string): void {
@@ -290,13 +332,13 @@ export class AgentRepl {
 
       case 'plan':
         this.setMode('plan');
-        try { writeUserEnv({ MUGIL_IDE_MODE: 'plan' }); } catch { /* best-effort */ }
-        this.io.write(`\r\n  ${yellow('🔒 Plan mode')} ${dim('— writes, edits and commands are denied outright.')}\r\n\r\n`);
+        saveMode('plan');
+        this.io.write(`\r\n  ${yellow('🔒 Plan mode')} ${dim('— read-only: writes, edits and commands are denied.')}\r\n\r\n`);
         break;
 
       case 'act':
         this.setMode('act');
-        try { writeUserEnv({ MUGIL_IDE_MODE: 'act' }); } catch { /* best-effort */ }
+        saveMode('act');
         this.io.write(`\r\n  ${green('⚡ Act mode')} ${dim('— writes, edits and commands ask for your approval.')}\r\n\r\n`);
         break;
 
@@ -737,6 +779,7 @@ export class AgentRepl {
 
   private async executePrompt(prompt: string): Promise<void> {
     this.isProcessing = true;
+    this.turnAbort = new AbortController();
     const started = Date.now();
     const currentTurnId = this.turns.length + 1;
     const toolsCalled: SessionTurn['toolsCalled'] = [];
@@ -774,27 +817,34 @@ export class AgentRepl {
 
       // Prepare token-budgeted conversation history (MUGIL_IDE_HISTORY_BUDGET, default 16,000 tokens)
       const turnsForBudget: ConversationTurn[] = [];
-      let totalRawHistoryTokens = 0;
       for (let i = 0; i < this.messageHistory.length; i += 2) {
         const u = this.messageHistory[i];
         const a = this.messageHistory[i + 1];
         if (u && a) {
           turnsForBudget.push({ prompt: u.content, response: a.content });
-          totalRawHistoryTokens += countTokens(u.content) + countTokens(a.content);
         }
       }
       const historyBudget = getHistoryBudget();
       const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, { compactOlderTurns: true });
-      const historyTokensSaved = Math.max(0, totalRawHistoryTokens - budgeted.tokens);
+      // Only count history savings for turns that actually fell out of the
+      // window *this* turn. The old figure (raw total - budgeted total)
+      // re-counted the same trimmed history on every single turn, so
+      // tokensSaved grew quadratically and bore no relation to real spend.
+      let historyTokensSaved = 0;
+      for (let i = 0; i < budgeted.droppedCount && i < turnsForBudget.length; i += 1) {
+        const t = turnsForBudget[i]!;
+        historyTokensSaved += countTokens(t.prompt) + countTokens(t.response);
+      }
       const budgetedHistory: ChatMessage[] = [];
       for (const t of budgeted.turns) {
         budgetedHistory.push({ role: 'user', content: t.prompt });
         budgetedHistory.push({ role: 'assistant', content: t.response });
       }
 
-      const agentInstruction = [
-        'You are an autonomous coding agent with access to tools. When the user asks to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. Do not just describe what you would do — do it using your tools. Do not stop at planning. Read if you need context, then immediately execute the changes using your tools. Never return a plan or todo list without also executing the work.',
-      ].join('\n');
+      const agentInstruction =
+        this.mode === 'plan'
+          ? PLAN_MODE_INSTRUCTION
+          : ACT_MODE_INSTRUCTION;
       const contextBlocks = [agentInstruction, buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
@@ -807,6 +857,7 @@ export class AgentRepl {
         permission,
         maxToolIterations: 15,
         ponytail: true,
+        signal: this.turnAbort.signal,
         onEvent: (event: PipelineEvent) => {
           if (event.type === 'stage') {
             if (event.stage === 'refine') {
@@ -818,6 +869,14 @@ export class AgentRepl {
             if (event.refine.savingsPct > 0) {
               this.io.write(
                 `  ${green('✓')} Token Refinement: ${event.refine.originalTokens} → ${event.refine.refinedTokens} tok ${green(`(-${event.refine.savingsPct}%)`)} [${event.refine.appliedStrategies.join(', ')}]\r\n`,
+              );
+            }
+            if (event.refine.truncated) {
+              // The model only saw the kept prefix — it is answering a shorter
+              // question than the one asked. Say so rather than letting the
+              // user wonder why the answer ignores the end of their input.
+              this.io.write(
+                `  ${yellow('⚠ Prompt truncated')} ${dim(`(${event.refine.truncatedTokens} tokens of your input were dropped to fit the budget — the tail was NOT sent.)`)}\r\n`,
               );
             }
           } else if (event.type === 'tool') {
@@ -900,6 +959,11 @@ export class AgentRepl {
 
       // Turn Footer
       this.io.write(`\r\n${dim(`[${result.model} · ${result.usage.totalTokens} tok · ${elapsed}ms · ${toolsCalled.length} tools]`)}\r\n`);
+      if (result.truncated) {
+        this.io.write(
+          `  ${yellow('⚠ Answer was cut off by the model output-token cap')} ${dim(`(finish_reason: ${result.finishReason}) — raise max_tokens or shorten the task.`)}\r\n`,
+        );
+      }
       this.io.write(`${ANSI.bold}${ANSI.cyan}` + '─'.repeat(64) + `${ANSI.reset}\r\n\r\n`);
 
       const turnObj: SessionTurn = {
@@ -925,8 +989,15 @@ export class AgentRepl {
       // Auto-save the conversation for next-launch resume (fire-and-forget).
       void this.saveCurrentSession();
     } catch (err) {
-      this.io.write(`\r\n${red('✗ Error executing request:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+      // A user cancel is not a failure: report it as such and keep the session
+      // usable. Anything else is a real error worth surfacing.
+      if (this.turnAbort?.signal.aborted) {
+        this.io.write(`\r\n${yellow('■ Turn cancelled.')}\r\n\r\n`);
+      } else {
+        this.io.write(`\r\n${red('✗ Error executing request:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+      }
     } finally {
+      this.turnAbort = null;
       this.isProcessing = false;
     }
   }

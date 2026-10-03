@@ -40,6 +40,14 @@ export interface PermissionPolicy {
 export const READ_TOOLS = ['read_file', 'read_skeleton', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
 /** Write tools — mutate the workspace. */
 export const WRITE_TOOLS = ['write_file', 'edit_file', 'apply_patch', 'todowrite'];
+
+/**
+ * Tools that record the agent's own plan rather than mutate the workspace.
+ * `todowrite` belongs here, not in WRITE_TOOLS: a checklist is not a side
+ * effect, and plan mode is exactly where the model needs one. Denying it
+ * there made `todoread` permanently return empty.
+ */
+export const PLAN_TOOLS = ['todowrite'];
 /** Execution tools — run arbitrary shell commands. */
 export const EXEC_TOOLS = ['run_command'];
 
@@ -51,17 +59,33 @@ export type PermissionCheck = (call: ToolCall) => boolean | Promise<boolean>;
  * - plan: read-only — writes, edits and commands are denied outright.
  * - act:  reads are free; writes, edits and commands ask for approval.
  */
+/**
+ * Mode-based defaults, mirroring OpenCode's built-in agents:
+ * - plan: read-only — writes, edits and commands are denied outright. The
+ *   agent still gets to write its own todo plan (PLAN_TOOLS).
+ * - act:  reads are free; writes, edits and commands ask for approval.
+ *
+ * Built from the READ/WRITE/EXEC/PLAN lists above so a tool added to one of
+ * them is classified everywhere — the previous hand-written copy drifted and
+ * silently left `question`/`task` unclassified.
+ */
 export function defaultPolicyForMode(mode: 'plan' | 'act'): PermissionPolicy {
+  const tools: Record<string, ToolPermissionAction> = {};
   if (mode === 'plan') {
+    for (const name of WRITE_TOOLS) {
+      if (!PLAN_TOOLS.includes(name)) tools[name] = 'deny';
+    }
+    for (const name of PLAN_TOOLS) tools[name] = 'allow';
     return {
-      tools: { write_file: 'deny', edit_file: 'deny', apply_patch: 'deny', run_command: 'deny', todowrite: 'deny' },
+      tools,
       bash: { defaultAction: 'deny', rules: [] },
-      // External MCP tools are never auto-run during read-only planning.
+      // Third-party MCP servers may have side effects we cannot inspect.
       toolPrefixRules: [{ prefix: 'mcp_', action: 'deny' }],
     };
   }
+  for (const name of WRITE_TOOLS) tools[name] = 'ask';
   return {
-    tools: { write_file: 'ask', edit_file: 'ask', apply_patch: 'ask', todowrite: 'ask' },
+    tools,
     bash: { defaultAction: 'ask', rules: [] },
     // MCP tools come from third-party servers — ask before running them.
     toolPrefixRules: [{ prefix: 'mcp_', action: 'ask' }],
@@ -73,22 +97,23 @@ export function resolveToolPermission(
   policy: PermissionPolicy | undefined,
   call: ToolCall,
 ): ToolPermissionAction {
-  if (!policy) return 'allow';    if (call.name === 'run_command') {
-      const bash = policy.bash;
-      if (!bash) return applyPrefixRules(policy, call.name, policy.tools?.[call.name] ?? 'allow');
-      let action = bash.defaultAction ?? policy.tools?.[call.name] ?? 'allow';
-      const command = commandForCall(call);
-      if (command !== null) {
-        for (const rule of bash.rules ?? []) {
-          if (rule.action && patternToRegExp(rule.pattern).test(command)) {
-            action = rule.action;
-          }
+  if (!policy) return 'allow';
+  if (call.name === 'run_command') {
+    const bash = policy.bash;
+    if (!bash) return applyPrefixRules(policy, call.name, policy.tools?.[call.name] ?? 'allow');
+    let action = bash.defaultAction ?? policy.tools?.[call.name] ?? 'allow';
+    const command = commandForCall(call);
+    if (command !== null) {
+      for (const rule of bash.rules ?? []) {
+        if (rule.action && patternToRegExp(rule.pattern).test(command)) {
+          action = rule.action;
         }
       }
-      return action;
     }
-    return applyPrefixRules(policy, call.name, policy.tools?.[call.name] ?? 'allow');
+    return applyPrefixRules(policy, call.name, action);
   }
+  return applyPrefixRules(policy, call.name, policy.tools?.[call.name] ?? 'allow');
+}
 
 /**
  * Applies per-tool action overrides on top of a base policy, returning a new

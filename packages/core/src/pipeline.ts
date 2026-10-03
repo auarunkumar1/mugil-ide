@@ -71,6 +71,24 @@ const DEFAULT_SYSTEM_PROMPT =
   'You are a precise, terse engineering assistant. Answer directly; no preamble, no disclaimers.';
 
 /**
+ * Output-token target when the caller expresses no preference. Deliberately
+ * generous: an answer cut off mid-sentence is a functional bug, not a token
+ * saving.
+ */
+export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+
+/**
+ * Hard floor for a single completion. The pipeline never asks a provider for
+ * less than this — previously the floor was 256, which silently truncated every
+ * reply to a couple of sentences once history plus tool schemas exceeded the
+ * prompt budget.
+ */
+export const MIN_MAX_OUTPUT_TOKENS = 1024;
+
+/** Slack left for the provider's own framing when sizing max_tokens. */
+const CONTEXT_SAFETY_MARGIN = 1024;
+
+/**
  * The engine pipeline: signature-strip -> token-efficient refinement ->
  * smart-cache lookup -> handoff -> watermark strip -> cache store. The handoff
  * stage forks: plain asks go to the handoff ladder, while asks that declare
@@ -192,6 +210,7 @@ export class Pipeline {
         refine,
         cache: { hit: true, kind: cacheLookup.kind },
         toolCalls: 0,
+        truncated: false,
       };
     }
 
@@ -225,15 +244,42 @@ export class Pipeline {
     const totalPromptTokens = refine.refinedTokens + systemTokens + historyTokens + toolsTokens;
 
     const outputBudget = ponytailOutputBudget(ponytailOpts);
-    // Reserve safety headroom for generation token budget:
-    const remainingHeadroom = Math.max(256, Math.floor(effectiveBudget - totalPromptTokens - 512));
-    const defaultMax = Math.min(8192, remainingHeadroom);
-    const maxTokens = outputBudget !== undefined ? Math.min(defaultMax, outputBudget) : options.maxTokens ?? defaultMax;
+    // Output budget is sized independently of the prompt-trimming budget.
+    // Previously the prompt budget was also the generation budget, so a session
+    // with history + tool schemas over budget floored max_tokens at 256 and
+    // every reply was cut off mid-sentence.
+    //
+    // Precedence: an explicit cap is a cap. When the caller passes maxTokens
+    // AND ponytail an outputBudget, the tighter of the two wins — neither
+    // silently overrides the other.
+    const caps = [options.maxTokens, outputBudget].filter(
+      (v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0,
+    );
+    const preferred = caps.length > 0 ? Math.min(...caps) : DEFAULT_MAX_OUTPUT_TOKENS;
+    const contextWindow = this.handoff.route(totalPromptTokens, options.preferredModel).contextWindow;
+    const sizeFor = (promptTokens: number): number => {
+      let maxTokens = preferred;
+      // Never exceed what the routed model's context can still hold.
+      const contextRoom = contextWindow - promptTokens - CONTEXT_SAFETY_MARGIN;
+      if (Number.isFinite(contextRoom) && contextRoom > 0) {
+        maxTokens = Math.min(maxTokens, contextRoom);
+      }
+      return Math.max(MIN_MAX_OUTPUT_TOKENS, Math.floor(maxTokens));
+    };
+    const maxTokens = sizeFor(totalPromptTokens);
     emit({ type: 'stage', stage: 'handoff' });
     const completion = hasTools
       ? await new ToolLoop({
           handoff: this.handoff,
           maxIterations: options.maxToolIterations,
+          // Tool results grow the context every iteration; re-size the output
+          // budget against what is actually about to be sent.
+          sizeMaxTokens: (msgs) => {
+            const extra = msgs
+              .slice(messages.length)
+              .reduce((sum, m) => sum + countTokens(m.content), 0);
+            return sizeFor(totalPromptTokens + extra);
+          },
           onTool: (call, index) => {
             emit({ type: 'tool', name: call.name, args: call.arguments, index });
             void fireWebhooks(
@@ -258,7 +304,12 @@ export class Pipeline {
           registry: options.toolRegistry ?? {},
           maxTokens,
         })
-      : await this.handoff.complete(messages, { ...options, maxTokens });
+      : await this.handoff.complete(messages, {
+          ...options,
+          maxTokens,
+          signal: options.signal,
+          timeoutMs: options.timeoutMs,
+        });
     emit({
       type: 'handoff',
       attempts: completion.attempts,
@@ -282,7 +333,15 @@ export class Pipeline {
         `model returned an empty response (${completion.model}); tokens were consumed but no text was produced`,
       );
     }
-    if (!options.noCache && !hasTools) {
+    // A completion cut off at max_tokens is a partial answer. Caching it would
+    // make every later identical prompt an instant hit on the truncated stub,
+    // so the user sees a permanently short answer with no visible cause.
+    const finishReason = completion.finishReason;
+    const truncated = finishReason === 'length' || finishReason === 'max_tokens';
+    if (truncated) {
+      emit({ type: 'truncated', finishReason, maxTokens });
+    }
+    if (!options.noCache && !hasTools && !truncated) {
       const isAsync = options.asyncStore ?? this.asyncStore;
       const storeTask = this.cache.store(
         prompt,
@@ -313,6 +372,8 @@ export class Pipeline {
       cache: { hit: false },
       thinking: completion.thinking,
       toolCalls: hasTools ? (completion as ToolLoopResult).toolCalls : 0,
+      finishReason,
+      truncated,
     };
   }
 }

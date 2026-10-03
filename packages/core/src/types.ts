@@ -71,6 +71,10 @@ export interface HandoffOptions {
   thinkingLevel?: ThinkingLevel;
   /** Explicit token budget for thinking (e.g. Anthropic budget_tokens). */
   thinkingBudgetTokens?: number;
+  /** Cancels the request (user pressed Ctrl-C). */
+  signal?: AbortSignal;
+  /** Hard wall-clock cap for the provider request. */
+  timeoutMs?: number;
 }
 
 export interface StrategyResult {
@@ -86,6 +90,14 @@ export interface RefineResult {
   refinedTokens: number;
   savingsPct: number;
   appliedStrategies: string[];
+  /**
+   * True when the `truncate` strategy actually cut prompt content. Callers must
+   * surface this: the model only saw the kept prefix, so it is answering a
+   * different (shorter) question than the one that was asked.
+   */
+  truncated: boolean;
+  /** Tokens dropped by truncation (0 when nothing was cut). */
+  truncatedTokens: number;
 }
 
 export type CacheHitKind = 'exact' | 'semantic' | 'partial';
@@ -130,6 +142,14 @@ export interface AskResult {
   thinking?: string;
   /** Number of tool calls executed while answering (0 for plain asks). */
   toolCalls: number;
+  /**
+   * Provider-reported stop reason (`length`, `stop`, `tool_calls`, ...).
+   * `length` means the answer was cut off at max_tokens — callers should say so
+   * rather than presenting a partial reply as complete.
+   */
+  finishReason?: string;
+  /** True when the provider stopped because it hit the output-token cap. */
+  truncated: boolean;
 }
 
 /** Live progress events emitted by the pipeline (consumed by the WebView). */
@@ -140,5 +160,6 @@ export type PipelineEvent =
   | { type: 'handoff'; attempts: string[]; model: string; mock?: boolean }
   | { type: 'tool'; name: string; args?: string; index?: number }
   | { type: 'tool-result'; name: string; index?: number; ok: boolean; result: string }
+  | { type: 'truncated'; finishReason: string; maxTokens: number }
   | { type: 'done'; usage: Usage };
 

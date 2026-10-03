@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Engine } from '@mugil-ide/core';
-import { fetchProviderModels, readUserEnv, writeUserEnv } from '@mugil-ide/core';
+import { fetchProviderModels, readUserEnv, saveMode, writeUserEnv } from '@mugil-ide/core';
 import { getWebUiHtml } from './html.js';
 import { AgentRepl } from '../terminal/agentRepl.js';
 import { createPtySession, type PtyInstance } from './ptyManager.js';
@@ -809,13 +809,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           sendStatus();
         } else if (msg.type === 'set_mode') {
           const newMode = msg.mode === 'plan' ? 'plan' : 'act';
-          repl.setMode(newMode);
-          // Persist to user env file so the mode survives restarts.
-          try {
-            writeUserEnv({ MUGIL_IDE_MODE: newMode });
-          } catch {
-            // ignore — persistence is best-effort
-          }
+repl.setMode(newMode);
+          // Persist per workspace so plan mode in one repo does not make
+          // every other repo on the machine start read-only.
+          saveMode(newMode);
           sendAgentData(`\r\n\x1b[32m✓\x1b[0m Mode changed to: \x1b[1m\x1b[33m${newMode}\x1b[0m\r\n\r\n`);
           repl.printPrompt();
           sendStatus();
@@ -867,8 +864,14 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           // Handle Ctrl+C (\x03)
           else if (char === '\x03') {
             inputBuffer = '';
-            sendAgentData('^C\r\n');
-            repl.printPrompt();
+            // Cancel the running turn first — otherwise Ctrl-C just clears the
+            // input box and the session stays wedged until the request returns.
+            if (repl.cancelTurn()) {
+              sendAgentData('\r\n\x1b[33m■ Cancelling turn...\x1b[0m\r\n');
+            } else {
+              sendAgentData('^C\r\n');
+              repl.printPrompt();
+            }
           }
           // Handle normal printable characters
           else if (char >= ' ' || char === '\t') {

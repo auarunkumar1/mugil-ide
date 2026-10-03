@@ -1,4 +1,4 @@
-import { Pipeline } from '../src/pipeline.js';
+import { Pipeline, MIN_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from '../src/pipeline.js';
 import { SmartCache } from '../src/modules/smart-cache/index.js';
 import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { HandoffManager } from '../src/modules/handoff/index.js';
@@ -313,5 +313,119 @@ describe('Pipeline', () => {
     await new Promise((r) => setTimeout(r, 5));
     expect(events).toContain('turn.started');
     expect(events).toContain('turn.error');
+  });
+
+  describe('output budget', () => {
+    /** Runs one ask with a deliberately tiny prompt budget; returns the max_tokens sent. */
+    async function captureMaxTokens(
+      history: ChatMessage[],
+      askOptions: Partial<Parameters<Pipeline['ask']>[1]> = {},
+    ): Promise<number> {
+      const client = {
+        mock: false,
+        complete: jest.fn().mockResolvedValue({
+          provider: 'openai',
+          model: 'live-model',
+          content: 'answer',
+          usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+          finishReason: 'stop',
+        }),
+      } as unknown as ProviderClient;
+      const pipeline = new Pipeline({
+        cache: new SmartCache({
+          backend: new MemoryBackend(),
+          ttlSeconds: 3600,
+          embedding: new LexicalEmbedding(),
+        }),
+        handoff: new HandoffManager({ client, models: MODELS }),
+        // Deliberately tiny: the prompt budget must NOT cap generation.
+        tokenBudget: 1000,
+      });
+      await pipeline.ask('hi', { history, noCache: true, ...askOptions });
+      return (client.complete as jest.Mock).mock.calls[0]![1].maxTokens as number;
+    }
+
+    it('does not shrink max_tokens when history overflows the prompt budget', async () => {
+      const overflow: ChatMessage[] = [
+        { role: 'user', content: 'x'.repeat(20_000) },
+        { role: 'assistant', content: 'y'.repeat(20_000) },
+      ];
+      const maxTokens = await captureMaxTokens(overflow);
+      // The old maths floored this at 256 and cut every reply off mid-sentence.
+      expect(maxTokens).toBeGreaterThanOrEqual(MIN_MAX_OUTPUT_TOKENS);
+      expect(maxTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+    });
+
+    it('still honours an explicit maxTokens under an overflowing history', async () => {
+      const overflow: ChatMessage[] = [
+        { role: 'user', content: 'x'.repeat(20_000) },
+        { role: 'assistant', content: 'y'.repeat(20_000) },
+      ];
+      await expect(captureMaxTokens(overflow, { maxTokens: 3000 })).resolves.toBe(3000);
+    });
+
+    it('takes the tighter of an explicit maxTokens and a ponytail outputBudget', async () => {
+      const client = {
+        mock: false,
+        complete: jest.fn().mockResolvedValue({
+          provider: 'openai',
+          model: 'live-model',
+          content: 'answer',
+          usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+          finishReason: 'stop',
+        }),
+      } as unknown as ProviderClient;
+      const pipeline = new Pipeline({
+        cache: new SmartCache({
+          backend: new MemoryBackend(),
+          ttlSeconds: 3600,
+          embedding: new LexicalEmbedding(),
+        }),
+        handoff: new HandoffManager({ client, models: MODELS }),
+      });
+      await pipeline.ask('hi', { noCache: true, maxTokens: 6000, ponytail: { outputBudget: 2000 } });
+      expect((client.complete as jest.Mock).mock.calls[0]![1].maxTokens).toBe(2000);
+
+      await pipeline.ask('hi again', { noCache: true, maxTokens: 2000, ponytail: { outputBudget: 6000 } });
+      expect((client.complete as jest.Mock).mock.calls[1]![1].maxTokens).toBe(2000);
+    });
+
+    it('flags a length-truncated completion and refuses to cache it', async () => {
+      const client = {
+        mock: false,
+        complete: jest
+          .fn()
+          .mockResolvedValueOnce({
+            provider: 'openai',
+            model: 'live-model',
+            content: 'a partial answer',
+            usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+            finishReason: 'length',
+          })
+          .mockResolvedValue({
+            provider: 'openai',
+            model: 'live-model',
+            content: 'a full answer',
+            usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+            finishReason: 'stop',
+          }),
+      } as unknown as ProviderClient;
+      const cache = new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
+      });
+      const pipeline = new Pipeline({ cache, handoff: new HandoffManager({ client, models: MODELS }) });
+
+      const first = await pipeline.ask('explain the retry ladder');
+      expect(first.truncated).toBe(true);
+      expect(first.finishReason).toBe('length');
+
+      // The stub must not be served back as a cache hit.
+      const second = await pipeline.ask('explain the retry ladder');
+      expect(second.cache.hit).toBe(false);
+      expect(second.response).toBe('a full answer');
+      expect(second.truncated).toBe(false);
+    });
   });
 });

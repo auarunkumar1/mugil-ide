@@ -7,8 +7,11 @@ import {
   listSessions,
   loadSession,
   loadSessionFile,
+  loadMode,
+  modeFilePath,
   namedSessionPath,
   removeLegacySessionFile,
+  saveMode,
   saveSession,
   sessionFilePath,
   type SessionEntry,
@@ -239,5 +242,31 @@ describe('sessions', () => {
     // Named + per-workspace session files are untouched.
     expect(fs.existsSync(named)).toBe(true);
     expect(fs.existsSync(scoped)).toBe(true);
+  });
+
+  it('scopes plan/act mode per workspace', () => {
+    const env = { MUGIL_IDE_CACHE_DIR: dir } as NodeJS.ProcessEnv;
+    const alpha = path.join(dir, 'project-alpha');
+    const beta = path.join(dir, 'project-beta');
+
+    expect(loadMode(env, alpha)).toBeNull();
+    expect(saveMode('plan', env, alpha)).toBe(true);
+
+    // Plan mode in one repo must not make every other repo read-only.
+    expect(loadMode(env, alpha)).toBe('plan');
+    expect(loadMode(env, beta)).toBeNull();
+
+    expect(saveMode('act', env, beta)).toBe(true);
+    expect(loadMode(env, alpha)).toBe('plan');
+    expect(loadMode(env, beta)).toBe('act');
+    expect(modeFilePath(env, alpha)).not.toBe(modeFilePath(env, beta));
+  });
+
+  it('ignores a corrupt mode file', () => {
+    const env = { MUGIL_IDE_CACHE_DIR: dir } as NodeJS.ProcessEnv;
+    const ws = path.join(dir, 'project-corrupt');
+    saveMode('plan', env, ws);
+    fs.writeFileSync(modeFilePath(env, ws), '{not json', 'utf-8');
+    expect(loadMode(env, ws)).toBeNull();
   });
 });

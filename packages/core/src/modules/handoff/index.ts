@@ -2,6 +2,7 @@ import type { ChatMessage, CompletionResult, HandoffOptions, ModelSpec } from '.
 import { countTokens } from '../../token/tokenizer.js';
 import { modelSupportsThinking } from '../../config.js';
 import type { ProviderClient } from './provider.js';
+import { isAbortError } from './provider.js';
 
 export interface HandoffManagerOptions {
   client: ProviderClient;
@@ -120,10 +121,15 @@ export class HandoffManager {
           thinkingLevel: options.thinkingLevel,
           thinkingBudgetTokens: options.thinkingBudgetTokens,
           tools: options.tools,
+          signal: options.signal,
+          timeoutMs: options.timeoutMs,
         });
         return { ...result, attempts };
       } catch (err) {
         lastError = err;
+        // A user cancel is not a model failure — walking the rest of the ladder
+        // would restart the request the user just aborted.
+        if (isAbortError(err)) break;
         // Non-retryable errors (e.g. 400 invalid request, 401 auth, 403 forbidden) shouldn't burn the whole chain.
         if (err instanceof Error && 'retryable' in err && (err as { retryable: boolean }).retryable === false) {
           const status = (err as { status?: number }).status;

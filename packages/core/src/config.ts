@@ -349,7 +349,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   }
   const merged: NodeJS.ProcessEnv = { ...userFile, ...cleanEnv };
 
-  const tokenBudget = Number(merged.TOKEN_BUDGET ?? 10000);
+  // Prompt-trimming budget only — generation budget is sized separately by the
+  // pipeline (see DEFAULT_MAX_OUTPUT_TOKENS). 32k keeps a full agentic turn
+  // (system + skills + tools + 16k of history) under the trim threshold, so
+  // ordinary sessions never lose prompt content to truncation.
+  const tokenBudget = Number(merged.TOKEN_BUDGET ?? 32000);
   const cacheTtl = Number(merged.CACHE_TTL ?? 3600);
   // When neither Redis nor a cache dir is configured, persist to the user's
   // home directory so the cache survives across CLI invocations (except in
@@ -472,7 +476,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cacheDir: merged.MUGIL_IDE_CACHE_DIR || defaultCacheDir,
     nodeEnv: merged.NODE_ENV || 'development',
     aiDebug: parseBool(merged.AI_DEBUG, false),
-    tokenBudget: Number.isFinite(tokenBudget) && tokenBudget > 0 ? tokenBudget : 10000,
+    tokenBudget: Number.isFinite(tokenBudget) && tokenBudget > 0 ? tokenBudget : 32000,
     cacheTtlSeconds: Number.isFinite(cacheTtl) && cacheTtl > 0 ? cacheTtl : 3600,
     models,
     embedding: {

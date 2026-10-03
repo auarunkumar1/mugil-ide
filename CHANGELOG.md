@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Output Truncated Mid-Answer (`max_tokens` collapse)**: The prompt-trim budget was doubling as the generation budget. Once history plus tool schemas exceeded `TOKEN_BUDGET`, `max(256, budget − promptTokens − 512)` floored every completion at 256 tokens, cutting replies off mid-sentence with no indication. Generation budget is now sized independently of prompt trimming (`DEFAULT_MAX_OUTPUT_TOKENS=8192`, floor `MIN_MAX_OUTPUT_TOKENS=1024`) and clamped against the routed model's real context window.
+- **`maxTokens` Silently Dropped**: Passing ponytail as `{ outputBudget }` discarded a caller-supplied `maxTokens`. Both are caps now; the tighter wins.
+- **`finish_reason` Ignored**: Providers reported `length`/`max_tokens` and the value was discarded, presenting partial answers as complete. `AskResult.finishReason`/`truncated` now surface it, the TUI prints a truncation warning, and a new `truncated` pipeline event fires.
+- **Truncated Answers Cached Forever**: A length-truncated stub was written to the smart cache and served back as an instant hit on every later identical prompt. Truncated completions are no longer stored.
+- **Plan Mode fought itself**: The act-mode system instruction ("execute immediately, never return a plan") was sent in both modes, so plan mode told the model to write and then denied it. Instructions are now mode-aware.
+- **Plan Mode Leaked Across Workspaces**: Mode was persisted to the global user env file, so enabling plan mode in one repository made every other repository read-only. Mode is now workspace-scoped (`mode-<workspace>.json`), with `MUGIL_IDE_MODE` still honoured as an explicit override.
+- **`run_command` Skipped Prefix Rules**: The bash branch returned before `toolPrefixRules` were applied.
+- **Caveman Corrupted Code in Prompts**: `cavemanStrategy` had no code masking (unlike RTK), so its phrase/filler/polite regexes rewrote identifiers, comments, paths and inline code spans. Both strategies now share `codeMask.ts`.
+- **RTK Flattened All Newlines**: Prose de-duplication split on `\n` and rejoined with a space, collapsing markdown lists, YAML and diffs into one paragraph. De-duplication is now per line.
+- **Prompt Truncation Was Silent**: The `truncate` strategy dropped the tail of long prompts with no signal to the caller. `RefineResult.truncated`/`truncatedTokens` added; the TUI warns when input was cut.
+- **`tokensSaved` Grew Quadratically**: History savings were recomputed against the entire trimmed history on every turn. Only turns that actually dropped out of the window are now counted.
+- **Uninterruptible Turns**: Completion requests had no timeout and no abort path, so a stalled provider hung the turn and `isProcessing` rejected all further input. `signal`/`timeoutMs` now thread REPL → pipeline → tool loop → handoff → all provider clients (300s default); Ctrl-C cancels the turn, and an abort breaks the handoff ladder instead of retrying other models.
+- **Denied-Tool Retry Loop**: A model re-issuing a refused call burned the full iteration budget on full-context resends. Denials are counted per call signature; past the limit the loop tells the model plainly to stop retrying.
+- **OpenCode Zen Client User-Agent Fingerprint (`429 FreeUsageLimitError`)**: Injected official `User-Agent: opencode/1.18.27` header into outbound requests (`OpenCodeClient` via Anthropic Messages API and OpenAI Chat Completions, as well as model catalog discovery in `models.ts`), resolving false-positive `429 Too Many Requests` / `FreeUsageLimitError` rejections triggered by upstream client gating on free models. The pinned version now lives in one exported constant (`OPENCODE_USER_AGENT`) shared by both call sites.
+- **Smart Cache Session File Resilience**: Guarded `entry.prompt` type check in `SmartCache.partialLookup` when scanning persistent storage keys, preventing `TypeError: Cannot read properties of undefined (reading 'length')` when session files (e.g. `last-session-*.json`) share the cache directory.
+- **Provider Headers Passthrough**: Added optional `headers?: Record<string, string>` support to `OpenAiClientOptions` and `AnthropicClientOptions` for upstream header customization without monkey-patching fetch.
+
+### Added
+
+- **Turn Cancellation**: `AgentRepl.cancelTurn()` plus Ctrl-C handling in the web terminal; a cancelled turn reports `■ Turn cancelled` instead of an error.
+- **Tool-Loop Output Re-Sizing**: The output budget is recomputed each iteration against the context actually accumulated, instead of being fixed from iteration 0.
+- **OpenCode Free Models Support**: Verified and configured active free model support for `nemotron-3.5-lightning-free` and `nemotron-3.ultra-free`.
+
+### Changed
+
+- **Default `TOKEN_BUDGET` 10,000 → 32,000**: The budget now covers a full agentic turn (system prompt + skills + tool schemas + 16k of history) without triggering prompt trimming. It is a prompt-trim budget only; generation is budgeted separately.
+- **`todowrite` Allowed in Plan Mode**: Denying it made `todoread` permanently empty. Tracked as `PLAN_TOOLS` rather than a workspace-mutating `WRITE_TOOL`; new `PLAN_TOOLS` export.
+- **Tool Policies Derived from Tool Lists**: `defaultPolicyForMode` is now built from `READ_TOOLS`/`WRITE_TOOLS`/`EXEC_TOOLS` instead of a second hand-maintained copy that had drifted.
+
 ## [0.1.12] - 2026-09-01
 
 ### Added

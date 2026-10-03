@@ -9,6 +9,42 @@ export interface ProviderCompleteOptions {
   thinkingBudgetTokens?: number;
   /** Tools the model may call. Omit for plain completions. */
   tools?: ToolDefinition[];
+  /**
+   * Cancels the in-flight HTTP request. Threaded from the REPL so Ctrl-C can
+   * abort a hung provider instead of wedging the session.
+   */
+  signal?: AbortSignal;
+  /**
+   * Hard wall-clock cap for the request. Without one, a provider that accepts
+   * the connection and then stalls hangs the turn forever.
+   */
+  timeoutMs?: number;
+}
+
+/**
+ * Combines a caller-supplied signal with a timeout into one signal.
+ * Returns undefined when neither is requested, so callers can omit the key.
+ */
+export function requestSignal(options: ProviderCompleteOptions): AbortSignal | undefined {
+  const timeout = options.timeoutMs ?? DEFAULT_COMPLETION_TIMEOUT_MS;
+  const timeoutSignal = Number.isFinite(timeout) && timeout > 0 ? AbortSignal.timeout(timeout) : undefined;
+  const external = options.signal;
+  if (!external && !timeoutSignal) return undefined;
+  if (!external) return timeoutSignal;
+  if (!timeoutSignal) return external;
+  // Any source firing aborts the request.
+  return AbortSignal.any([external, timeoutSignal]);
+}
+
+/**
+ * Generous enough that a long reasoning turn still completes, tight enough
+ * that a dead connection surfaces as an error instead of an infinite wait.
+ */
+export const DEFAULT_COMPLETION_TIMEOUT_MS = 300_000;
+
+/** True when a rejection is an abort (user cancel or timeout), not a real failure. */
+export function isAbortError(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
 }
 
 /** OpenAI-compatible `tools` wire format (used by openAi.ts and openRouter.ts). */
