@@ -233,24 +233,26 @@ export async function parseAnthropicSse(
   };
 }
 
-/** `HandoffOptions` plus a per-request opt-out of streaming. */
-export interface StreamCompletionOptions extends HandoffOptions {
-  /**
-   * Set false to force the buffered path even when the provider can stream.
-   * Defaults to streaming.
-   */
-  stream?: boolean;
-}
+/**
+ * Per-request options for `streamCompletion`. An alias, not a copy: the
+ * `stream: false` opt-out is declared once on `HandoffOptions`.
+ */
+export type StreamCompletionOptions = HandoffOptions;
 
 /**
  * Runs a completion through the handoff ladder, streaming where possible.
  *
  * Takes the `HandoffManager` rather than a bare `ProviderClient` so the request
  * always walks the same ladder, `fallbackChain` and break policy as
- * `complete()`. Streaming is best-effort: a client with no `stream()`, or a
- * caller passing `stream: false`, replays the buffered answer as one delta,
- * which is indistinguishable from a real stream; and a provider that rejects
- * SSE degrades to the next model rather than crashing the turn.
+ * `complete()`. Streaming is best-effort: a client with no `stream()`, a
+ * caller passing `stream: false`, or the process-wide `MUGIL_IDE_NO_STREAM=1`
+ * kill switch replays the buffered answer as one delta, which is
+ * indistinguishable from a real stream; and a provider that rejects SSE
+ * degrades to the next model rather than crashing the turn.
+ *
+ * This function is the single place that decides stream-vs-buffered, so the
+ * kill switch covers every caller — including tool loops that build their own
+ * run options and never see the pipeline.
  */
 export async function streamCompletion(
   manager: HandoffManager,
@@ -258,7 +260,7 @@ export async function streamCompletion(
   options: StreamCompletionOptions = {},
   handlers: StreamHandlers = {},
 ): Promise<HandoffResult> {
-  if (options.stream === false) {
+  if (options.stream === false || process.env.MUGIL_IDE_NO_STREAM === '1') {
     const result = await manager.complete(messages, options);
     if (result.content.length > 0) handlers.onDelta?.(result.content);
     if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);

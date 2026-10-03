@@ -120,6 +120,7 @@ export class HandoffManager {
       tools: options.tools,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
+      stream: options.stream,
     };
   }
 
@@ -185,13 +186,23 @@ export class HandoffManager {
    * model instead of hard-failing the turn the way a bare `client.stream()`
    * call would. A client with no `stream()` falls back to `complete()` for that
    * attempt and replays the answer as one delta, so no provider loses support
-   * by omission.
+   * by omission. `options.stream === false` opts out at this layer too, so a
+   * caller that reaches `stream()` directly gets the same buffered result
+   * `streamCompletion` would give it.
    */
   async stream(
     messages: ChatMessage[],
     options: HandoffOptions = {},
     handlers: StreamHandlers = {},
   ): Promise<HandoffResult> {
+    if (options.stream === false) {
+      const buffered = await this.complete(messages, options);
+      // Same single-delta replay the buffered path gives every consumer: a
+      // renderer must not read "I got a delta" as "streaming is on".
+      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content);
+      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking);
+      return buffered;
+    }
     const attempts: string[] = [];
     const client = this.client;
     const result = await this.walk(this.buildChain(messages, options), attempts, async (modelId) => {

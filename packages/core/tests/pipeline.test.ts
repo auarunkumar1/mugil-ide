@@ -521,4 +521,54 @@ describe('Pipeline', () => {
       delete process.env.MUGIL_IDE_NO_STREAM;
     }
   });
+
+  it('honours MUGIL_IDE_NO_STREAM=1 on the tool-bearing branch too', async () => {
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'tool-model',
+        content: 'buffered',
+        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        finishReason: 'stop',
+      }),
+      stream: jest.fn(),
+    };
+    const pipeline = new Pipeline({
+      cache: new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
+      }),
+      handoff: new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS }),
+    });
+    const tools = [{ name: 'add', description: 'add two numbers', parameters: {} }];
+    const toolRegistry = {
+      add: async (call: ToolCall): Promise<string> => {
+        const args = JSON.parse(call.arguments) as { a: number; b: number };
+        return String(args.a + args.b);
+      },
+    };
+
+    // The tool loop builds its own run options, so only a check inside
+    // streamCompletion itself reaches this branch.
+    process.env.MUGIL_IDE_NO_STREAM = '1';
+    try {
+      const seen: string[] = [];
+      const result = await pipeline.ask('2 + 3', {
+        tools,
+        toolRegistry,
+        noCache: true,
+        onEvent: (e) => {
+          if (e.type === 'delta') seen.push(e.text);
+        },
+      });
+      expect(client.stream).not.toHaveBeenCalled();
+      expect(client.complete).toHaveBeenCalledTimes(1);
+      expect(seen).toEqual(['buffered']);
+      expect(result.response).toBe('buffered');
+    } finally {
+      delete process.env.MUGIL_IDE_NO_STREAM;
+    }
+  });
 });
