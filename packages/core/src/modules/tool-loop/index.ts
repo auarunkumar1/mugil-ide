@@ -17,7 +17,7 @@
  */
 import type { ChatMessage, HandoffOptions, ToolCall, ToolDefinition, Usage } from '../../types.js';
 import type { HandoffManager, HandoffResult } from '../handoff/index.js';
-import { streamCompletion, type StreamCompletionOptions, type StreamHandlers } from '../handoff/stream.js';
+import { streamCompletion, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
 
 export type ToolExecutor = (call: ToolCall) => Promise<string>;
@@ -112,15 +112,7 @@ export class ToolLoop {
     this.onToolResult = options.onToolResult;
     this.sizeMaxTokens = options.sizeMaxTokens;
     this.onDelta = options.onDelta;
-    this.handlers = {
-      onDelta: this.onDelta
-        ? (text) => {
-            // Provisional: if this completion turns out to carry tool calls,
-            // the consumer discards what it rendered. See agentRepl.ts.
-            this.onDelta?.(text);
-          }
-        : undefined,
-    };
+    this.handlers = { onDelta: this.onDelta };
   }
 
   async run(messages: ChatMessage[], options: ToolLoopRunOptions): Promise<ToolLoopResult> {
@@ -144,7 +136,7 @@ export class ToolLoop {
       const completion = await streamCompletion(
         this.handoff,
         msgs,
-        this.streamOptions(this.sized(msgs, options)),
+        this.sized(msgs, options),
         this.handlers,
       );
       usage = this.sum(usage, completion.usage);
@@ -196,7 +188,7 @@ export class ToolLoop {
     const final = await streamCompletion(
       this.handoff,
       forcedMessages,
-      this.streamOptions({ ...this.sized(forcedMessages, options), tools: undefined }),
+      { ...this.sized(forcedMessages, options), tools: undefined },
       this.handlers,
     );
     usage = this.sum(usage, final.usage);
@@ -208,16 +200,6 @@ export class ToolLoop {
     if (!this.sizeMaxTokens) return options;
     const maxTokens = this.sizeMaxTokens(messages);
     return maxTokens === undefined ? options : { ...options, maxTokens };
-  }
-
-  /**
-   * Streaming is on unless the caller explicitly turned it off. The handoff
-   * manager (not a bare client) receives the request so streaming walks the
-   * same failover ladder as the buffered path; a client with no `stream()`
-   * replays the whole answer as one delta.
-   */
-  private streamOptions(options: StreamCompletionOptions): StreamCompletionOptions {
-    return { ...options, stream: options.stream !== false };
   }
 
   /**
@@ -254,7 +236,7 @@ export class ToolLoop {
     const retry = await streamCompletion(
       this.handoff,
       retryMessages,
-      this.streamOptions({ ...this.sized(retryMessages, options), tools: undefined }),
+      { ...this.sized(retryMessages, options), tools: undefined },
       this.handlers,
     );
     usage = this.sum(usage, retry.usage);

@@ -305,9 +305,6 @@ export class Pipeline {
           onDelta: (text) => emit({ type: 'delta', text }),
         }).run(messages, {
           ...options,
-          // Resolve the flag here, not in the loop: the kill switch is global,
-          // so a tool-bearing turn must honour it too.
-          stream: this.streamingEnabled(options),
           tools: options.tools!,
           registry: options.toolRegistry ?? {},
           maxTokens,
@@ -315,7 +312,7 @@ export class Pipeline {
       : await streamCompletion(
           this.handoff,
           messages,
-          { ...options, maxTokens, stream: this.streamingEnabled(options) },
+          { ...options, maxTokens },
           { onDelta: (text) => emit({ type: 'delta', text }) },
         );
     emit({
@@ -383,11 +380,5 @@ export class Pipeline {
       finishReason,
       truncated,
     };
-  }
-
-  /** Streaming is on unless the caller or the environment turns it off. */
-  private streamingEnabled(options: AskOptions): boolean {
-    if (options.stream !== undefined) return options.stream;
-    return process.env.MUGIL_IDE_NO_STREAM !== '1';
   }
 }

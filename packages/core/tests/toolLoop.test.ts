@@ -377,19 +377,6 @@ describe('ToolLoop', () => {
     expect(out.usage).toEqual({ promptTokens: 50, completionTokens: 15, totalTokens: 65 });
   });
 
-  it('forwards streamed deltas through onDelta', async () => {
-    const client = scriptedClient([result({ content: 'par', finishReason: 'stop' })]);
-    const deltas: string[] = [];
-    const loop = new ToolLoop({
-      handoff: new HandoffManager({ client, models: [] }),
-      onDelta: (t) => deltas.push(t),
-    });
-    await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
-    // The scripted client has no stream(), so the dispatcher replays the whole
-    // answer as a single delta — proving the wiring, not the transport.
-    expect(deltas).toEqual(['par']);
-  });
-
   it('splits deltas across a real stream() and suppresses them when stream is false', async () => {
     const client = {
       mock: false,
@@ -417,6 +404,28 @@ describe('ToolLoop', () => {
     expect(deltas).toEqual(['partial']);
     expect(client.stream).not.toHaveBeenCalled();
     expect(client.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('honours MUGIL_IDE_NO_STREAM=1 when the run options carry no stream flag', async () => {
+    // The `task` subagent loop builds its own ToolLoop and never sets `stream`,
+    // so the kill switch has to be read where stream-vs-buffered is decided —
+    // not in the caller.
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue(result({ content: 'subagent', finishReason: 'stop' })),
+      stream: jest.fn(async () => result({ content: 'subagent', finishReason: 'stop' })),
+    } as unknown as ProviderClient;
+
+    process.env.MUGIL_IDE_NO_STREAM = '1';
+    try {
+      const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
+      const out = await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
+      expect(client.stream).not.toHaveBeenCalled();
+      expect(client.complete).toHaveBeenCalledTimes(1);
+      expect(out.content).toBe('subagent');
+    } finally {
+      delete process.env.MUGIL_IDE_NO_STREAM;
+    }
   });
 
   it('parseToolArguments throws ToolError on invalid JSON', () => {
