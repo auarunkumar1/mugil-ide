@@ -12,6 +12,7 @@
 import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
+  extractThinkBlock,
   mockCompletion,
   openAiStreamResult,
   ProviderError,
@@ -41,8 +42,8 @@ export class CloudflareClient implements ProviderClient {
     this.apiKey = options.apiKey;
     this.accountId = options.accountId;
     this.gatewayId = options.gatewayId;
-    this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
-this.mock = !this.apiKey || !this.accountId;
+this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
+    this.mock = !this.apiKey || !this.accountId;
   }
 
   /** AI Gateway endpoint when a gateway is configured, else direct Workers AI. */
@@ -90,6 +91,7 @@ this.mock = !this.apiKey || !this.accountId;
     if (this.mock) {
       const result = mockCompletion(messages, options, 'CLOUDFLARE_API_KEY');
       if (result.content.length > 0) handlers.onDelta?.(result.content);
+      if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
       return result;
     }
     const res = await fetch(this.endpoint(), {
@@ -160,9 +162,12 @@ this.mock = !this.apiKey || !this.accountId;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
-    const message = data.choices?.[0]?.message;
-    let content = message?.content ?? '';
-    const thinking = message?.reasoning_content ?? message?.reasoning;
+const message = data.choices?.[0]?.message;
+    // Same `<think>` split the streaming path applies, so buffered and streamed
+    // results agree.
+    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
+    let content = split.content;
+    const thinking = split.thinking;
     const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
       .filter((tc) => Boolean(tc?.function?.name))
       .map((tc) => ({

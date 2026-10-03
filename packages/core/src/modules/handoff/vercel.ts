@@ -6,6 +6,7 @@
 import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
+  extractThinkBlock,
   mockCompletion,
   openAiStreamResult,
   ProviderError,
@@ -29,8 +30,8 @@ export class VercelClient implements ProviderClient {
 
   constructor(options: VercelClientOptions = {}) {
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl ?? 'https://api.vercel.ai/v1';
-this.mock = !this.apiKey;
+this.baseUrl = options.baseUrl ?? 'https://api.vercel.ai/v1';
+    this.mock = !this.apiKey;
   }
 
   /**
@@ -75,6 +76,7 @@ this.mock = !this.apiKey;
     if (this.mock) {
       const result = mockCompletion(messages, options, 'VERCEL_API_KEY');
       if (result.content.length > 0) handlers.onDelta?.(result.content);
+      if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
       return result;
     }
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -145,9 +147,12 @@ this.mock = !this.apiKey;
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
-    const message = data.choices?.[0]?.message;
-    let content = message?.content ?? '';
-    const thinking = message?.reasoning_content ?? message?.reasoning;
+const message = data.choices?.[0]?.message;
+    // Same `<think>` split the streaming path applies, so buffered and streamed
+    // results agree.
+    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
+    let content = split.content;
+    const thinking = split.thinking;
     const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
       .filter((tc) => Boolean(tc?.function?.name))
       .map((tc) => ({

@@ -1,6 +1,7 @@
 import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
+  extractThinkBlock,
   mockCompletion,
   openAiStreamResult,
   toOpenAiMessages,
@@ -103,6 +104,7 @@ export class OpenRouterClient implements ProviderClient {
     if (this.mock) {
       const result = this.mockComplete(messages, options);
       if (result.content.length > 0) handlers.onDelta?.(result.content);
+      if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
       return result;
     }
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -176,8 +178,11 @@ export class OpenRouterClient implements ProviderClient {
     };
 
     const message = data.choices?.[0]?.message;
-    let content = message?.content ?? '';
-    const thinking = message?.reasoning_content ?? message?.reasoning;
+    // Same `<think>` split the streaming path applies, so buffered and streamed
+    // results agree.
+    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
+    let content = split.content;
+    const thinking = split.thinking;
     // Only require a function name — some OpenAI-compatible endpoints omit
     // the `type: 'function'` field on tool_calls; requiring it would silently
     // drop the model's tool request (e.g. a write_file that never runs).

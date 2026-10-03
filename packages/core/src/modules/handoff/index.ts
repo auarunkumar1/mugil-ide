@@ -1,8 +1,9 @@
 import type { ChatMessage, CompletionResult, HandoffOptions, ModelSpec } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import { modelSupportsThinking } from '../../config.js';
-import type { ProviderClient } from './provider.js';
+import type { ProviderClient, ProviderCompleteOptions } from './provider.js';
 import { isAbortError } from './provider.js';
+import type { StreamHandlers } from './stream.js';
 
 export interface HandoffManagerOptions {
   client: ProviderClient;
@@ -79,19 +80,17 @@ export class HandoffManager {
   }
 
   /**
-   * Runs the completion, walking the fallback chain on failure.
+   * Models to try, in order, for one request. Single source of truth for both
+   * `complete()` and `stream()` so the two paths cannot walk different ladders.
    *
    * When a `preferredModel` is set it is authoritative: the chain is
-   * `[preferred, ...fallbackChain]` and never silently escalates into the
-   * rest of the model ladder — a user who picked a local Ollama model must
-   * not end up answered by a totally different model. Only auto-routing
-   * (no preferredModel) walks the full ladder
+   * `[preferred, ...fallbackChain]` and never silently escalates into the rest
+   * of the model ladder — a user who picked a local Ollama model must not end
+   * up answered by a totally different model. Only auto-routing (no
+   * preferredModel) walks the full ladder
    * `[primary, ...fallbackChain, ...models-with-larger-context]`.
    */
-  async complete(
-    messages: ChatMessage[],
-    options: HandoffOptions = {},
-  ): Promise<HandoffResult> {
+  private buildChain(messages: ChatMessage[], options: HandoffOptions): string[] {
     const promptTokens = messages.reduce((sum, m) => sum + this.tokens(m.content), 0);
     const primary = this.route(promptTokens, options.preferredModel);
 
@@ -107,24 +106,42 @@ export class HandoffManager {
     for (const model of ladder) {
       if (!seen.has(model.id)) chain.push(model.id);
     }
+    return chain;
+  }
 
-    const attempts: string[] = [];
+  /** Provider options for a single attempt at `modelId`. */
+  private attemptOptions(options: HandoffOptions, modelId: string): ProviderCompleteOptions {
+    return {
+      model: modelId,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+      thinkingLevel: options.thinkingLevel,
+      thinkingBudgetTokens: options.thinkingBudgetTokens,
+      tools: options.tools,
+      signal: options.signal,
+      timeoutMs: options.timeoutMs,
+    };
+  }
+
+  /**
+   * Runs `attempt` against each model in `chain`, recording every id it reaches
+   * in `attempts`. Rethrows the last error once the chain is exhausted.
+   *
+   * Shared by `complete()` and `stream()` so the break policy is identical on
+   * both paths: a user cancel stops immediately, and a non-retryable 400/401/403
+   * is a request bug that every model would reject the same way.
+   */
+  private async walk(
+    chain: string[],
+    attempts: string[],
+    attempt: (modelId: string) => Promise<CompletionResult>,
+  ): Promise<CompletionResult> {
     let lastError: unknown;
 
     for (const modelId of chain) {
       attempts.push(modelId);
       try {
-        const result = await this.client.complete(messages, {
-          model: modelId,
-          maxTokens: options.maxTokens,
-          temperature: options.temperature,
-          thinkingLevel: options.thinkingLevel,
-          thinkingBudgetTokens: options.thinkingBudgetTokens,
-          tools: options.tools,
-          signal: options.signal,
-          timeoutMs: options.timeoutMs,
-        });
-        return { ...result, attempts };
+        return await attempt(modelId);
       } catch (err) {
         lastError = err;
         // A user cancel is not a model failure — walking the rest of the ladder
@@ -141,6 +158,51 @@ export class HandoffManager {
     }
 
     throw lastError ?? new Error('handoff chain exhausted');
+  }
+
+  /**
+   * Runs the completion, walking the fallback chain on failure.
+   *
+   * See `buildChain()` for how the chain is ordered and `walk()` for the
+   * break/rethrow policy.
+   */
+  async complete(
+    messages: ChatMessage[],
+    options: HandoffOptions = {},
+  ): Promise<HandoffResult> {
+    const attempts: string[] = [];
+    const result = await this.walk(this.buildChain(messages, options), attempts, (modelId) =>
+      this.client.complete(messages, this.attemptOptions(options, modelId)),
+    );
+    return { ...result, attempts };
+  }
+
+  /**
+   * Streaming variant of `complete()`.
+   *
+   * Walks the identical chain with the identical break policy — a provider
+   * that rejects SSE, or a stream that dies mid-flight, degrades to the next
+   * model instead of hard-failing the turn the way a bare `client.stream()`
+   * call would. A client with no `stream()` falls back to `complete()` for that
+   * attempt and replays the answer as one delta, so no provider loses support
+   * by omission.
+   */
+  async stream(
+    messages: ChatMessage[],
+    options: HandoffOptions = {},
+    handlers: StreamHandlers = {},
+  ): Promise<HandoffResult> {
+    const attempts: string[] = [];
+    const client = this.client;
+    const result = await this.walk(this.buildChain(messages, options), attempts, async (modelId) => {
+      const attempt = this.attemptOptions(options, modelId);
+      if (client.stream) return client.stream(messages, attempt, handlers);
+      const buffered = await client.complete(messages, attempt);
+      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content);
+      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking);
+      return buffered;
+    });
+    return { ...result, attempts };
   }
 
   private tokens(text: string): number {
