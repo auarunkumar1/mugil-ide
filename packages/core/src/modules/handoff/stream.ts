@@ -68,6 +68,14 @@ export async function* iterateSseEvents(
     const tail = parseFrame(buffer);
     if (tail) yield tail;
   } finally {
+    // An early `break` (e.g. OpenAI's `[DONE]`) leaves the producer unread, so
+    // cancel explicitly or a real `Response.body` keeps its socket open.
+    try {
+      await reader.cancel();
+    } catch {
+      // Already errored or already closed. Never let this mask the caller's
+      // own error, nor turn a clean early break into a throw.
+    }
     reader.releaseLock();
   }
 }
