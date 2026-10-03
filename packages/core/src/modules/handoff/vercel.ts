@@ -30,7 +30,7 @@ export class VercelClient implements ProviderClient {
 
   constructor(options: VercelClientOptions = {}) {
     this.apiKey = options.apiKey;
-this.baseUrl = options.baseUrl ?? 'https://api.vercel.ai/v1';
+    this.baseUrl = options.baseUrl ?? 'https://api.vercel.ai/v1';
     this.mock = !this.apiKey;
   }
 
@@ -147,7 +147,7 @@ this.baseUrl = options.baseUrl ?? 'https://api.vercel.ai/v1';
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
-const message = data.choices?.[0]?.message;
+    const message = data.choices?.[0]?.message;
     // Same `<think>` split the streaming path applies, so buffered and streamed
     // results agree.
     const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);

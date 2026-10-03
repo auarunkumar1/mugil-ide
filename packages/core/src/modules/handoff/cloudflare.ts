@@ -42,7 +42,7 @@ export class CloudflareClient implements ProviderClient {
     this.apiKey = options.apiKey;
     this.accountId = options.accountId;
     this.gatewayId = options.gatewayId;
-this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
+    this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
     this.mock = !this.apiKey || !this.accountId;
   }
 
@@ -162,7 +162,7 @@ this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     };
 
-const message = data.choices?.[0]?.message;
+    const message = data.choices?.[0]?.message;
     // Same `<think>` split the streaming path applies, so buffered and streamed
     // results agree.
     const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
