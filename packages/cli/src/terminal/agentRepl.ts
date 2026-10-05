@@ -785,6 +785,19 @@ export class AgentRepl {
     const toolsCalled: SessionTurn['toolsCalled'] = [];
     const filesModifiedThisTurn: string[] = [];
 
+    // Streaming render state. Only a delta flagged `streamed: true` — a
+    // fragment that really arrived incrementally over SSE — takes the live
+    // path. The buffered fallback (stream:false, no client.stream(),
+    // MUGIL_IDE_NO_STREAM=1) emits ONE delta carrying the whole answer, and
+    // it is ignored here so the kill switch renders byte-for-byte what it
+    // rendered before streaming existed: `formatMarkdown(result.response)`.
+    // `streamed` is the text currently in the answer region — the completion
+    // in flight, not the turn — so it resets when a tool call proves a new
+    // completion has begun. Declared outside the try so the cancellation
+    // handler can see what was left on screen.
+    let streamed = '';
+    let streamedRegion = false;
+
     this.io.write('\r\n' + `${ANSI.bold}${ANSI.cyan}` + '─'.repeat(64) + `${ANSI.reset}\r\n`);
     this.io.write(`  ${bold(cyan(`Turn #${currentTurnId}`))} ${dim('— Thinking & Planning...')}\r\n`);
 
@@ -848,18 +861,6 @@ export class AgentRepl {
       const contextBlocks = [agentInstruction, buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
-
-      // Streaming render state. Only a delta flagged `streamed: true` — a
-      // fragment that really arrived incrementally over SSE — takes the live
-      // path. The buffered fallback (stream:false, no client.stream(),
-      // MUGIL_IDE_NO_STREAM=1) emits ONE delta carrying the whole answer, and
-      // it is ignored here so the kill switch renders byte-for-byte what it
-      // rendered before streaming existed: `formatMarkdown(result.response)`.
-      // `streamed` is the text currently in the answer region — the completion
-      // in flight, not the turn — so it resets when a tool call proves a new
-      // completion has begun.
-      let streamed = '';
-      let streamedRegion = false;
 
       const result = await this.engine.pipeline.ask(prompt, {
         preferredModel: this.getActiveModel(),
@@ -1059,7 +1060,14 @@ export class AgentRepl {
       // A user cancel is not a failure: report it as such and keep the session
       // usable. Anything else is a real error worth surfacing.
       if (this.turnAbort?.signal.aborted) {
-        this.io.write(`\r\n${yellow('■ Turn cancelled.')}\r\n\r\n`);
+        // A partial answer is already on screen. Without a marker it reads like
+        // a finished one — and it was never stored: nothing below the try ever
+        // ran, so history, the session file and the cache do not have it.
+        if (streamedRegion && streamed.trim().length > 0) {
+          this.io.write(`\r\n  ${yellow('■ Turn cancelled.')} ${dim('The text above is an incomplete answer — it was NOT saved to history or the session file.')}\r\n`);
+        } else {
+          this.io.write(`\r\n${yellow('■ Turn cancelled.')}\r\n\r\n`);
+        }
       } else {
         this.io.write(`\r\n${red('✗ Error executing request:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
       }
