@@ -941,6 +941,59 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('marks partial streamed text as incomplete when the turn is cancelled', async () => {
+    // Ctrl-C mid-stream. The fake client streams a fragment, then parks until
+    // the turn's AbortSignal fires — the same shape as a real SSE body being
+    // cut off mid-answer.
+    const client = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'unused' }),
+      stream: async (_messages: unknown, options: any, handlers: any) => {
+        handlers?.onDelta?.('Here is half an ans', true);
+        await new Promise<void>((_resolve, reject) => {
+          options.signal.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          );
+        });
+        return scriptedResult({ content: 'never' });
+      },
+    } as unknown as ProviderClient;
+    const server = await startIdeServer({ engine: scriptedEngine(client), port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const chunks: string[] = [];
+
+    try {
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(String(raw));
+        if (msg.type === 'agent_data') chunks.push(msg.data as string);
+      });
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'long answer please\r' }));
+
+      const deadline = Date.now() + 10000;
+      while (!agentOutput(chunks).includes('half an ans') && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(agentOutput(chunks)).toContain('Here is half an ans');
+
+      ws.send(JSON.stringify({ type: 'agent_input', data: '\x03' }));
+
+      const cancelled = Date.now() + 10000;
+      while (!agentOutput(chunks).includes('Turn cancelled') && Date.now() < cancelled) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      const out = agentOutput(chunks);
+      expect(out).toContain('Turn cancelled');
+      // The partial answer must be labelled as incomplete rather than left
+      // looking like a finished one.
+      expect(out).toContain('incomplete answer');
+      expect(out).toContain('NOT saved');
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
   it('discards provisional streamed text when the model then requests tools', async () => {
     let calls = 0;
     const client = {
