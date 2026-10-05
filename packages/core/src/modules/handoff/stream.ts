@@ -38,6 +38,7 @@ export interface StreamedCompletion {
   toolCalls: ToolCall[];
   finishReason?: string;
   usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+  model?: string;
 }
 
 /** Test helper (and the shape real `Response.body` has). */
@@ -120,6 +121,7 @@ export async function parseOpenAiSse(
   let thinking = '';
   let finishReason: string | undefined;
   let usage: StreamedCompletion['usage'];
+  let model: string | undefined;
   // Tool call fragments arrive keyed by `index`; arguments accumulate across
   // frames and only form valid JSON once complete.
   const partial = new Map<number, { id: string; name: string; args: string }>();
@@ -128,6 +130,7 @@ export async function parseOpenAiSse(
     if (ev.data === '[DONE]') break;
     const json = safeJson(ev.data);
     if (!json) continue;
+    if (typeof json.model === 'string' && json.model) model = json.model;
     if (json.usage) {
       const u = json.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
       usage = {
@@ -164,7 +167,7 @@ export async function parseOpenAiSse(
     .filter(([, v]) => v.name.length > 0)
     .map(([, v]) => ({ id: v.id, name: v.name, arguments: v.args || '{}' }));
 
-  return { content, thinking, toolCalls, finishReason, usage };
+  return { content, thinking, toolCalls, finishReason, usage, model };
 }
 
 export async function parseAnthropicSse(
@@ -176,6 +179,7 @@ export async function parseAnthropicSse(
   let finishReason: string | undefined;
   let promptTokens: number | undefined;
   let completionTokens: number | undefined;
+  let model: string | undefined;
   // Anthropic streams tool inputs as `input_json_delta` fragments belonging to
   // the block most recently announced by `content_block_start`.
   const blocks = new Map<number, { id: string; name: string; args: string }>();
@@ -187,7 +191,9 @@ export async function parseAnthropicSse(
     const type = (ev.event ?? json.type) as string;
 
     if (type === 'message_start') {
-      const input = (json.message as { usage?: { input_tokens?: number } } | undefined)?.usage;
+      const msg = json.message as { model?: string; usage?: { input_tokens?: number } } | undefined;
+      if (typeof msg?.model === 'string' && msg.model) model = msg.model;
+      const input = msg?.usage;
       promptTokens = input?.input_tokens;
       continue;
     }
@@ -239,6 +245,7 @@ export async function parseAnthropicSse(
               (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
           }
         : undefined,
+    model,
   };
 }
 

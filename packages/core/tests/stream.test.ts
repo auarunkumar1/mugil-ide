@@ -77,6 +77,15 @@ describe('parseOpenAiSse', () => {
     const stream = streamFromChunks(['data: {"choices":[{"delta":{"content":"x"}}]}\n\n', 'data: [DONE]']);
     await expect(parseOpenAiSse(stream)).resolves.toMatchObject({ content: 'x' });
   });
+
+  it('parses model identifier from chunks when present', async () => {
+    const stream = streamFromChunks([
+      'data: {"model":"gpt-4o-2024-08-06","choices":[{"delta":{"content":"ok"}}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const out = await parseOpenAiSse(stream);
+    expect(out.model).toBe('gpt-4o-2024-08-06');
+  });
 });
 
 describe('parseAnthropicSse', () => {
@@ -108,6 +117,15 @@ describe('parseAnthropicSse', () => {
     expect(out.toolCalls[0]!.arguments).toBe('{"path":"a.ts"}');
     expect(out.toolCalls[1]!.arguments).toBe('{"path":"b.ts"}');
     expect(out.usage).toEqual({ promptTokens: 11, completionTokens: 5, totalTokens: 16 });
+  });
+
+  it('parses model identifier from message_start when present', async () => {
+    const stream = streamFromChunks([
+      'event: message_start\ndata: {"message":{"model":"claude-3-5-sonnet-20241022","usage":{"input_tokens":5}}}\n\n',
+      'event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}\n\n',
+    ]);
+    const out = await parseAnthropicSse(stream);
+    expect(out.model).toBe('claude-3-5-sonnet-20241022');
   });
 });
 
