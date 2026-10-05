@@ -216,12 +216,28 @@ export class Pipeline {
     }
 
     // 3. Build messages and call the handoff manager.
-    const effectivePrompt =
-      cacheLookup.kind === 'partial' && cacheLookup.delta
-        ? `The following was already answered, continue from where it left off.\n\n${cacheLookup.delta}`
-        : options.noRefine
-          ? prompt
-          : refine.refined;
+    //
+    // A partial cache hit means the stored prompt is a long prefix of this one,
+    // so the delta alone is NOT enough context: the model needs the shared
+    // prefix to know what "continue from where it left off" refers to. Sending
+    // only the delta (the old behaviour) produced answers that ignored the
+    // original question entirely.
+    let effectivePrompt: string;
+    if (cacheLookup.kind === 'partial' && cacheLookup.delta) {
+      const shared = cacheLookup.entry?.prompt ?? '';
+      effectivePrompt = [
+        'This is a continuation of a request you have already partially answered.',
+        'Original request (shared prefix):',
+        shared,
+        '',
+        'Additional request:',
+        cacheLookup.delta,
+        '',
+        'Answer ONLY the additional request. Do not repeat the part already answered.',
+      ].join('\n');
+    } else {
+      effectivePrompt = options.noRefine ? prompt : refine.refined;
+    }
 
     // Ponytail: output minimization via a system-level instruction + cap.
     const ponytail: boolean | PonytailOptions = options.ponytail ?? this.ponytailEnabled;
@@ -375,7 +391,7 @@ export class Pipeline {
       mock: completion.mock ?? false,
       usage: completion.usage,
       refine,
-      cache: { hit: false },
+      cache: { hit: Boolean(cacheLookup.entry), kind: cacheLookup.kind },
       thinking: completion.thinking,
       toolCalls: hasTools ? (completion as ToolLoopResult).toolCalls : 0,
       finishReason,
