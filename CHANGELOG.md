@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-10-05
+
 ### Fixed
 
 - **Partial Cache Spliced Unrelated Answers**: A partial (continuation) cache hit fired whenever a stored prompt was *any* literal prefix of the new one, so two prompts sharing a short common opener — a pasted file header, a shared preamble — produced `cachedAnswer + "\n\n" + newCompletion` as a single confident wrong answer. Partial hits now require the cached prompt to cover at least 60% of the new prompt (`MUGIL_IDE_PARTIAL_MIN_RATIO`) and at least 40 characters, and a stored concatenation can never seed another concatenation.
@@ -201,3 +203,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.10]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.10
 [0.1.11]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.11
 [0.1.12]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.12
+
+[0.1.13]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.13
