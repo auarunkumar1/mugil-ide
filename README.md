@@ -94,6 +94,12 @@ The engine modules are built and unit-tested, but **only a subset is wired into 
 - **Dark Theme Custom Scrollbars & Dynamic Zoom (wired)**: Sleek `#30363d` dark scrollbars
   across all panes, modals, and terminals; increased default typography; and header `A-` / `A+`
   zoom controls (`Ctrl + / -`) with `localStorage` persistence and automatic xterm font resizing.
+- **Live Streaming Model Output (wired)**: Token-by-token SSE streaming for OpenAI, Anthropic,
+  and OpenCode Zen gateways with live rendering in the browser terminal and REPL; graceful fallback
+  to buffered completions; trailing status frame rate-limiting; and `MUGIL_IDE_NO_STREAM=1` override.
+- **Turn Cancellation & Subagent Abort (wired)**: Ctrl-C cancels in-flight completion turns cleanly,
+  labelling partial outputs and propagating `AbortSignal` all the way down through the pipeline,
+  tool loop, and running subagents.
 
 ## Install from npm
 
@@ -101,7 +107,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.12
+mugil-ide --version         # 0.1.13
 mugil-ide                   # starts the local server and opens your browser
 ```
 
@@ -123,7 +129,7 @@ CDN, no Node-gyp surprises.
 ```bash
 npm install
 npm run build          # builds all packages
-npm test               # 335 unit tests
+npm test               # 447 unit tests
 npm run typecheck
 npm run smoke:question-picker   # real-browser smoke of the question-picker modal (needs Chrome)
 npm run smoke:diff-viewer       # real-browser smoke of the Diff Viewer tab (needs Chrome)
