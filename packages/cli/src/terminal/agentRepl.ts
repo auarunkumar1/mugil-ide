@@ -810,6 +810,8 @@ export class AgentRepl {
         handoff: this.engine.handoff,
         onQuestion: this.options.onQuestion,
         subagentPermission: permission,
+        // Ctrl-C must stop a running subagent, not just the parent turn.
+        signal: this.turnAbort.signal,
         diagnostics: diagnosticsEnabledFromEnv(),
         onSubagentTool: (mode, call) => {
           const args = (() => {

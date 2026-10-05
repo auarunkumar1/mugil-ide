@@ -165,6 +165,33 @@ describe('task tool (subagents)', () => {
     ]);
   });
 
+  it('propagates an abort signal into the subagent loop', async () => {
+    // Ctrl-C mid-turn: the turn's signal reaches the subagent's ToolLoop, which
+    // refuses to start a completion at all. Without it the subagent would keep
+    // calling the provider after the user cancelled.
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled by user'));
+    const client = scriptedClient([result({ content: 'never used', finishReason: 'stop' })]);
+    const handoff = new HandoffManager({ client, models: [] });
+    const { toolRegistry } = createWorkspaceTools(ROOT, { handoff, signal: controller.signal });
+
+    await expect(
+      toolRegistry.task(taskCall('t10', { mode: 'explore', description: 'look around' })),
+    ).rejects.toThrow(/cancelled by user/);
+    expect(client.complete).not.toHaveBeenCalled();
+  });
+
+  it('runs the subagent normally when no signal is supplied', async () => {
+    // Guards the previous test from passing for the wrong reason: without the
+    // signal the same call reaches the provider and returns its answer.
+    const client = scriptedClient([result({ content: 'looked around', finishReason: 'stop' })]);
+    const handoff = new HandoffManager({ client, models: [] });
+    const { toolRegistry } = createWorkspaceTools(ROOT, { handoff });
+
+    const out = await toolRegistry.task(taskCall('t11', { description: 'look around' }));
+    expect(out).toContain('looked around');
+  });
+
   it('reports the general mode in onSubagentTool', async () => {
     const client = scriptedClient([
       result({
