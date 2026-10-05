@@ -18,6 +18,7 @@ import {
   type ProviderClient,
   type ProviderCompleteOptions,
 } from './provider.js';
+import type { StreamHandlers } from './stream.js';
 
 export interface OpenCodeClientOptions {
   apiKey?: string;
@@ -61,19 +62,56 @@ export class OpenCodeClient implements ProviderClient {
   ): Promise<CompletionResult> {
     if (this.mock) return mockCompletion(messages, options, 'OPENCODE_API_KEY');
 
-    // ponytail: gpt-*/codex-* need Zen's /responses (OpenAI Responses API),
-    // a separate wire format. Upgrade path: add a responses translator here.
-    if (/^(gpt|codex)/.test(options.model)) {
-      throw new ProviderError(
-        `OpenCode Zen model "${options.model}" requires the /responses endpoint, which is not supported yet — pick a claude-* model or another Zen model`,
-        400,
-        false,
-      );
-    }
+    this.assertSupported(options.model);
 
     const result = options.model.startsWith('claude')
       ? await this.anthropic.complete(messages, options)
       : await this.openai.complete(messages, options);
     return { ...result, provider: 'opencode' };
+  }
+
+  /**
+   * Streaming variant of `complete()`, delegating to the composed client the
+   * same way `complete()` does.
+   *
+   * TypeScript does not forward an optional interface member through
+   * composition: declaring `private readonly openai: OpenAiClient` and calling
+   * `this.openai.complete()` never makes `OpenCodeClient.stream` exist on
+   * `ProviderClient`, so without this method every OpenCode turn silently took
+   * the buffered fallback — one whole-answer delta, no progressive output.
+   * The `claude` routing branch, the unsupported-model guard and the
+   * `provider: 'opencode'` re-brand are reproduced exactly; only the transport
+   * differs.
+   */
+  async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const result = mockCompletion(messages, options, 'OPENCODE_API_KEY');
+      if (result.content.length > 0) handlers.onDelta?.(result.content);
+      return result;
+    }
+
+    this.assertSupported(options.model);
+
+    const result = options.model.startsWith('claude')
+      ? await this.anthropic.stream(messages, options, handlers)
+      : await this.openai.stream(messages, options, handlers);
+    return { ...result, provider: 'opencode' };
+  }
+
+  // ponytail: gpt-*/codex-* models need Zen's /responses (OpenAI Responses
+  // API), a separate wire format. Upgrade path: add a responses translator
+  // here and call it from both complete() and stream().
+  private assertSupported(model: string): void {
+    if (/^(gpt|codex)/.test(model)) {
+      throw new ProviderError(
+        `OpenCode Zen model "${model}" requires the /responses endpoint, which is not supported yet — pick a claude-* model or another Zen model`,
+        400,
+        false,
+      );
+    }
   }
 }

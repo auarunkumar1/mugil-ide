@@ -21,6 +21,23 @@ function okResponse(data: unknown): Response {
   } as Response;
 }
 
+/** A 200 whose body is an SSE byte stream, which is what stream() consumes. */
+function sseResponse(frames: string[]): Response {
+  const encoder = new TextEncoder();
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    body: new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const frame of frames) controller.enqueue(encoder.encode(frame));
+        controller.close();
+      },
+    }),
+    text: async () => frames.join(''),
+  } as unknown as Response;
+}
+
 describe('OpenAiClient', () => {
   it('posts to the chat completions endpoint with a Bearer key', async () => {
     const fetchMock = jest.fn().mockResolvedValue(
@@ -323,6 +340,63 @@ describe('OpenCodeClient', () => {
     const client = new OpenCodeClient({ apiKey: 'oc-test' });
     await expect(
       client.complete([{ role: 'user', content: 'hi' }], { model: 'gpt-5.6-sol' }),
+    ).rejects.toMatchObject({ status: 400, retryable: false });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('streams claude models over SSE from /v1/messages and re-brands the provider', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      sseResponse([
+        'event: message_start\ndata: {"message":{"usage":{"input_tokens":5}}}\n\n',
+        'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"Hel"}}\n\n',
+        'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"lo"}}\n\n',
+        'event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}\n\n',
+      ]),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-test' });
+    const deltas: Array<{ text: string; streamed?: boolean }> = [];
+    const result = await client.stream!([{ role: 'user', content: 'hi' }], { model: 'claude-haiku-4-5' }, {
+      onDelta: (text, streamed) => deltas.push({ text, streamed }),
+    });
+
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { stream: boolean };
+    expect(body.stream).toBe(true);
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/zen/v1/messages');
+    expect(deltas.map((d) => d.text)).toEqual(['Hel', 'lo']);
+    // Provenance survives delegation: the fragments really were incremental.
+    expect(deltas.every((d) => d.streamed === true)).toBe(true);
+    expect(result.provider).toBe('opencode');
+    expect(result.content).toBe('Hello');
+    expect(result.usage.totalTokens).toBe(7);
+  });
+
+  it('streams non-claude models from /v1/chat/completions and re-brands the provider', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":" there"},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":3,"total_tokens":7}}\n\n',
+        'data: [DONE]\n\n',
+      ]),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-test' });
+    const deltas: string[] = [];
+    const result = await client.stream!([{ role: 'user', content: 'hi' }], { model: 'qwen3-coder' }, {
+      onDelta: (text) => deltas.push(text),
+    });
+
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/zen/v1/chat/completions');
+    expect(deltas).toEqual(['hi', ' there']);
+    expect(result.provider).toBe('opencode');
+    expect(result.content).toBe('hi there');
+  });
+
+  it('rejects gpt/codex models on the streaming path too', async () => {
+    global.fetch = jest.fn() as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-test' });
+    await expect(
+      client.stream!([{ role: 'user', content: 'hi' }], { model: 'gpt-5.6-sol' }),
     ).rejects.toMatchObject({ status: 400, retryable: false });
     expect(global.fetch).not.toHaveBeenCalled();
   });
