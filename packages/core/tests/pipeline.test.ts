@@ -636,4 +636,36 @@ describe('Pipeline', () => {
     expect(second.response).toBe('fresh answer');
     expect(second.response).not.toContain('fix the parser bug in the lexer');
   });
+
+  it('does not let a concatenated answer seed another concatenation', async () => {
+    const base = 'Explain the retry ladder in detail, including the backoff schedule. ';
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'live-model',
+        content: 'PART-B',
+        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+        finishReason: 'stop',
+      }),
+    } as unknown as ProviderClient;
+    const cache = new SmartCache({
+      backend: new MemoryBackend(),
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+    });
+    const pipeline = new Pipeline({
+      cache,
+      handoff: new HandoffManager({ client, models: MODELS }),
+    });
+
+    await pipeline.ask(base);
+    const second = await pipeline.ask(base + 'Now cover timeouts.');
+    expect(second.response).toContain('PART-B');
+
+    const third = await pipeline.ask(base + 'Now cover timeouts. And then cover cancellation.');
+    // The third answer must not stack a second concatenation on top of the
+    // second one; at most one prior answer may be prepended.
+    expect(third.response.split('PART-B').length - 1).toBeLessThanOrEqual(1);
+  });
 });

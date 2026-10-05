@@ -375,6 +375,8 @@ export class Pipeline {
         // a live provider, so the entry must be marked mock:false — otherwise
         // a later run would fall back to the ambiguous [mock] text scan.
         completion.mock ?? false,
+        // Mark concatenations so they never seed another concatenation.
+        cacheLookup.kind === 'partial',
       );
       if (isAsync) {
         void storeTask.catch(() => {});
