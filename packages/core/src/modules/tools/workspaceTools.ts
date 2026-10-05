@@ -456,6 +456,8 @@ export interface WorkspaceToolsOptions {
   subagentModel?: string;
   /** Subagent loop bound. Default 4. */
   subagentMaxIterations?: number;
+  /** Cancels subagent loops (the user pressed Ctrl-C mid-turn). */
+  signal?: AbortSignal;
   /**
    * Fired for each tool call executed inside a subagent loop (mode + call),
    * so the caller can stream subagent progress (e.g. into a live status line).
@@ -1143,6 +1145,7 @@ export function createWorkspaceTools(
           permission: subPermission,
           preferredModel: options.subagentModel,
           maxTokens: 2048,
+          signal: options.signal,
         },
       );
       let content = result.content.trim();
