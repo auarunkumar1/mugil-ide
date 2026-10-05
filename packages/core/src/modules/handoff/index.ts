@@ -181,11 +181,14 @@ export class HandoffManager {
   /**
    * Streaming variant of `complete()`.
    *
-   * Walks the identical chain with the identical break policy — a provider
-   * that rejects SSE, or a stream that dies mid-flight, degrades to the next
-   * model instead of hard-failing the turn the way a bare `client.stream()`
-   * call would. A client with no `stream()` falls back to `complete()` for that
-   * attempt and replays the answer as one delta flagged `streamed: false`, so
+   * Walks the identical chain with the identical break policy — a stream that
+   * fails retryably (429/5xx) or dies mid-flight degrades to the next model
+   * instead of hard-failing the turn the way a bare `client.stream()` call
+   * would. A non-retryable rejection is not absorbed: `walk()` breaks on
+   * `400`/`401`/`403` and rethrows, so a provider that rejects SSE outright
+   * fails the turn rather than walking on. A client with no `stream()` falls
+   * back to `complete()` for that attempt and replays the answer as one delta
+   * flagged `streamed: false`, so
    * no provider loses support by omission and no renderer mistakes the replay
    * for a live stream. `options.stream === false` opts out at this layer too,
    * so a caller that reaches `stream()` directly gets the same buffered result

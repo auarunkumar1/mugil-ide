@@ -258,7 +258,9 @@ export type StreamCompletionOptions = HandoffOptions;
  * kill switch replays the buffered answer as ONE delta carrying
  * `streamed: false`, so a renderer can tell that replay from a real stream and
  * present it exactly as it did before streaming existed; and a provider that
- * rejects SSE degrades to the next model rather than crashing the turn.
+ * rejects SSE retryably (429/5xx) degrades to the next model. A non-retryable
+ * rejection — a gateway answering `400` to an unknown body field, say — is not
+ * recoverable here: `walk()` breaks on it and the turn fails.
  *
  * This function is the single place that decides stream-vs-buffered, so the
  * kill switch covers every caller — including tool loops that build their own
