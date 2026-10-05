@@ -199,7 +199,7 @@ export class AnthropicClient implements ProviderClient {
     const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
     return {
       provider: 'anthropic',
-      model: options.model,
+      model: streamed.model ?? options.model,
       content,
       usage: {
         promptTokens,

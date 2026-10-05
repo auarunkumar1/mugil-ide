@@ -165,7 +165,7 @@ export function openAiStreamResult(
   const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
   return {
     provider,
-    model: options.model,
+    model: streamed.model ?? options.model,
     content,
     usage: {
       promptTokens,
