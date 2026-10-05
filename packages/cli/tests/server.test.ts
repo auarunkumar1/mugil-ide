@@ -941,6 +941,49 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('coalesces status frames instead of sending one per streamed token', async () => {
+    // 60 fragments land in one burst (no awaits between them), which is the
+    // worst case streaming creates. Status must be rate-limited, not per-token.
+    const TOKENS = 60;
+    const client = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'unused' }),
+      stream: async (_messages: unknown, _options: unknown, handlers: any) => {
+        for (let i = 0; i < TOKENS; i += 1) handlers?.onDelta?.(`t${i} `, true);
+        return scriptedResult({ content: 'done' });
+      },
+    } as unknown as ProviderClient;
+    const server = await startIdeServer({ engine: scriptedEngine(client), port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const counts = { data: 0, status: 0 };
+
+    try {
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(String(raw));
+        if (msg.type === 'agent_data') counts.data += 1;
+        if (msg.type === 'status') counts.status += 1;
+      });
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'stream a lot\r' }));
+      await waitForMessage(ws, (m) => m.type === 'turn_complete');
+      // The trailing status (the one turn_complete sends eagerly) must arrive.
+      const deadline = Date.now() + 2000;
+      while (counts.status === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      // Every token still reaches the browser...
+      expect(counts.data).toBeGreaterThanOrEqual(TOKENS);
+      // ...but status is bounded: the burst plus the turn_complete frame, not
+      // one per token.
+      expect(counts.status).toBeLessThanOrEqual(5);
+      expect(counts.status).toBeGreaterThan(0);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
   it('marks partial streamed text as incomplete when the turn is cancelled', async () => {
     // Ctrl-C mid-stream. The fake client streams a fragment, then parks until
     // the turn's AbortSignal fires — the same shape as a real SSE body being

@@ -709,12 +709,57 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       }
     };
 
+    // A `status` frame is a snapshot of model/mode/stats — none of which change
+    // while a turn streams, but `write` now fires once per token, so an eager
+    // sendStatus() there costs a second WebSocket frame and a second
+    // JSON.stringify per token. Coalesce: at most one status frame per
+    // interval, sent immediately on the first write of a burst and once more at
+    // the end so the final snapshot always reaches the browser. Lifecycle
+    // events (turn_complete, mode/model change) still send eagerly — they are
+    // the frames a waiting UI actually blocks on.
+    const STATUS_INTERVAL_MS = 100;
+    let lastStatusAt = 0;
+    let statusTimer: NodeJS.Timeout | null = null;
+    const clearStatusTimer = (): void => {
+      if (!statusTimer) return;
+      clearTimeout(statusTimer);
+      statusTimer = null;
+    };
+    /** Eager send, cancelling any pending coalesced one. */
+    const sendStatusNow = (): void => {
+      clearStatusTimer();
+      lastStatusAt = Date.now();
+      sendStatus();
+    };
+    /**
+     * Rate-limited send for the write path: one frame immediately if the
+     * interval has elapsed, otherwise exactly one trailing frame carrying the
+     * state at the end of the burst. Never more than ~1 frame per 100ms.
+     */
+    const coalesceStatus = (): void => {
+      const elapsed = Date.now() - lastStatusAt;
+      if (elapsed >= STATUS_INTERVAL_MS && !statusTimer) {
+        lastStatusAt = Date.now();
+        sendStatus();
+        return;
+      }
+      if (statusTimer) return;
+      const timer = setTimeout(() => {
+        statusTimer = null;
+        lastStatusAt = Date.now();
+        sendStatus();
+      }, Math.max(0, STATUS_INTERVAL_MS - elapsed));
+      // Never hold the process open for a status frame.
+      timer.unref?.();
+      statusTimer = timer;
+    };
+
     const repl = new AgentRepl(
       engine,
       {
         write: (d) => {
           sendAgentData(d);
-          sendStatus();
+          coalesceStatus();
         },
         onExit: () => {
           ws.close();
@@ -723,11 +768,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'turn_complete', turn }));
           }
-          sendStatus();
+          sendStatusNow();
         },
         onModelChange: (m, prov) => {
           updateActiveModel(m, prov);
-          sendStatus();
+          sendStatusNow();
         },
       },
       activeModel,
@@ -794,7 +839,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     // Print welcome banner in Agent terminal
     repl.printBanner();
-    sendStatus();
+    sendStatusNow();
 
     ws.on('message', async (messageRaw) => {
       try {
@@ -806,7 +851,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           updateActiveModel(newModel, msg.provider);
           sendAgentData(`\r\n\x1b[32m✓\x1b[0m Active model changed to: \x1b[1m\x1b[36m${newModel}\x1b[0m${engine.config.provider ? ` \x1b[2m(${engine.config.provider})\x1b[0m` : ''}\r\n\r\n`);
           repl.printPrompt();
-          sendStatus();
+          sendStatusNow();
         } else if (msg.type === 'set_mode') {
           const newMode = msg.mode === 'plan' ? 'plan' : 'act';
 repl.setMode(newMode);
@@ -815,7 +860,7 @@ repl.setMode(newMode);
           saveMode(newMode);
           sendAgentData(`\r\n\x1b[32m✓\x1b[0m Mode changed to: \x1b[1m\x1b[33m${newMode}\x1b[0m\r\n\r\n`);
           repl.printPrompt();
-          sendStatus();
+          sendStatusNow();
         } else if (msg.type === 'question_answer') {
           const entry = questionResolvers.get(Number(msg.id));
           if (entry) {
@@ -840,7 +885,7 @@ repl.setMode(newMode);
             inputBuffer = '';
             sendAgentData(cleanText + '\r\n');
             await repl.handleInput(fullLine);
-            sendStatus();
+            sendStatusNow();
             return;
           }
 
@@ -852,7 +897,7 @@ repl.setMode(newMode);
             const lineToRun = inputBuffer;
             inputBuffer = '';
             await repl.handleInput(lineToRun);
-            sendStatus();
+            sendStatusNow();
           }
           // Handle Backspace (\x7f or \x08)
           else if (char === '\x7f' || char === '\x08') {
@@ -898,6 +943,7 @@ repl.setMode(newMode);
     });
 
     ws.on('close', () => {
+      clearStatusTimer();
       repl.stopLogoAnimation();
       void repl.dispose(); // close MCP stdio children
       if (ptySession) {
