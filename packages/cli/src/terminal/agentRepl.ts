@@ -1066,7 +1066,7 @@ export class AgentRepl {
         // a finished one — and it was never stored: nothing below the try ever
         // ran, so history, the session file and the cache do not have it.
         if (streamedRegion && streamed.trim().length > 0) {
-          this.io.write(`\r\n  ${yellow('■ Turn cancelled.')} ${dim('The text above is an incomplete answer — it was NOT saved to history or the session file.')}\r\n`);
+          this.io.write(`\r\n  ${yellow('■ Turn cancelled.')} ${dim('The streamed text is an incomplete answer — it was NOT saved to history or the session file.')}\r\n`);
         } else {
           this.io.write(`\r\n${yellow('■ Turn cancelled.')}\r\n\r\n`);
         }

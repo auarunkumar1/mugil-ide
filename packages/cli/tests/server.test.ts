@@ -975,9 +975,66 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       // Every token still reaches the browser...
       expect(counts.data).toBeGreaterThanOrEqual(TOKENS);
       // ...but status is bounded: the burst plus the turn_complete frame, not
-      // one per token.
-      expect(counts.status).toBeLessThanOrEqual(5);
+      // one per token. 60 tokens produce 2 frames — the leading edge and the one
+      // turn_complete sends eagerly — so 4 still leaves room for the trailing
+      // frame firing just after this test reads the count, while failing by an
+      // order of magnitude if the limiter is dropped.
+      expect(counts.status).toBeLessThanOrEqual(4);
       expect(counts.status).toBeGreaterThan(0);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
+  it('sends a trailing status frame when the burst ends inside the interval', async () => {
+    // The trailing edge of the limiter. The synchronous burst above is all one
+    // tick, so its pending trailing frame is cancelled by turn_complete before
+    // it ever fires — only the leading edge is exercised there. Here the second
+    // fragment lands mid-interval (arming the timer) and the stream then stays
+    // open past it, so the trailing frame must arrive on its own, with no
+    // lifecycle event behind it.
+    const client = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'unused' }),
+      stream: async (_messages: unknown, _options: unknown, handlers: any) => {
+        handlers?.onDelta?.('first ', true);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        handlers?.onDelta?.('second', true);
+        // Outlast the 100ms interval so the armed timer has room to fire before
+        // the turn completes (which would otherwise cancel it).
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return scriptedResult({ content: 'done' });
+      },
+    } as unknown as ProviderClient;
+    const server = await startIdeServer({ engine: scriptedEngine(client), port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const events: string[] = [];
+
+    try {
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(String(raw));
+        if (msg.type === 'agent_data' || msg.type === 'status' || msg.type === 'turn_complete') {
+          events.push(`${msg.type}:${JSON.stringify(msg.data ?? '').slice(0, 20)}`);
+        }
+      });
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'two slow tokens\r' }));
+      await waitForMessage(ws, (m) => m.type === 'turn_complete');
+
+      // Both fragments reached the browser.
+      expect(events.filter((e) => e.startsWith('agent_data:"first ')).length).toBe(1);
+      expect(events.filter((e) => e.startsWith('agent_data:"second')).length).toBe(1);
+
+      // The load-bearing assertion: the frame IMMEDIATELY after the second
+      // fragment is a status. A coalescing trailing timer fires on its own
+      // schedule, so nothing has to write first. Every other status in this turn
+      // rides either a write (leading edge) or a lifecycle event, all of which
+      // put an `agent_data` frame or `turn_complete` in front of them — with
+      // the timer removed, the summary writes that follow the stream land
+      // there instead and this fails.
+      const secondDeltaAt = events.findIndex((e) => e.startsWith('agent_data:"second'));
+      expect(events[secondDeltaAt + 1]).toMatch(/^status:/);
     } finally {
       ws.terminate();
       await server.close();
