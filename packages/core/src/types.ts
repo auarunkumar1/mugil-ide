@@ -174,6 +174,14 @@ export type PipelineEvent =
    * text and THEN requests tool calls makes the consumer discard what it
    * rendered. Consumers must treat this as "display progress", not as the
    * final answer — `AskResult.response` is the authoritative text.
+   *
+   * `streamed` is the provenance flag. `true` ONLY for fragments that arrived
+   * incrementally over SSE; `false` for the single delta the buffered fallback
+   * replays when a provider has no `stream()`, or when `stream: false` /
+   * `MUGIL_IDE_NO_STREAM=1` forces one buffered completion. Without it a
+   * renderer cannot tell "text arriving progressively" from "the whole answer
+   * replayed as one delta", so the buffered replay would be rendered with
+   * streaming presentation. The replay is always exactly ONE delta.
    */
-  | { type: 'delta'; text: string };
+  | { type: 'delta'; text: string; streamed: boolean };
 

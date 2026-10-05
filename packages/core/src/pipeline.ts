@@ -301,8 +301,9 @@ export class Pipeline {
           },
           // Provisional text: a streamed fragment that is followed by tool
           // calls must be discarded by the consumer. Renderers own that
-          // decision; the pipeline only reports what arrived.
-          onDelta: (text) => emit({ type: 'delta', text }),
+          // decision; the pipeline only reports what arrived, including whether
+          // it arrived incrementally (`streamed`) or as the buffered replay.
+          onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }),
         }).run(messages, {
           ...options,
           tools: options.tools!,
@@ -313,7 +314,7 @@ export class Pipeline {
           this.handoff,
           messages,
           { ...options, maxTokens },
-          { onDelta: (text) => emit({ type: 'delta', text }) },
+          { onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }) },
         );
     emit({
       type: 'handoff',

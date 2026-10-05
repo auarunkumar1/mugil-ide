@@ -185,9 +185,10 @@ export class HandoffManager {
    * that rejects SSE, or a stream that dies mid-flight, degrades to the next
    * model instead of hard-failing the turn the way a bare `client.stream()`
    * call would. A client with no `stream()` falls back to `complete()` for that
-   * attempt and replays the answer as one delta, so no provider loses support
-   * by omission. `options.stream === false` opts out at this layer too, so a
-   * caller that reaches `stream()` directly gets the same buffered result
+   * attempt and replays the answer as one delta flagged `streamed: false`, so
+   * no provider loses support by omission and no renderer mistakes the replay
+   * for a live stream. `options.stream === false` opts out at this layer too,
+   * so a caller that reaches `stream()` directly gets the same buffered result
    * `streamCompletion` would give it.
    */
   async stream(
@@ -197,9 +198,9 @@ export class HandoffManager {
   ): Promise<HandoffResult> {
     if (options.stream === false) {
       const buffered = await this.complete(messages, options);
-      // Same single-delta replay the buffered path gives every consumer: a
-      // renderer must not read "I got a delta" as "streaming is on".
-      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content);
+      // One delta, flagged `streamed: false`: a renderer must not read "I got a
+      // delta" as "streaming is on".
+      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
       if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking);
       return buffered;
     }
@@ -209,7 +210,7 @@ export class HandoffManager {
       const attempt = this.attemptOptions(options, modelId);
       if (client.stream) return client.stream(messages, attempt, handlers);
       const buffered = await client.complete(messages, attempt);
-      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content);
+      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
       if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking);
       return buffered;
     });
