@@ -50,6 +50,8 @@ export interface ToolLoopOptions {
    * replay) — the loop adds no interpretation of its own.
    */
   onDelta?: (text: string, streamed?: boolean) => void;
+  /** Called with each streamed reasoning fragment as it arrives. */
+  onThinking?: (text: string, streamed?: boolean) => void;
 }
 
 export interface ToolLoopRunOptions extends HandoffOptions {
@@ -114,7 +116,7 @@ export class ToolLoop {
     this.onToolResult = options.onToolResult;
     this.sizeMaxTokens = options.sizeMaxTokens;
     this.onDelta = options.onDelta;
-    this.handlers = { onDelta: this.onDelta };
+    this.handlers = { onDelta: this.onDelta, onThinking: options.onThinking };
   }
 
   async run(messages: ChatMessage[], options: ToolLoopRunOptions): Promise<ToolLoopResult> {

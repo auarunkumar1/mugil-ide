@@ -871,13 +871,14 @@ export function getWebUiHtml(): string {
     function initTerminals() {
       const termFontSize = Math.round(14 * currentZoom);
       agentTerm = new Terminal({
-        cursorBlink: true,
+        cursorBlink: false,
+        disableStdin: true,
         fontSize: termFontSize,
         fontFamily: 'Consolas, "Fira Code", "Courier New", monospace',
         theme: {
           background: '#0d1117',
           foreground: '#e6edf3',
-          cursor: '#58a6ff',
+          cursor: 'transparent',
           black: '#484f58',
           red: '#ff7b72',
           green: '#3fb950',
@@ -904,6 +905,24 @@ export function getWebUiHtml(): string {
       agentTerm.open(document.getElementById('agent-view'));
       agentFit.fit();
 
+      // Forward Ctrl+C from agentTerm to cancel active turns
+      agentTerm.attachCustomKeyEventHandler(e => {
+        if (e.ctrlKey && e.key === 'c' && e.type === 'keydown') {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'agent_input', data: '\x03' }));
+          }
+          return false;
+        }
+        return true;
+      });
+
+      document.getElementById('agent-view').addEventListener('click', () => {
+        if (!window.getSelection().toString()) {
+          const chatInput = document.getElementById('chat-input');
+          if (chatInput) chatInput.focus();
+        }
+      });
+
       ptyTerm = new Terminal({
         cursorBlink: true,
         fontSize: termFontSize,
@@ -922,7 +941,8 @@ export function getWebUiHtml(): string {
       ptyTerm.open(document.getElementById('pty-view'));
 
       agentTerm.onData(data => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
+        // Output-only view: only forward Ctrl+C cancel signal
+        if (data === '\x03' && ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'agent_input', data }));
         }
       });
@@ -949,7 +969,8 @@ export function getWebUiHtml(): string {
       setTimeout(() => {
         if (tab === 'agent') {
           agentFit.fit();
-          agentTerm.focus();
+          const chatInput = document.getElementById('chat-input');
+          if (chatInput) chatInput.focus();
         } else {
           ptyFit.fit();
           ptyTerm.focus();
@@ -1721,6 +1742,8 @@ export function getWebUiHtml(): string {
       connectWs();
       loadModels();
       refreshFiles();
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput) chatInput.focus();
     };
   </script>
 </body>

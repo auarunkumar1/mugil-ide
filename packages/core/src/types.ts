@@ -189,5 +189,7 @@ export type PipelineEvent =
    * replayed as one delta", so the buffered replay would be rendered with
    * streaming presentation. The replay is always exactly ONE delta.
    */
-  | { type: 'delta'; text: string; streamed: boolean };
+  | { type: 'delta'; text: string; streamed: boolean }
+  /** Live reasoning / thinking fragment as it arrives from reasoning-capable models. */
+  | { type: 'thinking'; text: string; streamed: boolean };
 

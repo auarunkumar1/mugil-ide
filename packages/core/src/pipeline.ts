@@ -320,6 +320,7 @@ export class Pipeline {
           // decision; the pipeline only reports what arrived, including whether
           // it arrived incrementally (`streamed`) or as the buffered replay.
           onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }),
+          onThinking: (text, streamed) => emit({ type: 'thinking', text, streamed: streamed === true }),
         }).run(messages, {
           ...options,
           tools: options.tools!,
@@ -330,7 +331,10 @@ export class Pipeline {
           this.handoff,
           messages,
           { ...options, maxTokens },
-          { onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }) },
+          {
+            onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }),
+            onThinking: (text, streamed) => emit({ type: 'thinking', text, streamed: streamed === true }),
+          },
         );
     emit({
       type: 'handoff',

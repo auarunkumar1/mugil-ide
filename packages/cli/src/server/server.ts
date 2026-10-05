@@ -664,7 +664,6 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   });
 
   wss.on('connection', async (ws: WebSocket) => {
-    let inputBuffer = '';
     let ptySession: PtyInstance | null = null;
 
     // Mid-task `question` tool round-trip: server asks → browser picks → answer.
@@ -881,34 +880,16 @@ repl.setMode(newMode);
           // If a full command string was sent (e.g. from quick input or modal)
           if (rawData.includes('\r') || rawData.includes('\n')) {
             const cleanText = rawData.replace(/[\r\n]+$/, '');
-            const fullLine = inputBuffer + cleanText;
-            inputBuffer = '';
             sendAgentData(cleanText + '\r\n');
-            await repl.handleInput(fullLine);
+            await repl.handleInput(cleanText);
             sendStatusNow();
             return;
           }
 
-          // Handle single character inputs from xterm.js
+          // Handle single character inputs from xterm.js (e.g. Ctrl+C)
           const char = rawData;
-          // Handle Enter / Return
-          if (char === '\r' || char === '\n') {
-            sendAgentData('\r\n');
-            const lineToRun = inputBuffer;
-            inputBuffer = '';
-            await repl.handleInput(lineToRun);
-            sendStatusNow();
-          }
-          // Handle Backspace (\x7f or \x08)
-          else if (char === '\x7f' || char === '\x08') {
-            if (inputBuffer.length > 0) {
-              inputBuffer = inputBuffer.slice(0, -1);
-              sendAgentData('\b \b');
-            }
-          }
           // Handle Ctrl+C (\x03)
-          else if (char === '\x03') {
-            inputBuffer = '';
+          if (char === '\x03') {
             // Cancel the running turn first — otherwise Ctrl-C just clears the
             // input box and the session stays wedged until the request returns.
             if (repl.cancelTurn()) {
@@ -917,11 +898,6 @@ repl.setMode(newMode);
               sendAgentData('^C\r\n');
               repl.printPrompt();
             }
-          }
-          // Handle normal printable characters
-          else if (char >= ' ' || char === '\t') {
-            inputBuffer += char;
-            sendAgentData(char);
           }
         } else if (msg.type === 'pty_input') {
           if (msg.data) {

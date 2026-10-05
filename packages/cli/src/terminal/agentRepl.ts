@@ -38,7 +38,7 @@ connectMcpServers,
   saveMode,
   type ConversationTurn,
 } from '@mugil-ide/core';
-import { ANSI, c, bold, dim, cyan, green, yellow, red, magenta, formatMarkdown } from './ansi.js';
+import { ANSI, c, bold, dim, cyan, green, yellow, red, magenta, formatMarkdown, StreamMarkdown } from './ansi.js';
 
 export interface ReplIO {
   write: (data: string) => void;
@@ -797,6 +797,9 @@ export class AgentRepl {
     // handler can see what was left on screen.
     let streamed = '';
     let streamedRegion = false;
+    let streamedThinking = '';
+    let thinkingRegion = false;
+    const streamMarkdown = new StreamMarkdown();
 
     this.io.write('\r\n' + `${ANSI.bold}${ANSI.cyan}` + '─'.repeat(64) + `${ANSI.reset}\r\n`);
     this.io.write(`  ${bold(cyan(`Turn #${currentTurnId}`))} ${dim('— Thinking & Planning...')}\r\n`);
@@ -899,9 +902,12 @@ export class AgentRepl {
             // This completion asked for tools, so what it streamed was the model
             // narrating intent, not the answer. Say so, then start the next
             // completion's region clean so the two cannot splice together.
-            if (streamed.trim().length > 0) {
+            if (streamed.trim().length > 0 || streamedThinking.trim().length > 0) {
               this.io.write(`\r\n  ${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`);
               streamed = '';
+              streamedThinking = '';
+              thinkingRegion = false;
+              streamMarkdown.reset();
             }
             const argsObj = event.args ? (typeof event.args === 'string' ? JSON.parse(event.args) : event.args) : {};
             toolsCalled.push({ name: event.name, args: argsObj });
@@ -934,25 +940,31 @@ export class AgentRepl {
             } else {
               this.io.write(`  ${red('✗')} Tool Error: ${red(event.result || 'failed')}\r\n`);
             }
+          } else if (event.type === 'thinking') {
+            if (event.streamed) {
+              if (!thinkingRegion) {
+                thinkingRegion = true;
+                this.io.write(`\r\n${magenta('💭 Reasoning / Thinking:')}\r\n`);
+              }
+              streamedThinking += event.text;
+              this.io.write(dim(event.text.replace(/\r?\n/g, '\r\n')));
+            }
           } else if (event.type === 'delta') {
             // A buffered whole-answer replay is not live output: ignore it, so
             // the formatted answer is printed below exactly as it was before
             // streaming existed.
             if (event.streamed) {
+              if (thinkingRegion) {
+                thinkingRegion = false;
+                this.io.write('\r\n');
+              }
               if (!streamedRegion) {
                 // First fragment: take over the blank line under the header.
                 streamedRegion = true;
                 this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
               }
               streamed += event.text;
-              // Raw fragments carry bare `\n`, which steps down a line without
-              // returning the carriage in both the terminal and xterm, so text
-              // would staircase. Normalising each fragment on its own is
-              // stateless — but a `\r` ending one fragment and a `\n` starting
-              // the next becomes `\r\r\n` and leaves a blank line. Fixing that
-              // needs cross-fragment state, which streaming exists to avoid, so
-              // a split at the boundary is the accepted cost.
-              this.io.write(event.text.replace(/\r?\n/g, '\r\n'));
+              this.io.write(streamMarkdown.process(event.text));
             }
           }
         },
@@ -980,12 +992,17 @@ export class AgentRepl {
         this.messageHistory = this.messageHistory.slice(-20);
       }
 
+      if (thinkingRegion) {
+        thinkingRegion = false;
+        this.io.write('\r\n');
+      }
+
       // Thinking reasoning block if present. Suppressed when that exact text is
-      // already in the streamed region: a DeepSeek-R1 style model inlines its
-      // reasoning in the answer, so the fragments printed it verbatim and the
-      // block would be a literal duplicate of what is already on screen.
+      // already in the streamed region or streamed thinking block.
       const thinking = result.thinking?.trim() ?? '';
-      const alreadyOnScreen = thinking.length > 0 && streamed.includes(thinking);
+      const alreadyOnScreen =
+        streamedThinking.trim().length > 0 ||
+        (thinking.length > 0 && streamed.includes(thinking));
       if (result.thinking && !alreadyOnScreen) {
         this.io.write(`\r\n${magenta('💭 Reasoning / Thinking:')}\r\n`);
         const formattedThinking = result.thinking
@@ -1018,6 +1035,8 @@ export class AgentRepl {
       if (!streamedIsAnswer) {
         this.io.write(`${formatMarkdown(result.response)}\r\n`);
       } else {
+        const trailing = streamMarkdown.flush();
+        if (trailing) this.io.write(trailing);
         // Start a fresh line so the footer never lands on the last streamed one.
         this.io.write('\r\n');
       }

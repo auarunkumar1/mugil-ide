@@ -94,9 +94,14 @@ The engine modules are built and unit-tested, but **only a subset is wired into 
 - **Dark Theme Custom Scrollbars & Dynamic Zoom (wired)**: Sleek `#30363d` dark scrollbars
   across all panes, modals, and terminals; increased default typography; and header `A-` / `A+`
   zoom controls (`Ctrl + / -`) with `localStorage` persistence and automatic xterm font resizing.
-- **Live Streaming Model Output (wired)**: Token-by-token SSE streaming for OpenAI, Anthropic,
-  and OpenCode Zen gateways with live rendering in the browser terminal and REPL; graceful fallback
+- **Live Streaming Model Output & Stream Markdown (wired)**: Token-by-token SSE streaming for OpenAI,
+  Anthropic, and OpenCode Zen gateways with live rendering in the browser terminal and REPL; real-time
+  inline markdown formatting (`StreamMarkdown`) for headers, lists, code fences, and bold; graceful fallback
   to buffered completions; trailing status frame rate-limiting; and `MUGIL_IDE_NO_STREAM=1` override.
+- **Thinking Output Stream & `<think>` Separation (wired)**: DeepSeek-R1 reasoning blocks and `<think>`
+  tags stream live above the assistant response, eliminating post-turn misplaced thinking.
+- **Query Input Isolation (wired)**: Dedicated query input in `#chat-input` with terminal stdin locking,
+  preventing accidental query bundling or keystroke leakage.
 - **Turn Cancellation & Subagent Abort (wired)**: Ctrl-C cancels in-flight completion turns cleanly,
   labelling partial outputs and propagating `AbortSignal` all the way down through the pipeline,
   tool loop, and running subagents.
@@ -107,7 +112,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.13
+mugil-ide --version         # 0.1.14
 mugil-ide                   # starts the local server and opens your browser
 ```
 
