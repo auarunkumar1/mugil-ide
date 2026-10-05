@@ -187,6 +187,8 @@ export class SmartCache {
     keyModel?: string,
     /** True when the response came from the offline mock client. */
     mock?: boolean,
+    /** True when the response is a concatenation of an earlier answer plus a delta. */
+    partial?: boolean,
   ): Promise<void> {
     const normalized = normalizePrompt(prompt);
     if (normalized.length === 0) return;
@@ -202,6 +204,7 @@ export class SmartCache {
       usage,
       embedding: await this.embedding.embed(normalized),
       mock,
+      partial,
     };
     await this.backend.set(entry);
     this.prefixTrie.insert(normalized, entry.key);
@@ -227,6 +230,7 @@ export class SmartCache {
     for (const key of await this.backend.keys()) {
       const entry = await this.backend.get(key);
       if (!entry?.embedding) continue;
+      if (entry.partial) continue;
       if (!matchesScope(entry, model, this.namespace)) continue;
       const score = cosineSimilarity(query, entry.embedding);
       if (score > bestScore) {
@@ -255,7 +259,12 @@ export class SmartCache {
     const trieHit = this.prefixTrie.findLongestPrefix(normalized);
     if (trieHit) {
       const entry = await this.backend.get(trieHit.value);
-      if (entry && matchesScope(entry, model, this.namespace) && this.isContinuation(entry.prompt, normalized)) {
+      if (
+        entry &&
+        !entry.partial &&
+        matchesScope(entry, model, this.namespace) &&
+        this.isContinuation(entry.prompt, normalized)
+      ) {
         return {
           entry,
           kind: 'partial',
@@ -277,6 +286,7 @@ export class SmartCache {
         continue;
       }
       if (!matchesScope(entry, model, this.namespace)) continue;
+      if (entry.partial) continue;
       if (this.isContinuation(entry.prompt, normalized)) {
         best = entry;
       }

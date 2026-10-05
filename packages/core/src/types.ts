@@ -132,6 +132,12 @@ export interface CacheEntry {
    * marker alone is ambiguous, so the flag is authoritative.
    */
   mock?: boolean;
+  /**
+   * True when `response` is an earlier answer concatenated with a continuation.
+   * A partial hit is never served on top of a `partial` entry, so spliced
+   * answers cannot compound across three or more turns.
+   */
+  partial?: boolean;
 }
 
 export interface AskResult {
