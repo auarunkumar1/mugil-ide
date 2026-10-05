@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-10-05
+
 ### Fixed
 
 - **Terminal Query Input Bundling**: Typing into `agentTerm` accumulated keystrokes into a server-side buffer that concatenated with subsequent `#chat-input` queries. Disabled stdin on `agentTerm` in the web UI (preserving Ctrl+C interrupt support), auto-focused `#chat-input`, and removed buffer concatenation on `agent_input` so queries execute cleanly and independently.
@@ -211,3 +213,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.12]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.12
 
 [0.1.13]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.13
+
+[0.1.14]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.14
