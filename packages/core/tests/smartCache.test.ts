@@ -1,4 +1,4 @@
-import { SmartCache, PrefixTrie } from '../src/modules/smart-cache/index.js';
+import { SmartCache, PrefixTrie, type SmartCacheOptions } from '../src/modules/smart-cache/index.js';
 import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { cosineSimilarity, LexicalEmbedding } from '../src/modules/smart-cache/embeddings.js';
 
@@ -79,8 +79,8 @@ describe('SmartCache', () => {
 
   it('partial hit returns the delta', async () => {
     const cache = makeCache();
-    await cache.store('Write a function that adds two numbers.', 'add(a, b)', 'm');
-    const { kind, delta } = await cache.lookup('Write a function that adds two numbers. Then test it.');
+    await cache.store('Write a function that adds two numbers together.', 'add(a, b)', 'm');
+    const { kind, delta } = await cache.lookup('Write a function that adds two numbers together. Then test it.');
     expect(kind).toBe('partial');
     expect(delta).toContain('Then test it');
   });
@@ -281,5 +281,57 @@ describe('PrefixTrie', () => {
 
     const noMatch = trie.findLongestPrefix('goodbye');
     expect(noMatch).toBeUndefined();
+  });
+});
+
+describe('partial lookup guards', () => {
+  const mk = (opts: Partial<SmartCacheOptions> = {}) => {
+    const backend = new MemoryBackend();
+    return new SmartCache({
+      backend,
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+      ...opts,
+    });
+  };
+
+  it('rejects a shared prefix that is too short a fraction of the new prompt', async () => {
+    const cache = mk();
+    // 30 chars stored; the new prompt is 300 chars, so 10% overlap.
+    await cache.store(
+      'fix the parser bug in the lexer',
+      'The bug is in scanNumber.',
+      'm',
+    );
+    const res = await cache.lookup(
+      'fix the parser bug in the lexer and also rewrite the tokenizer to be iterative instead of recursive please',
+    );
+    expect(res.kind).not.toBe('partial');
+    expect(res.entry).toBeUndefined();
+  });
+
+  it('rejects a shared prefix shorter than the absolute floor', async () => {
+    const cache = mk();
+    await cache.store('fix it', 'answer', 'm');
+    const res = await cache.lookup('fix it and also add a test');
+    expect(res.kind).not.toBe('partial');
+  });
+
+  it('still hits when the shared prefix is substantial', async () => {
+    const cache = mk();
+    const base =
+      'Refactor the tokenizer so that lexNumber no longer allocates a temporary buffer for every character it scans, ';
+    await cache.store(base, 'Here is the refactor.', 'm');
+    const res = await cache.lookup(base + 'and add property tests for it.');
+    expect(res.kind).toBe('partial');
+    expect(res.delta).toBe('and add property tests for it.');
+  });
+
+  it('honours an explicit partialMinRatio of 1 to disable partial hits', async () => {
+    const cache = mk({ partialMinRatio: 1 });
+    const base = 'Explain the retry ladder in detail. ';
+    await cache.store(base, 'Here it is.', 'm');
+    const res = await cache.lookup(base + 'Now do the same for timeouts.');
+    expect(res.kind).not.toBe('partial');
   });
 });

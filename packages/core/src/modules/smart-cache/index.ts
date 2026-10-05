@@ -14,6 +14,15 @@ export interface SmartCacheOptions {
    * happens to ask the same question.
    */
   namespace?: string;
+  /**
+   * Minimum fraction of a new prompt that must already be cached before a
+   * partial (continuation) hit is allowed. Without this, any two prompts
+   * sharing a short prefix — a pasted file header, a common preamble — spliced
+   * two unrelated answers together.
+   */
+  partialMinRatio?: number;
+  /** Absolute floor on the shared prefix, in characters. */
+  partialMinChars?: number;
 }
 
 /**
@@ -87,6 +96,8 @@ export class SmartCache {
   private readonly embedding: EmbeddingProvider;
   private readonly threshold: number;
   private readonly namespace: string | undefined;
+  private readonly partialMinRatio: number;
+  private readonly partialMinChars: number;
   private readonly prefixTrie = new PrefixTrie<string>();
   private lookups = 0;
   private exactHits = 0;
@@ -101,6 +112,8 @@ export class SmartCache {
     this.embedding = options.embedding ?? new LexicalEmbedding();
     this.threshold = options.semanticThreshold ?? 0.85;
     this.namespace = options.namespace;
+    this.partialMinRatio = resolveRatio(options.partialMinRatio);
+    this.partialMinChars = options.partialMinChars ?? 40;
   }
 
   getMetrics(): CacheMetrics {
@@ -224,6 +237,16 @@ export class SmartCache {
     return best ? { entry: best } : undefined;
   }
 
+  /**
+   * True when `candidate` is a long enough prefix of `normalized` to be a
+   * genuine continuation rather than a coincidental prefix collision.
+   */
+  private isContinuation(candidate: string, normalized: string): boolean {
+    if (candidate.length < this.partialMinChars) return false;
+    if (candidate.length / normalized.length < this.partialMinRatio) return false;
+    return normalized.startsWith(candidate);
+  }
+
   private async partialLookup(
     normalized: string,
     model?: string,
@@ -232,7 +255,7 @@ export class SmartCache {
     const trieHit = this.prefixTrie.findLongestPrefix(normalized);
     if (trieHit) {
       const entry = await this.backend.get(trieHit.value);
-      if (entry && matchesScope(entry, model, this.namespace) && normalized.startsWith(entry.prompt)) {
+      if (entry && matchesScope(entry, model, this.namespace) && this.isContinuation(entry.prompt, normalized)) {
         return {
           entry,
           kind: 'partial',
@@ -254,7 +277,7 @@ export class SmartCache {
         continue;
       }
       if (!matchesScope(entry, model, this.namespace)) continue;
-      if (normalized.startsWith(entry.prompt)) {
+      if (this.isContinuation(entry.prompt, normalized)) {
         best = entry;
       }
     }
@@ -284,4 +307,20 @@ function cacheKeyFor(normalized: string, model?: string, namespace?: string): st
  */
 function matchesScope(entry: CacheEntry, model: string | undefined, namespace: string | undefined): boolean {
   return entry.key === cacheKeyFor(normalizePrompt(entry.prompt), model, namespace);
+}
+
+/**
+ * Reads the partial-hit ratio: explicit option first, then
+ * `MUGIL_IDE_PARTIAL_MIN_RATIO`, then the 0.6 default. Invalid or
+ * out-of-range values fall back to the default rather than throwing — a cache
+ * guard must never break a turn.
+ */
+function resolveRatio(explicit: number | undefined): number {
+  const raw =
+    explicit ??
+    (typeof process !== 'undefined' && process.env?.MUGIL_IDE_PARTIAL_MIN_RATIO
+      ? Number(process.env.MUGIL_IDE_PARTIAL_MIN_RATIO)
+      : undefined);
+  if (raw === undefined || !Number.isFinite(raw) || raw <= 0 || raw > 1) return 0.6;
+  return raw;
 }
