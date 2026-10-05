@@ -17,8 +17,17 @@ import type { ChatMessage, HandoffOptions, ToolCall } from '../../types.js';
 import type { HandoffManager, HandoffResult } from './index.js';
 
 export interface StreamHandlers {
-  /** Called for each visible text fragment, in order. */
-  onDelta?: (text: string) => void;
+  /**
+   * Called for each visible text fragment, in order.
+   *
+   * `streamed` is the provenance flag: `true` only for a fragment that arrived
+   * incrementally over SSE, `false` for a whole-answer replay the buffered
+   * fallback emits. It defaults to `false` when omitted, so a call site that
+   * passes only the text (every provider client's mock branch) is always
+   * classified as buffered — the safe direction, since a renderer that cannot
+   * prove text was incremental must not present it as if it were.
+   */
+  onDelta?: (text: string, streamed?: boolean) => void;
   /** Called for each reasoning fragment (thinking / reasoning_content). */
   onThinking?: (text: string) => void;
 }
@@ -133,7 +142,7 @@ export async function parseOpenAiSse(
     const delta = choice.delta ?? {};
     if (typeof delta.content === 'string' && delta.content.length > 0) {
       content += delta.content;
-      handlers.onDelta?.(delta.content);
+      handlers.onDelta?.(delta.content, true);
     }
     const reasoning = delta.reasoning_content ?? delta.reasoning;
     if (typeof reasoning === 'string' && reasoning.length > 0) {
@@ -206,7 +215,7 @@ export async function parseAnthropicSse(
     if (!delta) continue;
     if (delta.type === 'text_delta' && typeof delta.text === 'string') {
       content += delta.text;
-      handlers.onDelta?.(delta.text);
+      handlers.onDelta?.(delta.text, true);
     } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
       thinking += delta.thinking;
       handlers.onThinking?.(delta.thinking);
@@ -246,9 +255,10 @@ export type StreamCompletionOptions = HandoffOptions;
  * always walks the same ladder, `fallbackChain` and break policy as
  * `complete()`. Streaming is best-effort: a client with no `stream()`, a
  * caller passing `stream: false`, or the process-wide `MUGIL_IDE_NO_STREAM=1`
- * kill switch replays the buffered answer as one delta, which is
- * indistinguishable from a real stream; and a provider that rejects SSE
- * degrades to the next model rather than crashing the turn.
+ * kill switch replays the buffered answer as ONE delta carrying
+ * `streamed: false`, so a renderer can tell that replay from a real stream and
+ * present it exactly as it did before streaming existed; and a provider that
+ * rejects SSE degrades to the next model rather than crashing the turn.
  *
  * This function is the single place that decides stream-vs-buffered, so the
  * kill switch covers every caller — including tool loops that build their own
@@ -262,7 +272,7 @@ export async function streamCompletion(
 ): Promise<HandoffResult> {
   if (options.stream === false || process.env.MUGIL_IDE_NO_STREAM === '1') {
     const result = await manager.complete(messages, options);
-    if (result.content.length > 0) handlers.onDelta?.(result.content);
+    if (result.content.length > 0) handlers.onDelta?.(result.content, false);
     if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
     return result;
   }

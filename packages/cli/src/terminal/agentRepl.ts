@@ -849,18 +849,17 @@ export class AgentRepl {
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
 
-      // Streaming render state. A `delta` event does NOT prove the answer is
-      // arriving incrementally: the buffered fallback (stream:false, no
-      // client.stream(), MUGIL_IDE_NO_STREAM=1) emits ONE delta holding the
-      // whole answer. So nothing here may assume more than one fragment, and
-      // `streamed` tracks the completion currently in flight, not the turn —
-      // it resets when a tool call proves a new completion has begun.
+      // Streaming render state. Only a delta flagged `streamed: true` — a
+      // fragment that really arrived incrementally over SSE — takes the live
+      // path. The buffered fallback (stream:false, no client.stream(),
+      // MUGIL_IDE_NO_STREAM=1) emits ONE delta carrying the whole answer, and
+      // it is ignored here so the kill switch renders byte-for-byte what it
+      // rendered before streaming existed: `formatMarkdown(result.response)`.
+      // `streamed` is the text currently in the answer region — the completion
+      // in flight, not the turn — so it resets when a tool call proves a new
+      // completion has begun.
       let streamed = '';
-      let streamingActive = false;
-      // Set when the handoff ladder tried more than one model. Every attempt
-      // gets the caller's handlers, so a stream that died mid-flight leaves
-      // another answer's deltas in the same region.
-      let ladderRetried = false;
+      let streamedRegion = false;
 
       const result = await this.engine.pipeline.ask(prompt, {
         preferredModel: this.getActiveModel(),
@@ -933,21 +932,25 @@ export class AgentRepl {
               this.io.write(`  ${red('✗')} Tool Error: ${red(event.result || 'failed')}\r\n`);
             }
           } else if (event.type === 'delta') {
-            if (!streamingActive) {
-              // First fragment: take over the blank line under the header.
-              streamingActive = true;
-              this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
+            // A buffered whole-answer replay is not live output: ignore it, so
+            // the formatted answer is printed below exactly as it was before
+            // streaming existed.
+            if (event.streamed) {
+              if (!streamedRegion) {
+                // First fragment: take over the blank line under the header.
+                streamedRegion = true;
+                this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
+              }
+              streamed += event.text;
+              // Raw fragments carry bare `\n`, which steps down a line without
+              // returning the carriage in both the terminal and xterm, so text
+              // would staircase. Normalising each fragment on its own is
+              // stateless — but a `\r` ending one fragment and a `\n` starting
+              // the next becomes `\r\r\n` and leaves a blank line. Fixing that
+              // needs cross-fragment state, which streaming exists to avoid, so
+              // a split at the boundary is the accepted cost.
+              this.io.write(event.text.replace(/\r?\n/g, '\r\n'));
             }
-            streamed += event.text;
-            // Raw fragments carry bare `\n`, which steps down a line without
-            // returning the carriage in both the terminal and xterm, so text
-            // would staircase. Normalising each fragment on its own needs no
-            // cross-fragment state, and a lone `\r` fragment is harmless.
-            this.io.write(event.text.replace(/\r?\n/g, '\r\n'));
-          } else if (event.type === 'handoff') {
-            // More than one model tried, so a retry re-ran the same handlers:
-            // what is on screen can be two answers spliced together.
-            ladderRetried = event.attempts.length > 1;
           }
         },
       });
@@ -974,8 +977,13 @@ export class AgentRepl {
         this.messageHistory = this.messageHistory.slice(-20);
       }
 
-      // Thinking reasoning block if present
-      if (result.thinking) {
+      // Thinking reasoning block if present. Suppressed when that exact text is
+      // already in the streamed region: a DeepSeek-R1 style model inlines its
+      // reasoning in the answer, so the fragments printed it verbatim and the
+      // block would be a literal duplicate of what is already on screen.
+      const thinking = result.thinking?.trim() ?? '';
+      const alreadyOnScreen = thinking.length > 0 && streamed.includes(thinking);
+      if (result.thinking && !alreadyOnScreen) {
         this.io.write(`\r\n${magenta('💭 Reasoning / Thinking:')}\r\n`);
         const formattedThinking = result.thinking
           .split('\n')
@@ -984,19 +992,24 @@ export class AgentRepl {
         this.io.write(`${formattedThinking}\r\n`);
       }
 
-      // Exactly one of the two paths below prints the answer. The streamed
-      // region counts as the answer only when the FINAL completion streamed it
-      // and no retry intervened; otherwise the formatted text is the only
-      // trustworthy copy and the fragments on screen were something else.
-      const streamedIsAnswer = streamed.trim().length > 0 && !ladderRetried;
-      if (streamingActive && !streamedIsAnswer) {
+      // Exactly one of the two paths below prints the answer. `streamed` holds only
+      // fragments that arrived incrementally, so a non-empty `streamed` means
+      // the region on screen IS the final answer; otherwise nothing was live
+      // (buffered replay, kill switch) and the formatted text is the only copy.
+      const streamedIsAnswer = streamed.trim().length > 0;
+      if (streamedIsAnswer && streamed.trim() !== result.response.trim()) {
+        // Post-processing runs on the AGGREGATE, long after the fragments are on
+        // screen: a DeepSeek-R1 `<think>` block and an AI watermark are only
+        // lifted from the aggregate, and a partial cache hit prefixes what the
+        // cache already had. Say the screen and the store diverged — but do NOT
+        // reprint the answer, which would duplicate it on screen.
         this.io.write(
-          `\r\n  ${yellow(ladderRetried ? '⚠ Stream restarted on another model — showing the final answer only.' : '⚠ Streamed text was not the final answer — showing it below.')}\r\n`,
+          `\r\n  ${yellow('⚠ Streamed text is not what was stored')}${dim(' — post-processing (think blocks / watermarks) rewrote the answer; history, the session file and the cache hold the cleaned text.')}\r\n`,
         );
       }
 
       // Assistant Response (the header is already on screen if anything streamed)
-      if (!streamingActive) {
+      if (!streamedRegion) {
         this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
       }
       if (!streamedIsAnswer) {

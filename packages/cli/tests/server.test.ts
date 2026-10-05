@@ -892,9 +892,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       mock: false,
       complete: async () => scriptedResult({ content: 'unused' }),
       stream: async (_messages: unknown, _options: unknown, handlers: any) => {
-        handlers?.onDelta?.('Hello ');
+        handlers?.onDelta?.('Hello ', true);
         await midFlight;
-        handlers?.onDelta?.('world');
+        handlers?.onDelta?.('world', true);
         return scriptedResult({
           provider: 'openai',
           model: 'm',
@@ -950,7 +950,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         calls += 1;
         if (calls === 1) {
           // Narration, then a tool call: the narration was never the answer.
-          handlers?.onDelta?.('Let me look that up.');
+          handlers?.onDelta?.('Let me look that up.', true);
           return scriptedResult({
             finishReason: 'tool_calls',
             toolCalls: [
@@ -962,7 +962,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
             ],
           });
         }
-        handlers?.onDelta?.('The answer.');
+        handlers?.onDelta?.('The answer.', true);
         return scriptedResult({ content: 'The answer.' });
       },
     } as unknown as ProviderClient;

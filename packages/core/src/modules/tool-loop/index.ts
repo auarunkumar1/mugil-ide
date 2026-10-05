@@ -45,9 +45,11 @@ export interface ToolLoopOptions {
   /**
    * Called with each streamed text fragment as it arrives. The text is
    * provisional: a completion that streams and then requests tool calls makes
-   * the consumer discard what it rendered.
+   * the consumer discard what it rendered. `streamed` is the provenance flag
+   * forwarded from `StreamHandlers` (`false` for the buffered whole-answer
+   * replay) — the loop adds no interpretation of its own.
    */
-  onDelta?: (text: string) => void;
+  onDelta?: (text: string, streamed?: boolean) => void;
 }
 
 export interface ToolLoopRunOptions extends HandoffOptions {
@@ -101,7 +103,7 @@ export class ToolLoop {
   private readonly onTool?: (call: ToolCall, index: number) => void;
   private readonly onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
   private readonly sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
-  private readonly onDelta?: (text: string) => void;
+  private readonly onDelta?: (text: string, streamed?: boolean) => void;
   private readonly handlers: StreamHandlers;
 
   constructor(options: ToolLoopOptions) {
