@@ -571,4 +571,69 @@ describe('Pipeline', () => {
       delete process.env.MUGIL_IDE_NO_STREAM;
     }
   });
+
+  it('gives the model the shared context on a partial cache hit, not just the delta', async () => {
+    const base =
+      'Refactor the tokenizer so that lexNumber no longer allocates a temporary buffer for every character it scans. ';
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'live-model',
+        content: 'Now the tests.',
+        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+        finishReason: 'stop',
+      }),
+    } as unknown as ProviderClient;
+    const cache = new SmartCache({
+      backend: new MemoryBackend(),
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+    });
+    const pipeline = new Pipeline({
+      cache,
+      handoff: new HandoffManager({ client, models: MODELS }),
+    });
+
+    await pipeline.ask(base);
+    const second = await pipeline.ask(base + 'Now add property tests for it.');
+
+    expect(second.cache.kind).toBe('partial');
+    const sent = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
+    const userMessage = sent[sent.length - 1]!.content;
+    // The shared prefix is present, so the model can answer the whole question.
+    expect(userMessage).toContain('lexNumber no longer allocates');
+    expect(userMessage).toContain('Now add property tests for it.');
+  });
+
+  it('does not splice responses when the shared prefix is too small', async () => {
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'live-model',
+        content: 'fresh answer',
+        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+        finishReason: 'stop',
+      }),
+    } as unknown as ProviderClient;
+    const cache = new SmartCache({
+      backend: new MemoryBackend(),
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+    });
+    const pipeline = new Pipeline({
+      cache,
+      handoff: new HandoffManager({ client, models: MODELS }),
+    });
+
+    await pipeline.ask('fix the parser bug in the lexer');
+    const second = await pipeline.ask(
+      'fix the parser bug in the lexer and also rewrite the tokenizer to be iterative instead of recursive',
+    );
+
+    expect(second.cache.kind).not.toBe('partial');
+    expect(second.response).toBe('fresh answer');
+    expect(second.response).not.toContain('fix the parser bug in the lexer');
+  });
 });
