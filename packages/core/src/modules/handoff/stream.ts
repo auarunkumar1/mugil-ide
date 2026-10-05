@@ -29,7 +29,7 @@ export interface StreamHandlers {
    */
   onDelta?: (text: string, streamed?: boolean) => void;
   /** Called for each reasoning fragment (thinking / reasoning_content). */
-  onThinking?: (text: string) => void;
+  onThinking?: (text: string, streamed?: boolean) => void;
 }
 
 export interface StreamedCompletion {
@@ -113,6 +113,68 @@ function safeJson(data: string): Record<string, unknown> | undefined {
   }
 }
 
+class StreamThinkSplitter {
+  private inThink = false;
+  private pending = '';
+
+  process(
+    chunk: string,
+    onContent: (text: string) => void,
+    onThinking: (text: string) => void,
+  ): void {
+    let text = this.pending + chunk;
+    this.pending = '';
+
+    while (text.length > 0) {
+      if (!this.inThink) {
+        const startIdx = text.indexOf('<think>');
+        if (startIdx === -1) {
+          const partialMatch = text.match(/<t?(?:h(?:i(?:n(?:k)?)?)?)?$/);
+          if (partialMatch && partialMatch.index !== undefined) {
+            const emit = text.slice(0, partialMatch.index);
+            if (emit.length > 0) onContent(emit);
+            this.pending = text.slice(partialMatch.index);
+            return;
+          }
+          onContent(text);
+          return;
+        } else {
+          const before = text.slice(0, startIdx);
+          if (before.length > 0) onContent(before);
+          this.inThink = true;
+          text = text.slice(startIdx + 7);
+        }
+      } else {
+        const endIdx = text.indexOf('</think>');
+        if (endIdx === -1) {
+          const partialMatch = text.match(/<\/t?(?:h(?:i(?:n(?:k(?:>)?)?)?)?)?$/);
+          if (partialMatch && partialMatch.index !== undefined) {
+            const emit = text.slice(0, partialMatch.index);
+            if (emit.length > 0) onThinking(emit);
+            this.pending = text.slice(partialMatch.index);
+            return;
+          }
+          onThinking(text);
+          return;
+        } else {
+          const thinkText = text.slice(0, endIdx);
+          if (thinkText.length > 0) onThinking(thinkText);
+          this.inThink = false;
+          text = text.slice(endIdx + 8);
+        }
+      }
+    }
+  }
+
+  flush(onContent: (text: string) => void, onThinking: (text: string) => void): void {
+    if (this.pending.length > 0) {
+      if (this.inThink) onThinking(this.pending);
+      else onContent(this.pending);
+      this.pending = '';
+    }
+  }
+}
+
 export async function parseOpenAiSse(
   body: ReadableStream<Uint8Array>,
   handlers: StreamHandlers = {},
@@ -122,6 +184,7 @@ export async function parseOpenAiSse(
   let finishReason: string | undefined;
   let usage: StreamedCompletion['usage'];
   let model: string | undefined;
+  const splitter = new StreamThinkSplitter();
   // Tool call fragments arrive keyed by `index`; arguments accumulate across
   // frames and only form valid JSON once complete.
   const partial = new Map<number, { id: string; name: string; args: string }>();
@@ -144,13 +207,22 @@ export async function parseOpenAiSse(
     if (typeof choice.finish_reason === 'string') finishReason = choice.finish_reason;
     const delta = choice.delta ?? {};
     if (typeof delta.content === 'string' && delta.content.length > 0) {
-      content += delta.content;
-      handlers.onDelta?.(delta.content, true);
+      splitter.process(
+        delta.content,
+        (c) => {
+          content += c;
+          handlers.onDelta?.(c, true);
+        },
+        (t) => {
+          thinking += t;
+          handlers.onThinking?.(t, true);
+        },
+      );
     }
     const reasoning = delta.reasoning_content ?? delta.reasoning;
     if (typeof reasoning === 'string' && reasoning.length > 0) {
       thinking += reasoning;
-      handlers.onThinking?.(reasoning);
+      handlers.onThinking?.(reasoning, true);
     }
     for (const tc of (delta.tool_calls as Array<Record<string, any>>) ?? []) {
       const idx = typeof tc.index === 'number' ? tc.index : 0;
@@ -161,6 +233,17 @@ export async function parseOpenAiSse(
       partial.set(idx, slot);
     }
   }
+
+  splitter.flush(
+    (c) => {
+      content += c;
+      handlers.onDelta?.(c, true);
+    },
+    (t) => {
+      thinking += t;
+      handlers.onThinking?.(t, true);
+    },
+  );
 
   const toolCalls: ToolCall[] = [...partial.entries()]
     .sort((a, b) => a[0] - b[0])
@@ -224,7 +307,7 @@ export async function parseAnthropicSse(
       handlers.onDelta?.(delta.text, true);
     } else if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
       thinking += delta.thinking;
-      handlers.onThinking?.(delta.thinking);
+      handlers.onThinking?.(delta.thinking, true);
     } else if (delta.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
       const slot = currentToolIndex !== null ? blocks.get(currentToolIndex) : undefined;
       if (slot) slot.args += delta.partial_json;
@@ -282,7 +365,7 @@ export async function streamCompletion(
   if (options.stream === false || process.env.MUGIL_IDE_NO_STREAM === '1') {
     const result = await manager.complete(messages, options);
     if (result.content.length > 0) handlers.onDelta?.(result.content, false);
-    if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
+    if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking, false);
     return result;
   }
   return manager.stream(messages, options, handlers);

@@ -175,3 +175,130 @@ export function formatMarkdown(text: string): string {
 
   return out.join('\r\n');
 }
+
+/**
+ * Real-time streaming markdown formatter.
+ * Formats incoming chunks token-by-token on the wire without holding back characters,
+ * ensuring immediate token delivery while styling headers, bullets, code blocks, bold,
+ * and inline code.
+ */
+export class StreamMarkdown {
+  private inCodeBlock = false;
+  private inInlineCode = false;
+  private inBold = false;
+  private inHeader = false;
+  private atLineStart = true;
+  private lineBuffer = '';
+
+  public process(chunk: string): string {
+    let out = '';
+    for (let i = 0; i < chunk.length; i++) {
+      const ch = chunk[i]!;
+
+      // Handle newlines
+      if (ch === '\n') {
+        if (this.inHeader) {
+          out += ANSI.reset;
+          this.inHeader = false;
+        }
+        if (this.inCodeBlock && this.lineBuffer.startsWith('```')) {
+          const trimmed = this.lineBuffer.trim();
+          if (trimmed === '```') {
+            out = out.replace(/```[^\n]*$/, `${ANSI.dim}└───${'─'.repeat(50)}┘${ANSI.reset}`);
+            this.inCodeBlock = false;
+          }
+        }
+        out += '\r\n';
+        this.atLineStart = true;
+        this.lineBuffer = '';
+        continue;
+      }
+      if (ch === '\r') continue;
+
+      this.lineBuffer += ch;
+
+      // Code block start check
+      if (this.atLineStart && this.lineBuffer.startsWith('```')) {
+        if (ch === '`' && this.lineBuffer === '```') {
+          if (!this.inCodeBlock) {
+            this.inCodeBlock = true;
+            out += `${ANSI.dim}┌─── code ${'─'.repeat(44)}┐${ANSI.reset}\r\n  ${ANSI.green}`;
+          }
+          continue;
+        }
+      }
+
+      if (this.inCodeBlock) {
+        out += ch;
+        continue;
+      }
+
+      // Header start check (e.g. "# ")
+      if (this.atLineStart && /^#{1,6}\s$/.test(this.lineBuffer)) {
+        this.inHeader = true;
+        this.atLineStart = false;
+        out += `\r\n${ANSI.bold}${ANSI.brightCyan}`;
+        continue;
+      }
+
+      // Bullet start check (e.g. "* " or "- ")
+      if (this.atLineStart && (this.lineBuffer === '* ' || this.lineBuffer === '- ')) {
+        this.atLineStart = false;
+        out += '  • ';
+        continue;
+      }
+
+      // Inline code toggle `
+      if (ch === '`' && !this.inBold) {
+        if (!this.inInlineCode) {
+          this.inInlineCode = true;
+          out += ANSI.yellow;
+        } else {
+          this.inInlineCode = false;
+          out += ANSI.reset;
+        }
+        continue;
+      }
+
+      // Bold toggle **
+      if (ch === '*' && this.lineBuffer.endsWith('**') && !this.inInlineCode) {
+        if (!this.inBold) {
+          this.inBold = true;
+          if (out.endsWith('*')) out = out.slice(0, -1);
+          out += ANSI.bold;
+        } else {
+          this.inBold = false;
+          if (out.endsWith('*')) out = out.slice(0, -1);
+          out += ANSI.reset;
+        }
+        continue;
+      }
+
+      if (this.atLineStart && !/^[#*\- \d.]/.test(ch)) {
+        this.atLineStart = false;
+      }
+
+      out += ch;
+    }
+    return out;
+  }
+
+  public flush(): string {
+    let out = '';
+    if (this.inHeader || this.inBold || this.inInlineCode || this.inCodeBlock) {
+      out += ANSI.reset;
+    }
+    this.inCodeBlock = false;
+    this.inInlineCode = false;
+    this.inBold = false;
+    this.inHeader = false;
+    this.atLineStart = true;
+    this.lineBuffer = '';
+    return out;
+  }
+
+  public reset(): void {
+    this.flush();
+  }
+}
+

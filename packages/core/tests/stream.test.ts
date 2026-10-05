@@ -357,9 +357,20 @@ describe('OpenAiClient.stream', () => {
           'data: [DONE]\n\n',
       )) as unknown as typeof fetch;
     const client = new OpenAiClient({ apiKey: 'sk-test', baseUrl: 'https://example.test/v1' });
-    const out = await client.stream!(MSGS, { model: 'deepseek-r1' });
+    const streamedDeltas: string[] = [];
+    const streamedThinking: string[] = [];
+    const out = await client.stream!(
+      MSGS,
+      { model: 'deepseek-r1' },
+      {
+        onDelta: (t) => streamedDeltas.push(t),
+        onThinking: (t) => streamedThinking.push(t),
+      },
+    );
     expect(out.content).toBe('answer');
     expect(out.thinking).toBe('reason');
+    expect(streamedThinking).toEqual(['reason']);
+    expect(streamedDeltas).toEqual(['answer']);
   });
 });
 
