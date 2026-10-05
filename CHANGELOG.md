@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Partial Cache Spliced Unrelated Answers**: A partial (continuation) cache hit fired whenever a stored prompt was *any* literal prefix of the new one, so two prompts sharing a short common opener — a pasted file header, a shared preamble — produced `cachedAnswer + "\n\n" + newCompletion` as a single confident wrong answer. Partial hits now require the cached prompt to cover at least 60% of the new prompt (`MUGIL_IDE_PARTIAL_MIN_RATIO`) and at least 40 characters, and a stored concatenation can never seed another concatenation.
 - **Output Truncated Mid-Answer (`max_tokens` collapse)**: The prompt-trim budget was doubling as the generation budget. Once history plus tool schemas exceeded `TOKEN_BUDGET`, `max(256, budget − promptTokens − 512)` floored every completion at 256 tokens, cutting replies off mid-sentence with no indication. Generation budget is now sized independently of prompt trimming (`DEFAULT_MAX_OUTPUT_TOKENS=8192`, floor `MIN_MAX_OUTPUT_TOKENS=1024`) and clamped against the routed model's real context window.
 - **`maxTokens` Silently Dropped**: Passing ponytail as `{ outputBudget }` discarded a caller-supplied `maxTokens`. Both are caps now; the tighter wins.
 - **`finish_reason` Ignored**: Providers reported `length`/`max_tokens` and the value was discarded, presenting partial answers as complete. `AskResult.finishReason`/`truncated` now surface it, the TUI prints a truncation warning, and a new `truncated` pipeline event fires.
@@ -38,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Partial Cache Continuation Prompt**: The model is now given the shared prefix alongside the delta instead of the delta alone, so a continuation is answered in the context of the original question.
 - **Web UI Status Frames Are Rate-Limited**: Each `agent_data` frame used to be followed by a `status` frame carrying the same model/mode/token snapshot. With token-by-token output that was two WebSocket frames and two `JSON.stringify` calls per token. Status frames from the write path are now coalesced to roughly one per 100ms plus a guaranteed trailing frame; model, mode and turn lifecycle events still send immediately, and the `status` message contract is unchanged.
 - **Streamed Text Is Not Markdown-Formatted**: Fragments are printed as they arrive, so bullets, headings and code fences render as raw text on the streamed path only. This is inherent — formatting needs the whole answer — and does not affect what is stored or reused.
 - **Streamed Display Can Differ From What Is Stored**: Post-processing (`<think>` extraction, watermark stripping) runs on the aggregate after the fragments are already on screen, so a DeepSeek-R1-style model can show a literal `<think>` block that is not in the saved answer. The REPL warns when what is on screen differs from what was stored.
