@@ -28,8 +28,12 @@ export interface HistoryBudgetResult {
   turns: ConversationTurn[];
   /** Turns dropped because the budget ran out (newest-first walk). */
   droppedCount: number;
+  /** Evicted turns that fell out of the active budget window. */
+  evictedTurns: ConversationTurn[];
   /** Total tokens of the kept turns (prompt + response). */
   tokens: number;
+  /** Dense background summary of evicted turns if any dropped. */
+  compactedSummary?: string;
 }
 
 export const DEFAULT_HISTORY_BUDGET = 16_000;
@@ -43,10 +47,24 @@ export function getHistoryBudget(env: NodeJS.ProcessEnv = process.env): number {
   return DEFAULT_HISTORY_BUDGET;
 }
 
+/** Creates a dense, structured digest of evicted conversation turns without an extra LLM call. */
+export function buildAutonomousCompaction(evictedTurns: ConversationTurn[]): string {
+  if (evictedTurns.length === 0) return '';
+  const lines: string[] = ['[Autonomous context compaction — earlier turns summarized]:'];
+  for (let i = 0; i < evictedTurns.length; i++) {
+    const t = evictedTurns[i]!;
+    const userDense = cavemanStrategy(t.prompt).text.replace(/\s+/g, ' ').slice(0, 150);
+    const assistantDense = rtkStrategy(t.response).text.replace(/\s+/g, ' ').slice(0, 200);
+    lines.push(`• Turn ${i + 1}: User: "${userDense}" → Outcome: "${assistantDense}"`);
+  }
+  return lines.join('\n');
+}
+
 /**
  * Keeps the newest turns that fit within `budgetTokens`, in original order.
  * The newest turn is always kept even if it alone exceeds the budget, so
- * recent context is never silently dropped.
+ * recent context is never silently dropped. Evicted turns are returned
+ * along with a dense autonomous compaction summary.
  */
 export function budgetConversationHistory(
   turns: ConversationTurn[],
@@ -54,6 +72,7 @@ export function budgetConversationHistory(
   options: HistoryBudgetOptions = {},
 ): HistoryBudgetResult {
   const kept: ConversationTurn[] = [];
+  const evicted: ConversationTurn[] = [];
   let tokens = 0;
   let dropped = 0;
   for (let i = turns.length - 1; i >= 0; i -= 1) {
@@ -68,12 +87,14 @@ export function budgetConversationHistory(
     const cost = countTokens(turn.prompt) + countTokens(turn.response);
     if (tokens + cost > budgetTokens && kept.length > 0) {
       dropped += 1;
+      evicted.unshift(turns[i]!);
       continue;
     }
     kept.unshift(turn);
     tokens += cost;
   }
-  return { turns: kept, droppedCount: dropped, tokens };
+  const compactedSummary = evicted.length > 0 ? buildAutonomousCompaction(evicted) : undefined;
+  return { turns: kept, droppedCount: dropped, evictedTurns: evicted, tokens, compactedSummary };
 }
 
 /** Renders turns as plain text for the summarizer (capped in length). */

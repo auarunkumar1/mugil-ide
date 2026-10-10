@@ -105,6 +105,15 @@ The engine modules are built and unit-tested, but **only a subset is wired into 
 - **Turn Cancellation & Subagent Abort (wired)**: Ctrl-C cancels in-flight completion turns cleanly,
   labelling partial outputs and propagating `AbortSignal` all the way down through the pipeline,
   tool loop, and running subagents.
+- **AST / Skeletonized Code Reading (wired)**: `read_skeleton` extracts code signatures, types, and
+  declarations without full function bodies, reducing context consumption by 70–80% during codebase exploration.
+- **Dynamic History Budget & Loop Limits (wired)**: Sliding window via `MUGIL_IDE_HISTORY_BUDGET` (16k default)
+  with older-turn Caveman/RTK compaction, 15 tool iterations default (`MUGIL_IDE_MAX_TOOL_ITERATIONS`),
+  and 48k char tool output safety bounds (`MUGIL_IDE_MAX_TOOL_CHARS`).
+- **Subagent Output Condensation (wired)**: `task` subagent execution findings are automatically compressed
+  via Caveman and RTK before being injected into the parent agent's context history.
+- **Code Search Grouping & Deduplication (wired)**: `search_code` groups results by file header and caps
+  individual match lines at 200 characters to prevent verbose search results from flooding context.
 
 ## Install from npm
 
@@ -359,7 +368,13 @@ The npm packages use the `@mugil-ide/*` scope, matching the product brand
 | `REDIS_CLUSTER_URLS` | — | Comma-separated node URLs; enables the Redis Cluster backend (used when `REDIS_URL` is unset) |
 | `MUGIL_IDE_CACHE_DIR` | `~/.cache/mugil-ide` | File-cache location |
 | `CACHE_TTL` | `3600` | Cache entry TTL (seconds) |
-| `TOKEN_BUDGET` | `10000` | Max tokens per refined prompt |
+| `TOKEN_BUDGET` | `32000` | Max prompt-trimming token budget per turn |
+| `MUGIL_IDE_HISTORY_BUDGET` | `16000` | Token budget for multi-turn conversation history window (older turns compacted / trimmed) |
+| `MUGIL_IDE_MAX_TOOL_ITERATIONS` | `15` | Maximum iterations in the agent tool loop |
+| `MUGIL_IDE_MAX_TOOL_CHARS` | `48000` | Maximum character length for individual tool execution returns |
+| `MUGIL_IDE_NO_STREAM` | `false` | Set to `1` to disable SSE streaming and force buffered completions |
+| `MUGIL_IDE_PARTIAL_MIN_RATIO` | `0.6` | Minimum prefix ratio for partial cache hit validation |
+| `MUGIL_IDE_MODELS_CACHE_TTL` | `3600000` | Remote provider models catalog cache TTL (ms) |
 | `MUGIL_IDE_MODULES_REGISTRY` | — | Remote module-rules registry URL for `mugil-ide update` |
 | `MUGIL_IDE_MODULES_DIR` | `~/.config/mugil-ide/modules` | Where updated module rules are stored |
 | `AI_DEBUG` | `false` | Debug logging |
@@ -419,16 +434,14 @@ Webhooks fire on `turn.started` / `tool.executed` / `turn.completed` /
 
 ### In progress / Next release:
 
-- ⏳ **Autonomous Context Compaction**: Proactive background compaction triggered when conversation history approaches budget thresholds, preserving critical project state and decisions without manual `/compact` or turn eviction.
-- ⏳ **Dynamic History Budget & Limit Scaling**: Configurable history sliding window (16k–32k tokens via `MUGIL_IDE_HISTORY_BUDGET`), tool iteration bump (15–20), adaptive prompt budget (32k–64k), and higher tool output bounds (48k–64k chars).
-- ⏳ **Cross-Provider Prompt Caching & Prefix Stability**: Strict byte-level prefix stability for system prompts, tools, and static context across Anthropic, OpenAI, DeepSeek, and Gemini for consistent 90%+ prompt cache hit rates.
-- ⏳ **Subagent Output Condensation**: Auto-compressing `task` subagent results through Caveman and RTK before injecting into parent agent history (saving 50–60% parent context).
-- ⏳ **AST / Skeletonized Code Reading**: `read_skeleton` / `outline` tool to inspect type signatures, interfaces, and function headers without reading full implementation bodies (70–80% token savings).
-- ⏳ **Unified Git Diff & Command Minimization**: 1-line context diff compression and test/build log noise reduction.
-- ⏳ **Code Search Grouping & Deduplication**: Grouping search hits by file and capping individual match line lengths.
-- ⏳ **Smart Cache Prefix Trie & Telemetry**: Prefix Tree (Trie) for $O(L)$ `partialLookup`, periodic memory backend sweeps, deterministic tool caching, and surfacing `CacheMetrics` in `/stats` and Web UI.
+- ⏳ **Cross-Provider Prompt Caching & Prefix Stability**: Strict byte-level prefix stability and prompt cache breakpoints extended across OpenAI, DeepSeek, and Gemini gateways (beyond existing Anthropic ephemeral cache control).
+- ⏳ **Unified Git Diff & Command Minimization**: Dedicated 1-line context git diff compression and test/build runner noise filter.
 
 ### Done and shipped:
+
+- ✅ **Autonomous Context Compaction** — Proactive background digest generated when conversation history approaches budget thresholds (`MUGIL_IDE_HISTORY_BUDGET`), preserving critical decisions and state without manual `/compact` or turn eviction
+- ✅ **Deterministic Tool Caching** — In-memory caching for idempotent read tools (`read_file`, `read_skeleton`, `search_code`, `codegraph`) across turns keyed on file mtime and workspace revision, invalidated on file mutations
+- ✅ **Tool Call Resiliency & Error Recovery** — Non-crashing JSON argument parsing, graceful fallbacks for empty tool completions preserving conversation turn state, and extended 60s default shell execution timeout with `MUGIL_IDE_COMMAND_TIMEOUT` support for package managers (apt, pip, npm)
 
 - ✅ Core engine + web IDE (browser-only, xterm.js, vendored offline assets)
 - ✅ Credited module split (caveman / rtk / ponytail / signature-remover / smart-cache / handoff)
@@ -461,7 +474,14 @@ Webhooks fire on `turn.started` / `tool.executed` / `turn.completed` /
 - ✅ **OpenCode Zen** provider — one key for Anthropic Messages + OpenAI chat-completions wire formats (claude-* via Zen's Messages endpoint)
 - ✅ **Plan/Act mode toggle** — header button + WebSocket handler + `MUGIL_IDE_MODE` persistence; `/plan` `/act` slash commands with mode preserved across sessions
 - ✅ **AST / Skeletonized code reading** — `read_skeleton` tool extracts signatures & declarations for 70-80% token savings
-- ✅ **Dynamic history budget & Smart Cache PrefixTrie** — `MUGIL_IDE_HISTORY_BUDGET` (16k default), 15 iterations limit, $O(L)$ prefix lookup, and search grouping
+- ✅ **Dynamic history budget & limit scaling** — `MUGIL_IDE_HISTORY_BUDGET` (16k default) sliding window with Caveman/RTK older-turn compaction, 15 iterations limit (`MUGIL_IDE_MAX_TOOL_ITERATIONS`), 48k char bounds (`MUGIL_IDE_MAX_TOOL_CHARS`), and 32k prompt trim budget
+- ✅ **Subagent output condensation** — `task` subagent execution returns auto-compressed via Caveman and RTK before entering parent context
+- ✅ **Code search grouping & deduplication** — `search_code` groups hits by file header and caps lines at 200 chars with omission indicators
+- ✅ **Smart Cache PrefixTrie & Telemetry** — $O(L)$ `PrefixTrie` for partial lookup, 2,000-entry LRU bounds + sweeps in `MemoryBackend`, and `CacheMetrics` in `/stats`
+- ✅ **Live Streaming Model Output & StreamMarkdown** — Token-by-token SSE streaming for OpenAI, Anthropic, and OpenCode Zen with real-time zero-delay inline markdown formatting, trailing status frame rate-limiting, and `MUGIL_IDE_NO_STREAM=1` override
+- ✅ **Thinking Output Stream & `<think>` Separation** — Live reasoning streaming via `onThinking` above model answers, eliminating duplicate or post-turn misplaced thinking
+- ✅ **Query Input Isolation & Stdin Locking** — `#chat-input` isolation with `agentTerm` stdin locked, preventing query concatenation and keystroke leakage
+- ✅ **Turn Cancellation & Subagent Abort** — Ctrl-C clean cancellation with deep `AbortSignal` propagation across providers, tool loop, and running subagents
 
 ## License
 

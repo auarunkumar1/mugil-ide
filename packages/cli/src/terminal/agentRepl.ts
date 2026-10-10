@@ -854,6 +854,10 @@ export class AgentRepl {
         historyTokensSaved += countTokens(t.prompt) + countTokens(t.response);
       }
       const budgetedHistory: ChatMessage[] = [];
+      if (budgeted.compactedSummary) {
+        budgetedHistory.push({ role: 'user', content: budgeted.compactedSummary });
+        budgetedHistory.push({ role: 'assistant', content: '[acknowledged earlier context]' });
+      }
       for (const t of budgeted.turns) {
         budgetedHistory.push({ role: 'user', content: t.prompt });
         budgetedHistory.push({ role: 'assistant', content: t.response });
@@ -909,12 +913,27 @@ export class AgentRepl {
               thinkingRegion = false;
               streamMarkdown.reset();
             }
-            const argsObj = event.args ? (typeof event.args === 'string' ? JSON.parse(event.args) : event.args) : {};
+            let argsObj: Record<string, unknown> = {};
+            if (event.args) {
+              if (typeof event.args === 'string') {
+                try {
+                  argsObj = JSON.parse(event.args) as Record<string, unknown>;
+                } catch {
+                  argsObj = { _raw: event.args };
+                }
+              } else if (typeof event.args === 'object') {
+                argsObj = event.args as Record<string, unknown>;
+              }
+            }
             toolsCalled.push({ name: event.name, args: argsObj });
 
             // Record modified files
             if (event.name === 'write_file' || event.name === 'edit_file' || event.name === 'apply_patch') {
-              const targetPath = argsObj.path || argsObj.file;
+              const targetPath = typeof argsObj.path === 'string'
+                ? argsObj.path
+                : typeof argsObj.file === 'string'
+                  ? argsObj.file
+                  : undefined;
               if (targetPath) {
                 filesModifiedThisTurn.push(targetPath);
                 this.stats.filesModified.add(targetPath);

@@ -332,15 +332,14 @@ describe('ToolLoop', () => {
     expect(out.content).toBe('chain of thought that ends in the answer');
   });
 
-  it('throws ToolError when both the answer and the retry are empty', async () => {
+  it('returns graceful fallback content when both the answer and the retry are empty', async () => {
     const client = scriptedClient([
       result({ content: '', finishReason: 'stop' }),
       result({ content: '', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    await expect(
-      loop.run([...system, { role: 'user', content: 'hi' }], { tools: [ADD], registry }),
-    ).rejects.toThrow(ToolError);
+    const out = await loop.run([...system, { role: 'user', content: 'hi' }], { tools: [ADD], registry });
+    expect(out.content).toContain('completed 0 tool operation(s)');
   });
 
   it('retries the forced final answer when it comes back empty', async () => {
