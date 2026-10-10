@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-10-10
+
+### Added
+
+- **Autonomous Context Compaction**: Automatically generates a structured background digest (`buildAutonomousCompaction`) when conversation history approaches the budget limit (`MUGIL_IDE_HISTORY_BUDGET`), retaining crucial project decisions, file edits, and workflow outcomes without manual `/compact` or silent turn eviction.
+- **Deterministic Tool Caching**: Integrated an in-memory caching layer for idempotent read operations (`read_file`, `read_skeleton`, `search_code`, `codegraph`) keyed by target path, file `mtimeMs`, and workspace revision counter, invalidated immediately on mutations (`write_file`, `edit_file`, `apply_patch`, `run_command`).
+
+### Fixed
+
+- **Tool Call Execution & Unhandled Error Resiliency**: Unhandled parsing errors or empty tool-loop completions previously threw fatal `ToolError` exceptions that broke the turn and terminated the conversation flow. Added non-crashing `tryParseToolArguments`, safe `event.args` parsing in REPL event handlers, and a graceful turn outcome fallback when completions produce actions without follow-up text.
+- **Configurable Command Execution Timeout**: Long-running package installation commands (such as system package manager runs or complex library installations like `tesseract`, `pip`, or `npm`) were hardcoded to a 15-second timeout, causing premature process terminations. Upgraded default timeout to 60,000ms with override support via `MUGIL_IDE_COMMAND_TIMEOUT` and extended execution buffer to 4MB.
+
 ## [0.1.14] - 2026-10-05
 
 ### Fixed
@@ -215,3 +227,7 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.13]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.13
 
 [0.1.14]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.14
+
+[0.1.15]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.15
+
+[0.1.16]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.16

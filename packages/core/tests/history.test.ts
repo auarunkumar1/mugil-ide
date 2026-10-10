@@ -53,6 +53,20 @@ describe('budgetConversationHistory', () => {
     expect(getHistoryBudget({})).toBe(16_000);
     expect(getHistoryBudget({ MUGIL_IDE_HISTORY_BUDGET: '32000' })).toBe(32_000);
   });
+
+  it('generates autonomous compacted summary when turns are evicted', () => {
+    const turns = [
+      turn('create server.js with express', 'created server.js and configured port 3000'),
+      turn('add test for server.js', 'added test suite with jest'),
+      turn('refactor route handlers', 'refactored endpoints into routes.ts'),
+    ];
+    const result = budgetConversationHistory(turns, 20);
+    expect(result.droppedCount).toBeGreaterThan(0);
+    expect(result.evictedTurns.length).toBe(result.droppedCount);
+    expect(result.compactedSummary).toBeDefined();
+    expect(result.compactedSummary).toContain('Autonomous context compaction');
+    expect(result.compactedSummary).toContain('create server.js');
+  });
 });
 
 describe('renderConversationForSummary', () => {

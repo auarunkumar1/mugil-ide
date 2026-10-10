@@ -287,4 +287,44 @@ export class AccountService {
     expect(res).toContain('matches');
     expect(res).toContain('L');
   });
+
+  it('determistically caches read_file and invalidates on write_file', async () => {
+    const testFile = path.join(root, '.cache_test_file.txt');
+    await toolRegistry.write_file({
+      id: 'w1',
+      name: 'write_file',
+      arguments: JSON.stringify({ path: testFile, content: 'version 1' }),
+    });
+
+    const read1 = await toolRegistry.read_file({
+      id: 'r1',
+      name: 'read_file',
+      arguments: JSON.stringify({ path: testFile }),
+    });
+    expect(read1).toContain('version 1');
+
+    // Repeated call hits cache
+    const read2 = await toolRegistry.read_file({
+      id: 'r2',
+      name: 'read_file',
+      arguments: JSON.stringify({ path: testFile }),
+    });
+    expect(read2).toBe(read1);
+
+    // Mutation invalidates cache
+    await toolRegistry.write_file({
+      id: 'w2',
+      name: 'write_file',
+      arguments: JSON.stringify({ path: testFile, content: 'version 2' }),
+    });
+    const read3 = await toolRegistry.read_file({
+      id: 'r3',
+      name: 'read_file',
+      arguments: JSON.stringify({ path: testFile }),
+    });
+    expect(read3).toContain('version 2');
+
+    // Cleanup
+    if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
+  });
 });

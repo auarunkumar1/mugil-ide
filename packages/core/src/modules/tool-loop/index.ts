@@ -90,6 +90,15 @@ export class ToolError extends Error {
 const MAX_ITERATION_PROMPT =
   'You have reached the maximum number of tool calls for this turn. Stop using tools now and provide a final response: summarize the work completed so far and list the remaining steps that still need doing.';
 
+/** JSON.parse(call.arguments); returns null on invalid JSON instead of crashing the turn. */
+export function tryParseToolArguments(call: ToolCall): unknown | null {
+  try {
+    return JSON.parse(call.arguments);
+  } catch {
+    return null;
+  }
+}
+
 /** JSON.parse(call.arguments); throws ToolError on invalid JSON. */
 export function parseToolArguments(call: ToolCall): unknown {
   try {
@@ -250,9 +259,14 @@ export class ToolLoop {
     if (retry.thinking && retry.thinking.trim().length > 0) {
       return { ...retry, content: retry.thinking, usage, toolCalls };
     }
-    throw new ToolError(
-      `model returned an empty response after ${toolCalls} tool call(s); tokens were consumed but no text was produced`,
-    );
+    // Rather than throwing a fatal ToolError that crashes the conversation turn,
+    // return a clean status message with the actions performed so the turn stays valid.
+    return {
+      ...retry,
+      content: `The model completed ${toolCalls} tool operation(s) but produced no further text.`,
+      usage,
+      toolCalls,
+    };
   }
 
   private async execute(

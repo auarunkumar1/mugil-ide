@@ -613,6 +613,13 @@ export function createWorkspaceTools(
   const subagentMaxIterations = options.subagentMaxIterations ?? 4;
   const websearchEnabled = options.websearchEnabled ?? envTruthy(process.env.MUGIL_IDE_ENABLE_EXA);
   const lspEnabled = options.lspEnabled ?? envTruthy(process.env.MUGIL_IDE_ENABLE_LSP);
+  const toolCache = new Map<string, { result: string; mtimeMs?: number; rev: number }>();
+  let workspaceRev = 0;
+
+  function invalidateCache() {
+    workspaceRev += 1;
+    toolCache.clear();
+  }
 
   /** Appends post-edit typecheck diagnostics to a successful tool result. */
   function withDiagnostics(base: string): string {
@@ -667,6 +674,11 @@ export function createWorkspaceTools(
       if (isBinaryFile(target)) {
         return `Error: ${args.path} appears to be a binary file and cannot be read as text.`;
       }
+      const cacheKey = `read_file:${target}:${args.startLine ?? 1}:${args.endLine ?? 'all'}`;
+      const cached = toolCache.get(cacheKey);
+      if (cached && cached.mtimeMs === stat.mtimeMs) {
+        return cached.result;
+      }
       const content = fs.readFileSync(target, 'utf-8');
       const lines = content.split(/\r?\n/);
       const start = Math.max(1, args.startLine ?? 1);
@@ -681,6 +693,7 @@ export function createWorkspaceTools(
       if (end > start - 1 + rendered.length) {
         out += `\n… (file has more lines; use startLine/endLine to read beyond line ${start - 1 + rendered.length})`;
       }
+      toolCache.set(cacheKey, { result: out, mtimeMs: stat.mtimeMs, rev: workspaceRev });
       return out;
     },
 
@@ -699,9 +712,16 @@ export function createWorkspaceTools(
       if (isBinaryFile(target)) {
         return `Error: ${args.path} appears to be a binary file and cannot be read as text.`;
       }
+      const cacheKey = `read_skeleton:${target}`;
+      const cached = toolCache.get(cacheKey);
+      if (cached && cached.mtimeMs === stat.mtimeMs) {
+        return cached.result;
+      }
       const content = fs.readFileSync(target, 'utf-8');
       const skeleton = extractCodeSkeleton(content, target);
-      return compressCommandOutput(skeleton, { maxLineLength: 300 }).text;
+      const compressed = compressCommandOutput(skeleton, { maxLineLength: 300 }).text;
+      toolCache.set(cacheKey, { result: compressed, mtimeMs: stat.mtimeMs, rev: workspaceRev });
+      return compressed;
     },
 
     list_files: async (call: ToolCall): Promise<string> => {
@@ -744,6 +764,11 @@ export function createWorkspaceTools(
     search_code: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { query: string; extension?: string };
       if (!args.query) return 'Error: query parameter is required.';
+      const cacheKey = `search_code:${args.query.toLowerCase()}:${args.extension ?? ''}`;
+      const cached = toolCache.get(cacheKey);
+      if (cached && cached.rev === workspaceRev) {
+        return cached.result;
+      }
       const matches: Array<{ file: string; line: number; text: string }> = [];
       const queryLower = args.query.toLowerCase();
 
@@ -777,7 +802,11 @@ export function createWorkspaceTools(
       }
 
       walk(root);
-      if (matches.length === 0) return `(no matches found for "${args.query}")`;
+      if (matches.length === 0) {
+        const out = `(no matches found for "${args.query}")`;
+        toolCache.set(cacheKey, { result: out, rev: workspaceRev });
+        return out;
+      }
 
       // Group matches by file
       const grouped = new Map<string, Array<{ line: number; text: string }>>();
@@ -796,12 +825,19 @@ export function createWorkspaceTools(
         }
       }
 
-      return compressCommandOutput(formatted.join('\n'), { maxLineLength: 400 }).text;
+      const out = compressCommandOutput(formatted.join('\n'), { maxLineLength: 400 }).text;
+      toolCache.set(cacheKey, { result: out, rev: workspaceRev });
+      return out;
     },
 
     codegraph: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { query: string };
       if (!args.query) return 'Error: query parameter is required.';
+      const cacheKey = `codegraph:${args.query.toLowerCase()}`;
+      const cached = toolCache.get(cacheKey);
+      if (cached && cached.rev === workspaceRev) {
+        return cached.result;
+      }
       const graph = buildCodeGraph(root);
       const queryResults = queryCodeGraph(graph, args.query, { top: 10 });
       const lines = [
@@ -812,7 +848,9 @@ export function createWorkspaceTools(
             `  • [${r.symbol.kind}] ${r.symbol.name} (${r.symbol.file}:${r.symbol.line}) - ${r.symbol.signature} (score: ${r.score})`,
         ),
       ];
-      return lines.join('\n');
+      const out = lines.join('\n');
+      toolCache.set(cacheKey, { result: out, rev: workspaceRev });
+      return out;
     },
 
     write_file: async (call: ToolCall): Promise<string> => {
@@ -824,6 +862,7 @@ export function createWorkspaceTools(
       const before = captureFile(root, target);
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, args.content, 'utf-8');
+      invalidateCache();
       const undoNote = pushEdit(root, { path: target, before, after: { content: args.content, existed: true } });
       const rel = path.relative(root, target).replace(/\\/g, '/');
       return withDiagnostics(`✓ Successfully wrote ${Buffer.byteLength(args.content, 'utf-8')} bytes to ${rel}${undoNote ? ` (${undoNote})` : ''}`);
@@ -851,6 +890,7 @@ export function createWorkspaceTools(
       const before = captureFile(root, target);
       const updated = content.replace(args.target, args.replacement);
       fs.writeFileSync(target, updated, 'utf-8');
+      invalidateCache();
       const undoNote = pushEdit(root, { path: target, before, after: { content: updated, existed: true } });
       const rel = path.relative(root, target).replace(/\\/g, '/');
       return withDiagnostics(`✓ Successfully edited ${rel}${undoNote ? ` (${undoNote})` : ''}`);
@@ -863,6 +903,7 @@ export function createWorkspaceTools(
       if (directives.length === 0) {
         return 'Error: empty patch — no *** directives (Add File / Update File / Delete File / Move to) found.';
       }
+      invalidateCache();
       const results: string[] = [];
       for (const d of directives) {
         if (d.kind === 'add') {
@@ -930,20 +971,32 @@ export function createWorkspaceTools(
     },
 
     run_command: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { command: string };
+      const args = parseToolArguments(call) as { command: string; timeout?: number };
       if (!args.command) return 'Error: command parameter is required.';
+      const envTimeout = process.env.MUGIL_IDE_COMMAND_TIMEOUT ? Number(process.env.MUGIL_IDE_COMMAND_TIMEOUT) : NaN;
+      const timeoutMs = typeof args.timeout === 'number' && args.timeout > 0
+        ? args.timeout
+        : Number.isFinite(envTimeout) && envTimeout > 0
+          ? Math.floor(envTimeout)
+          : 60_000;
       try {
+        invalidateCache();
         const stdout = execSync(args.command, {
           cwd: root,
-          timeout: 15000,
-          maxBuffer: 2 * 1024 * 1024,
+          timeout: timeoutMs,
+          maxBuffer: 4 * 1024 * 1024,
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
         return compressCommandOutput(stdout).text;
       } catch (err: unknown) {
-        const error = err as { stdout?: string; stderr?: string; message?: string };
-        const combined = [error.stdout, error.stderr, error.message].filter(Boolean).join('\n');
+        const error = err as { stdout?: string; stderr?: string; message?: string; signal?: string };
+        const combined = [
+          error.stdout,
+          error.stderr,
+          error.signal === 'SIGTERM' ? `(command timed out after ${timeoutMs}ms)` : undefined,
+          error.message,
+        ].filter(Boolean).join('\n');
         return compressCommandOutput(`Command failed:\n${combined}`).text;
       }
     },

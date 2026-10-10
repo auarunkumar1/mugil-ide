@@ -137,7 +137,7 @@ export {
 export type { SkillInfo } from './modules/skills/index.js';
 
 // Token-aware conversation history trimming
-export { budgetConversationHistory, renderConversationForSummary, DEFAULT_HISTORY_BUDGET, getHistoryBudget } from './history.js';
+export { budgetConversationHistory, buildAutonomousCompaction, renderConversationForSummary, DEFAULT_HISTORY_BUDGET, getHistoryBudget } from './history.js';
 export type { ConversationTurn, HistoryBudgetOptions, HistoryBudgetResult } from './history.js';
 
 // TUI session persistence (save / restore / clear / named sessions)
