@@ -334,4 +334,15 @@ describe('partial lookup guards', () => {
     const res = await cache.lookup(base + 'Now do the same for timeouts.');
     expect(res.kind).not.toBe('partial');
   });
+
+  it('accepts a candidate that meets the partialMinRatio boundary exactly', async () => {
+    // 60 chars candidate on 100 chars query with ratio 0.6
+    const cache = mk({ partialMinRatio: 0.6, partialMinChars: 20 });
+    const prefix = 'A'.repeat(60);
+    const full = 'A'.repeat(60) + 'B'.repeat(40);
+    await cache.store(prefix, 'prefix result', 'm');
+    const res = await cache.lookup(full);
+    expect(res.kind).toBe('partial');
+    expect(res.delta).toBe('B'.repeat(40));
+  });
 });

@@ -37,7 +37,7 @@ export interface StreamedCompletion {
   thinking: string;
   toolCalls: ToolCall[];
   finishReason?: string;
-  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
+  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number; cachedTokens?: number };
   model?: string;
 }
 
@@ -195,18 +195,28 @@ export async function parseOpenAiSse(
     if (!json) continue;
     if (typeof json.model === 'string' && json.model) model = json.model;
     if (json.usage) {
-      const u = json.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      const u = json.usage as {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
       usage = {
         promptTokens: u.prompt_tokens,
         completionTokens: u.completion_tokens,
         totalTokens: u.total_tokens,
+        cachedTokens: u.prompt_tokens_details?.cached_tokens,
       };
     }
     const choice = (json.choices as Array<Record<string, any>> | undefined)?.[0];
     if (!choice) continue;
     if (typeof choice.finish_reason === 'string') finishReason = choice.finish_reason;
     const delta = choice.delta ?? {};
-    if (typeof delta.content === 'string' && delta.content.length > 0) {
+    const reasoning = delta.reasoning_content ?? delta.reasoning;
+    if (typeof reasoning === 'string' && reasoning.length > 0) {
+      thinking += reasoning;
+      handlers.onThinking?.(reasoning, true);
+    } else if (typeof delta.content === 'string' && delta.content.length > 0) {
       splitter.process(
         delta.content,
         (c) => {
@@ -218,11 +228,6 @@ export async function parseOpenAiSse(
           handlers.onThinking?.(t, true);
         },
       );
-    }
-    const reasoning = delta.reasoning_content ?? delta.reasoning;
-    if (typeof reasoning === 'string' && reasoning.length > 0) {
-      thinking += reasoning;
-      handlers.onThinking?.(reasoning, true);
     }
     for (const tc of (delta.tool_calls as Array<Record<string, any>>) ?? []) {
       const idx = typeof tc.index === 'number' ? tc.index : 0;
@@ -262,6 +267,7 @@ export async function parseAnthropicSse(
   let finishReason: string | undefined;
   let promptTokens: number | undefined;
   let completionTokens: number | undefined;
+  let cacheReadTokens: number | undefined;
   let model: string | undefined;
   // Anthropic streams tool inputs as `input_json_delta` fragments belonging to
   // the block most recently announced by `content_block_start`.
@@ -274,10 +280,20 @@ export async function parseAnthropicSse(
     const type = (ev.event ?? json.type) as string;
 
     if (type === 'message_start') {
-      const msg = json.message as { model?: string; usage?: { input_tokens?: number } } | undefined;
+      const msg = json.message as
+        | {
+            model?: string;
+            usage?: {
+              input_tokens?: number;
+              cache_read_input_tokens?: number;
+              cache_creation_input_tokens?: number;
+            };
+          }
+        | undefined;
       if (typeof msg?.model === 'string' && msg.model) model = msg.model;
       const input = msg?.usage;
       promptTokens = input?.input_tokens;
+      cacheReadTokens = input?.cache_read_input_tokens;
       continue;
     }
     if (type === 'message_delta') {
@@ -326,6 +342,7 @@ export async function parseAnthropicSse(
             completionTokens,
             totalTokens:
               (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
+            cachedTokens: cacheReadTokens,
           }
         : undefined,
     model,

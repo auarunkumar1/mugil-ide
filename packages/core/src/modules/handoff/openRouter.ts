@@ -174,7 +174,12 @@ export class OpenRouterClient implements ProviderClient {
         };
         finish_reason?: string;
       }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
     };
 
     const message = data.choices?.[0]?.message;
@@ -202,10 +207,12 @@ export class OpenRouterClient implements ProviderClient {
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
+    const cachedTokens = data.usage?.prompt_tokens_details?.cached_tokens;
     const usage = {
       promptTokens,
       completionTokens,
       totalTokens: data.usage?.total_tokens ?? promptTokens + completionTokens,
+      ...(cachedTokens !== undefined ? { cachedTokens } : {}),
     };
     return {
       provider: 'openrouter',

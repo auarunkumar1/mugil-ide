@@ -4,6 +4,7 @@ export interface Usage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  cachedTokens?: number;
 }
 
 export interface ToolDefinition {

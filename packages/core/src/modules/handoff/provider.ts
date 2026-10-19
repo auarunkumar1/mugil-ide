@@ -53,11 +53,38 @@ export function isAbortError(err: unknown): boolean {
   return err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
 }
 
-/** OpenAI-compatible `tools` wire format (used by openAi.ts and openRouter.ts). */
+/**
+ * Recursively canonicalizes an object or array by sorting object keys alphabetically.
+ * Guarantees byte-level prefix stability across JSON serialization so OpenAI, DeepSeek,
+ * and Gemini KV caches hit reliably without random key permutation busting the cache.
+ */
+export function canonicalizeJson<T>(value: T): T {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalizeJson(item)) as unknown as T;
+  }
+  const obj = value as Record<string, unknown>;
+  const sortedKeys = Object.keys(obj).sort();
+  const result: Record<string, unknown> = {};
+  for (const k of sortedKeys) {
+    result[k] = canonicalizeJson(obj[k]);
+  }
+  return result as T;
+}
+
+/** OpenAI-compatible `tools` wire format with canonicalized parameters for byte-level prefix stability. */
 export function toOpenAiTools(tools: ToolDefinition[]): Array<Record<string, unknown>> {
-  return tools.map((t) => ({
+  // Sort tools by name to ensure stable prefix across request iterations
+  const stableTools = [...tools].sort((a, b) => a.name.localeCompare(b.name));
+  return stableTools.map((t) => ({
     type: 'function',
-    function: { name: t.name, description: t.description, parameters: t.parameters },
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: canonicalizeJson(t.parameters),
+    },
   }));
 }
 
@@ -126,13 +153,36 @@ export function extractThinkBlock(
   content: string,
   thinking?: string,
 ): { content: string; thinking?: string } {
-  if (thinking || !content.includes('<think>')) return { content, thinking };
+  if (thinking) return { content, thinking };
+
+  // 1. Closed <think>...</think>
   const match = content.match(/<think>([\s\S]*?)<\/think>/i);
-  if (!match) return { content, thinking };
-  return {
-    content: content.replace(/<think>[\s\S]*?<\/think>/i, '').trim(),
-    thinking: match[1]?.trim(),
-  };
+  if (match) {
+    return {
+      content: content.replace(/<think>[\s\S]*?<\/think>/i, '').trim(),
+      thinking: match[1]?.trim(),
+    };
+  }
+
+  // 2. Unclosed <think>... (e.g. output truncated by max_tokens mid-reasoning)
+  const unclosed = content.match(/<think>([\s\S]*)$/i);
+  if (unclosed) {
+    return {
+      content: content.replace(/<think>[\s\S]*$/i, '').trim(),
+      thinking: unclosed[1]?.trim(),
+    };
+  }
+
+  // 3. Alternative [THINKING]...[/THINKING]
+  const altMatch = content.match(/\[THINKING\]([\s\S]*?)\[\/THINKING\]/i);
+  if (altMatch) {
+    return {
+      content: content.replace(/\[THINKING\][\s\S]*?\[\/THINKING\]/i, '').trim(),
+      thinking: altMatch[1]?.trim(),
+    };
+  }
+
+  return { content, thinking };
 }
 
 /**
@@ -171,6 +221,7 @@ export function openAiStreamResult(
       promptTokens,
       completionTokens,
       totalTokens: streamed.usage?.totalTokens ?? promptTokens + completionTokens,
+      ...(streamed.usage?.cachedTokens !== undefined ? { cachedTokens: streamed.usage.cachedTokens } : {}),
     },
     finishReason: streamed.finishReason,
     toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,

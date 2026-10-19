@@ -347,9 +347,17 @@ export class Pipeline {
     //    cache (original prompt so future variants can hit), and return.
     emit({ type: 'stage', stage: 'store' });
     const strippedNew = stripWatermarks(completion.content).text;
+    let continuationText = strippedNew;
+    if (cacheLookup.kind === 'partial' && cacheLookup.entry) {
+      const cached = cacheLookup.entry.response.trim();
+      // If the model repeated the cached response prefix despite the continuation instruction, strip it
+      if (continuationText.trim().startsWith(cached)) {
+        continuationText = continuationText.trim().slice(cached.length).trimStart();
+      }
+    }
     const response =
       cacheLookup.kind === 'partial' && cacheLookup.entry
-        ? `${cacheLookup.entry.response}\n\n${strippedNew}`
+        ? `${cacheLookup.entry.response}\n\n${continuationText}`
         : strippedNew;
     // Never surface a blank "success": a model that consumed tokens without
     // producing text (even with no reasoning to fall back on) becomes a clear

@@ -26,6 +26,9 @@ import type { StrategyResult } from '../../types.js';
 import defaultRules from '../../rules/rtk.json';
 import { currentRevision, loadRulesSync } from '../overrides.js';
 import { isCodePlaceholder, maskCodeBlocks, restoreCodeBlocks } from '../codeMask.js';
+import { compressJson } from './jsonCrusher.js';
+
+export { compressJson };
 
 interface RtkRules {
   version: string;
@@ -103,23 +106,127 @@ export function rtkStrategy(text: string): StrategyResult {
   return { text: out.trim(), changed, removed };
 }
 
+/**
+ * Dedicated 1-line context git diff compression (Unified Diff Minifier).
+ * Strips verbose commit indexes, collapses unchanged context lines down to 1 line,
+ * while preserving changed hunks (+ / -), hunk headers, and file demarcations.
+ */
+export function compressGitDiff(diffText: string, contextLines = 1): string {
+  if (!diffText.includes('diff --git') && !diffText.startsWith('@@')) {
+    return diffText;
+  }
+  const lines = diffText.split('\n');
+  const result: string[] = [];
+  let inHunk = false;
+  let leadingContext: string[] = [];
+  let trailingContextCount = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    // Drop noisy git index / mode metadata
+    if (line.startsWith('index ') && /^[0-9a-f]{7,}\.\.[0-9a-f]{7,}/i.test(line.slice(6))) {
+      continue;
+    }
+
+    if (line.startsWith('@@ ')) {
+      inHunk = true;
+      leadingContext = [];
+      trailingContextCount = 0;
+      result.push(line);
+      continue;
+    }
+
+    if (!inHunk) {
+      result.push(line);
+      continue;
+    }
+
+    // Inside a hunk
+    if (line.startsWith('+') || line.startsWith('-')) {
+      // Flush leading context up to desired contextLines
+      if (leadingContext.length > 0) {
+        const kept = leadingContext.slice(-contextLines);
+        result.push(...kept);
+        leadingContext = [];
+      }
+      result.push(line);
+      trailingContextCount = 0;
+    } else if (line.startsWith(' ')) {
+      // Context line
+      trailingContextCount++;
+      if (trailingContextCount <= contextLines) {
+        result.push(line);
+      } else {
+        leadingContext.push(line);
+      }
+    } else {
+      // New file or end of diff
+      inHunk = false;
+      leadingContext = [];
+      trailingContextCount = 0;
+      result.push(line);
+    }
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Filters repetitive passing test suites and verbose build asset lists,
+ * preserving failures, stack traces, and compiler diagnostics.
+ */
+export function filterTestBuildNoise(output: string): string {
+  // Check if output has test or build indicators
+  const hasTest = /(?:PASS|FAIL|✓|✕|tests?|suites?|spec)/i.test(output);
+  const hasFailure = /(?:FAIL|✕|failed|error|AssertionError|ERR!|error TS\d+)/i.test(output);
+
+  if (!hasTest && !hasFailure) return output;
+
+  const lines = output.split('\n');
+  const filtered: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Drop purely passing test suite rows when failures exist
+    if (hasFailure && (trimmed.startsWith('PASS ') || trimmed.startsWith('✓ ') || /^\s*√\s+/.test(line))) {
+      continue;
+    }
+    // Drop webpack/vite asset emission noise
+    if (/^\s*(?:dist\/|build\/|assets\/).+\s+\d+(?:\.\d+)?\s*(?:kB|MB|bytes|B)\b/i.test(trimmed)) {
+      continue;
+    }
+    filtered.push(line);
+  }
+
+  return filtered.join('\n');
+}
+
 export interface CompressOutputOptions {
   /** Long lines are truncated at this length (default 200). */
   maxLineLength?: number;
   /** Collapse runs of identical lines into "N× line" (default true). */
   collapseRepeats?: boolean;
+  /** Command name if known (e.g. 'git diff') for domain-specific minification. */
+  command?: string;
 }
 
 /**
  * RTK-style compression for shell/command output: collapses repeated lines,
- * trims blank-line noise and truncates very long lines. Keeps error/failure
- * lines intact (they usually matter).
+ * trims blank-line noise, compresses git diffs to 1-line context, and filters test/build noise.
  */
 export function compressCommandOutput(text: string, options: CompressOutputOptions = {}): StrategyResult {
   const maxLineLength = options.maxLineLength ?? 200;
   const collapseRepeats = options.collapseRepeats ?? true;
 
-  const lines = text.split('\n');
+  let processed = text;
+  if (options.command?.startsWith('git diff') || processed.includes('diff --git')) {
+    processed = compressGitDiff(processed, 1);
+  } else if (processed.trim().startsWith('{') || processed.trim().startsWith('[')) {
+    processed = compressJson(processed);
+  }
+  processed = filterTestBuildNoise(processed);
+
+  const lines = processed.split('\n');
   const out: string[] = [];
   let prev: string | undefined;
   let count = 0;

@@ -353,8 +353,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   // pipeline (see DEFAULT_MAX_OUTPUT_TOKENS). 32k keeps a full agentic turn
   // (system + skills + tools + 16k of history) under the trim threshold, so
   // ordinary sessions never lose prompt content to truncation.
-  const tokenBudget = Number(merged.TOKEN_BUDGET ?? 32000);
-  const cacheTtl = Number(merged.CACHE_TTL ?? 3600);
+  const parsedBudget = Number(merged.TOKEN_BUDGET);
+  const tokenBudget = Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : 32000;
+  const parsedTtl = Number(merged.CACHE_TTL);
+  const cacheTtl = Number.isFinite(parsedTtl) && parsedTtl > 0 ? parsedTtl : 3600;
   // When neither Redis nor a cache dir is configured, persist to the user's
   // home directory so the cache survives across CLI invocations (except in
   // tests, which should stay hermetic).

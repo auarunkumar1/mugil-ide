@@ -3,6 +3,8 @@ import {
   renderConversationForSummary,
   getHistoryBudget,
   DEFAULT_HISTORY_BUDGET,
+  getMaxHistoryTurns,
+  DEFAULT_MAX_HISTORY_TURNS,
   type ConversationTurn,
 } from '../src/history.js';
 
@@ -48,10 +50,17 @@ describe('budgetConversationHistory', () => {
     expect(result.tokens).toBe(0);
   });
 
-  it('supports getHistoryBudget with default and custom env', () => {
+  it('supports getHistoryBudget with default, custom env, and MUGIL_IDE_TOKEN_LIMIT', () => {
     expect(DEFAULT_HISTORY_BUDGET).toBe(16_000);
     expect(getHistoryBudget({})).toBe(16_000);
     expect(getHistoryBudget({ MUGIL_IDE_HISTORY_BUDGET: '32000' })).toBe(32_000);
+    expect(getHistoryBudget({ MUGIL_IDE_TOKEN_LIMIT: '64000' })).toBe(64_000);
+  });
+
+  it('supports getMaxHistoryTurns with default and custom env', () => {
+    expect(DEFAULT_MAX_HISTORY_TURNS).toBe(50);
+    expect(getMaxHistoryTurns({})).toBe(50);
+    expect(getMaxHistoryTurns({ MUGIL_IDE_MAX_TURNS: '100' })).toBe(100);
   });
 
   it('generates autonomous compacted summary when turns are evicted', () => {

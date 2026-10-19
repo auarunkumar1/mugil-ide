@@ -247,7 +247,7 @@ export class SmartCache {
    */
   private isContinuation(candidate: string, normalized: string): boolean {
     if (candidate.length < this.partialMinChars) return false;
-    if (candidate.length / normalized.length < this.partialMinRatio) return false;
+    if (candidate.length / normalized.length < this.partialMinRatio - 1e-9) return false;
     return normalized.startsWith(candidate);
   }
 

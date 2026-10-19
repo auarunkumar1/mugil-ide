@@ -32,19 +32,31 @@ export interface HistoryBudgetResult {
   evictedTurns: ConversationTurn[];
   /** Total tokens of the kept turns (prompt + response). */
   tokens: number;
+  /** Total tokens of the evicted turns that were dropped. */
+  evictedTokens: number;
   /** Dense background summary of evicted turns if any dropped. */
   compactedSummary?: string;
 }
 
 export const DEFAULT_HISTORY_BUDGET = 16_000;
+export const DEFAULT_MAX_HISTORY_TURNS = 50;
 
 export function getHistoryBudget(env: NodeJS.ProcessEnv = process.env): number {
-  const custom = env.MUGIL_IDE_HISTORY_BUDGET;
+  const custom = env.MUGIL_IDE_TOKEN_LIMIT || env.MUGIL_IDE_HISTORY_BUDGET;
   if (custom) {
     const parsed = Number(custom);
     if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
   }
   return DEFAULT_HISTORY_BUDGET;
+}
+
+export function getMaxHistoryTurns(env: NodeJS.ProcessEnv = process.env): number {
+  const custom = env.MUGIL_IDE_MAX_TURNS;
+  if (custom) {
+    const parsed = Number(custom);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  }
+  return DEFAULT_MAX_HISTORY_TURNS;
 }
 
 /** Creates a dense, structured digest of evicted conversation turns without an extra LLM call. */
@@ -75,6 +87,7 @@ export function budgetConversationHistory(
   const evicted: ConversationTurn[] = [];
   let tokens = 0;
   let dropped = 0;
+  let evictedTokens = 0;
   for (let i = turns.length - 1; i >= 0; i -= 1) {
     let turn = turns[i]!;
     // Compact older turns to fit ~25-35% more context in the window
@@ -88,13 +101,14 @@ export function budgetConversationHistory(
     if (tokens + cost > budgetTokens && kept.length > 0) {
       dropped += 1;
       evicted.unshift(turns[i]!);
+      evictedTokens += countTokens(turns[i]!.prompt) + countTokens(turns[i]!.response);
       continue;
     }
     kept.unshift(turn);
     tokens += cost;
   }
   const compactedSummary = evicted.length > 0 ? buildAutonomousCompaction(evicted) : undefined;
-  return { turns: kept, droppedCount: dropped, evictedTurns: evicted, tokens, compactedSummary };
+  return { turns: kept, droppedCount: dropped, evictedTurns: evicted, tokens, evictedTokens, compactedSummary };
 }
 
 /** Renders turns as plain text for the summarizer (capped in length). */

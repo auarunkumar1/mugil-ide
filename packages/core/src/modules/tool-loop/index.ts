@@ -19,6 +19,7 @@ import type { ChatMessage, HandoffOptions, ToolCall, ToolDefinition, Usage } fro
 import type { HandoffManager, HandoffResult } from '../handoff/index.js';
 import { streamCompletion, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
+import { globalBlobStore } from '../tools/blobStore.js';
 
 export type ToolExecutor = (call: ToolCall) => Promise<string>;
 export type ToolRegistry = Record<string, ToolExecutor>;
@@ -157,9 +158,12 @@ export class ToolLoop {
         return this.finish(completion, msgs, options, usage, toolCalls);
       }
 
+      // Optimize context: when the model calls tools, conversational preamble is
+      // discarded by the terminal and unneeded by subsequent iterations. Leaving
+      // content empty or minimal stops re-sending partial chatter on every turn.
       msgs.push({
         role: 'assistant',
-        content: completion.content ?? '',
+        content: '',
         toolCalls: completion.toolCalls,
       });
 
@@ -300,12 +304,16 @@ export class ToolLoop {
       if (content.length > 400) {
         content = compressCommandOutput(content, { maxLineLength: 400 }).text;
       }
-      const envMaxChars = process.env.MUGIL_IDE_MAX_TOOL_CHARS ? Number(process.env.MUGIL_IDE_MAX_TOOL_CHARS) : NaN;
-      const MAX_TOOL_OUTPUT_CHARS = Number.isFinite(envMaxChars) && envMaxChars > 0 ? Math.floor(envMaxChars) : 48_000;
+      const envMaxChars =
+        process.env.MUGIL_IDE_MAX_TOOL_OUTPUT_CHARS ?? process.env.MUGIL_IDE_MAX_TOOL_CHARS;
+      const parsedMaxChars = envMaxChars ? Number(envMaxChars) : NaN;
+      const MAX_TOOL_OUTPUT_CHARS =
+        Number.isFinite(parsedMaxChars) && parsedMaxChars > 0 ? Math.floor(parsedMaxChars) : 48_000;
       if (content.length > MAX_TOOL_OUTPUT_CHARS) {
+        const blobId = globalBlobStore.put(content);
         content =
           content.slice(0, MAX_TOOL_OUTPUT_CHARS) +
-          `\n\n… [output truncated: ${content.length - MAX_TOOL_OUTPUT_CHARS} characters omitted to conserve context]`;
+          `\n\n… [output truncated: ${content.length - MAX_TOOL_OUTPUT_CHARS} characters omitted to conserve context | Cached as ${blobId} (use read_blob tool to retrieve specific chunks)]`;
       }
       return { content, ok: true };
     } catch (err) {

@@ -795,6 +795,21 @@ export function getWebUiHtml(): string {
         <span>⚡ Token-Saving Modules & Superpowers</span>
         <button class="btn" onclick="closeModulesModal()">✕</button>
       </div>
+      <div style="padding:12px 16px; background:var(--panel-bg); border-bottom:1px solid var(--border);">
+        <div style="font-weight:600; font-size:12.5px; margin-bottom:6px; color:var(--text);">⚙ Context Token Limiter & History Budget</div>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-size:11px; color:var(--text-dim);" for="cfg-history-budget">Budget (Tokens):</label>
+            <input type="number" id="cfg-history-budget" style="width:90px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="16000" step="1000" min="1000" />
+          </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-turns">Max History Turns:</label>
+            <input type="number" id="cfg-max-turns" style="width:70px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="50" min="2" max="500" />
+          </div>
+          <button class="btn btn-primary" style="padding:3px 10px; font-size:11px;" onclick="saveConfigLimits()">Save Limits</button>
+          <span id="cfg-save-status" style="font-size:11px; color:var(--green); display:none;">✓ Saved</span>
+        </div>
+      </div>
       <div style="padding:10px 16px; background:var(--panel-bg); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
         <span style="font-size:12px; color:var(--text-dim);">Independent modular rules, token compression & AI clean-pass layers</span>
         <button class="btn btn-primary" id="btn-update-modules" onclick="triggerUpdateModules()">🔄 Check & Update Rules</button>
@@ -1420,11 +1435,15 @@ export function getWebUiHtml(): string {
         card.innerHTML = \`
           <div class="symbol-header">
             <span class="symbol-kind">\${escapeHtml(sym.kind)}</span>
-            <button class="btn" style="padding:1px 6px; font-size:10px;" onclick="injectSymbolContext('\${escapeHtml(sym.name)}')">Inject in Chat ⚡</button>
+            <button class="btn btn-inject-sym" style="padding:1px 6px; font-size:10px;">Inject in Chat ⚡</button>
           </div>
           <div class="symbol-sig" title="\${escapeHtml(sym.signature)}">\${escapeHtml(sym.signature)}</div>
-          <div class="symbol-loc">📄 \${escapeHtml(sym.file)}:line \${sym.line}</div>
+          <div class="symbol-loc">📄 \${escapeHtml(sym.file)}:line \${Number(sym.line) || 1}</div>
         \`;
+        const btn = card.querySelector('.btn-inject-sym');
+        if (btn) {
+          btn.addEventListener('click', () => injectSymbolContext(sym.name));
+        }
         container.appendChild(card);
       });
     }
@@ -1530,7 +1549,7 @@ export function getWebUiHtml(): string {
         const thinkBadge = m.supportsThinking ? '<span style="color:var(--magenta); font-size:10px; font-weight:bold;">[Thinking]</span>' : '';
         const providerBadge = m.isLocal
           ? '<span style="color:var(--green); font-size:10px; font-weight:bold;">[Local · Free]</span>'
-          : \`<span style="color:var(--text-dim); font-size:10px;">[\${m.provider || 'cloud'}]</span>\`;
+          : \`<span style="color:var(--text-dim); font-size:10px;">[\${escapeHtml(m.provider || 'cloud')}]</span>\`;
         const activeBadge = isActive ? '<span style="color:var(--green); font-weight:bold; font-size:11px;">● Active</span>' : '<button class="btn btn-primary" style="padding:2px 8px; font-size:10px;">Select</button>';
         
         card.onclick = () => selectModel(m.id, m.provider);
@@ -1538,7 +1557,7 @@ export function getWebUiHtml(): string {
           <div>
             <div style="font-weight:600; font-size:13px; color:var(--text);">\${escapeHtml(m.id)}</div>
             <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">
-              \${providerBadge} · Tier: <span style="text-transform:capitalize;">\${m.tier || 'standard'}</span> · \${toolsBadge} \${thinkBadge}
+              \${providerBadge} · Tier: <span style="text-transform:capitalize;">\${escapeHtml(m.tier || 'standard')}</span> · \${toolsBadge} \${thinkBadge}
             </div>
           </div>
           <div>\${activeBadge}</div>
@@ -1649,16 +1668,51 @@ export function getWebUiHtml(): string {
     }
 
     function escapeHtml(str) {
-      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     // Token-Saving Modules & Superpowers Modal
     async function openModulesModal() {
       document.getElementById('modules-modal').classList.add('open');
-      await loadModules();
+      await Promise.all([loadModules(), loadConfigLimits()]);
     }
     function closeModulesModal() {
       document.getElementById('modules-modal').classList.remove('open');
+    }
+
+    async function loadConfigLimits() {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          if (cfg.historyBudget) document.getElementById('cfg-history-budget').value = cfg.historyBudget;
+          if (cfg.maxTurns) document.getElementById('cfg-max-turns').value = cfg.maxTurns;
+        }
+      } catch (e) {}
+    }
+
+    async function saveConfigLimits() {
+      const budget = Number(document.getElementById('cfg-history-budget').value);
+      const turns = Number(document.getElementById('cfg-max-turns').value);
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ historyBudget: budget, maxTurns: turns }),
+        });
+        if (res.ok) {
+          const status = document.getElementById('cfg-save-status');
+          status.style.display = 'inline';
+          setTimeout(() => { status.style.display = 'none'; }, 2000);
+        }
+      } catch (e) {
+        alert('Failed to save config limits');
+      }
     }
 
     async function loadModules() {

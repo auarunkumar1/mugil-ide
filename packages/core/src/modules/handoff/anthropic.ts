@@ -31,7 +31,12 @@ interface AnthropicResponse {
     name?: string;
     input?: unknown;
   }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
   stop_reason?: string;
 }
 
@@ -205,6 +210,7 @@ export class AnthropicClient implements ProviderClient {
         promptTokens,
         completionTokens,
         totalTokens: streamed.usage?.totalTokens ?? promptTokens + completionTokens,
+        ...(streamed.usage?.cachedTokens !== undefined ? { cachedTokens: streamed.usage.cachedTokens } : {}),
       },
       finishReason: streamed.finishReason,
       toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
@@ -259,10 +265,12 @@ export class AnthropicClient implements ProviderClient {
     const promptText = messages.map((m) => m.content).join('\n');
     const promptTokens = data.usage?.input_tokens ?? countTokens(promptText);
     const completionTokens = data.usage?.output_tokens ?? countTokens(content);
+    const cachedTokens = data.usage?.cache_read_input_tokens;
     const usage = {
       promptTokens,
       completionTokens,
       totalTokens: promptTokens + completionTokens,
+      ...(cachedTokens !== undefined ? { cachedTokens } : {}),
     };
     return {
       provider: 'anthropic',

@@ -204,7 +204,7 @@ export class HandoffManager {
       // One delta, flagged `streamed: false`: a renderer must not read "I got a
       // delta" as "streaming is on".
       if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
-      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking);
+      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking, false);
       return buffered;
     }
     const attempts: string[] = [];
@@ -214,7 +214,7 @@ export class HandoffManager {
       if (client.stream) return client.stream(messages, attempt, handlers);
       const buffered = await client.complete(messages, attempt);
       if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
-      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking);
+      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking, false);
       return buffered;
     });
     return { ...result, attempts };

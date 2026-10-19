@@ -434,11 +434,15 @@ Webhooks fire on `turn.started` / `tool.executed` / `turn.completed` /
 
 ### In progress / Next release:
 
-- ⏳ **Cross-Provider Prompt Caching & Prefix Stability**: Strict byte-level prefix stability and prompt cache breakpoints extended across OpenAI, DeepSeek, and Gemini gateways (beyond existing Anthropic ephemeral cache control).
-- ⏳ **Unified Git Diff & Command Minimization**: Dedicated 1-line context git diff compression and test/build runner noise filter.
+- ⏳ **JSON SmartCrusher (Headroom Pattern)**: Structural JSON compression for verbose tool and MCP outputs converting repeating object arrays to compact tabular/CSV formats with null/empty field stripping.
+- ⏳ **Reversible Compression & Content-Compressed Retrieval (CCR)**: Cache uncompressed raw outputs of oversized tool runs (file reads, build logs) with reference IDs (`[Blob #id]`) and provide on-demand retrieval for the model if deeper context is needed.
+- ⏳ **AST-Aware Code & Signature Minification**: Expand skeleton extraction to prune internal function bodies and boilerplate comments on non-target code files before sending to model context.
 
 ### Done and shipped:
 
+- ✅ **Cross-Provider Prompt Caching & Prefix Stability** — Deterministic JSON key sorting, stable tool schema canonicalization, and prompt cache metrics (`cachedTokens`, `prompt_tokens_details`, `cache_read_input_tokens`) across OpenAI, DeepSeek, Anthropic, and OpenRouter gateways
+- ✅ **Unified Git Diff & Command Minimization** — Dedicated 1-line context git diff compression (`compressGitDiff`) and test/build runner noise filter (`filterTestBuildNoise`) in RTK pipeline
+- ✅ **User-Configurable Token Limits & History Budgets** — Removed hardcoded turn caps, exposing dynamic budget and turn constraints (`MUGIL_IDE_TOKEN_LIMIT`, `MUGIL_IDE_HISTORY_BUDGET`, `MUGIL_IDE_MAX_TURNS`)
 - ✅ **Autonomous Context Compaction** — Proactive background digest generated when conversation history approaches budget thresholds (`MUGIL_IDE_HISTORY_BUDGET`), preserving critical decisions and state without manual `/compact` or turn eviction
 - ✅ **Deterministic Tool Caching** — In-memory caching for idempotent read tools (`read_file`, `read_skeleton`, `search_code`, `codegraph`) across turns keyed on file mtime and workspace revision, invalidated on file mutations
 - ✅ **Tool Call Resiliency & Error Recovery** — Non-crashing JSON argument parsing, graceful fallbacks for empty tool completions preserving conversation turn state, and extended 60s default shell execution timeout with `MUGIL_IDE_COMMAND_TIMEOUT` support for package managers (apt, pip, npm)

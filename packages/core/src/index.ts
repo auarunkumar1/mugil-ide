@@ -24,7 +24,7 @@ installOverrideReader();
 export { cavemanStrategy } from './modules/caveman/index.js';
 
 // RTK — Reduced Token Kernel (inspired by rtk-ai/rtk)
-export { rtkStrategy, compressCommandOutput } from './modules/rtk/index.js';
+export { rtkStrategy, compressCommandOutput, compressGitDiff, filterTestBuildNoise, compressJson } from './modules/rtk/index.js';
 export type { CompressOutputOptions } from './modules/rtk/index.js';
 
 // Ponytail (inspired by DietrichGebert/ponytail)
@@ -93,6 +93,8 @@ export {
   extractCodeSkeleton,
 } from './modules/tools/workspaceTools.js';
 export type { WorkspaceToolsOptions } from './modules/tools/workspaceTools.js';
+export { BlobStore, globalBlobStore } from './modules/tools/blobStore.js';
+export type { BlobEntry } from './modules/tools/blobStore.js';
 
 // Post-edit diagnostics (tsc --noEmit fed back to the model)
 export {
@@ -137,7 +139,15 @@ export {
 export type { SkillInfo } from './modules/skills/index.js';
 
 // Token-aware conversation history trimming
-export { budgetConversationHistory, buildAutonomousCompaction, renderConversationForSummary, DEFAULT_HISTORY_BUDGET, getHistoryBudget } from './history.js';
+export {
+  budgetConversationHistory,
+  buildAutonomousCompaction,
+  renderConversationForSummary,
+  DEFAULT_HISTORY_BUDGET,
+  getHistoryBudget,
+  DEFAULT_MAX_HISTORY_TURNS,
+  getMaxHistoryTurns,
+} from './history.js';
 export type { ConversationTurn, HistoryBudgetOptions, HistoryBudgetResult } from './history.js';
 
 // TUI session persistence (save / restore / clear / named sessions)

@@ -1,8 +1,9 @@
 import { cavemanStrategy } from '../src/modules/caveman/index.js';
-import { compressCommandOutput, rtkStrategy } from '../src/modules/rtk/index.js';
+import { compressCommandOutput, rtkStrategy, compressJson } from '../src/modules/rtk/index.js';
 import { ponytailInstruction, ponytailOutputBudget } from '../src/modules/ponytail/index.js';
 import { refinePrompt, truncateToBudget } from '../src/refine.js';
 import { countTokens } from '../src/token/tokenizer.js';
+import { BlobStore } from '../src/modules/tools/blobStore.js';
 
 describe('cavemanStrategy', () => {
   it('compresses winded phrasing', () => {
@@ -114,6 +115,46 @@ describe('compressCommandOutput', () => {
     expect(changed).toBe(false);
     expect(text).toBe(output);
   });
+
+  it('compresses git diff context to 1 line and strips index hashes', () => {
+    const diff = [
+      'diff --git a/foo.ts b/foo.ts',
+      'index 1234567..89abcdef 100644',
+      '--- a/foo.ts',
+      '+++ b/foo.ts',
+      '@@ -10,7 +10,7 @@',
+      ' context line 1',
+      ' context line 2',
+      ' context line 3',
+      '-const oldVal = 1;',
+      '+const newVal = 2;',
+      ' context line 4',
+      ' context line 5',
+      ' context line 6',
+    ].join('\n');
+    const { text } = compressCommandOutput(diff, { command: 'git diff' });
+    expect(text).not.toContain('index 1234567..89abcdef');
+    expect(text).toContain('+const newVal = 2;');
+    expect(text).toContain(' context line 3');
+    expect(text).toContain(' context line 4');
+    // Multiline context collapsed
+    expect(text.split('\n').length).toBeLessThan(diff.split('\n').length);
+  });
+
+  it('filters passing test noise when test failures exist', () => {
+    const testLog = [
+      'PASS tests/a.test.ts',
+      'PASS tests/b.test.ts',
+      'FAIL tests/c.test.ts',
+      '  ✕ should validate correctly',
+      '    AssertionError: expected true to be false',
+    ].join('\n');
+    const { text } = compressCommandOutput(testLog);
+    expect(text).not.toContain('PASS tests/a.test.ts');
+    expect(text).not.toContain('PASS tests/b.test.ts');
+    expect(text).toContain('FAIL tests/c.test.ts');
+    expect(text).toContain('AssertionError: expected true to be false');
+  });
 });
 
 describe('truncateToBudget', () => {
@@ -187,3 +228,37 @@ describe('ponytail module', () => {
     expect(ponytailOutputBudget()).toBeUndefined();
   });
 });
+
+describe('JSON SmartCrusher (compressJson)', () => {
+  it('converts uniform object arrays to tabular format', () => {
+    const raw = JSON.stringify([
+      { id: 1, name: 'Alice', active: true },
+      { id: 2, name: 'Bob', active: false },
+    ], null, 2);
+    const out = compressJson(raw);
+    expect(out).toContain('[Table: 2 rows | cols: id, name, active]');
+    expect(out).toContain('Alice');
+    expect(out).toContain('Bob');
+  });
+
+  it('strips null and empty properties', () => {
+    const raw = JSON.stringify({ a: 1, b: null, c: undefined, d: '' });
+    const out = compressJson(raw);
+    expect(out).toBe('{"a":1}');
+  });
+});
+
+describe('CCR BlobStore', () => {
+  it('stores and retrieves slices from blobs', () => {
+    const store = new BlobStore(5);
+    const longText = 'Hello World '.repeat(500);
+    const id = store.put(longText);
+
+    expect(id).toMatch(/^blob_/);
+    const chunk = store.readChunk(id, 0, 50);
+    expect(chunk?.text).toBe(longText.slice(0, 50));
+    expect(chunk?.hasMore).toBe(true);
+    expect(store.get(id)?.size).toBe(longText.length);
+  });
+});
+

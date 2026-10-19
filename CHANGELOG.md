@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-10-19
+
+### Added
+
+- **JSON SmartCrusher (Headroom Pattern)**: Added `compressJson` in the RTK module, converting repeating uniform object arrays ($\le 15$ keys) into compact tabular TSV format while stripping null/undefined and empty values to compress payload size by up to 70%.
+- **Reversible Compression & Content-Compressed Retrieval (CCR)**: Added `BlobStore` / `globalBlobStore` LRU cache for oversized tool outputs (>48,000 chars), returning structural `[Blob #id, N chars]` references with a dedicated `read_blob` tool allowing models to page through specific slices on demand without inflating conversation context.
+- **AST-Aware Code Minification**: Expanded `read_file` with an optional `skeleton: true` flag and provided `read_skeleton` tool to prune internal function bodies and retain structural interfaces/declarations on non-target code files.
+- **Cross-Provider Prompt Caching & Prefix Stability**: Strict byte-level prefix stability across OpenAI, DeepSeek, Anthropic, and OpenRouter with deterministic recursive key sorting (`canonicalizeJson`) and stable tool name ordering. Exposes provider cache metrics (`usage.cachedTokens`) across both buffered completions and live SSE streams.
+- **Unified Git Diff & Command Minimization**: Integrated `compressGitDiff` (1-line context reduction and index hash stripper) and `filterTestBuildNoise` (suppresses passing test lines and verbose asset manifests when test/build failures occur) in the RTK pipeline.
+- **Context Token Limiter & History Controls**: Replaced hardcoded `.slice(-20)` history caps with user-configurable limits via `/api/config` and the Web UI `⚡ Token Modules` modal (`MUGIL_IDE_TOKEN_LIMIT`, `MUGIL_IDE_HISTORY_BUDGET`, `MUGIL_IDE_MAX_TURNS`).
+
+### Fixed
+
+- **Tool Call Resend Penalty (Context Inflation)**: Cleared conversational preamble in assistant tool-call messages within the agentic loop (`tool-loop/index.ts`), preventing discarded reasoning chatter from being re-sent as input tokens on subsequent tool iterations.
+- **SmartCache Prefix Boundary Precision**: Fixed boundary comparison in `isContinuation()` to avoid rejecting exact candidate prefixes at the `partialMinRatio` boundary due to floating-point precision.
+- **History Budget $O(N^2)$ Re-tokenization**: Precomputed `evictedTokens` in `budgetConversationHistory` to replace quadratic token recounting in `agentRepl`.
+- **Permission Overrides Diagnostic Visibility**: Added clear terminal warnings when `MUGIL_IDE_TOOL_PERMISSIONS` contains malformed JSON instead of silently falling back to defaults.
+- **Thinking Delimiter Robustness**: Enhanced `extractThinkBlock` to handle unclosed `<think>` tags (from token cutoffs) and alternative `[THINKING]` markers.
+- **SSE Edge-Case Resiliency**: Extended SSE parser tests and handling for chunked split JSON frames, empty event lines, and corrupted frames.
+
 ## [0.1.15] - 2026-10-10
 
 ### Added

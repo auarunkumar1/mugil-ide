@@ -78,13 +78,26 @@ describe('parseOpenAiSse', () => {
     await expect(parseOpenAiSse(stream)).resolves.toMatchObject({ content: 'x' });
   });
 
-  it('parses model identifier from chunks when present', async () => {
+  it('skips malformed JSON frames gracefully without crashing', async () => {
     const stream = streamFromChunks([
-      'data: {"model":"gpt-4o-2024-08-06","choices":[{"delta":{"content":"ok"}}]}\n\n',
+      'data: {invalid-json\n\n',
+      'data: {"choices":[{"delta":{"content":"valid"}}\n\n', // truncated/corrupt
+      'data: {"choices":[{"delta":{"content":"recovered"}}]}\n\n',
       'data: [DONE]\n\n',
     ]);
     const out = await parseOpenAiSse(stream);
-    expect(out.model).toBe('gpt-4o-2024-08-06');
+    expect(out.content).toBe('recovered');
+  });
+
+  it('handles empty event and data lines without throwing', async () => {
+    const stream = streamFromChunks([
+      'event: \n\n',
+      '\n\n',
+      'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const out = await parseOpenAiSse(stream);
+    expect(out.content).toBe('ok');
   });
 });
 

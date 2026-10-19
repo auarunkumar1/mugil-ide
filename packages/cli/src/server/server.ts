@@ -99,11 +99,34 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
   };
 
+  function isOriginAllowed(originHeader?: string | string[]): boolean {
+    if (!originHeader) return true; // CLI, curl, local scripts have no Origin header
+    const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
+    if (!origin) return true;
+    try {
+      const parsed = new URL(origin);
+      const allowedHosts = new Set(['localhost', '127.0.0.1', '::1', options.host || 'localhost']);
+      return allowedHosts.has(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
+    // Origin check for state-changing /api/* requests
+    if (url.pathname.startsWith('/api/') && req.method !== 'GET' && !isOriginAllowed(req.headers.origin)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Forbidden: invalid origin' }));
+      return;
+    }
+
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': "default-src 'self' 'unsafe-inline'; connect-src 'self' ws: http:; img-src 'self' data: https:;",
+      });
       res.end(getWebUiHtml());
       return;
     }
@@ -343,9 +366,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         res.end(JSON.stringify({ error: 'path parameter required' }));
         return;
       }
-      const root = process.cwd();
+      const root = path.resolve(process.cwd());
       const resolved = path.resolve(root, filePath);
-      if (!resolved.startsWith(root) || !fs.existsSync(resolved)) {
+      const rel = path.relative(root, resolved);
+      if (rel.startsWith('..') || path.isAbsolute(rel) || !fs.existsSync(resolved)) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'file not found or outside workspace' }));
         return;
@@ -459,6 +483,40 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           const { writeUserEnv } = await import('@mugil-ide/core');
           const json = JSON.parse(body);
           const { keyVar, value, baseVar, baseUrl, provider } = json;
+
+          const ALLOWED_KEY_VARS = new Set([
+            'OPENROUTER_API_KEY',
+            'OPENAI_API_KEY',
+            'ANTHROPIC_API_KEY',
+            'VERCEL_API_KEY',
+            'CLOUDFLARE_API_KEY',
+            'CLOUDFLARE_ACCOUNT_ID',
+            'TOGETHER_API_KEY',
+            'OPENCODE_API_KEY',
+          ]);
+          const ALLOWED_BASE_VARS = new Set([
+            'OPENROUTER_BASE_URL',
+            'OPENAI_BASE_URL',
+            'ANTHROPIC_BASE_URL',
+            'OLLAMA_BASE_URL',
+            'LMSTUDIO_BASE_URL',
+            'VERCEL_BASE_URL',
+            'CLOUDFLARE_BASE_URL',
+            'TOGETHER_BASE_URL',
+            'OPENCODE_BASE_URL',
+          ]);
+
+          if (keyVar && !ALLOWED_KEY_VARS.has(keyVar)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Unauthorized environment key variable: ${keyVar}` }));
+            return;
+          }
+          if (baseVar && !ALLOWED_BASE_VARS.has(baseVar)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Unauthorized environment base variable: ${baseVar}` }));
+            return;
+          }
+
           const toSave: Record<string, string> = {};
           if (keyVar && value) {
             toSave[keyVar] = value;
@@ -646,6 +704,55 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
+    if (url.pathname === '/api/config' && req.method === 'GET') {
+      const { getHistoryBudget, getMaxHistoryTurns } = await import('@mugil-ide/core');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          historyBudget: getHistoryBudget(),
+          maxTurns: getMaxHistoryTurns(),
+        }),
+      );
+      return;
+    }
+
+    if (url.pathname === '/api/config' && req.method === 'POST') {
+      try {
+        let body = '';
+        req.on('data', (chunk) => {
+          body += chunk;
+        });
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body || '{}') as { historyBudget?: number; maxTurns?: number };
+            if (typeof data.historyBudget === 'number' && data.historyBudget > 0) {
+              process.env.MUGIL_IDE_TOKEN_LIMIT = String(Math.floor(data.historyBudget));
+              process.env.MUGIL_IDE_HISTORY_BUDGET = String(Math.floor(data.historyBudget));
+            }
+            if (typeof data.maxTurns === 'number' && data.maxTurns > 0) {
+              process.env.MUGIL_IDE_MAX_TURNS = String(Math.floor(data.maxTurns));
+            }
+            const { getHistoryBudget, getMaxHistoryTurns } = await import('@mugil-ide/core');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(
+              JSON.stringify({
+                ok: true,
+                historyBudget: getHistoryBudget(),
+                maxTurns: getMaxHistoryTurns(),
+              }),
+            );
+          } catch {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+          }
+        });
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
   });
@@ -655,6 +762,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   server.on('upgrade', (request, socket, head) => {
     const { pathname } = new URL(request.url || '/', `http://${request.headers.host}`);
     if (pathname === '/ws') {
+      if (!isOriginAllowed(request.headers.origin)) {
+        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
       wss.handleUpgrade(request, socket, head, (ws) => {
         wss.emit('connection', ws, request);
       });

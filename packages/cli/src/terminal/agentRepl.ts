@@ -18,7 +18,7 @@ import {
   createWorkspaceTools,
   budgetConversationHistory,
   getHistoryBudget,
-  countTokens,
+  getMaxHistoryTurns,
   buildEnvironmentContext,
   createPermissionCheck,
   defaultPolicyForMode,
@@ -688,7 +688,7 @@ export class AgentRepl {
           policy = applyPermissionOverrides(policy, overrides);
         }
       } catch {
-        // malformed overrides — fall back to the mode defaults
+        this.io.write(`  ${yellow('⚠ Warning:')} Malformed MUGIL_IDE_TOOL_PERMISSIONS JSON — falling back to ${this.mode} mode defaults.\r\n`);
       }
     }
     return createPermissionCheck(policy, this.options.onAsk);
@@ -772,8 +772,9 @@ export class AgentRepl {
         filesModified: [],
       });
     }
-    if (this.messageHistory.length > 20) {
-      this.messageHistory = this.messageHistory.slice(-20);
+    const maxTurns = getMaxHistoryTurns();
+    if (this.messageHistory.length > maxTurns) {
+      this.messageHistory = this.messageHistory.slice(-maxTurns);
     }
   }
 
@@ -844,15 +845,8 @@ export class AgentRepl {
       }
       const historyBudget = getHistoryBudget();
       const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, { compactOlderTurns: true });
-      // Only count history savings for turns that actually fell out of the
-      // window *this* turn. The old figure (raw total - budgeted total)
-      // re-counted the same trimmed history on every single turn, so
-      // tokensSaved grew quadratically and bore no relation to real spend.
-      let historyTokensSaved = 0;
-      for (let i = 0; i < budgeted.droppedCount && i < turnsForBudget.length; i += 1) {
-        const t = turnsForBudget[i]!;
-        historyTokensSaved += countTokens(t.prompt) + countTokens(t.response);
-      }
+      // History savings for turns that actually fell out of the active window
+      const historyTokensSaved = budgeted.evictedTokens;
       const budgetedHistory: ChatMessage[] = [];
       if (budgeted.compactedSummary) {
         budgetedHistory.push({ role: 'user', content: budgeted.compactedSummary });
@@ -903,16 +897,19 @@ export class AgentRepl {
               );
             }
           } else if (event.type === 'tool') {
-            // This completion asked for tools, so what it streamed was the model
-            // narrating intent, not the answer. Say so, then start the next
-            // completion's region clean so the two cannot splice together.
-            if (streamed.trim().length > 0 || streamedThinking.trim().length > 0) {
+            // If the model streamed conversational answer fragments before requesting
+            // tools, label that provisional preamble as discarded so it doesn't splice
+            // with the final answer. Internal thinking is normal planning before tools
+            // and should not trigger a noisy yellow warning.
+            const hasConversationalPreamble = streamed.trim().length > 0;
+            const quietThinking = process.env.MUGIL_IDE_QUIET_TOOL_THINKING === '1';
+            if (hasConversationalPreamble && !quietThinking) {
               this.io.write(`\r\n  ${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`);
-              streamed = '';
-              streamedThinking = '';
-              thinkingRegion = false;
-              streamMarkdown.reset();
             }
+            streamed = '';
+            streamedThinking = '';
+            thinkingRegion = false;
+            streamMarkdown.reset();
             let argsObj: Record<string, unknown> = {};
             if (event.args) {
               if (typeof event.args === 'string') {
@@ -1006,9 +1003,10 @@ export class AgentRepl {
       this.messageHistory.push({ role: 'user', content: prompt });
       this.messageHistory.push({ role: 'assistant', content: result.response });
 
-      // Cap conversation history to prevent blowing token budget (OpenCode trim pattern)
-      if (this.messageHistory.length > 20) {
-        this.messageHistory = this.messageHistory.slice(-20);
+      // Cap conversation history using user-configurable limit (default 50, MUGIL_IDE_MAX_TURNS)
+      const maxTurns = getMaxHistoryTurns();
+      if (this.messageHistory.length > maxTurns) {
+        this.messageHistory = this.messageHistory.slice(-maxTurns);
       }
 
       if (thinkingRegion) {

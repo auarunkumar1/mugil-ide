@@ -126,6 +126,73 @@ describe('OpenAiClient', () => {
     // Tokens were consumed but content was null — the reasoning must surface.
     expect(result.content).toBe('the final answer is 42');
   });
+
+  it('handles unclosed <think> tag and [THINKING] block delimiters', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'deepseek-r1',
+        choices: [
+          {
+            message: {
+              content: '<think>partial reasoning that got cut off',
+            },
+            finish_reason: 'length',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const result = await client.complete([{ role: 'user', content: 'solve' }], {
+      model: 'deepseek-r1',
+    });
+    // Unclosed thinking tag lifted into thinking, and promoted to content since content was blank
+    expect(result.thinking).toBe('partial reasoning that got cut off');
+    expect(result.content).toBe('partial reasoning that got cut off');
+  });
+
+  it('captures cached_tokens from prompt_tokens_details and sorts tool parameters canonically', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'deepseek/deepseek-chat',
+        choices: [{ message: { content: 'cached response' }, finish_reason: 'stop' }],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 20,
+          total_tokens: 120,
+          prompt_tokens_details: { cached_tokens: 80 },
+        },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenAiClient({ apiKey: 'sk-test' });
+    const result = await client.complete([{ role: 'user', content: 'test caching' }], {
+      model: 'deepseek/deepseek-chat',
+      tools: [
+        {
+          name: 'zebra_tool',
+          description: 'tool z',
+          parameters: { z_param: '1', a_param: '2' },
+        },
+        {
+          name: 'alpha_tool',
+          description: 'tool a',
+          parameters: { y_param: '3', b_param: '4' },
+        },
+      ],
+    });
+
+    expect(result.usage.cachedTokens).toBe(80);
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      tools: Array<{ function: { name: string; parameters: Record<string, unknown> } }>;
+    };
+    // Tools are sorted alphabetically by name
+    expect(body.tools[0]!.function.name).toBe('alpha_tool');
+    expect(body.tools[1]!.function.name).toBe('zebra_tool');
+    // Parameter keys are canonicalized in sorted order
+    expect(Object.keys(body.tools[0]!.function.parameters)).toEqual(['b_param', 'y_param']);
+  });
 });
 
 describe('AnthropicClient', () => {

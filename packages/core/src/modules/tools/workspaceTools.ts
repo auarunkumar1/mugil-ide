@@ -29,6 +29,7 @@ import { runDiagnostics, type DiagnosticsResult } from './diagnostics.js';
 import { captureFile, pushEdit } from '../undo.js';
 import { connectMcpServers, type McpConnector, type McpServerConfig, type McpToolsBundle } from '../mcp-client/index.js';
 import { getLspClient, type LspClient } from '../lsp/index.js';
+import { globalBlobStore } from './blobStore.js';
 
 export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -41,6 +42,7 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
         path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
         startLine: { type: 'number', description: 'Optional 1-indexed start line (inclusive).' },
         endLine: { type: 'number', description: 'Optional 1-indexed end line (inclusive).' },
+        skeleton: { type: 'boolean', description: 'When true, returns the AST skeleton/signatures omitting internal function bodies for token efficiency.' },
       },
       required: ['path'],
     },
@@ -140,7 +142,7 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'run_command',
     description:
-      'Execute a shell command in the workspace root and return its (compressed) output. Timeout is 15 seconds; output is capped at ~2 MB. Prefer non-interactive commands (e.g. "npm test -- --runInBand", "npm run typecheck", "git status"). Explain to the user what a state-changing command will do before running it. This tool may require user approval.',
+      'Execute a shell command in the workspace root and return its (compressed) output. Timeout is 60 seconds (configurable via MUGIL_IDE_COMMAND_TIMEOUT); output is capped at ~2 MB. Prefer non-interactive commands (e.g. "npm test -- --runInBand", "npm run typecheck", "git status"). Explain to the user what a state-changing command will do before running it. This tool may require user approval.',
     parameters: {
       type: 'object',
       properties: {
@@ -240,6 +242,20 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
         character: { type: 'number', description: '1-indexed column of the symbol (default 1).' },
       },
       required: ['operation', 'path'],
+    },
+  },
+  {
+    name: 'read_blob',
+    description:
+      'Content-Compressed Retrieval (CCR): inspect a specific character range of an oversized tool output that was truncated and cached as a blob. Specify the blob ID (from the truncation notice), offset, and character limit.',
+    parameters: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The blob ID (e.g. blob_1_abcd).' },
+        offset: { type: 'number', description: '0-indexed character offset (default 0).' },
+        limit: { type: 'number', description: 'Number of characters to read (default 2000, capped at 8000).' },
+      },
+      required: ['id'],
     },
   },
   {
@@ -660,7 +676,7 @@ export function createWorkspaceTools(
 
   const registry: ToolRegistry = {
     read_file: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { path: string; startLine?: number; endLine?: number };
+      const args = parseToolArguments(call) as { path: string; startLine?: number; endLine?: number; skeleton?: boolean };
       if (!args.path) return 'Error: path parameter is required.';
       const { target, error } = resolveInWorkspace(args.path);
       if (error) return error;
@@ -673,6 +689,18 @@ export function createWorkspaceTools(
       }
       if (isBinaryFile(target)) {
         return `Error: ${args.path} appears to be a binary file and cannot be read as text.`;
+      }
+      if (args.skeleton) {
+        const cacheKey = `read_skeleton:${target}`;
+        const cached = toolCache.get(cacheKey);
+        if (cached && cached.mtimeMs === stat.mtimeMs) {
+          return cached.result;
+        }
+        const content = fs.readFileSync(target, 'utf-8');
+        const skeleton = extractCodeSkeleton(content, target);
+        const compressed = compressCommandOutput(skeleton, { maxLineLength: 300 }).text;
+        toolCache.set(cacheKey, { result: compressed, mtimeMs: stat.mtimeMs, rev: workspaceRev });
+        return compressed;
       }
       const cacheKey = `read_file:${target}:${args.startLine ?? 1}:${args.endLine ?? 'all'}`;
       const cached = toolCache.get(cacheKey);
@@ -988,7 +1016,7 @@ export function createWorkspaceTools(
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-        return compressCommandOutput(stdout).text;
+        return compressCommandOutput(stdout, { command: args.command }).text;
       } catch (err: unknown) {
         const error = err as { stdout?: string; stderr?: string; message?: string; signal?: string };
         const combined = [
@@ -997,7 +1025,7 @@ export function createWorkspaceTools(
           error.signal === 'SIGTERM' ? `(command timed out after ${timeoutMs}ms)` : undefined,
           error.message,
         ].filter(Boolean).join('\n');
-        return compressCommandOutput(`Command failed:\n${combined}`).text;
+        return compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text;
       }
     },
 
@@ -1140,6 +1168,19 @@ export function createWorkspaceTools(
       } catch (err) {
         return `Error: LSP request failed: ${err instanceof Error ? err.message : String(err)}`;
       }
+    },
+
+    read_blob: async (call: ToolCall): Promise<string> => {
+      const args = parseToolArguments(call) as { id: string; offset?: number; limit?: number };
+      if (!args.id) return 'Error: id parameter is required.';
+      const res = globalBlobStore.readChunk(args.id, args.offset ?? 0, args.limit ?? 2000);
+      if (!res) {
+        return `Error: blob "${args.id}" not found or expired from cache.`;
+      }
+      const marker = res.hasMore
+        ? `\n\n… [more data available in ${args.id} (total ${res.total} chars); request with offset: ${(args.offset ?? 0) + res.text.length}]`
+        : `\n\n[end of ${args.id} (${res.total} chars total)]`;
+      return res.text + marker;
     },
 
     question: async (call: ToolCall): Promise<string> => {
