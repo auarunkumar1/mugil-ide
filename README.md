@@ -105,15 +105,28 @@ The engine modules are built and unit-tested, but **only a subset is wired into 
 - **Turn Cancellation & Subagent Abort (wired)**: Ctrl-C cancels in-flight completion turns cleanly,
   labelling partial outputs and propagating `AbortSignal` all the way down through the pipeline,
   tool loop, and running subagents.
-- **AST / Skeletonized Code Reading (wired)**: `read_skeleton` extracts code signatures, types, and
-  declarations without full function bodies, reducing context consumption by 70–80% during codebase exploration.
-- **Dynamic History Budget & Loop Limits (wired)**: Sliding window via `MUGIL_IDE_HISTORY_BUDGET` (16k default)
+- **Cross-Provider Prompt Caching & Prefix Stability (wired)**: Strict byte-level prefix stability and prompt
+  cache breakpoints across OpenAI, DeepSeek, and Gemini gateways with recursive key sorting (`canonicalizeJson`)
+  and stable tool ordering, exposing `usage.cachedTokens` metrics in UI and terminal stats.
+- **Headroom JSON SmartCrusher (wired)**: Converts repeating uniform object arrays ($\le 15$ keys) into compact
+  tabular TSV format while stripping null/undefined values (`compressJson`), cutting JSON token footprint by 60–80%.
+- **Reversible Compression & Content-Compressed Retrieval (CCR) (wired)**: Caches uncompressed raw outputs of
+  oversized tool runs (>48k chars) in an LRU `BlobStore` returning `[Blob #id, N chars]` references, with on-demand
+  `read_blob` tool paging for the model to inspect exact slices without inflating context history.
+- **Unified Git Diff & Command Minimization (wired)**: Integrated 1-line context git diff reduction (`compressGitDiff`)
+  and test/build runner noise filter (`filterTestBuildNoise`), stripping passing test noise on failures.
+- **User-Configurable Token Limits & History Budgets (wired)**: User-defined token budgets, history budgets, and max
+  turn counts configurable via UI settings modal, CLI flags, and environment variables (`MUGIL_IDE_TOKEN_LIMIT`,
+  `MUGIL_IDE_HISTORY_BUDGET`, `MUGIL_IDE_MAX_TURNS`).
+- **Origin & Security Hardening (wired)**: Rejects unauthorized foreign-origin WebSocket connections and state-changing
+  `/api/*` mutations, enforces strict Content-Security-Policy headers, and prevents path traversal on `/api/file`.
+- **Reasoning Stream Cleanliness (wired)**: Decoupled internal thinking from conversational prose, eliminating false
+  discard warnings when reasoning models plan before calling tools (`MUGIL_IDE_QUIET_TOOL_THINKING`).
+- **AST / Skeletonized Code Reading (wired)**: `read_skeleton` and `read_file` with `skeleton: true` extract code
+  signatures, types, and declarations without function bodies, reducing context consumption by 70–80% during exploration.
+- **Dynamic History Budget & Loop Limits (wired)**: Sliding window via `MUGIL_IDE_HISTORY_BUDGET` (32k default)
   with older-turn Caveman/RTK compaction, 15 tool iterations default (`MUGIL_IDE_MAX_TOOL_ITERATIONS`),
   and 48k char tool output safety bounds (`MUGIL_IDE_MAX_TOOL_CHARS`).
-- **Subagent Output Condensation (wired)**: `task` subagent execution findings are automatically compressed
-  via Caveman and RTK before being injected into the parent agent's context history.
-- **Code Search Grouping & Deduplication (wired)**: `search_code` groups results by file header and caps
-  individual match lines at 200 characters to prevent verbose search results from flooding context.
 
 ## Install from npm
 
@@ -121,7 +134,7 @@ Requires **Node.js >= 20**. The web IDE is a single global install:
 
 ```bash
 npm i -g mugil-ide          # the browser web IDE
-mugil-ide --version         # 0.1.14
+mugil-ide --version         # 0.1.16
 mugil-ide                   # starts the local server and opens your browser
 ```
 
