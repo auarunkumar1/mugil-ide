@@ -34,7 +34,7 @@ Best of all, **it's 100% browser-based with zero telemetry**. Launch it from you
 
 ## ✨ Feature Highlights
 
-Every major capability in Mugil IDE is built to give you maximum developer superpowers while keeping token costs tiny. Here is how each feature works — explained first in plain English, and then under the hood.
+Every major capability in Mugil IDE is built to give you maximum developer superpowers while keeping token costs tiny. Here is how each feature works — defined simply first, and then under the hood.
 
 ```mermaid
 flowchart LR
@@ -60,7 +60,7 @@ flowchart LR
 
 ### 1. ⚡ Token Refinement & Compression Pipeline
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   When you talk to an AI, roughly half of what gets sent is conversational fluff, redundant punctuation, repeating log lines, or obvious syntax. Mugil IDE automatically cleans your prompt before the AI reads it — dropping your bill by 40–70% without the model losing any context or meaning. When the AI responds, Mugil IDE purges AI disclaimers, watermarks, and conversational signatures before code hits your disk.
 - **⚙️ Under the Hood:**  
   A multi-stage pipeline executes synchronously before handoff and after code generation:
@@ -73,7 +73,7 @@ flowchart LR
 
 ### 2. 🚀 Pre-Session Setup & Live Token Economics
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   No more surprise bills! When you start a coding session, a friendly popup lets you choose your model, pick your history size, and see **exact pricing in real-time** (e.g., *$0.55/1M input* for DeepSeek-R1, or *Free / $0.00* for local Ollama). It even calculates the estimated worst-case cost of a full turn before you type a single word.
 - **⚙️ Under the Hood:**  
   On launch, `/api/config` and `/api/models` probe configured local daemons (Ollama `:11434`, LM Studio `:1234`) and cloud catalogs (OpenRouter, Anthropic, OpenAI). The UI dynamically calculates:
@@ -84,7 +84,7 @@ flowchart LR
 
 ### 3. ⚡ Turbo Mode & Safety Permission Gates
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   Want to sit back and let the AI build an entire feature without nagging you for permission on every single file? Turn on **Turbo Mode**! Prefer to inspect every change before it hits your disk? Stay in standard **Act Mode** to get a preview modal, or **Plan Mode** for 100% read-only brainstorming.
 - **⚙️ Under the Hood:**  
   The engine enforces an explicit `PermissionCheck` policy on all tool executions:
@@ -96,7 +96,7 @@ flowchart LR
 
 ### 4. ⚙️ User-Definable History & Output Budgets (No More Cutoffs!)
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   Ever had an AI write 90% of a complex script only to stop in the middle of a loop because it ran out of output tokens? In Mugil IDE, you have dedicated knobs for both **History Budget** (how much past context to remember) and **Max Output Tokens** (how long an answer can be). Expanding your history will never accidentally squeeze your output generation budget!
 - **⚙️ Under the Hood:**  
   Previous agent architectures floored completion tokens when conversation history grew large. Mugil IDE separates input history budgeting (`DEFAULT_HISTORY_BUDGET = 16,000`, override via `MUGIL_IDE_TOKEN_LIMIT`) from output generation (`DEFAULT_MAX_OUTPUT_TOKENS = 8,192`, override via `MUGIL_IDE_MAX_OUTPUT_TOKENS`). The pipeline computes:
@@ -107,7 +107,7 @@ flowchart LR
 
 ### 5. 💾 Multi-Tier Smart Caching & Ephemeral Breakpoints
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   If you ask a similar question or run repeated tasks, Mugil IDE serves the answer instantly from cache instead of charging your credit card again.
 - **⚙️ Under the Hood:**  
   Three progressive cache layers:
@@ -120,7 +120,7 @@ flowchart LR
 
 ### 6. 🛠️ 17 Autonomous Workspace Tools & Subagent Swarms
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   Mugil IDE comes out of the box with tools to search, read, write, test, explore, and refactor code. It can even spin up helper "subagents" to perform broad background research without cluttering your main conversation!
 - **⚙️ Under the Hood:**  
   Built-in tools include:
@@ -135,7 +135,7 @@ flowchart LR
 
 ### 7. 🔍 Live Diff Viewer & 1-Click Undo
 
-- **💡 In Plain English:**  
+- **💡 Def:**  
   Every change made by the AI appears in real-time in a split diff viewer. If the agent makes a mistake, click **"↩ Undo Edit"** or type `/undo` to instantly roll back your files to their exact previous state.
 - **⚙️ Under the Hood:**  
   All file writes are tracked in an immutable session journal (`pushEdit`, `undoLast`). Diffs are computed on a background worker thread (`diffWorker.js`) so large multi-thousand line patches never freeze the browser terminal.

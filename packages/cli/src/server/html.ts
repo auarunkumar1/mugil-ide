@@ -901,7 +901,7 @@ export function getWebUiHtml(): string {
               </div>
             </div>
             <input type="range" id="slider-history-budget" min="1000" max="128000" step="1000" value="16000" oninput="syncInputFromSlider('history-budget')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
-            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> How much past conversation and project code the AI can remember at once.</div>
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> How much past conversation and project code the AI can remember at once.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> History sliding-window budget for history compaction before sending prompt.</div>
           </div>
 
@@ -915,7 +915,7 @@ export function getWebUiHtml(): string {
               </div>
             </div>
             <input type="range" id="slider-max-output" min="1024" max="32768" step="512" value="8192" oninput="syncInputFromSlider('max-output')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
-            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> Maximum length of a single AI reply or file written in one step.</div>
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> Maximum length of a single AI reply or file written in one step.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Model completion max_tokens ceiling; stops responses or reports from truncating.</div>
           </div>
 
@@ -929,7 +929,7 @@ export function getWebUiHtml(): string {
               </div>
             </div>
             <input type="range" id="slider-max-tool-iters" min="5" max="100" step="1" value="20" oninput="syncInputFromSlider('max-tool-iters')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
-            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> Max actions (reading/writing files, shell commands) before pausing for your approval.</div>
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> Max actions (reading/writing files, shell commands) before pausing for your approval.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Bounded iteration limit for ToolLoop; if reached mid-task, prompts user to extend.</div>
           </div>
 
@@ -943,7 +943,7 @@ export function getWebUiHtml(): string {
               </div>
             </div>
             <input type="range" id="slider-max-turns" min="5" max="200" step="5" value="50" oninput="syncInputFromSlider('max-turns')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
-            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> Number of conversational rounds kept before summarizing earlier turns.</div>
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> Number of conversational rounds kept before summarizing earlier turns.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Message eviction threshold in budgetConversationHistory.</div>
           </div>
         </div>
@@ -965,7 +965,7 @@ export function getWebUiHtml(): string {
             <input type="checkbox" id="setup-webfetch-checkbox" checked style="cursor:pointer;" />
             <span>🌐 Web Access (webfetch tool for live docs & web pages)</span>
           </label>
-          <div style="font-size:10.5px; color:#58a6ff; margin-top:4px;">• <b>Plain English:</b> Allows the AI to fetch remote documentation, APIs, and web pages online.</div>
+          <div style="font-size:10.5px; color:#58a6ff; margin-top:4px;">• <b>Def:</b> Allows the AI to fetch remote documentation, APIs, and web pages online.</div>
           <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Exposes webfetch tool in the agent tool registry; uncheck to enforce offline air-gap mode.</div>
         </div>
 

@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 🛠 **Deep Development**: 24k context, 8k output, 25 tool calls, 50 turns.
   - 🏗 **Big Codebase & Audit**: 64k context, 16k output, 50 tool calls, 100 turns.
 - **Live Session Cost Counter**: Real-time spending tracker (`Spent: $X.XXXX`) in header metric bar and status bar, computing true model catalog input/output usage with free designation for local models.
-- **Dual Plain English & Technical Explanations**: Included clear plain English breakdowns and technical mechanics under every setting in the setup and configuration modals.
+- **Dual Field Definition & Technical Explanations**: Included clear definitions and technical mechanics under every setting in the setup and configuration modals.
 - **Write File Append Support (`append?: boolean`)**: Added optional `append` parameter to `write_file` to support direct logging and incremental markdown generation without repetitive read-modify-write loops.
 - **Non-Code Diagnostics Filtering**: Post-edit diagnostics automatically bypass documentation and log files (`.md`, `.log`, `.txt`, `.csv`, `.json`), preventing repo TypeScript compiler errors from confusing agents writing reports.
 - **Webfetch Online Access Control**: Added an interactive web access toggle in the Session Setup modal, allowing users to toggle the `webfetch` tool or air-gap agents offline.
