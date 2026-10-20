@@ -1,6 +1,6 @@
 {
   "name": "@mugil-ide/core",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Token Efficiency Manager, Smart Cache, Auto Handoff, Signature Stripper",
   "keywords": [
     "ai",

@@ -177,9 +177,9 @@ Every major capability in Mugil IDE is built to give you maximum developer super
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.x**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.17**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.x (Current Version)
+### ✅ Shipped & Ready in v0.1.17 (Current Release)
 
 - [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
 - [x] **Pre-Session Setup Popup:** Live model selector, history budget input, output token limit, and real-time cost calculator.

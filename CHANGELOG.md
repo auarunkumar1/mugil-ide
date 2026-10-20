@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-10-20
+
 ### Added
 
 - **Configurable Max Output Tokens (`MUGIL_IDE_MAX_OUTPUT_TOKENS`)**: Added `getMaxOutputTokens(env)` pipeline helper and `/api/config` settings integration, allowing users to override model response token limits (up to model context maximum) to eliminate `output was cut off by token limit` errors during large completions.
@@ -259,3 +261,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.15]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.15
 
 [0.1.16]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.16
+
+[0.1.17]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.17
