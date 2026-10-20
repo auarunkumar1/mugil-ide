@@ -79,6 +79,18 @@ const DEFAULT_SYSTEM_PROMPT =
 export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 
 /**
+ * Resolves the default max output tokens from environment or falls back to DEFAULT_MAX_OUTPUT_TOKENS.
+ */
+export function getMaxOutputTokens(env: NodeJS.ProcessEnv = process.env): number {
+  const custom = env.MUGIL_IDE_MAX_OUTPUT_TOKENS || env.MUGIL_IDE_OUTPUT_BUDGET;
+  if (custom) {
+    const parsed = Number(custom);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  }
+  return DEFAULT_MAX_OUTPUT_TOKENS;
+}
+
+/**
  * Hard floor for a single completion. The pipeline never asks a provider for
  * less than this — previously the floor was 256, which silently truncated every
  * reply to a couple of sentences once history plus tool schemas exceeded the
@@ -272,7 +284,7 @@ export class Pipeline {
     const caps = [options.maxTokens, outputBudget].filter(
       (v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0,
     );
-    const preferred = caps.length > 0 ? Math.min(...caps) : DEFAULT_MAX_OUTPUT_TOKENS;
+    const preferred = caps.length > 0 ? Math.min(...caps) : getMaxOutputTokens();
     const contextWindow = this.handoff.route(totalPromptTokens, options.preferredModel).contextWindow;
     const sizeFor = (promptTokens: number): number => {
       let maxTokens = preferred;

@@ -223,6 +223,7 @@ export {
   Pipeline,
   DEFAULT_MAX_OUTPUT_TOKENS,
   MIN_MAX_OUTPUT_TOKENS,
+  getMaxOutputTokens,
 } from './pipeline.js';
 export type { PipelineOptions, AskOptions } from './pipeline.js';
 

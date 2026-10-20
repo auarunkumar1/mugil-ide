@@ -66,11 +66,10 @@ export function getWebUiHtml(): string {
     header {
       background: var(--panel-bg);
       border-bottom: 1px solid var(--border);
-      padding: 6px 16px;
+      padding: 6px 16px 5px 16px;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
+      flex-direction: column;
+      gap: 4px;
       min-height: 48px;
       height: auto;
       flex-shrink: 0;
@@ -84,8 +83,8 @@ export function getWebUiHtml(): string {
       font-size: calc(15px * var(--font-scale));
       color: var(--accent);
       user-select: none;
-      min-width: 0;
-      flex: 1;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .shimmer-logo {
       background: linear-gradient(
@@ -566,28 +565,23 @@ export function getWebUiHtml(): string {
 </head>
 <body>
   <header>
-    <div class="logo-container">
-      <div style="display:flex; flex-direction:column; min-width:0; max-width:100%;">
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <span>☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
-          <span class="logo-badge">TOKEN EFFICIENT</span>
-        </div>
-        <span id="logo-model-sub" style="font-size:10px; color:var(--text-dim); font-weight:normal; margin-top:2px; word-break:break-word; overflow-wrap:anywhere; line-height:1.3;">Active: <b id="sub-active-model" style="color:var(--accent); word-break:break-word; overflow-wrap:anywhere;">Detecting...</b></span>
-        <div class="header-credits-bar" style="font-size:9.5px; color:var(--text-dim); margin-top:3px; display:flex; gap:4px; flex-wrap:wrap; align-items:center; line-height:1.3;">
-          <span>Credited:</span>
-          <a href="https://github.com/JuliusBrussee/caveman" target="_blank" style="color:var(--accent); text-decoration:none;">Caveman</a> ·
-          <a href="https://github.com/rtk-ai/rtk" target="_blank" style="color:var(--accent); text-decoration:none;">RTK</a> ·
-          <a href="https://github.com/DietrichGebert/ponytail" target="_blank" style="color:var(--accent); text-decoration:none;">Ponytail</a> ·
-          <a href="https://github.com/conorbronsdon/avoid-ai-writing" target="_blank" style="color:var(--accent); text-decoration:none;">De-AI</a> ·
-          <a href="https://github.com/guillaumemeyer/watermarks-remover" target="_blank" style="color:var(--accent); text-decoration:none;">Watermarks</a> ·
-          <a href="https://github.com/colbymchenry/codegraph" target="_blank" style="color:var(--accent); text-decoration:none;">CodeGraph</a> ·
-          <a href="https://github.com/sst/opencode" target="_blank" style="color:var(--accent); text-decoration:none;">OpenCode</a>
-        </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:16px;">
+      <div class="logo-container">
+        <span>☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
+        <span class="logo-badge">TOKEN EFFICIENT</span>
+        <span id="logo-model-sub" style="font-size:11px; color:var(--text-dim); font-weight:normal; margin-left:6px; white-space:nowrap;">Active: <b id="sub-active-model" style="color:var(--accent);">Detecting...</b></span>
       </div>
-    </div>
 
     <div class="controls">
-      <button class="btn btn-primary" onclick="openModelModal()">
+      <button class="btn btn-primary" onclick="openSessionSetupModal()" title="Configure session budgets, limits & turbo mode">
+        <span>🚀 Session Setup</span>
+      </button>
+
+      <button class="btn" id="turbo-toggle" onclick="toggleTurboMode()" title="Toggle Turbo Mode (Autonomous execution without confirmation)">
+        <span id="turbo-icon">⚡</span> <span id="turbo-label">Turbo: Off</span>
+      </button>
+
+      <button class="btn" onclick="openModelModal()">
         <span>🤖 Model:</span> <strong id="header-active-model">Detecting...</strong> ▾
       </button>
 
@@ -613,6 +607,18 @@ export function getWebUiHtml(): string {
       <button class="btn btn-undo" onclick="triggerUndo()">↩ Undo Edit</button>
       <button class="btn" onclick="sendAgentCmd('/stats')">📊 Stats</button>
       <button class="btn" onclick="sendAgentCmd('/clear')">🧹 Clear</button>
+    </div>
+    </div>
+
+    <div class="header-credits-bar" style="font-size:10px; color:var(--text-dim); display:flex; gap:6px; align-items:center; white-space:nowrap; overflow-x:auto; padding-top:2px; border-top:1px solid #21262d44; width:100%;">
+      <span style="font-weight:600; color:var(--text);">Credited:</span>
+      <a href="https://github.com/JuliusBrussee/caveman" target="_blank" style="color:var(--accent); text-decoration:none;">Caveman</a> ·
+      <a href="https://github.com/rtk-ai/rtk" target="_blank" style="color:var(--accent); text-decoration:none;">RTK</a> ·
+      <a href="https://github.com/DietrichGebert/ponytail" target="_blank" style="color:var(--accent); text-decoration:none;">Ponytail</a> ·
+      <a href="https://github.com/conorbronsdon/avoid-ai-writing" target="_blank" style="color:var(--accent); text-decoration:none;">De-AI</a> ·
+      <a href="https://github.com/guillaumemeyer/watermarks-remover" target="_blank" style="color:var(--accent); text-decoration:none;">Watermarks</a> ·
+      <a href="https://github.com/colbymchenry/codegraph" target="_blank" style="color:var(--accent); text-decoration:none;">CodeGraph</a> ·
+      <a href="https://github.com/sst/opencode" target="_blank" style="color:var(--accent); text-decoration:none;">OpenCode</a>
     </div>
   </header>
 
@@ -788,6 +794,71 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- Pre-Session Configuration & Economics Modal -->
+  <div class="modal-overlay" id="session-setup-modal">
+    <div class="modal-dialog" style="max-width:620px;">
+      <div class="modal-title-bar">
+        <span>🚀 Session Setup & Token Economics</span>
+        <button class="btn" onclick="closeSessionSetupModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:16px;">
+        <div>
+          <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Active Model & Provider:</label>
+          <select id="setup-model-select" onchange="onSetupModelChange()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:13px; font-family:inherit;">
+            <option value="">Loading models...</option>
+          </select>
+          <div id="setup-model-badge" style="margin-top:6px; font-size:11px; color:var(--text-dim); display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+            <span id="setup-model-provider" style="color:var(--accent);">Provider: Auto</span>
+            <span id="setup-model-context" style="color:var(--text-dim);">Context: 128k</span>
+            <span id="setup-model-pricing" style="color:var(--green); font-weight:600;">Pricing: Detecting...</span>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div>
+            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;" for="setup-history-budget">Context Token Budget:</label>
+            <input type="number" id="setup-history-budget" value="16000" step="1000" min="1000" oninput="updateCostEstimate()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px;" />
+            <div style="font-size:10.5px; color:var(--text-dim); margin-top:3px;">Conversation history sliding window sent to prompt</div>
+          </div>
+          <div>
+            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;" for="setup-max-output">Max Output Tokens:</label>
+            <input type="number" id="setup-max-output" value="8192" step="512" min="1024" oninput="updateCostEstimate()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px;" />
+            <div style="font-size:10.5px; color:var(--text-dim); margin-top:3px;">Model generation ceiling (prevents cutoff errors)</div>
+          </div>
+        </div>
+
+        <!-- Estimated Budget per million & per turn -->
+        <div style="background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; color:var(--text-dim); font-weight:600;">📊 Estimated Cost / Single Turn:</span>
+            <span id="setup-estimated-cost" style="font-size:14px; font-weight:700; color:var(--green);">$0.0000</span>
+          </div>
+          <div id="setup-pricing-detail" style="font-size:11px; color:var(--text-dim); margin-top:4px;">
+            Pricing per 1M tokens: $0.00 In · $0.00 Out
+          </div>
+        </div>
+
+        <!-- Turbo Mode & Caution -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; font-size:13px; color:var(--text); user-select:none;">
+            <input type="checkbox" id="setup-turbo-checkbox" onchange="onTurboCheckboxChange()" style="cursor:pointer;" />
+            <span>⚡ Turbo Mode (Autonomous Execution)</span>
+          </label>
+          <div id="setup-turbo-caution" style="display:none; background:#2a1705; border:1px solid #d29922; border-radius:6px; padding:10px 12px; margin-top:10px; font-size:11.5px; color:#f0883e; line-height:1.45;">
+            ⚠ <b>CAUTION:</b> Turbo Mode allows execution without user confirmation prompts.
+            File modifications, writes, deletions, and shell terminal commands will execute immediately without pausing for approval.
+            Enable only in trusted workspaces with a clean git status or backed up code.
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:4px;">
+          <button class="btn" onclick="closeSessionSetupModal()">Cancel</button>
+          <button class="btn btn-primary" style="padding:6px 20px; font-size:13px;" onclick="applySessionSetup()">🚀 Start Session</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Token Saving Modules & Superpowers Modal -->
   <div class="modal-overlay" id="modules-modal">
     <div class="modal-dialog" style="max-width:720px;">
@@ -806,6 +877,10 @@ export function getWebUiHtml(): string {
             <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-turns">Max History Turns:</label>
             <input type="number" id="cfg-max-turns" style="width:70px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="50" min="2" max="500" />
           </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-output">Max Output Tokens:</label>
+            <input type="number" id="cfg-max-output" style="width:80px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="8192" step="512" min="1024" />
+          </div>
           <button class="btn btn-primary" style="padding:3px 10px; font-size:11px;" onclick="saveConfigLimits()">Save Limits</button>
           <span id="cfg-save-status" style="font-size:11px; color:var(--green); display:none;">✓ Saved</span>
         </div>
@@ -821,6 +896,9 @@ export function getWebUiHtml(): string {
   </div>
 
   <script>
+    let currentTurboMode = false;
+    let configuredHistoryBudget = 16000;
+    let configuredMaxOutputTokens = 8192;
     let activeLeftTab = 'agent';
     let activeRightTab = 'files';
     let activeModelTab = 'local';
@@ -1082,6 +1160,9 @@ export function getWebUiHtml(): string {
           } else if (msg.type === 'approval') {
             showApproval(msg);
           } else if (msg.type === 'status') {
+            if (msg.turboMode !== undefined) {
+              updateTurboUI(msg.turboMode);
+            }
             if (msg.activeModel) {
               activeModelId = msg.activeModel;
               const subEl = document.getElementById('sub-active-model');
@@ -1690,8 +1771,27 @@ export function getWebUiHtml(): string {
         const res = await fetch('/api/config');
         if (res.ok) {
           const cfg = await res.json();
-          if (cfg.historyBudget) document.getElementById('cfg-history-budget').value = cfg.historyBudget;
-          if (cfg.maxTurns) document.getElementById('cfg-max-turns').value = cfg.maxTurns;
+          if (cfg.historyBudget) {
+            configuredHistoryBudget = cfg.historyBudget;
+            const el = document.getElementById('cfg-history-budget');
+            if (el) el.value = cfg.historyBudget;
+            const setupEl = document.getElementById('setup-history-budget');
+            if (setupEl) setupEl.value = cfg.historyBudget;
+          }
+          if (cfg.maxTurns) {
+            const el = document.getElementById('cfg-max-turns');
+            if (el) el.value = cfg.maxTurns;
+          }
+          if (cfg.maxOutputTokens) {
+            configuredMaxOutputTokens = cfg.maxOutputTokens;
+            const el = document.getElementById('cfg-max-output');
+            if (el) el.value = cfg.maxOutputTokens;
+            const setupEl = document.getElementById('setup-max-output');
+            if (setupEl) setupEl.value = cfg.maxOutputTokens;
+          }
+          if (cfg.turboMode !== undefined) {
+            updateTurboUI(cfg.turboMode);
+          }
         }
       } catch (e) {}
     }
@@ -1699,20 +1799,196 @@ export function getWebUiHtml(): string {
     async function saveConfigLimits() {
       const budget = Number(document.getElementById('cfg-history-budget').value);
       const turns = Number(document.getElementById('cfg-max-turns').value);
+      const maxOutput = Number(document.getElementById('cfg-max-output').value);
       try {
         const res = await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ historyBudget: budget, maxTurns: turns }),
+          body: JSON.stringify({ historyBudget: budget, maxTurns: turns, maxOutputTokens: maxOutput }),
         });
         if (res.ok) {
+          configuredHistoryBudget = budget;
+          configuredMaxOutputTokens = maxOutput;
           const status = document.getElementById('cfg-save-status');
-          status.style.display = 'inline';
-          setTimeout(() => { status.style.display = 'none'; }, 2000);
+          if (status) {
+            status.style.display = 'inline';
+            setTimeout(() => { status.style.display = 'none'; }, 2000);
+          }
         }
       } catch (e) {
         alert('Failed to save config limits');
       }
+    }
+
+    function openSessionSetupModal() {
+      populateSetupModels();
+      const setupEl = document.getElementById('setup-history-budget');
+      if (setupEl) setupEl.value = configuredHistoryBudget;
+      const maxEl = document.getElementById('setup-max-output');
+      if (maxEl) maxEl.value = configuredMaxOutputTokens;
+      const turboCb = document.getElementById('setup-turbo-checkbox');
+      if (turboCb) turboCb.checked = currentTurboMode;
+      onTurboCheckboxChange();
+      updateCostEstimate();
+      document.getElementById('session-setup-modal').classList.add('open');
+    }
+
+    function closeSessionSetupModal() {
+      document.getElementById('session-setup-modal').classList.remove('open');
+    }
+
+    function populateSetupModels() {
+      const select = document.getElementById('setup-model-select');
+      if (!select) return;
+      select.innerHTML = '';
+      const list = (allAvailableModels && allAvailableModels.length > 0) ? allAvailableModels : [
+        { id: activeModelId || 'openrouter/auto', provider: 'openrouter', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 }
+      ];
+      list.forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        const providerName = m.providerLabel || m.provider || (m.isLocal ? 'Local' : 'Cloud');
+        const costStr = m.isLocal
+          ? 'Free · $0.00'
+          : (m.costPerMTokIn || m.costPerMTokOut)
+            ? '$' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out'
+            : 'Catalog default';
+        opt.textContent = '[' + providerName + '] ' + m.id + ' (' + costStr + ')';
+        if (m.id === activeModelId) opt.selected = true;
+        select.appendChild(opt);
+      });
+      onSetupModelChange();
+    }
+
+    function onSetupModelChange() {
+      const select = document.getElementById('setup-model-select');
+      if (!select) return;
+      const chosenId = select.value;
+      const m = (allAvailableModels || []).find((x) => x.id === chosenId);
+      const provEl = document.getElementById('setup-model-provider');
+      const ctxEl = document.getElementById('setup-model-context');
+      const priceEl = document.getElementById('setup-model-pricing');
+      if (m) {
+        if (provEl) provEl.textContent = 'Provider: ' + (m.providerLabel || m.provider || (m.isLocal ? 'Local' : 'Cloud'));
+        if (ctxEl) ctxEl.textContent = 'Context: ' + ((m.contextWindow || 128000) / 1000).toFixed(0) + 'k tokens';
+        if (priceEl) {
+          priceEl.textContent = m.isLocal
+            ? 'Free · Local model'
+            : (m.costPerMTokIn || m.costPerMTokOut)
+              ? '$' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out per 1M'
+              : 'Standard catalog pricing';
+        }
+      }
+      updateCostEstimate();
+    }
+
+    function onTurboCheckboxChange() {
+      const cb = document.getElementById('setup-turbo-checkbox');
+      const caution = document.getElementById('setup-turbo-caution');
+      if (caution) {
+        caution.style.display = (cb && cb.checked) ? 'block' : 'none';
+      }
+    }
+
+    function updateCostEstimate() {
+      const select = document.getElementById('setup-model-select');
+      const chosenId = select ? select.value : activeModelId;
+      const m = (allAvailableModels || []).find((x) => x.id === chosenId);
+      const budgetInput = document.getElementById('setup-history-budget');
+      const maxOutputInput = document.getElementById('setup-max-output');
+      const historyBudget = Number(budgetInput ? budgetInput.value : 16000) || 16000;
+      const maxOutput = Number(maxOutputInput ? maxOutputInput.value : 8192) || 8192;
+
+      const costIn = (m && typeof m.costPerMTokIn === 'number') ? m.costPerMTokIn : 0;
+      const costOut = (m && typeof m.costPerMTokOut === 'number') ? m.costPerMTokOut : 0;
+      const isLocal = m ? Boolean(m.isLocal) : false;
+
+      const costEl = document.getElementById('setup-estimated-cost');
+      const detailEl = document.getElementById('setup-pricing-detail');
+
+      if (isLocal || (costIn === 0 && costOut === 0)) {
+        if (costEl) costEl.textContent = 'Free ($0.00)';
+        if (detailEl) detailEl.textContent = 'Local LLM / free provider (zero API token cost)';
+      } else {
+        const turnCost = ((historyBudget * costIn) + (maxOutput * costOut)) / 1000000;
+        if (costEl) costEl.textContent = '~$' + turnCost.toFixed(4);
+        if (detailEl) {
+          detailEl.textContent = 'Rate: $' + costIn.toFixed(2) + ' / 1M in · $' + costOut.toFixed(2) + ' / 1M out (at ' + Math.round(historyBudget/1000) + 'k in + ' + Math.round(maxOutput/1000) + 'k out)';
+        }
+      }
+    }
+
+    function updateTurboUI(enabled) {
+      currentTurboMode = Boolean(enabled);
+      const btn = document.getElementById('turbo-toggle');
+      const label = document.getElementById('turbo-label');
+      if (btn && label) {
+        if (currentTurboMode) {
+          btn.style.borderColor = 'var(--yellow)';
+          btn.style.color = 'var(--yellow)';
+          label.textContent = 'Turbo: ON';
+        } else {
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          label.textContent = 'Turbo: Off';
+        }
+      }
+      const setupCb = document.getElementById('setup-turbo-checkbox');
+      if (setupCb && setupCb.checked !== currentTurboMode) {
+        setupCb.checked = currentTurboMode;
+        onTurboCheckboxChange();
+      }
+    }
+
+    function toggleTurboMode() {
+      const next = !currentTurboMode;
+      updateTurboUI(next);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_turbo_mode', enabled: next }));
+      }
+      fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turboMode: next }),
+      }).catch(() => {});
+    }
+
+    async function applySessionSetup() {
+      const select = document.getElementById('setup-model-select');
+      const chosenModel = select ? select.value : activeModelId;
+      const budget = Number(document.getElementById('setup-history-budget').value) || 16000;
+      const maxOutput = Number(document.getElementById('setup-max-output').value) || 8192;
+      const turboVal = Boolean(document.getElementById('setup-turbo-checkbox').checked);
+
+      // 1. Update model if changed
+      if (chosenModel && chosenModel !== activeModelId) {
+        const m = (allAvailableModels || []).find((x) => x.id === chosenModel);
+        await selectModel(chosenModel, m ? m.provider : undefined);
+      }
+
+      // 2. Save config limits
+      configuredHistoryBudget = budget;
+      configuredMaxOutputTokens = maxOutput;
+      const bEl = document.getElementById('cfg-history-budget');
+      if (bEl) bEl.value = budget;
+      const oEl = document.getElementById('cfg-max-output');
+      if (oEl) oEl.value = maxOutput;
+
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historyBudget: budget, maxOutputTokens: maxOutput, turboMode: turboVal }),
+      });
+
+      // 3. Update turbo mode
+      if (turboVal !== currentTurboMode) {
+        toggleTurboMode();
+      }
+
+      sessionStorage.setItem('mugil_session_configured', '1');
+      closeSessionSetupModal();
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput) chatInput.focus();
     }
 
     async function loadModules() {
@@ -1791,11 +2067,15 @@ export function getWebUiHtml(): string {
       }
     }
 
-    window.onload = () => {
+    window.onload = async () => {
       initTerminals();
       connectWs();
-      loadModels();
+      await loadModels();
+      await loadConfigLimits();
       refreshFiles();
+      if (!sessionStorage.getItem('mugil_session_configured')) {
+        openSessionSetupModal();
+      }
       const chatInput = document.getElementById('chat-input');
       if (chatInput) chatInput.focus();
     };

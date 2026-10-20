@@ -1,4 +1,4 @@
-import { Pipeline, MIN_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS } from '../src/pipeline.js';
+import { Pipeline, MIN_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS, getMaxOutputTokens } from '../src/pipeline.js';
 import { SmartCache } from '../src/modules/smart-cache/index.js';
 import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { HandoffManager } from '../src/modules/handoff/index.js';
@@ -362,6 +362,12 @@ describe('Pipeline', () => {
         { role: 'assistant', content: 'y'.repeat(20_000) },
       ];
       await expect(captureMaxTokens(overflow, { maxTokens: 3000 })).resolves.toBe(3000);
+    });
+
+    it('supports getMaxOutputTokens with defaults and MUGIL_IDE_MAX_OUTPUT_TOKENS', () => {
+      expect(getMaxOutputTokens({})).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+      expect(getMaxOutputTokens({ MUGIL_IDE_MAX_OUTPUT_TOKENS: '16384' })).toBe(16384);
+      expect(getMaxOutputTokens({ MUGIL_IDE_OUTPUT_BUDGET: '4096' })).toBe(4096);
     });
 
     it('takes the tighter of an explicit maxTokens and a ponytail outputBudget', async () => {

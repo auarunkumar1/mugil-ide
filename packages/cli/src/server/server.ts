@@ -85,6 +85,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   // never blocks the event loop for other requests. Disposed in close().
   const diffRunner = createDiffRunner();
   const userEnv = readUserEnv();
+  let turboMode = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
   let activeModel = initialModel || process.env.MUGIL_IDE_MODEL || userEnv.MUGIL_IDE_MODEL || (engine.config.models && engine.config.models[0]?.id) || 'openrouter/auto';
   const updateActiveModel = (newModel: string, newProvider?: string) => {
     activeModel = newModel;
@@ -705,12 +706,14 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/config' && req.method === 'GET') {
-      const { getHistoryBudget, getMaxHistoryTurns } = await import('@mugil-ide/core');
+      const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens } = await import('@mugil-ide/core');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
           historyBudget: getHistoryBudget(),
           maxTurns: getMaxHistoryTurns(),
+          maxOutputTokens: getMaxOutputTokens(),
+          turboMode,
         }),
       );
       return;
@@ -724,7 +727,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         });
         req.on('end', async () => {
           try {
-            const data = JSON.parse(body || '{}') as { historyBudget?: number; maxTurns?: number };
+            const data = JSON.parse(body || '{}') as {
+              historyBudget?: number;
+              maxTurns?: number;
+              maxOutputTokens?: number;
+              turboMode?: boolean;
+            };
             if (typeof data.historyBudget === 'number' && data.historyBudget > 0) {
               process.env.MUGIL_IDE_TOKEN_LIMIT = String(Math.floor(data.historyBudget));
               process.env.MUGIL_IDE_HISTORY_BUDGET = String(Math.floor(data.historyBudget));
@@ -732,13 +740,22 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             if (typeof data.maxTurns === 'number' && data.maxTurns > 0) {
               process.env.MUGIL_IDE_MAX_TURNS = String(Math.floor(data.maxTurns));
             }
-            const { getHistoryBudget, getMaxHistoryTurns } = await import('@mugil-ide/core');
+            if (typeof data.maxOutputTokens === 'number' && data.maxOutputTokens > 0) {
+              process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS = String(Math.floor(data.maxOutputTokens));
+            }
+            if (typeof data.turboMode === 'boolean') {
+              turboMode = data.turboMode;
+              process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
+            }
+            const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens } = await import('@mugil-ide/core');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(
               JSON.stringify({
                 ok: true,
                 historyBudget: getHistoryBudget(),
                 maxTurns: getMaxHistoryTurns(),
+          maxOutputTokens: getMaxOutputTokens(),
+          turboMode,
               }),
             );
           } catch {
@@ -811,6 +828,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             type: 'status',
             activeModel: repl.getActiveModel(),
             mode: repl.getMode(),
+            turboMode,
             stats: {
               ...repl.stats,
               filesModified: Array.from(repl.stats.filesModified),
@@ -904,6 +922,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           });
         },
         onAsk: async (call) => {
+          if (turboMode) return true;
           const id = ++approvalSeq;
           if (ws.readyState === WebSocket.OPEN) {
             let args: string;
@@ -979,6 +998,12 @@ repl.setMode(newMode);
             questionResolvers.delete(Number(msg.id));
             entry.resolve(String(msg.answer ?? ''));
           }
+        } else if (msg.type === 'set_turbo_mode') {
+          turboMode = Boolean(msg.enabled);
+          process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
+          sendAgentData(`\r\n\x1b[33m⚡ Turbo Mode: ${turboMode ? '\x1b[32mENABLED (Autonomous execution without user prompts)\x1b[0m' : '\x1b[31mDISABLED (User approval required)\x1b[0m'}\x1b[0m\r\n\r\n`);
+          repl.printPrompt();
+          sendStatusNow();
         } else if (msg.type === 'approval_answer') {
           const entry = approvalResolvers.get(Number(msg.id));
           if (entry) {

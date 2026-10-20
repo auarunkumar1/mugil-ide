@@ -1152,4 +1152,36 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       await server.close();
     }
   });
+
+  it('handles GET and POST /api/config with historyBudget, maxOutputTokens, and turboMode', async () => {
+    const client: ProviderClient = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'done' }),
+    };
+    const server = await startIdeServer({ engine: scriptedEngine(client), port: 0 });
+    try {
+      const getRes = await fetch(`http://localhost:${server.port}/api/config`);
+      expect(getRes.status).toBe(200);
+      const getJson = (await getRes.json()) as any;
+      expect(typeof getJson.historyBudget).toBe('number');
+      expect(typeof getJson.maxOutputTokens).toBe('number');
+      expect(typeof getJson.turboMode).toBe('boolean');
+
+      const postRes = await fetch(`http://localhost:${server.port}/api/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ historyBudget: 24000, maxOutputTokens: 12000, turboMode: true }),
+      });
+      expect(postRes.status).toBe(200);
+      const postJson = (await postRes.json()) as any;
+      expect(postJson.ok).toBe(true);
+      expect(postJson.historyBudget).toBe(24000);
+      expect(postJson.maxOutputTokens).toBe(12000);
+      expect(postJson.turboMode).toBe(true);
+      expect(process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS).toBe('12000');
+      expect(process.env.MUGIL_IDE_TURBO_MODE).toBe('1');
+    } finally {
+      await server.close();
+    }
+  });
 });

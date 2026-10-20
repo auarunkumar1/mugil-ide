@@ -341,6 +341,17 @@ export class AgentRepl {
         saveMode('act');
         this.io.write(`\r\n  ${green('⚡ Act mode')} ${dim('— writes, edits and commands ask for your approval.')}\r\n\r\n`);
         break;
+      case 'turbo': {
+        const isCurrent = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
+        const next = argStr === 'on' ? true : argStr === 'off' ? false : !isCurrent;
+        process.env.MUGIL_IDE_TURBO_MODE = next ? '1' : '0';
+        if (next) {
+          this.io.write(`\r\n  ${yellow('⚡ Turbo Mode: ENABLED')} ${dim('— autonomous execution without user prompts. Tool confirmations bypassed.')}\r\n\r\n`);
+        } else {
+          this.io.write(`\r\n  ${green('✓ Turbo Mode: DISABLED')} ${dim('— ask-gated tool actions require user confirmation.')}\r\n\r\n`);
+        }
+        break;
+      }
 
       case 'clear':
       case 'cls':
@@ -450,6 +461,7 @@ export class AgentRepl {
       `  ${cyan('/model <name|number>')}   ${dim('Switch active model (e.g. /model 1 or /model llama3.2)')}`,
       `  ${cyan('/plan')}                 ${dim('Plan mode — read-only: writes/edits/commands denied')}`,
       `  ${cyan('/act')}                  ${dim('Act mode — asks before writes/edits/commands')}`,
+      `  ${cyan('/turbo [on|off]')}       ${dim('Turbo mode — autonomous execution without user prompts')}`,
       `  ${cyan('/compact')}              ${dim('Summarize the conversation so far and continue from the summary')}`,
       `  ${cyan('/session <name>')}       ${dim('Save the conversation under a name')}`,
       `  ${cyan('/sessions')}             ${dim('List saved named sessions')}`,
@@ -691,7 +703,9 @@ export class AgentRepl {
         this.io.write(`  ${yellow('⚠ Warning:')} Malformed MUGIL_IDE_TOOL_PERMISSIONS JSON — falling back to ${this.mode} mode defaults.\r\n`);
       }
     }
-    return createPermissionCheck(policy, this.options.onAsk);
+    const isTurbo = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
+    const onAsk = isTurbo ? (() => true) : this.options.onAsk;
+    return createPermissionCheck(policy, onAsk);
   }
 
   /**

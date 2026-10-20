@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Configurable Max Output Tokens (`MUGIL_IDE_MAX_OUTPUT_TOKENS`)**: Added `getMaxOutputTokens(env)` pipeline helper and `/api/config` settings integration, allowing users to override model response token limits (up to model context maximum) to eliminate `output was cut off by token limit` errors during large completions.
+- **Interactive Pre-Session Setup Modal**: Added setup modal before starting a chat session in the Web UI to configure token budget, max output tokens, and execution mode, with real-time OpenRouter token pricing and estimated cost per turn.
+- **Turbo Autonomous Mode**: Added autonomous execution mode (`MUGIL_IDE_TURBO_MODE=1`, `/turbo` command in CLI REPL, and UI header toggle) enabling multi-tool execution loops without per-tool manual confirmation prompts.
+- **Streamlined Model Credits Bar**: Replaced wrapped multi-line model attribution with a clean, single-line horizontal strip in the Web IDE.
+- **Comprehensive Documentation Rewrite**: Completely refreshed README with accessible layman-friendly explanations, visual architecture tour, and detailed v0.2.0 feature roadmap.
+
 ## [0.1.16] - 2026-10-19
 
 ### Added
