@@ -36,18 +36,32 @@ Best of all, **it's 100% browser-based with zero telemetry**. Launch it from you
 
 Every major capability in Mugil IDE is built to give you maximum developer superpowers while keeping token costs tiny. Here is how each feature works — explained first in plain English, and then under the hood.
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 MUGIL IDE ARCHITECTURE                                 │
-│                                                                                        │
-│   User Prompt ──► [Signature Stripper] ──► [Token Refinement: Caveman + RTK]          │
-│                                                      │                                 │
-│   [Provider API] ◄── [Auto Handoff] ◄── [Smart Cache] ◄── (Exact / Trie / Semantic)   │
-│         │                                                                              │
-│   [Tool Loop] ──► 17 Workspace Tools (AST Skeletons, CCR Blobs, CodeGraph AST)         │
-│         │                                                                              │
-│   Web UI Stream ◄── [Watermark Remover] ◄── [Live Diff Journal & 1-Click Undo]         │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Inbound ["📥 1. Inbound Prompt Refinement"]
+        User(["👤 User Prompt"]) --> Stripper["✂️ Signature & Watermark Stripper\n(De-AI · AI Watermark Removal)"]
+        Stripper --> Refiner["⚡ Token Refiner (Caveman + RTK)\n(TSV SmartCrusher · Noise Pruning)"]
+    end
+
+    subgraph Caching ["💾 2. Smart Caching & Routing"]
+        Refiner --> Cache{"🔍 SmartCache"}
+        Cache -- "Trie Prefix / Exact Match" --> Instant["⚡ Instant Cached Output\n(0ms · $0.00 Tokens)"]
+        Cache -- "Cache Miss" --> Router["🔀 Multi-Provider Auto-Handoff\n(OpenRouter · Anthropic · Local Ollama)"]
+    end
+
+    subgraph Execution ["🛠️ 3. Autonomous Tool Loop"]
+        Router --> LLM["🧠 LLM Inference Engine"]
+        ToolCheck{"Tool Call Requested?"}
+        LLM --> ToolCheck
+        ToolCheck -- "Yes" --> Tools["🧰 17 Autonomous Workspace Tools\n(AST Skeleton · CCR BlobStore · CodeGraph)"]
+        Tools --> ToolCheck
+        ToolCheck -- "No" --> SSE["🌊 Live SSE Token Stream\n(Markdown + Split Thinking)"]
+    end
+
+    subgraph Interface ["💻 4. Browser Workspace"]
+        SSE --> WebIDE["🖥️ Mugil IDE Web Interface\n(Dual Pane · xterm.js · Turbo Mode)"]
+        WebIDE --> Journal["⏪ 1-Click Rollback & Diff Journal"]
+    end
 ```
 
 ---
@@ -138,40 +152,17 @@ Every major capability in Mugil IDE is built to give you maximum developer super
 
 ## 📸 Visual Tour & UI Highlights
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ☁️ MUGIL IDE  [TOKEN EFFICIENT]  Active: minimax/minimax-m3.1-flash:free                    │
-│ [🚀 Session Setup] [⚡ Turbo: Off] [🤖 Model: minimax ▾] [🔑 Accounts] [⚡ Token Modules]   │
-├─────────────────────────────────────────────────────────────────────────────────────────────┤
-│ Credited: Caveman · RTK · Ponytail · De-AI · Watermarks · CodeGraph · OpenCode             │
-├──────────────────────────────────────────────┬──────────────────────────────────────────────┤
-│ 🤖 AI Assistant & Tools  [💻 Shell Terminal] │ 📁 Files  📄 Viewer  🔍 Diff (3)  🌳 CodeGraph│
-│                                              ├──────────────────────────────────────────────┤
-│ Assistant:                                   │ src/server/html.ts                           │
-│ Let me inspect the project configuration...  │ ──────────────────────────────────────────   │
-│                                              │ @@ -80,6 +80,12 @@                          │
-│ 📁 Files updated on disk:                    │ + <button class="btn">🚀 Session Setup</button│
-│   packages/cli/src/server/html.ts            │ + <button class="btn">⚡ Turbo</button>      │
-│                                              │                                              │
-│ [minimax · 1,420 tok · 812ms · 2 tools]      │                                              │
-│ ──────────────────────────────────────────── │                                              │
-│ Turn #1  Turn #2  Turn #3                    │ [↩ Revert Last Edit]                         │
-├──────────────────────────────────────────────┴──────────────────────────────────────────────┤
-│ 💬 Quick Prompt: [ Fix the syntax error in server.ts...                       ] [ Send ↵ ]  │
-├─────────────────────────────────────────────────────────────────────────────────────────────┤
-│ ● Connected  Model: minimax  Used: 4,120 tok  Savings: 54% (4,810 tok saved)                │
-└─────────────────────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="docs/assets/mugil-ide-preview.svg" alt="Mugil IDE Web Interface Preview" width="100%">
+</p>
 
-1. **Top Navigation & Controls:**
-   - Single-click access to **Session Setup**, **Turbo Toggle**, **Model Selector**, **Account Keys**, and **Token Modules**.
-   - Dedicated single-line **Credits Strip** giving full acknowledgment to upstream open-source projects.
-2. **Left Pane (Execution & Chat):**
-   - Live xterm.js terminal with token-by-token streaming, markdown formatting, turn chips, and an isolated shell terminal with PTY support.
-3. **Right Pane (Code & Inspection):**
-   - File explorer, live diff viewer with syntax highlights, file reader, and interactive AST symbol code graph.
-4. **Bottom Status Bar:**
-   - Real-time connection indicator, active model, total token tally, and calculated token savings percentage.
+| Area | Features & Capabilities |
+| :--- | :--- |
+| **Top Navigation** | 🚀 **Pre-Session Setup Popup** · ⚡ **Turbo Mode Toggle** · 🤖 **Model Selector** · 🔑 **API Key Manager** · ⚡ **Token Budget Config** |
+| **Attribution Strip** | Single-line compact strip giving direct credit to upstream projects: *Caveman, RTK Headroom, Ponytail, De-AI, Watermarks, CodeGraph AST, OpenCode* |
+| **Left Pane (Agent Loop)** | Live xterm.js terminal with token-by-token streaming, markdown formatting, turn history pills, and isolated shell terminal with PTY support |
+| **Right Pane (Code & Inspection)** | Interactive file tree, live diff viewer with syntax highlights, file viewer, and structural symbol CodeGraph |
+| **Bottom Status Bar** | Live WebSocket connection indicator, active model ID, session token tally, and calculated token savings percentage |
 
 ---
 

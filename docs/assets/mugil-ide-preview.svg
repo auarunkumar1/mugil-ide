@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 560" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .header-bg { fill: #161b22; }
+      .pane-bg { fill: #0d1117; stroke: #30363d; stroke-width: 1; }
+      .bar-bg { fill: #161b22; stroke: #30363d; stroke-width: 1; }
+      .text-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 600; fill: #c9d1d9; }
+      .text-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; fill: #8b949e; }
+      .text-code { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; fill: #c9d1d9; }
+      .text-code-muted { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 11px; fill: #8b949e; }
+      .text-code-green { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px; fill: #3fb950; }
+      .pill { rx: 4; ry: 4; }
+      .btn { rx: 5; ry: 5; }
+    </style>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Outer Window Container with Shadow -->
+  <rect x="10" y="10" width="920" height="540" rx="10" ry="10" class="bg" filter="url(#shadow)" stroke="#30363d" stroke-width="1.2" />
+
+  <!-- macOS Window Bar -->
+  <path d="M 10 10 L 930 10 A 10 10 0 0 1 930 46 L 10 46 A 10 10 0 0 1 10 10 Z" class="header-bg" />
+  <circle cx="32" cy="28" r="6" fill="#ff5f56" />
+  <circle cx="50" cy="28" r="6" fill="#ffbd2e" />
+  <circle cx="68" cy="28" r="6" fill="#27c93f" />
+  <text x="470" y="32" text-anchor="middle" class="text-sub" font-weight="500">Mugil IDE — Autonomous Web IDE · http://localhost:3000</text>
+
+  <!-- Top App Navigation Bar -->
+  <rect x="10" y="46" width="920" height="42" fill="#161b22" stroke="#30363d" stroke-width="1" />
+  <text x="26" y="72" class="text-title" font-size="14" fill="#58a6ff">☁️ Mugil IDE</text>
+  
+  <!-- Active Model Badge -->
+  <rect x="126" y="56" width="210" height="22" rx="11" ry="11" fill="#1f3526" stroke="#238636" stroke-width="1" />
+  <circle cx="138" cy="67" r="3.5" fill="#3fb950" />
+  <text x="148" y="71" class="text-code-green" font-size="10.5">minimax/minimax-m3.1-flash</text>
+
+  <!-- Action Buttons -->
+  <rect x="350" y="55" width="120" height="24" class="btn" fill="#21262d" stroke="#388bfd" stroke-width="1" />
+  <text x="360" y="71" class="text-code" font-size="11" fill="#58a6ff">🚀 Session Setup</text>
+
+  <rect x="478" y="55" width="96" height="24" class="btn" fill="#21262d" stroke="#d29922" stroke-width="1" />
+  <text x="488" y="71" class="text-code" font-size="11" fill="#d29922">⚡ Turbo: Off</text>
+
+  <rect x="582" y="55" width="116" height="24" class="btn" fill="#21262d" stroke="#30363d" stroke-width="1" />
+  <text x="592" y="71" class="text-code" font-size="11">🤖 Model ▾</text>
+
+  <rect x="706" y="55" width="90" height="24" class="btn" fill="#21262d" stroke="#30363d" stroke-width="1" />
+  <text x="716" y="71" class="text-code" font-size="11">🔑 Accounts</text>
+
+  <rect x="804" y="55" width="116" height="24" class="btn" fill="#21262d" stroke="#30363d" stroke-width="1" />
+  <text x="814" y="71" class="text-code" font-size="11">⚡ Token Modules</text>
+
+  <!-- Credited Models Bar -->
+  <rect x="10" y="88" width="920" height="24" fill="#0d1117" stroke="#30363d" stroke-width="0.8" />
+  <text x="26" y="104" class="text-sub" font-size="10.5">
+    <tspan fill="#8b949e" font-weight="600">Credited:</tspan>
+    <tspan fill="#6e7681"> Caveman · RTK Headroom · Ponytail · De-AI · Watermarks · CodeGraph AST · OpenCode</tspan>
+  </text>
+
+  <!-- Main Body: Left Pane (Chat & Agent Loop) -->
+  <rect x="18" y="120" width="450" height="380" rx="6" ry="6" class="pane-bg" />
+  
+  <!-- Left Pane Tab Header -->
+  <rect x="18" y="120" width="450" height="32" rx="6" ry="6" fill="#161b22" />
+  <rect x="18" y="120" width="160" height="32" fill="#0d1117" stroke="#30363d" stroke-width="1" />
+  <rect x="18" y="151" width="160" height="2" fill="#58a6ff" />
+  <text x="32" y="141" class="text-title" font-size="11.5" fill="#58a6ff">🤖 AI Assistant &amp; Tools</text>
+  <text x="195" y="141" class="text-sub" font-size="11.5">💻 Shell Terminal</text>
+
+  <!-- Left Pane Chat Stream -->
+  <text x="32" y="180" class="text-code" font-weight="600" fill="#58a6ff">Assistant:</text>
+  <text x="32" y="202" class="text-code" fill="#c9d1d9">Let me inspect the project configuration and add the</text>
+  <text x="32" y="222" class="text-code" fill="#c9d1d9">session setup modal to the browser interface...</text>
+
+  <!-- File Tool Output Box -->
+  <rect x="32" y="240" width="420" height="60" rx="5" ry="5" fill="#161b22" stroke="#30363d" stroke-width="1" />
+  <text x="46" y="260" class="text-code" font-size="11" fill="#e3b341">📁 tool: write_file</text>
+  <text x="46" y="282" class="text-code-green" font-size="11">✓ packages/cli/src/server/html.ts (+344 lines)</text>
+
+  <!-- Execution Stats Pill -->
+  <rect x="32" y="315" width="280" height="22" rx="4" ry="4" fill="#21262d" />
+  <text x="42" y="330" class="text-code-muted" font-size="10.5">minimax · 1,420 tok · 812ms · 2 tool calls</text>
+
+  <!-- Turn History Selector -->
+  <text x="32" y="365" class="text-sub" font-size="11">History: </text>
+  <rect x="76" y="352" width="56" height="20" rx="3" ry="3" fill="#21262d" stroke="#30363d" stroke-width="1" />
+  <text x="84" y="366" class="text-code" font-size="10.5">Turn #1</text>
+  <rect x="138" y="352" width="56" height="20" rx="3" ry="3" fill="#21262d" stroke="#30363d" stroke-width="1" />
+  <text x="146" y="366" class="text-code" font-size="10.5">Turn #2</text>
+  <rect x="200" y="352" width="56" height="20" rx="3" ry="3" fill="#1f3526" stroke="#238636" stroke-width="1" />
+  <text x="208" y="366" class="text-code-green" font-size="10.5">Turn #3</text>
+
+  <!-- Left Pane Prompt Input Bar -->
+  <rect x="28" y="445" width="345" height="42" rx="6" ry="6" fill="#161b22" stroke="#30363d" stroke-width="1" />
+  <text x="42" y="471" class="text-sub" font-size="11.5">💬 Prompt: Fix syntax error in server.ts...</text>
+  <rect x="382" y="445" width="76" height="42" rx="6" ry="6" fill="#1f6feb" />
+  <text x="400" y="471" class="text-title" font-size="12" fill="#fff">Send ↵</text>
+
+
+  <!-- Main Body: Right Pane (Live Diff & Workspace) -->
+  <rect x="478" y="120" width="446" height="380" rx="6" ry="6" class="pane-bg" />
+
+  <!-- Right Pane Tab Header -->
+  <rect x="478" y="120" width="446" height="32" rx="6" ry="6" fill="#161b22" />
+  <text x="495" y="141" class="text-sub" font-size="11.5">📁 Files</text>
+  <text x="555" y="141" class="text-sub" font-size="11.5">📄 Viewer</text>
+  
+  <rect x="620" y="120" width="90" height="32" fill="#0d1117" stroke="#30363d" stroke-width="1" />
+  <rect x="620" y="151" width="90" height="2" fill="#58a6ff" />
+  <text x="632" y="141" class="text-title" font-size="11.5" fill="#58a6ff">🔍 Diff (3)</text>
+  
+  <text x="730" y="141" class="text-sub" font-size="11.5">🌳 CodeGraph</text>
+
+  <!-- Diff Viewer Header -->
+  <rect x="488" y="162" width="426" height="28" fill="#161b22" stroke="#30363d" stroke-width="1" rx="4" ry="4" />
+  <text x="500" y="180" class="text-code" font-weight="600" fill="#58a6ff">packages/cli/src/server/html.ts</text>
+  <rect x="800" y="166" width="104" height="20" rx="3" ry="3" fill="#21262d" stroke="#f85149" stroke-width="0.8" />
+  <text x="808" y="180" class="text-code" font-size="10" fill="#f85149">↺ Revert Edit</text>
+
+  <!-- Diff Content Lines -->
+  <text x="500" y="210" class="text-code-muted">@@ -80,6 +80,12 @@ export function getIndexHtml(): string {</text>
+
+  <rect x="488" y="222" width="426" height="22" fill="#1f3526" />
+  <text x="500" y="237" class="text-code-green">+   &lt;button class="btn" id="btn-setup"&gt;🚀 Session Setup&lt;/button&gt;</text>
+
+  <rect x="488" y="246" width="426" height="22" fill="#1f3526" />
+  <text x="500" y="261" class="text-code-green">+   &lt;button class="btn" id="btn-turbo"&gt;⚡ Turbo&lt;/button&gt;</text>
+
+  <text x="500" y="285" class="text-code">    const tokenLimit = config.maxTokens;</text>
+  <text x="500" y="305" class="text-code">    renderModelCredits();</text>
+  <text x="500" y="325" class="text-code">    attachSocketListeners();</text>
+
+  <!-- Interactive Diff Tools Preview -->
+  <rect x="488" y="350" width="426" height="85" rx="5" ry="5" fill="#161b22" stroke="#30363d" stroke-width="1" />
+  <text x="502" y="372" class="text-title" font-size="11.5" fill="#c9d1d9">Interactive Diff Journal</text>
+  <text x="502" y="392" class="text-sub" font-size="11">Every tool write generates an instant granular diff chunk.</text>
+  <text x="502" y="412" class="text-sub" font-size="11">Inspect changes before running tests, or revert any single turn with 1 click.</text>
+
+
+  <!-- Bottom Status Bar -->
+  <rect x="10" y="514" width="920" height="34" rx="0" ry="0" fill="#161b22" stroke="#30363d" stroke-width="1" />
+  <circle cx="28" cy="531" r="4.5" fill="#3fb950" />
+  <text x="40" y="535" class="text-sub" font-weight="600" fill="#3fb950">Connected</text>
+  <text x="130" y="535" class="text-sub">Model: <tspan fill="#c9d1d9">minimax/minimax-m3.1-flash:free</tspan></text>
+  <text x="360" y="535" class="text-sub">Session Tokens: <tspan fill="#c9d1d9">4,120 tok</tspan></text>
+  
+  <rect x="580" y="521" width="338" height="20" rx="10" ry="10" fill="#1f3526" stroke="#238636" stroke-width="0.8" />
+  <text x="592" y="535" class="text-code-green" font-size="10.5">💰 Token Efficiency: 54% Saved (4,810 tok pruned via RTK)</text>
+</svg>
