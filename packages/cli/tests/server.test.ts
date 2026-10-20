@@ -1153,7 +1153,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
-  it('handles GET and POST /api/config with historyBudget, maxOutputTokens, and turboMode', async () => {
+  it('handles GET and POST /api/config with historyBudget, maxOutputTokens, maxToolIterations, webfetchEnabled, and turboMode', async () => {
     const client: ProviderClient = {
       mock: false,
       complete: async () => scriptedResult({ content: 'done' }),
@@ -1165,22 +1165,35 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       const getJson = (await getRes.json()) as any;
       expect(typeof getJson.historyBudget).toBe('number');
       expect(typeof getJson.maxOutputTokens).toBe('number');
+      expect(typeof getJson.maxToolIterations).toBe('number');
+      expect(typeof getJson.webfetchEnabled).toBe('boolean');
       expect(typeof getJson.turboMode).toBe('boolean');
 
       const postRes = await fetch(`http://localhost:${server.port}/api/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ historyBudget: 24000, maxOutputTokens: 12000, turboMode: true }),
+        body: JSON.stringify({
+          historyBudget: 24000,
+          maxOutputTokens: 12000,
+          maxToolIterations: 30,
+          webfetchEnabled: false,
+          turboMode: true,
+        }),
       });
       expect(postRes.status).toBe(200);
       const postJson = (await postRes.json()) as any;
       expect(postJson.ok).toBe(true);
       expect(postJson.historyBudget).toBe(24000);
       expect(postJson.maxOutputTokens).toBe(12000);
+      expect(postJson.maxToolIterations).toBe(30);
+      expect(postJson.webfetchEnabled).toBe(false);
       expect(postJson.turboMode).toBe(true);
       expect(process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS).toBe('12000');
+      expect(process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS).toBe('30');
+      expect(process.env.MUGIL_IDE_ENABLE_WEBFETCH).toBe('0');
       expect(process.env.MUGIL_IDE_TURBO_MODE).toBe('1');
     } finally {
+      process.env.MUGIL_IDE_ENABLE_WEBFETCH = '1';
       await server.close();
     }
   });

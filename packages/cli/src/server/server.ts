@@ -706,13 +706,15 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/config' && req.method === 'GET') {
-      const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens } = await import('@mugil-ide/core');
+      const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations } = await import('@mugil-ide/core');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
           historyBudget: getHistoryBudget(),
           maxTurns: getMaxHistoryTurns(),
           maxOutputTokens: getMaxOutputTokens(),
+          maxToolIterations: getMaxToolIterations(),
+          webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
           turboMode,
         }),
       );
@@ -731,6 +733,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
               historyBudget?: number;
               maxTurns?: number;
               maxOutputTokens?: number;
+              maxToolIterations?: number;
+              webfetchEnabled?: boolean;
               turboMode?: boolean;
             };
             if (typeof data.historyBudget === 'number' && data.historyBudget > 0) {
@@ -743,19 +747,27 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             if (typeof data.maxOutputTokens === 'number' && data.maxOutputTokens > 0) {
               process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS = String(Math.floor(data.maxOutputTokens));
             }
+            if (typeof data.maxToolIterations === 'number' && data.maxToolIterations > 0) {
+              process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS = String(Math.floor(data.maxToolIterations));
+            }
+            if (typeof data.webfetchEnabled === 'boolean') {
+              process.env.MUGIL_IDE_ENABLE_WEBFETCH = data.webfetchEnabled ? '1' : '0';
+            }
             if (typeof data.turboMode === 'boolean') {
               turboMode = data.turboMode;
               process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
             }
-            const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens } = await import('@mugil-ide/core');
+            const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations } = await import('@mugil-ide/core');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(
               JSON.stringify({
                 ok: true,
                 historyBudget: getHistoryBudget(),
                 maxTurns: getMaxHistoryTurns(),
-          maxOutputTokens: getMaxOutputTokens(),
-          turboMode,
+                maxOutputTokens: getMaxOutputTokens(),
+                maxToolIterations: getMaxToolIterations(),
+                webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
+                turboMode,
               }),
             );
           } catch {

@@ -301,6 +301,31 @@ describe('ToolLoop', () => {
     expect(lastCall.tools).toBeUndefined();
   });
 
+  it('invokes onLimitReached when iterations exhausted and continues if extended', async () => {
+    const call1 = result({
+      content: '',
+      finishReason: 'tool_calls',
+      toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":1,"b":1}' }],
+    });
+    const call2 = result({
+      content: '',
+      finishReason: 'tool_calls',
+      toolCalls: [{ id: 'call_2', name: 'add', arguments: '{"a":2,"b":2}' }],
+    });
+    const done = result({ content: 'extended finish', finishReason: 'stop' });
+    const client = scriptedClient([call1, call2, done]);
+    const limitHandler = jest.fn(async () => 1); // extend by 1 iteration
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      maxIterations: 2,
+      onLimitReached: limitHandler,
+    });
+    const out = await loop.run([...system, { role: 'user', content: 'extend please' }], { tools: [ADD], registry });
+    expect(limitHandler).toHaveBeenCalledTimes(1);
+    expect(out.content).toBe('extended finish');
+    expect(out.toolCalls).toBe(2);
+  });
+
   it('retries once without tools when the model returns an empty final answer', async () => {
     const client = scriptedClient([
       result({ content: '', finishReason: 'stop' }),

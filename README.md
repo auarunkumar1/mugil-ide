@@ -7,7 +7,7 @@
 [![npm version](https://img.shields.io/npm/v/mugil-ide?label=npm&color=1f6feb&style=flat-square)](https://www.npmjs.com/package/mugil-ide)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg?style=flat-square)](package.json)
-[![Tests: 443 Passing](https://img.shields.io/badge/tests-443%20passing-3fb950.svg?style=flat-square)](https://github.com)
+[![Tests: 464 Passing](https://img.shields.io/badge/tests-464%20passing-3fb950.svg?style=flat-square)](https://github.com)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
 
 **Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding environment that runs directly in your browser. Mugil IDE gives you a full-featured agentic coding partner that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
@@ -160,12 +160,17 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.17**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.18**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.17 (Current Release)
+### ✅ Shipped & Ready in v0.1.18 (Current Release)
 
 - [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
-- [x] **Pre-Session Setup Popup:** Live model selector, history budget input, output token limit, and real-time cost calculator.
+- [x] **Workload Presets & Interactive Sliders:** Presets (Light Convo, Deep Development, Big Codebase & Audit) with dual slider/number controls and real-time turn cost calculations.
+- [x] **Interactive Mid-Turn Limit Extension:** When the tool calling limit is reached, users can dynamically extend limits (+15/+30 iterations) or wrap up seamlessly mid-run.
+- [x] **Live Session Spending & Improved Token Counter:** Real-time session spending tracker ($ USD) displayed continuously in the top navigation ribbon alongside token counts.
+- [x] **Streamlined Ribbon UI & Collapsible Menu:** Clean top ribbon with zoom controls (`A−`, reset, `A+`) and live metrics; secondary controls consolidated into a collapsible `☰ Menu ▾`.
+- [x] **Online Web Access (`webfetch`) Toggle:** Configurable in pre-session setup and environment settings, enabling live web fetching when required.
+- [x] **Safe File Writing & Non-Code Diagnostics Filter:** `write_file` append mode and diagnostics bypass on documentation/logs/data files (`.md`, `.log`, `.txt`, `.json`), preventing infinite repair loops.
 - [x] **Turbo Mode Autonomous Execution:** Instant execution of writes, edits, and terminal commands without confirmation prompts, plus Act/Plan safety modes.
 - [x] **Dynamic Context & Output Token Sizing:** Eliminates mid-sentence token cutoff errors via `MUGIL_IDE_MAX_OUTPUT_TOKENS` and dynamic context room calculation.
 - [x] **Token Compression Suite:** Integrated Caveman prompt compression, RTK noise filters, Ponytail output minimization, and signature/watermark removers.
@@ -175,7 +180,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **17 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, and web exploration.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
-- [x] **Comprehensive Test Suite:** 443 unit and integration tests passing across all packages.
+- [x] **Comprehensive Test Suite:** 464 unit and integration tests passing across all packages.
 
 ### 🎯 Planned for Next Release Push (v0.2.0 Roadmap)
 

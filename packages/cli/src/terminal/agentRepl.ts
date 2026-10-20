@@ -19,6 +19,7 @@ import {
   budgetConversationHistory,
   getHistoryBudget,
   getMaxHistoryTurns,
+  getMaxToolIterations,
   buildEnvironmentContext,
   createPermissionCheck,
   defaultPolicyForMode,
@@ -84,6 +85,7 @@ export interface ReplSessionStats {
   cacheHits: number;
   requests: number;
   tokensSaved: number;
+  estimatedCost: number;
   filesModified: Set<string>;
 }
 
@@ -151,6 +153,7 @@ export class AgentRepl {
       cacheHits: 0,
       requests: 0,
       tokensSaved: 0,
+      estimatedCost: 0,
       filesModified: new Set<string>(),
     };
   }
@@ -591,6 +594,7 @@ export class AgentRepl {
       `  ${dim('Prompt Tokens:')}      ${cyan(s.promptTokens)}`,
       `  ${dim('Completion Tokens:')}  ${magenta(s.completionTokens)}`,
       `  ${dim('Total Tokens Used:')}  ${bold(s.totalTokens)}`,
+      `  ${dim('Estimated Cost:')}     ${green(`$${s.estimatedCost.toFixed(4)}`)}`,
       `  ${dim('Tokens Saved:')}       ${green(s.tokensSaved)} ${green(`(${savingsPct}% reduction)`)}`,
       `  ${dim('Smart Cache Hits:')}   ${yellow(s.cacheHits)}${cm ? dim(` (lookups: ${cm.lookups}, hit rate: ${cm.hitRatePct}%)`) : ''}`,
       `  ${dim('Files Modified:')}     ${cyan(s.filesModified.size)} ${dim(Array.from(s.filesModified).join(', ') || '(none)')}`,
@@ -763,7 +767,7 @@ export class AgentRepl {
   /** Restores persisted session metrics (no-op when the file had none). */
   private restoreSessionStats(stats: SessionStats | null): void {
     if (!stats) return;
-    this.stats = { ...stats, filesModified: new Set(stats.filesModified) };
+    this.stats = { ...stats, estimatedCost: 0, filesModified: new Set(stats.filesModified) };
   }
 
   /** Rebuilds message history + turn list from persisted entries. */
@@ -886,7 +890,22 @@ export class AgentRepl {
         tools: allTools,
         toolRegistry: allRegistry,
         permission,
-        maxToolIterations: 15,
+        maxToolIterations: getMaxToolIterations(),
+        onLimitReached: async ({ currentIterations, usage }) => {
+          if (!this.options.onQuestion) return 0;
+          try {
+            const answer = await this.options.onQuestion({
+              header: '⚠️ Tool Call Limit Reached',
+              question: `Completed ${currentIterations} tool iterations (${usage.totalTokens} tokens used). Do you want to extend the limit to proceed?`,
+              options: ['Extend by 15 iterations', 'Extend by 30 iterations', 'Finish & summarize now'],
+            });
+            if (answer.includes('15')) return 15;
+            if (answer.includes('30')) return 30;
+            return 0;
+          } catch {
+            return 0;
+          }
+        },
         ponytail: true,
         signal: this.turnAbort.signal,
         onEvent: (event: PipelineEvent) => {
@@ -1007,6 +1026,12 @@ export class AgentRepl {
       this.stats.promptTokens += result.usage.promptTokens;
       this.stats.completionTokens += result.usage.completionTokens;
       this.stats.totalTokens += result.usage.totalTokens;
+      const modelMeta = this.lastListedModels.find((m) => m.id === result.model);
+      if (modelMeta && !modelMeta.isLocal) {
+        const costIn = modelMeta.costPerMTokIn ? (result.usage.promptTokens * modelMeta.costPerMTokIn) / 1_000_000 : 0;
+        const costOut = modelMeta.costPerMTokOut ? (result.usage.completionTokens * modelMeta.costPerMTokOut) / 1_000_000 : 0;
+        this.stats.estimatedCost += costIn + costOut;
+      }
       if (result.cache.hit) this.stats.cacheHits++;
       const promptSaved = Math.max(0, result.refine.originalTokens - result.refine.refinedTokens);
       const cacheSaved = result.cache.hit ? result.usage.totalTokens : 0;

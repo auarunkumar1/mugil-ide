@@ -156,6 +156,54 @@ export function getWebUiHtml(): string {
       border-radius: 12px;
       font-size: calc(11.5px * var(--font-scale));
       font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* Header Collapsible Menu Dropdown */
+    .menu-dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .menu-dropdown-content {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      min-width: 200px;
+      z-index: 1000;
+      padding: 6px;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .menu-dropdown-content.show {
+      display: flex;
+    }
+    .menu-item-btn {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .menu-item-btn:hover {
+      background: #21262d;
+    }
+    .menu-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 4px 0;
     }
 
     /* Split Two-Pane Layout */
@@ -573,40 +621,56 @@ export function getWebUiHtml(): string {
       </div>
 
     <div class="controls">
-      <button class="btn btn-primary" onclick="openSessionSetupModal()" title="Configure session budgets, limits & turbo mode">
-        <span>🚀 Session Setup</span>
-      </button>
+      <!-- Direct ribbon metrics -->
+      <span class="metric-pill" id="token-savings">Savings: 0%</span>
+      <span class="metric-pill" id="session-spent" style="color:var(--green); border-color:#23863644;">Spent: $0.0000</span>
 
-      <button class="btn" id="turbo-toggle" onclick="toggleTurboMode()" title="Toggle Turbo Mode (Autonomous execution without confirmation)">
-        <span id="turbo-icon">⚡</span> <span id="turbo-label">Turbo: Off</span>
-      </button>
-
-      <button class="btn" onclick="openModelModal()">
-        <span>🤖 Model:</span> <strong id="header-active-model">Detecting...</strong> ▾
-      </button>
-
-      <button class="btn" onclick="openAccountModal()">
-        <span>🔑 Accounts & Keys</span>
-      </button>
-
-      <button class="btn" onclick="openModulesModal()">
-        <span>⚡ Token Modules</span>
-      </button>
-
-      <button class="btn" id="mode-toggle" onclick="toggleMode()" title="Switch between Plan (read-only) and Act (asks before writes)">
-        <span id="mode-icon">⚡</span> <span id="mode-label">Act</span>
-      </button>
-
+      <!-- Zoom controls directly on ribbon -->
       <div class="zoom-controls" style="display:flex; align-items:center; background:var(--card-bg); border:1px solid var(--border); border-radius:4px; overflow:hidden;" title="Adjust text & terminal zoom size">
         <button class="btn" style="border:none; border-radius:0; padding:3px 7px; font-weight:bold; font-size:11px;" onclick="changeZoom(-0.1)" title="Zoom Out (Ctrl -)">A−</button>
         <span id="zoom-label" style="font-size:11px; color:var(--text-dim); padding:0 4px; min-width:36px; text-align:center; user-select:none;">100%</span>
         <button class="btn" style="border:none; border-radius:0; padding:3px 7px; font-weight:bold; font-size:11px;" onclick="changeZoom(0.1)" title="Zoom In (Ctrl +)">A+</button>
       </div>
 
-      <span class="metric-pill" id="token-savings">Savings: 0%</span>
-      <button class="btn btn-undo" onclick="triggerUndo()">↩ Undo Edit</button>
-      <button class="btn" onclick="sendAgentCmd('/stats')">📊 Stats</button>
-      <button class="btn" onclick="sendAgentCmd('/clear')">🧹 Clear</button>
+      <!-- Main Action: Session Setup -->
+      <button class="btn btn-primary" onclick="openSessionSetupModal()" title="Configure session budgets, limits & turbo mode">
+        <span>🚀 Session Setup</span>
+      </button>
+
+      <!-- Collapsible Menu for remaining controls -->
+      <div class="menu-dropdown">
+        <button class="btn" onclick="toggleMenuDropdown(event)" id="header-menu-btn" title="Tools & Options Menu">
+          <span>☰ Menu</span> ▾
+        </button>
+        <div class="menu-dropdown-content" id="header-menu-dropdown">
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openModelModal();">
+            <span>🤖 Switch Model</span> (<span id="header-active-model" style="color:var(--accent);">Detecting...</span>)
+          </button>
+          <button class="menu-item-btn" id="turbo-toggle" onclick="closeMenuDropdown(); toggleTurboMode();">
+            <span id="turbo-icon">⚡</span> <span id="turbo-label">Turbo Mode: Off</span>
+          </button>
+          <button class="menu-item-btn" id="mode-toggle" onclick="closeMenuDropdown(); toggleMode();">
+            <span id="mode-icon">⚡</span> <span>Agent Mode: <b id="mode-label">Act</b></span>
+          </button>
+          <div class="menu-divider"></div>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openAccountModal();">
+            <span>🔑 Accounts & API Keys</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openModulesModal();">
+            <span>⚡ Token Modules & Rules</span>
+          </button>
+          <div class="menu-divider"></div>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); triggerUndo();" style="color:var(--yellow);">
+            <span>↩ Undo Last Edit</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); sendAgentCmd('/stats');">
+            <span>📊 Session Stats</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); sendAgentCmd('/clear');">
+            <span>🧹 Clear Screen</span>
+          </button>
+        </div>
+      </div>
     </div>
     </div>
 
@@ -721,6 +785,7 @@ export function getWebUiHtml(): string {
       <span><span class="dot" id="status-dot"></span><span id="connection-status">Connecting…</span></span>
       <span id="status-model">Model: auto</span>
       <span id="status-tokens">Used: 0 tok</span>
+      <span id="status-spent" style="color:var(--green);">Spent: $0.0000</span>
       <span id="status-workspace">Workspace: Active</span>
     </div>
     <div>
@@ -796,12 +861,12 @@ export function getWebUiHtml(): string {
 
   <!-- Pre-Session Configuration & Economics Modal -->
   <div class="modal-overlay" id="session-setup-modal">
-    <div class="modal-dialog" style="max-width:620px;">
+    <div class="modal-dialog" style="max-width:680px; max-height:90vh; display:flex; flex-direction:column;">
       <div class="modal-title-bar">
         <span>🚀 Session Setup & Token Economics</span>
         <button class="btn" onclick="closeSessionSetupModal()">✕</button>
       </div>
-      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:16px;">
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:16px; overflow-y:auto;">
         <div>
           <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Active Model & Provider:</label>
           <select id="setup-model-select" onchange="onSetupModelChange()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:13px; font-family:inherit;">
@@ -814,16 +879,72 @@ export function getWebUiHtml(): string {
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
-          <div>
-            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;" for="setup-history-budget">Context Token Budget:</label>
-            <input type="number" id="setup-history-budget" value="16000" step="1000" min="1000" oninput="updateCostEstimate()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px;" />
-            <div style="font-size:10.5px; color:var(--text-dim); margin-top:3px;">Conversation history sliding window sent to prompt</div>
+        <!-- Workload Quick Presets -->
+        <div>
+          <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Suggested Workload Presets:</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn" onclick="applyWorkloadPreset('light')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="8k context, 4k output, 10 tools, 20 turns">💬 Light Convo</button>
+            <button type="button" class="btn btn-primary" onclick="applyWorkloadPreset('deep')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="24k context, 8k output, 25 tools, 50 turns">🛠 Deep Development (Rec)</button>
+            <button type="button" class="btn" onclick="applyWorkloadPreset('big')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="64k context, 16k output, 50 tools, 100 turns">🏗 Big Codebase & Audit</button>
           </div>
+        </div>
+
+        <!-- Sliders with synced inputs & dual explanations -->
+        <div style="display:flex; flex-direction:column; gap:14px; background:#0d1117; border:1px solid var(--border); border-radius:8px; padding:14px;">
+          <!-- 1. Context Token Budget -->
           <div>
-            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;" for="setup-max-output">Max Output Tokens:</label>
-            <input type="number" id="setup-max-output" value="8192" step="512" min="1024" oninput="updateCostEstimate()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px;" />
-            <div style="font-size:10.5px; color:var(--text-dim); margin-top:3px;">Model generation ceiling (prevents cutoff errors)</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-history-budget">Context Token Budget:</label>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="setup-history-budget" value="16000" step="1000" min="1000" max="128000" oninput="syncSliderFromInput('history-budget')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <span style="font-size:11px; color:var(--text-dim);">tok</span>
+              </div>
+            </div>
+            <input type="range" id="slider-history-budget" min="1000" max="128000" step="1000" value="16000" oninput="syncInputFromSlider('history-budget')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> How much past conversation and project code the AI can remember at once.</div>
+            <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> History sliding-window budget for history compaction before sending prompt.</div>
+          </div>
+
+          <!-- 2. Max Output Tokens -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-max-output">Max Output Tokens:</label>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="setup-max-output" value="8192" step="512" min="1024" max="32768" oninput="syncSliderFromInput('max-output')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <span style="font-size:11px; color:var(--text-dim);">tok</span>
+              </div>
+            </div>
+            <input type="range" id="slider-max-output" min="1024" max="32768" step="512" value="8192" oninput="syncInputFromSlider('max-output')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> Maximum length of a single AI reply or file written in one step.</div>
+            <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Model completion max_tokens ceiling; stops responses or reports from truncating.</div>
+          </div>
+
+          <!-- 3. Max Tool Iterations per Turn -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-max-tool-iters">Max Tool Calls per Turn:</label>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="setup-max-tool-iters" value="20" min="5" max="100" oninput="syncSliderFromInput('max-tool-iters')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <span style="font-size:11px; color:var(--text-dim);">calls</span>
+              </div>
+            </div>
+            <input type="range" id="slider-max-tool-iters" min="5" max="100" step="1" value="20" oninput="syncInputFromSlider('max-tool-iters')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> Max actions (reading/writing files, shell commands) before pausing for your approval.</div>
+            <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Bounded iteration limit for ToolLoop; if reached mid-task, prompts user to extend.</div>
+          </div>
+
+          <!-- 4. Max History Turns -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-max-turns">Max History Turns:</label>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="setup-max-turns" value="50" min="5" max="200" oninput="syncSliderFromInput('max-turns')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <span style="font-size:11px; color:var(--text-dim);">turns</span>
+              </div>
+            </div>
+            <input type="range" id="slider-max-turns" min="5" max="200" step="5" value="50" oninput="syncInputFromSlider('max-turns')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Plain English:</b> Number of conversational rounds kept before summarizing earlier turns.</div>
+            <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Message eviction threshold in budgetConversationHistory.</div>
           </div>
         </div>
 
@@ -836,6 +957,16 @@ export function getWebUiHtml(): string {
           <div id="setup-pricing-detail" style="font-size:11px; color:var(--text-dim); margin-top:4px;">
             Pricing per 1M tokens: $0.00 In · $0.00 Out
           </div>
+        </div>
+
+        <!-- Webfetch Online Access Toggle -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; font-size:13px; color:var(--text); user-select:none;">
+            <input type="checkbox" id="setup-webfetch-checkbox" checked style="cursor:pointer;" />
+            <span>🌐 Web Access (webfetch tool for live docs & web pages)</span>
+          </label>
+          <div style="font-size:10.5px; color:#58a6ff; margin-top:4px;">• <b>Plain English:</b> Allows the AI to fetch remote documentation, APIs, and web pages online.</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Exposes webfetch tool in the agent tool registry; uncheck to enforce offline air-gap mode.</div>
         </div>
 
         <!-- Turbo Mode & Caution -->
@@ -881,6 +1012,10 @@ export function getWebUiHtml(): string {
             <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-output">Max Output Tokens:</label>
             <input type="number" id="cfg-max-output" style="width:80px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="8192" step="512" min="1024" />
           </div>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-tool-iters">Max Tool Calls:</label>
+            <input type="number" id="cfg-max-tool-iters" style="width:65px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="20" min="5" max="200" />
+          </div>
           <button class="btn btn-primary" style="padding:3px 10px; font-size:11px;" onclick="saveConfigLimits()">Save Limits</button>
           <span id="cfg-save-status" style="font-size:11px; color:var(--green); display:none;">✓ Saved</span>
         </div>
@@ -899,6 +1034,7 @@ export function getWebUiHtml(): string {
     let currentTurboMode = false;
     let configuredHistoryBudget = 16000;
     let configuredMaxOutputTokens = 8192;
+    let configuredMaxToolIters = 20;
     let activeLeftTab = 'agent';
     let activeRightTab = 'files';
     let activeModelTab = 'local';
@@ -1174,6 +1310,13 @@ export function getWebUiHtml(): string {
             }
             if (msg.stats) {
               document.getElementById('status-tokens').textContent = 'Used: ' + msg.stats.totalTokens + ' tok';
+              const cost = typeof msg.stats.estimatedCost === 'number' ? msg.stats.estimatedCost : 0;
+              const costText = 'Spent: $' + cost.toFixed(4);
+              const headerSpent = document.getElementById('session-spent');
+              if (headerSpent) headerSpent.textContent = costText;
+              const statusSpent = document.getElementById('status-spent');
+              if (statusSpent) statusSpent.textContent = costText;
+
               const pct = msg.stats.promptTokens + msg.stats.tokensSaved > 0
                 ? Math.round((msg.stats.tokensSaved / (msg.stats.promptTokens + msg.stats.tokensSaved)) * 100)
                 : 0;
@@ -1191,6 +1334,27 @@ export function getWebUiHtml(): string {
         }
       };
     }
+
+    function toggleMenuDropdown(e) {
+      if (e) e.stopPropagation();
+      const dd = document.getElementById('header-menu-dropdown');
+      if (dd) dd.classList.toggle('show');
+    }
+
+    function closeMenuDropdown() {
+      const dd = document.getElementById('header-menu-dropdown');
+      if (dd) dd.classList.remove('show');
+    }
+
+    document.addEventListener('click', (e) => {
+      const dd = document.getElementById('header-menu-dropdown');
+      const btn = document.getElementById('header-menu-btn');
+      if (dd && dd.classList.contains('show')) {
+        if (!dd.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+          dd.classList.remove('show');
+        }
+      }
+    });
 
     // --- Plan/Act mode toggle ---
     let currentMode = 'act';
@@ -1789,8 +1953,21 @@ export function getWebUiHtml(): string {
             const setupEl = document.getElementById('setup-max-output');
             if (setupEl) setupEl.value = cfg.maxOutputTokens;
           }
+          if (cfg.maxToolIterations) {
+            configuredMaxToolIters = cfg.maxToolIterations;
+            const el = document.getElementById('cfg-max-tool-iters');
+            if (el) el.value = cfg.maxToolIterations;
+            const setupEl = document.getElementById('setup-max-tool-iters');
+            if (setupEl) setupEl.value = cfg.maxToolIterations;
+            const sliderEl = document.getElementById('slider-max-tool-iters');
+            if (sliderEl) sliderEl.value = cfg.maxToolIterations;
+          }
           if (cfg.turboMode !== undefined) {
             updateTurboUI(cfg.turboMode);
+          }
+          if (cfg.webfetchEnabled !== undefined) {
+            const wfCb = document.getElementById('setup-webfetch-checkbox');
+            if (wfCb) wfCb.checked = Boolean(cfg.webfetchEnabled);
           }
         }
       } catch (e) {}
@@ -1800,15 +1977,17 @@ export function getWebUiHtml(): string {
       const budget = Number(document.getElementById('cfg-history-budget').value);
       const turns = Number(document.getElementById('cfg-max-turns').value);
       const maxOutput = Number(document.getElementById('cfg-max-output').value);
+      const maxToolIters = Number(document.getElementById('cfg-max-tool-iters')?.value || 20);
       try {
         const res = await fetch('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ historyBudget: budget, maxTurns: turns, maxOutputTokens: maxOutput }),
+          body: JSON.stringify({ historyBudget: budget, maxTurns: turns, maxOutputTokens: maxOutput, maxToolIterations: maxToolIters }),
         });
         if (res.ok) {
           configuredHistoryBudget = budget;
           configuredMaxOutputTokens = maxOutput;
+          configuredMaxToolIters = maxToolIters;
           const status = document.getElementById('cfg-save-status');
           if (status) {
             status.style.display = 'inline';
@@ -1820,12 +1999,60 @@ export function getWebUiHtml(): string {
       }
     }
 
+    function syncInputFromSlider(field) {
+      const slider = document.getElementById('slider-' + field);
+      const input = document.getElementById('setup-' + field);
+      if (slider && input) {
+        input.value = slider.value;
+      }
+      updateCostEstimate();
+    }
+
+    function syncSliderFromInput(field) {
+      const slider = document.getElementById('slider-' + field);
+      const input = document.getElementById('setup-' + field);
+      if (slider && input) {
+        slider.value = input.value;
+      }
+      updateCostEstimate();
+    }
+
+    function applyWorkloadPreset(preset) {
+      let budget = 16000, output = 8192, iters = 20, turns = 50;
+      if (preset === 'light') {
+        budget = 8000; output = 4096; iters = 10; turns = 20;
+      } else if (preset === 'deep') {
+        budget = 24000; output = 8192; iters = 25; turns = 50;
+      } else if (preset === 'big') {
+        budget = 64000; output = 16384; iters = 50; turns = 100;
+      }
+      const setField = (name, val) => {
+        const inp = document.getElementById('setup-' + name);
+        if (inp) inp.value = val;
+        const sld = document.getElementById('slider-' + name);
+        if (sld) sld.value = val;
+      };
+      setField('history-budget', budget);
+      setField('max-output', output);
+      setField('max-tool-iters', iters);
+      setField('max-turns', turns);
+      updateCostEstimate();
+    }
+
     function openSessionSetupModal() {
       populateSetupModels();
-      const setupEl = document.getElementById('setup-history-budget');
-      if (setupEl) setupEl.value = configuredHistoryBudget;
-      const maxEl = document.getElementById('setup-max-output');
-      if (maxEl) maxEl.value = configuredMaxOutputTokens;
+      const setField = (name, val) => {
+        const inp = document.getElementById('setup-' + name);
+        if (inp) inp.value = val;
+        const sld = document.getElementById('slider-' + name);
+        if (sld) sld.value = val;
+      };
+      setField('history-budget', configuredHistoryBudget);
+      setField('max-output', configuredMaxOutputTokens);
+      setField('max-tool-iters', configuredMaxToolIters);
+      const maxTurnsEl = document.getElementById('cfg-max-turns');
+      setField('max-turns', maxTurnsEl ? Number(maxTurnsEl.value) || 50 : 50);
+
       const turboCb = document.getElementById('setup-turbo-checkbox');
       if (turboCb) turboCb.checked = currentTurboMode;
       onTurboCheckboxChange();
@@ -1958,6 +2185,9 @@ export function getWebUiHtml(): string {
       const chosenModel = select ? select.value : activeModelId;
       const budget = Number(document.getElementById('setup-history-budget').value) || 16000;
       const maxOutput = Number(document.getElementById('setup-max-output').value) || 8192;
+      const maxToolIters = Number(document.getElementById('setup-max-tool-iters')?.value || 20);
+      const maxTurns = Number(document.getElementById('setup-max-turns')?.value || 50);
+      const webfetchVal = Boolean(document.getElementById('setup-webfetch-checkbox')?.checked);
       const turboVal = Boolean(document.getElementById('setup-turbo-checkbox').checked);
 
       // 1. Update model if changed
@@ -1969,15 +2199,27 @@ export function getWebUiHtml(): string {
       // 2. Save config limits
       configuredHistoryBudget = budget;
       configuredMaxOutputTokens = maxOutput;
+      configuredMaxToolIters = maxToolIters;
       const bEl = document.getElementById('cfg-history-budget');
       if (bEl) bEl.value = budget;
       const oEl = document.getElementById('cfg-max-output');
       if (oEl) oEl.value = maxOutput;
+      const tEl = document.getElementById('cfg-max-tool-iters');
+      if (tEl) tEl.value = maxToolIters;
+      const trnEl = document.getElementById('cfg-max-turns');
+      if (trnEl) trnEl.value = maxTurns;
 
       await fetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ historyBudget: budget, maxOutputTokens: maxOutput, turboMode: turboVal }),
+        body: JSON.stringify({
+          historyBudget: budget,
+          maxOutputTokens: maxOutput,
+          maxToolIterations: maxToolIters,
+          maxTurns: maxTurns,
+          webfetchEnabled: webfetchVal,
+          turboMode: turboVal,
+        }),
       });
 
       // 3. Update turbo mode

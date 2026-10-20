@@ -1,4 +1,4 @@
-import type { AskResult, CacheLookupResult, ChatMessage, HandoffOptions, PipelineEvent, ToolCall } from './types.js';
+import type { AskResult, CacheLookupResult, ChatMessage, HandoffOptions, PipelineEvent, ToolCall, Usage } from './types.js';
 import { SmartCache } from './modules/smart-cache/index.js';
 import { stripSignatures } from './modules/signature-remover/index.js';
 import { stripWatermarks } from './modules/watermark-remover/index.js';
@@ -66,6 +66,11 @@ export interface AskOptions extends HandoffOptions {
   webhooks?: WebhookConfig[];
   /** Injectable fetch for webhook delivery (tests). */
   webhookFetch?: typeof fetch;
+  /**
+   * Called when tool iterations reach the limit before forcing a final answer.
+   * Return number of additional iterations (e.g. 15), or 0 to finish now.
+   */
+  onLimitReached?: (info: { currentIterations: number; toolCalls: number; usage: Usage }) => number | Promise<number>;
 }
 
 const DEFAULT_SYSTEM_PROMPT =
@@ -77,6 +82,19 @@ const DEFAULT_SYSTEM_PROMPT =
  * saving.
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
+export const DEFAULT_MAX_TOOL_ITERATIONS = 20;
+
+/**
+ * Resolves the default max tool iterations from environment or falls back to DEFAULT_MAX_TOOL_ITERATIONS.
+ */
+export function getMaxToolIterations(env: NodeJS.ProcessEnv = process.env): number {
+  const custom = env.MUGIL_IDE_MAX_TOOL_ITERATIONS;
+  if (custom) {
+    const parsed = Number(custom);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  }
+  return DEFAULT_MAX_TOOL_ITERATIONS;
+}
 
 /**
  * Resolves the default max output tokens from environment or falls back to DEFAULT_MAX_OUTPUT_TOKENS.
@@ -300,7 +318,8 @@ export class Pipeline {
     const completion = hasTools
       ? await new ToolLoop({
           handoff: this.handoff,
-          maxIterations: options.maxToolIterations,
+          maxIterations: options.maxToolIterations ?? getMaxToolIterations(),
+          onLimitReached: options.onLimitReached,
           // Tool results grow the context every iteration; re-size the output
           // budget against what is actually about to be sent.
           sizeMaxTokens: (msgs) => {

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-10-20
+
+### Added
+
+- **Interactive Limit Extension During Agent Turns**: When `ToolLoop` reaches its bounded iteration ceiling, the engine now interactively queries the user mid-turn via the question modal to extend iterations (`+15`, `+30`, or finish now) along with total tokens used, avoiding premature task cutoffs during large refactors, audits, or log writing.
+- **Dynamic Session Economics & Sliders**: Added responsive sliders (`<input type="range">`) for Context Budget, Max Output Tokens, Max Tool Iterations, and History Turns, paired with direct number inputs and dynamic single-turn cost calculation ($ USD) based on active model pricing.
+- **Workload Quick Presets**: Added one-click workload configuration chips in the Session Setup modal:
+  - 💬 **Light Convo**: 8k context, 4k output, 10 tool calls, 20 turns.
+  - 🛠 **Deep Development**: 24k context, 8k output, 25 tool calls, 50 turns.
+  - 🏗 **Big Codebase & Audit**: 64k context, 16k output, 50 tool calls, 100 turns.
+- **Live Session Cost Counter**: Real-time spending tracker (`Spent: $X.XXXX`) in header metric bar and status bar, computing true model catalog input/output usage with free designation for local models.
+- **Dual Plain English & Technical Explanations**: Included clear plain English breakdowns and technical mechanics under every setting in the setup and configuration modals.
+- **Write File Append Support (`append?: boolean`)**: Added optional `append` parameter to `write_file` to support direct logging and incremental markdown generation without repetitive read-modify-write loops.
+- **Non-Code Diagnostics Filtering**: Post-edit diagnostics automatically bypass documentation and log files (`.md`, `.log`, `.txt`, `.csv`, `.json`), preventing repo TypeScript compiler errors from confusing agents writing reports.
+- **Webfetch Online Access Control**: Added an interactive web access toggle in the Session Setup modal, allowing users to toggle the `webfetch` tool or air-gap agents offline.
+
 ## [0.1.17] - 2026-10-20
 
 ### Added

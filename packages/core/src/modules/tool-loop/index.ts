@@ -53,6 +53,11 @@ export interface ToolLoopOptions {
   onDelta?: (text: string, streamed?: boolean) => void;
   /** Called with each streamed reasoning fragment as it arrives. */
   onThinking?: (text: string, streamed?: boolean) => void;
+  /**
+   * Called when tool iterations reach the configured limit before forcing a final answer.
+   * Return number of additional iterations to grant (e.g. 15), or 0 to finish now.
+   */
+  onLimitReached?: (info: { currentIterations: number; toolCalls: number; usage: Usage }) => number | Promise<number>;
 }
 
 export interface ToolLoopRunOptions extends HandoffOptions {
@@ -116,16 +121,18 @@ export class ToolLoop {
   private readonly onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
   private readonly sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
   private readonly onDelta?: (text: string, streamed?: boolean) => void;
+  private readonly onLimitReached?: (info: { currentIterations: number; toolCalls: number; usage: Usage }) => number | Promise<number>;
   private readonly handlers: StreamHandlers;
 
   constructor(options: ToolLoopOptions) {
     this.handoff = options.handoff;
     const envLimit = process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS ? Number(process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS) : NaN;
-    this.maxIterations = options.maxIterations ?? (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 15);
+    this.maxIterations = options.maxIterations ?? (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 20);
     this.onTool = options.onTool;
     this.onToolResult = options.onToolResult;
     this.sizeMaxTokens = options.sizeMaxTokens;
     this.onDelta = options.onDelta;
+    this.onLimitReached = options.onLimitReached;
     this.handlers = { onDelta: this.onDelta, onThinking: options.onThinking };
   }
 
@@ -145,7 +152,8 @@ export class ToolLoop {
     const denials = new Map<string, number>();
     const REPEAT_DENIAL_LIMIT = 2;
 
-    for (let i = 0; i < this.maxIterations; i += 1) {
+    let maxIters = this.maxIterations;
+    for (let i = 0; i < maxIters; i += 1) {
       if (options.signal?.aborted) throw options.signal.reason ?? new Error('aborted');
       const completion = await streamCompletion(
         this.handoff,
@@ -156,6 +164,22 @@ export class ToolLoop {
       usage = this.sum(usage, completion.usage);
       if (!completion.toolCalls || completion.toolCalls.length === 0) {
         return this.finish(completion, msgs, options, usage, toolCalls);
+      }
+
+      // Check if we hit the iteration ceiling on this step and can ask user to extend
+      if (i === maxIters - 1 && this.onLimitReached) {
+        try {
+          const extension = await this.onLimitReached({
+            currentIterations: i + 1,
+            toolCalls: toolCalls + completion.toolCalls.length,
+            usage,
+          });
+          if (typeof extension === 'number' && extension > 0) {
+            maxIters += Math.floor(extension);
+          }
+        } catch {
+          // If extension prompt fails or is dismissed, proceed to normal completion
+        }
       }
 
       // Optimize context: when the model calls tools, conversational preamble is

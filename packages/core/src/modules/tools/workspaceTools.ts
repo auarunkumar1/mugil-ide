@@ -99,12 +99,13 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'write_file',
     description:
-      'Create a new file or overwrite an existing one in the workspace with full content. Parent directories are created automatically. Paths must stay inside the workspace. This tool may require user approval — expect a "Permission denied" result if it is not granted.',
+      'Create a new file, overwrite an existing file, or append to an existing file in the workspace with content. Parent directories are created automatically. Paths must stay inside the workspace. This tool may require user approval — expect a "Permission denied" result if it is not granted.',
     parameters: {
       type: 'object',
       properties: {
         path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
-        content: { type: 'string', description: 'Full file content to write.' },
+        content: { type: 'string', description: 'File content to write or append.' },
+        append: { type: 'boolean', description: 'If true, append content to the existing file rather than overwriting. Defaults to false.' },
       },
       required: ['path', 'content'],
     },
@@ -481,6 +482,8 @@ export interface WorkspaceToolsOptions {
   onSubagentTool?: (mode: 'explore' | 'general', call: ToolCall) => void;
   /** Injectable fetch for webfetch (tests). Defaults to globalThis.fetch. */
   fetchFn?: typeof fetch;
+  /** Enable the webfetch tool (defaults to true; set MUGIL_IDE_ENABLE_WEBFETCH=0 to disable). */
+  webfetchEnabled?: boolean;
   /** Injectable Exa MCP connector for websearch (tests). */
   websearchConnect?: McpConnector;
   /**
@@ -627,6 +630,7 @@ export function createWorkspaceTools(
   const diagnosticsEnabled = options.diagnostics ?? false;
   const diagnosticsRunner = options.runDiagnostics ?? ((r: string) => runDiagnostics(r));
   const subagentMaxIterations = options.subagentMaxIterations ?? 4;
+  const webfetchEnabled = options.webfetchEnabled ?? (process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false');
   const websearchEnabled = options.websearchEnabled ?? envTruthy(process.env.MUGIL_IDE_ENABLE_EXA);
   const lspEnabled = options.lspEnabled ?? envTruthy(process.env.MUGIL_IDE_ENABLE_LSP);
   const toolCache = new Map<string, { result: string; mtimeMs?: number; rev: number }>();
@@ -637,9 +641,12 @@ export function createWorkspaceTools(
     toolCache.clear();
   }
 
-  /** Appends post-edit typecheck diagnostics to a successful tool result. */
-  function withDiagnostics(base: string): string {
+  /** Appends post-edit typecheck diagnostics to a successful tool result, skipping documentation and log files. */
+  function withDiagnostics(base: string, targetPath?: string): string {
     if (!diagnosticsEnabled) return base;
+    if (targetPath && /\.(md|markdown|log|txt|csv|tsv|json|yaml|yml)$/i.test(targetPath)) {
+      return base;
+    }
     const result = diagnosticsRunner(root);
     if (!result.ran) return base;
     if (result.output.trim().length === 0) {
@@ -882,18 +889,27 @@ export function createWorkspaceTools(
     },
 
     write_file: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { path: string; content: string };
+      const args = parseToolArguments(call) as { path: string; content: string; append?: boolean };
       if (!args.path || args.content === undefined) return 'Error: path and content parameters are required.';
       const { target, error } = resolveInWorkspace(args.path);
       if (error) return error;
       // Snapshot the pre-write state so /undo can revert this edit.
       const before = captureFile(root, target);
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, args.content, 'utf-8');
+      if (args.append) {
+        fs.appendFileSync(target, args.content, 'utf-8');
+      } else {
+        fs.writeFileSync(target, args.content, 'utf-8');
+      }
       invalidateCache();
-      const undoNote = pushEdit(root, { path: target, before, after: { content: args.content, existed: true } });
+      const afterContent = args.append && fs.existsSync(target) ? fs.readFileSync(target, 'utf-8') : args.content;
+      const undoNote = pushEdit(root, { path: target, before, after: { content: afterContent, existed: true } });
       const rel = path.relative(root, target).replace(/\\/g, '/');
-      return withDiagnostics(`✓ Successfully wrote ${Buffer.byteLength(args.content, 'utf-8')} bytes to ${rel}${undoNote ? ` (${undoNote})` : ''}`);
+      const actionLabel = args.append ? 'appended to' : 'wrote';
+      return withDiagnostics(
+        `✓ Successfully ${actionLabel} ${Buffer.byteLength(args.content, 'utf-8')} bytes to ${rel}${undoNote ? ` (${undoNote})` : ''}`,
+        target,
+      );
     },
 
     edit_file: async (call: ToolCall): Promise<string> => {
@@ -921,7 +937,7 @@ export function createWorkspaceTools(
       invalidateCache();
       const undoNote = pushEdit(root, { path: target, before, after: { content: updated, existed: true } });
       const rel = path.relative(root, target).replace(/\\/g, '/');
-      return withDiagnostics(`✓ Successfully edited ${rel}${undoNote ? ` (${undoNote})` : ''}`);
+      return withDiagnostics(`✓ Successfully edited ${rel}${undoNote ? ` (${undoNote})` : ''}`, target);
     },
 
     apply_patch: async (call: ToolCall): Promise<string> => {
@@ -1078,6 +1094,9 @@ export function createWorkspaceTools(
     webfetch: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { url: string; maxChars?: number };
       if (!args.url) return 'Error: url parameter is required.';
+      if (!webfetchEnabled) {
+        return 'Error: webfetch is disabled by policy. Enable web access in session setup or set MUGIL_IDE_ENABLE_WEBFETCH=1.';
+      }
       let parsed: URL;
       try {
         parsed = new URL(args.url);
@@ -1256,10 +1275,11 @@ export function createWorkspaceTools(
     // the model when actually usable — a model without it wastes no tokens on
     // tool requests that would be denied.
     tools:
-      websearchEnabled && lspEnabled
+      websearchEnabled && lspEnabled && webfetchEnabled
         ? WORKSPACE_TOOL_DEFINITIONS
         : WORKSPACE_TOOL_DEFINITIONS.filter(
             (t) =>
+              (webfetchEnabled || t.name !== 'webfetch') &&
               (websearchEnabled || t.name !== 'websearch') &&
               (lspEnabled || t.name !== 'lsp'),
           ),

@@ -62,6 +62,18 @@ describe('Workspace Tools', () => {
     const readRes = await toolRegistry.read_file(readCall);
     expect(readRes).toContain('foo replaced bar');
 
+    // Test append
+    const appendCall: ToolCall = {
+      id: 'w2',
+      name: 'write_file',
+      arguments: JSON.stringify({ path: tmpFile, content: '\nappended line', append: true }),
+    };
+    const appendRes = await toolRegistry.write_file(appendCall);
+    expect(appendRes).toContain('Successfully appended to');
+    const readAfterAppend = await toolRegistry.read_file(readCall);
+    expect(readAfterAppend).toContain('foo replaced bar');
+    expect(readAfterAppend).toContain('appended line');
+
     // Clean up
     if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
   });
@@ -178,7 +190,7 @@ describe('Workspace Tools', () => {
       diagnostics: true,
       runDiagnostics: fakeRunner,
     });
-    const tmpFile = path.join(root, '.test_diag.txt');
+    const tmpFile = path.join(root, '.test_diag.ts');
     const writeCall: ToolCall = {
       id: 'd1',
       name: 'write_file',
@@ -196,7 +208,7 @@ describe('Workspace Tools', () => {
       diagnostics: true,
       runDiagnostics: () => ({ output: '', ran: true }),
     });
-    const tmpFile = path.join(root, '.test_diag2.txt');
+    const tmpFile = path.join(root, '.test_diag2.ts');
     const writeCall: ToolCall = {
       id: 'd2',
       name: 'write_file',
@@ -205,6 +217,24 @@ describe('Workspace Tools', () => {
     const out = await reg.write_file(writeCall);
     expect(out).toContain('no type errors detected');
     fs.unlinkSync(tmpFile);
+  });
+
+  it('skips diagnostics when writing markdown or log files', async () => {
+    const fakeRunner = jest.fn(() => ({
+      output: 'error TS2304: Cannot find name',
+      ran: true,
+    }));
+    const { toolRegistry: reg } = createWorkspaceTools(root, {
+      diagnostics: true,
+      runDiagnostics: fakeRunner,
+    });
+    const logFile = path.join(root, 'audit.log');
+    const mdFile = path.join(root, 'report.md');
+    await reg.write_file({ id: 'l1', name: 'write_file', arguments: JSON.stringify({ path: logFile, content: 'log line' }) });
+    await reg.write_file({ id: 'm1', name: 'write_file', arguments: JSON.stringify({ path: mdFile, content: '# Report' }) });
+    expect(fakeRunner).not.toHaveBeenCalled();
+    if (fs.existsSync(logFile)) fs.unlinkSync(logFile);
+    if (fs.existsSync(mdFile)) fs.unlinkSync(mdFile);
   });
 
   it('does not run diagnostics when disabled', async () => {
