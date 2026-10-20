@@ -37,31 +37,23 @@ Best of all, **it's 100% browser-based with zero telemetry**. Launch it from you
 Every major capability in Mugil IDE is built to give you maximum developer superpowers while keeping token costs tiny. Here is how each feature works — explained first in plain English, and then under the hood.
 
 ```mermaid
-flowchart TD
-    subgraph Inbound ["📥 1. Inbound Prompt Refinement"]
-        User(["👤 User Prompt"]) --> Stripper["✂️ Signature & Watermark Stripper\n(De-AI · AI Watermark Removal)"]
-        Stripper --> Refiner["⚡ Token Refiner (Caveman + RTK)\n(TSV SmartCrusher · Noise Pruning)"]
-    end
-
-    subgraph Caching ["💾 2. Smart Caching & Routing"]
-        Refiner --> Cache{"🔍 SmartCache"}
-        Cache -- "Trie Prefix / Exact Match" --> Instant["⚡ Instant Cached Output\n(0ms · $0.00 Tokens)"]
-        Cache -- "Cache Miss" --> Router["🔀 Multi-Provider Auto-Handoff\n(OpenRouter · Anthropic · Local Ollama)"]
-    end
-
-    subgraph Execution ["🛠️ 3. Autonomous Tool Loop"]
-        Router --> LLM["🧠 LLM Inference Engine"]
-        ToolCheck{"Tool Call Requested?"}
-        LLM --> ToolCheck
-        ToolCheck -- "Yes" --> Tools["🧰 17 Autonomous Workspace Tools\n(AST Skeleton · CCR BlobStore · CodeGraph)"]
-        Tools --> ToolCheck
-        ToolCheck -- "No" --> SSE["🌊 Live SSE Token Stream\n(Markdown + Split Thinking)"]
-    end
-
-    subgraph Interface ["💻 4. Browser Workspace"]
-        SSE --> WebIDE["🖥️ Mugil IDE Web Interface\n(Dual Pane · xterm.js · Turbo Mode)"]
-        WebIDE --> Journal["⏪ 1-Click Rollback & Diff Journal"]
-    end
+flowchart LR
+    %% Inbound flow
+    User(["👤 User Prompt"]) --> Refine["⚡ Token Refiner\n(Caveman + RTK TSV)"]
+    Refine --> Cache{"🔍 SmartCache"}
+    
+    %% Caching branches
+    Cache -- "Hit" --> Cached["⚡ Instant (0ms · $0)"]
+    Cache -- "Miss" --> Router["🔀 Auto-Handoff\n(Cloud / Local LLM)"]
+    
+    %% Execution loop
+    Router --> LLM["🧠 LLM Engine"]
+    LLM <--> Tools["🧰 17 Workspace Tools\n(AST · Blobs · CodeGraph)"]
+    
+    %% Post-generation cleaning
+    LLM --> DeAI["✂️ De-AI & Watermark Stripper\n(Purges AI Disclaimers & Signatures)"]
+    DeAI --> Stream["🌊 Live SSE Stream\n(Markdown + Thinking)"]
+    Stream --> WebIDE["💻 Web IDE & 1-Click Undo\n(xterm.js · Diff Journal)"]
 ```
 
 ---
@@ -69,13 +61,13 @@ flowchart TD
 ### 1. ⚡ Token Refinement & Compression Pipeline
 
 - **💡 In Plain English:**  
-  When you talk to an AI, roughly half of what gets sent is conversational fluff, redundant punctuation, repeating log lines, or obvious syntax. Mugil IDE automatically cleans your prompt before the AI reads it — dropping your bill by 40–70% without the model losing any context or meaning.
+  When you talk to an AI, roughly half of what gets sent is conversational fluff, redundant punctuation, repeating log lines, or obvious syntax. Mugil IDE automatically cleans your prompt before the AI reads it — dropping your bill by 40–70% without the model losing any context or meaning. When the AI responds, Mugil IDE purges AI disclaimers, watermarks, and conversational signatures before code hits your disk.
 - **⚙️ Under the Hood:**  
-  A multi-stage pipeline executes synchronously before handoff:
-  - **Caveman Strategy:** Strips conversational pleasantries and filler tokens according to ASD-STE100 technical grammar rules.
-  - **RTK (Reduced Token Kernel):** Deduplicates repeated error messages, strips ANSI escape sequences, collapses matching test lines, and filters noisy build output.
-  - **Signature & Watermark Removal:** Strips provider attribution markers and AI metadata comments so your codebase stays clean.
-  - **Ponytail Minimization:** Enforces standard library reuse and concise, surgical diffs, stopping the model from writing unnecessary boilerplate.
+  A multi-stage pipeline executes synchronously before handoff and after code generation:
+  - **Caveman Strategy (Inbound):** Strips conversational pleasantries and filler tokens according to ASD-STE100 technical grammar rules.
+  - **RTK (Reduced Token Kernel - Inbound):** Deduplicates repeated error messages, strips ANSI escape sequences, collapses matching test lines, and filters noisy build output.
+  - **Ponytail Minimization (Inbound/Prompting):** Enforces standard library reuse and concise, surgical diffs, stopping the model from writing unnecessary boilerplate.
+  - **De-AI Watermark & Signature Stripper (Post-Generation):** Intercepts generated code and responses to remove AI attribution watermarks, conversational sign-offs, and disclaimer headers before saving to disk or rendering in the UI.
 
 ---
 
