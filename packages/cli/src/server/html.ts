@@ -898,7 +898,7 @@ export function getWebUiHtml(): string {
           </div>
           <div id="setup-ws-existing-pane">
             <div style="display:flex; gap:8px;">
-              <input type="text" id="setup-workspace-input" placeholder="e.g. C:\projects\myapp or /home/user/code" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+              <input type="text" id="setup-workspace-input" placeholder="e.g. C:\\projects\\myapp or /home/user/code" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
               <button type="button" class="btn" onclick="openDirPicker('setup-workspace-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse...</button>
               <button type="button" class="btn btn-primary" onclick="applySetupWorkspaceFolder(false)" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">Open Folder</button>
             </div>
@@ -906,7 +906,7 @@ export function getWebUiHtml(): string {
           </div>
           <div id="setup-ws-create-pane" style="display:none;">
             <div style="display:flex; gap:8px;">
-              <input type="text" id="setup-workspace-create-input" placeholder="e.g. C:\projects\my-new-app or ./new-project" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+              <input type="text" id="setup-workspace-create-input" placeholder="e.g. C:\\projects\\my-new-app or ./new-project" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
               <button type="button" class="btn" onclick="openDirPicker('setup-workspace-create-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse Parent...</button>
               <button type="button" class="btn btn-primary" onclick="applySetupWorkspaceFolder(true)" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">Create & Open</button>
             </div>
@@ -1103,7 +1103,7 @@ export function getWebUiHtml(): string {
         <div id="modal-ws-existing-pane">
           <label for="workspace-path-input" style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;">Switch to Folder Path:</label>
           <div style="display:flex; gap:8px;">
-            <input type="text" id="workspace-path-input" placeholder="e.g. C:\projects\myapp or /home/user/mycode" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+            <input type="text" id="workspace-path-input" placeholder="e.g. C:\\projects\\myapp or /home/user/mycode" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
             <button type="button" class="btn" onclick="openDirPicker('workspace-path-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse...</button>
           </div>
           <div style="font-size:10.5px; color:var(--text-dim); margin-top:4px;">Enter an absolute or relative directory path or click <b>Browse...</b> to navigate.</div>
@@ -1112,7 +1112,7 @@ export function getWebUiHtml(): string {
         <div id="modal-ws-create-pane" style="display:none;">
           <label for="workspace-create-input" style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;">New Project Location / Path:</label>
           <div style="display:flex; gap:8px;">
-            <input type="text" id="workspace-create-input" placeholder="e.g. C:\projects\my-new-app or ./new-project" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+            <input type="text" id="workspace-create-input" placeholder="e.g. C:\\projects\\my-new-app or ./new-project" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
             <button type="button" class="btn" onclick="openDirPicker('workspace-create-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse Parent...</button>
           </div>
           <div style="font-size:10.5px; color:#58a6ff; margin-top:4px;">Creates the folder recursively if it does not exist and immediately opens it as your workspace.</div>

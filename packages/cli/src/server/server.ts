@@ -447,7 +447,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
               return;
             }
           }
-        } catch (err) {
+        } catch {
           // ignore
         }
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -870,7 +870,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             }
             if (data.thinkingLevel && ['off', 'low', 'medium', 'high'].includes(data.thinkingLevel)) {
               process.env.MUGIL_IDE_THINKING_LEVEL = data.thinkingLevel;
-              try { const { writeUserEnv } = await import('@mugil-ide/core'); writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel }); } catch {}
+              try { const { writeUserEnv } = await import('@mugil-ide/core'); writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel }); } catch { /* ignore */ }
             }
             const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
             res.writeHead(200, { 'Content-Type': 'application/json' });
