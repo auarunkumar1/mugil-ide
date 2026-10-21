@@ -785,13 +785,8 @@ export class AgentRepl {
   public resolveModelMeta(modelId: string): (ModelSpec & { provider?: string; isLocal?: boolean }) | undefined {
     if (!modelId) return undefined;
     const direct = this.lastListedModels.find((m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase());
-    if (direct) return direct;
-
-    const configured = this.engine.config.models?.find(
-      (m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase(),
-    );
-    if (configured) {
-      return { ...configured, provider: this.engine.config.provider, isLocal: false };
+    if (direct && (direct.costPerMTokIn > 0 || direct.costPerMTokOut > 0 || direct.isLocal)) {
+      return direct;
     }
 
     const allDefaults: ModelSpec[] = [
@@ -817,6 +812,15 @@ export class AgentRepl {
       return { ...foundDefault, isLocal };
     }
 
+    if (direct) return direct;
+
+    const configured = this.engine.config.models?.find(
+      (m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase(),
+    );
+    if (configured && (configured.costPerMTokIn > 0 || configured.costPerMTokOut > 0)) {
+      return { ...configured, provider: this.engine.config.provider, isLocal: false };
+    }
+
     // Heuristic lookup for prefixed or vendor-scoped model IDs (e.g. openrouter/anthropic/claude-3.7-sonnet)
     const normalized = modelId.toLowerCase();
     const fuzzy = allDefaults.find((m) => {
@@ -825,6 +829,10 @@ export class AgentRepl {
     });
     if (fuzzy) {
       return { ...fuzzy, isLocal: false };
+    }
+
+    if (configured) {
+      return { ...configured, provider: this.engine.config.provider, isLocal: false };
     }
 
     return undefined;

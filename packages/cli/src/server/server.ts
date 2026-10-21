@@ -89,11 +89,15 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   let turboMode = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
   let activeModel = initialModel || process.env.MUGIL_IDE_MODEL || userEnv.MUGIL_IDE_MODEL || (engine.config.models && engine.config.models[0]?.id) || 'openrouter/auto';
   let probedModelsCache: Array<any> = [];
+  let activeRepl: AgentRepl | null = null;
   const updateActiveModel = (newModel: string, newProvider?: string) => {
     activeModel = newModel;
     const providerToSet = newProvider || engine.config.provider;
     if (providerToSet && providerToSet !== engine.config.provider) {
       engine.reconfigure({ ...engine.config, provider: providerToSet as any });
+    }
+    if (activeRepl && probedModelsCache.length > 0) {
+      activeRepl.setAvailableModels(probedModelsCache);
     }
     try {
       writeUserEnv({ MUGIL_IDE_MODEL: newModel, ...(providerToSet ? { AI_PROVIDER: providerToSet } : {}) });
@@ -322,6 +326,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
         const combinedModels = [...localModels, ...cloudModels];
         probedModelsCache = combinedModels;
+        if (activeRepl) {
+          activeRepl.setAvailableModels(combinedModels);
+        }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
@@ -1057,6 +1064,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         },
       },
     );
+    activeRepl = repl;
 
     if (probedModelsCache.length > 0) {
       repl.setAvailableModels(probedModelsCache);
@@ -1174,6 +1182,9 @@ repl.setMode(newMode);
     });
 
     ws.on('close', () => {
+      if (activeRepl === repl) {
+        activeRepl = null;
+      }
       clearStatusTimer();
       repl.stopLogoAnimation();
       void repl.dispose(); // close MCP stdio children
