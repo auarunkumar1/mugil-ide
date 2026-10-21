@@ -181,6 +181,7 @@ describe('sessions', () => {
       cacheHits: 2,
       requests: 3,
       tokensSaved: 40,
+      estimatedCost: 0,
       filesModified: ['src/a.ts', 'README.md'],
     };
     saveSession([entry(1)], statsFile, stats);
@@ -222,6 +223,7 @@ describe('sessions', () => {
       cacheHits: 0,
       requests: 4,
       tokensSaved: 0,
+      estimatedCost: 0,
       filesModified: ['ok.txt'],
     });
   });
