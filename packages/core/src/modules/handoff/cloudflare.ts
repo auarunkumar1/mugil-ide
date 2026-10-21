@@ -2,27 +2,8 @@
  * Minimal Cloudflare Workers AI client. Talks to the Cloudflare AI Gateway
  * or directly to the Workers AI API. Without an API key it runs in mock mode
  * so the pipeline is exercisable offline.
- *
- * Cloudflare Workers AI uses an OpenAI-compatible endpoint at:
- *   https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1/chat/completions
- *
- * When using AI Gateway (recommended), the endpoint is:
- *   https://gateway.ai.cloudflare.com/accounts/{account_id}/gateways/{gateway_id}/openai/v1/chat/completions
  */
-import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
-import { countTokens } from '../../token/tokenizer.js';
-import {
-  extractThinkBlock,
-  mockCompletion,
-  openAiStreamResult,
-  ProviderError,
-  toOpenAiMessages,
-  toOpenAiTools,
-  requestSignal,
-  type ProviderClient,
-  type ProviderCompleteOptions,
-} from './provider.js';
-import { parseOpenAiSse, type StreamHandlers } from './stream.js';
+import { OpenAiWireClient } from './provider.js';
 
 export interface CloudflareClientOptions {
   apiKey?: string;
@@ -31,170 +12,29 @@ export interface CloudflareClientOptions {
   gatewayId?: string;
 }
 
-export class CloudflareClient implements ProviderClient {
-  private readonly apiKey?: string;
-  private readonly accountId?: string;
-  private readonly baseUrl: string;
-  private readonly gatewayId?: string;
-  readonly mock: boolean;
-
+export class CloudflareClient extends OpenAiWireClient {
   constructor(options: CloudflareClientOptions = {}) {
-    this.apiKey = options.apiKey;
-    this.accountId = options.accountId;
-    this.gatewayId = options.gatewayId;
-    this.baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
-    this.mock = !this.apiKey || !this.accountId;
-  }
+    const baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
+    const chatEndpoint =
+      options.gatewayId && options.accountId
+        ? `/gateway/accounts/${options.accountId}/gateways/${options.gatewayId}/openai/v1/chat/completions`
+        : options.accountId
+          ? `/accounts/${options.accountId}/ai/v1/chat/completions`
+          : '/chat/completions';
 
-  /** AI Gateway endpoint when a gateway is configured, else direct Workers AI. */
-  private endpoint(): string {
-    if (this.gatewayId && this.accountId) {
-      // AI Gateway endpoint (recommended)
-      return `${this.baseUrl.replace('/client/v4', '')}/gateway/accounts/${this.accountId}/gateways/${this.gatewayId}/openai/v1/chat/completions`;
-    }
-    // Direct Workers AI endpoint
-    return `${this.baseUrl}/accounts/${this.accountId}/ai/v1/chat/completions`;
-  }
+    const effectiveBaseUrl =
+      options.gatewayId && options.accountId ? baseUrl.replace('/client/v4', '') : baseUrl;
 
-  /**
-   * Builds the request body. `stream: true` adds the SSE flag plus
-   * `stream_options.include_usage`; without it Workers AI omits `usage` from
-   * streamed chunks and token counts fall back to estimates.
-   */
-  private buildBody(
-    messages: ChatMessage[],
-    options: ProviderCompleteOptions,
-    stream = false,
-  ): Record<string, unknown> {
-    const body: Record<string, unknown> = {
-      model: options.model,
-      messages: toOpenAiMessages(messages),
-      max_tokens: options.maxTokens,
-      temperature: options.temperature ?? 0.7,
-    };
-    if (options.tools && options.tools.length > 0) {
-      body.tools = toOpenAiTools(options.tools);
-    }
-
-    if (stream) {
-      body.stream = true;
-      body.stream_options = { include_usage: true };
-    }
-    return body;
-  }
-
-  async stream(
-    messages: ChatMessage[],
-    options: ProviderCompleteOptions,
-    handlers: StreamHandlers = {},
-  ): Promise<CompletionResult> {
-    if (this.mock) {
-      const result = mockCompletion(messages, options, 'CLOUDFLARE_API_KEY');
-      if (result.content.length > 0) handlers.onDelta?.(result.content);
-      if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
-      return result;
-    }
-    const res = await fetch(this.endpoint(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(this.buildBody(messages, options, true)),
-      signal: requestSignal(options),
+    super({
+      providerName: 'cloudflare',
+      baseUrl: effectiveBaseUrl,
+      apiKey: options.apiKey,
+      missingEnvVar: 'CLOUDFLARE_API_KEY',
+      chatEndpoint,
     });
 
-    if (!res.ok) {
-      const retryable = res.status === 429 || res.status >= 500;
-      throw new ProviderError(
-        `Cloudflare ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
-        res.status,
-        retryable,
-      );
+    if (!options.apiKey || !options.accountId) {
+      (this as { mock: boolean }).mock = true;
     }
-    if (!res.body) throw new ProviderError('Cloudflare returned no body to stream', res.status, true);
-    const streamed = await parseOpenAiSse(res.body, handlers);
-    return openAiStreamResult('cloudflare', messages, options, streamed);
-  }
-
-  async complete(
-    messages: ChatMessage[],
-    options: ProviderCompleteOptions,
-  ): Promise<CompletionResult> {
-    if (this.mock) return mockCompletion(messages, options, 'CLOUDFLARE_API_KEY');
-
-    const body = this.buildBody(messages, options);
-
-    const res = await fetch(this.endpoint(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: requestSignal(options),
-    });
-
-    if (!res.ok) {
-      const retryable = res.status === 429 || res.status >= 500;
-      throw new ProviderError(
-        `Cloudflare ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
-        res.status,
-        retryable,
-      );
-    }
-
-    const data = (await res.json()) as {
-      model?: string;
-      choices?: Array<{
-        message?: {
-          content?: string | null;
-          reasoning_content?: string;
-          reasoning?: string;
-          tool_calls?: Array<{
-            id?: string;
-            type?: string;
-            function?: { name?: string; arguments?: string };
-          }>;
-        };
-        finish_reason?: string;
-      }>;
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-    };
-
-    const message = data.choices?.[0]?.message;
-    // Same `<think>` split the streaming path applies, so buffered and streamed
-    // results agree.
-    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
-    let content = split.content;
-    const thinking = split.thinking;
-    const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
-      .filter((tc) => Boolean(tc?.function?.name))
-      .map((tc) => ({
-        id: tc.id ?? '',
-        name: tc.function!.name!,
-        arguments: tc.function!.arguments ?? '{}',
-      }));
-    // Reasoning-only replies must not surface as a blank response.
-    if (content.trim().length === 0 && toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
-      content = thinking;
-    }
-    const promptText = messages.map((m) => m.content).join('\n');
-    const promptTokens = data.usage?.prompt_tokens ?? countTokens(promptText);
-    const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
-    const usage = {
-      promptTokens,
-      completionTokens,
-      totalTokens: data.usage?.total_tokens ?? promptTokens + completionTokens,
-    };
-    return {
-      provider: 'cloudflare',
-      model: data.model ?? options.model,
-      content,
-      usage,
-      finishReason: data.choices?.[0]?.finish_reason,
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      thinking: thinking && thinking.length > 0 ? thinking : undefined,
-    };
   }
 }

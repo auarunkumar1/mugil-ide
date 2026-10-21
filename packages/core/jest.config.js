@@ -2,6 +2,7 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/tests/setupEnv.js'],
   testMatch: ['<rootDir>/tests/**/*.test.ts'],
   collectCoverageFrom: ['src/**/*.ts'],
   // NodeNext emits .js specifiers in imports; resolve them back to .ts sources.

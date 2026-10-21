@@ -305,16 +305,21 @@ export class Pipeline {
     const preferred = caps.length > 0 ? Math.min(...caps) : getMaxOutputTokens();
     const contextWindow = this.handoff.route(totalPromptTokens, options.preferredModel).contextWindow;
     const sizeFor = (promptTokens: number): number => {
-      let maxTokens = preferred;
-      // Never exceed what the routed model's context can still hold.
       const contextRoom = contextWindow - promptTokens - CONTEXT_SAFETY_MARGIN;
-      if (Number.isFinite(contextRoom) && contextRoom > 0) {
-        maxTokens = Math.min(maxTokens, contextRoom);
+      if (!Number.isFinite(contextRoom) || contextRoom <= 0) {
+        throw new Error(
+          `Context overflow: prompt (${promptTokens} tokens) plus safety margin (${CONTEXT_SAFETY_MARGIN}) exceeds model context window (${contextWindow})`,
+        );
       }
-      return Math.max(MIN_MAX_OUTPUT_TOKENS, Math.floor(maxTokens));
+      let maxTokens = preferred;
+      maxTokens = Math.min(maxTokens, contextRoom);
+      const floor = Math.min(MIN_MAX_OUTPUT_TOKENS, Math.floor(contextRoom));
+      return Math.max(floor, Math.floor(maxTokens));
     };
     const maxTokens = sizeFor(totalPromptTokens);
     emit({ type: 'stage', stage: 'handoff' });
+    let cachedExtraTokens = 0;
+    let lastCountedLength = messages.length;
     const completion = hasTools
       ? await new ToolLoop({
           handoff: this.handoff,
@@ -322,11 +327,13 @@ export class Pipeline {
           onLimitReached: options.onLimitReached,
           // Tool results grow the context every iteration; re-size the output
           // budget against what is actually about to be sent.
+          // Incrementally accumulate newly added message tokens (O(K) vs O(K^2)).
           sizeMaxTokens: (msgs) => {
-            const extra = msgs
-              .slice(messages.length)
-              .reduce((sum, m) => sum + countTokens(m.content), 0);
-            return sizeFor(totalPromptTokens + extra);
+            while (lastCountedLength < msgs.length) {
+              cachedExtraTokens += countTokens(msgs[lastCountedLength]!.content);
+              lastCountedLength += 1;
+            }
+            return sizeFor(totalPromptTokens + cachedExtraTokens);
           },
           onTool: (call, index) => {
             emit({ type: 'tool', name: call.name, args: call.arguments, index });

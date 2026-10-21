@@ -357,4 +357,31 @@ export class AccountService {
     // Cleanup
     if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
   });
+
+  it('blocks writing a new file through a symlinked/junction folder outside workspace', async () => {
+    const tmpBase = fs.mkdtempSync(path.join(root, '.symlink-test-'));
+    const wsDir = path.join(tmpBase, 'ws');
+    const outsideDir = path.join(tmpBase, 'outside');
+    fs.mkdirSync(wsDir);
+    fs.mkdirSync(outsideDir);
+
+    const linkPath = path.join(wsDir, 'escape_link');
+    try {
+      fs.symlinkSync(outsideDir, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+      const wsTools = createWorkspaceTools(wsDir);
+      // Attempt to write a brand new (non-existent) file inside the symlinked dir
+      const res = await wsTools.toolRegistry.write_file({
+        id: 'w-escape',
+        name: 'write_file',
+        arguments: JSON.stringify({
+          path: 'escape_link/subfolder/pwned.txt',
+          content: 'compromised',
+        }),
+      });
+      expect(res).toContain('resolves outside workspace via symlink');
+      expect(fs.existsSync(path.join(outsideDir, 'subfolder', 'pwned.txt'))).toBe(false);
+    } finally {
+      fs.rmSync(tmpBase, { recursive: true, force: true });
+    }
+  });
 });

@@ -5,7 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.21] - 2026-10-21
+
+### Security & Sandboxing
+
+- **Local Server Auth & Session Cookies (§1a)**: Enforced session token authentication on all HTTP (`/`, `/api/*`) and WebSocket routes (`/ws`). Unauthenticated requests reject with 401. Replaced cleartext token scraping and query-string WebSocket tokens with `HttpOnly; SameSite=Strict` cookies. Removed `MUGIL_IDE_DISABLE_AUTH` bypass.
+- **Provider Base-URL Allowlisting (§1b)**: Constrained `/api/keys` base URLs to verified provider hostnames or local loopback (`127.0.0.1`, `localhost`), completely blocking API key exfiltration.
+- **Workspace Directory Confinement (§1c)**: Restricted `/api/workspace` targets to prevent selecting system directories or root drives.
+- **Request Body Ceiling (§1e)**: Enforced 2MB payload ceiling on JSON body readers including `/api/model`.
+- **Realpath Ancestor Workspace Sandboxing (§2)**: Enforced `fs.realpathSync` in `resolveInWorkspace` across nearest existing ancestors to prevent symlink and junction containment escapes on both existing and new files.
+- **Async & Cancellable `run_command` (§3)**: Replaced synchronous execution with non-blocking child process execution and `AbortSignal` cancellation support.
+- **Webfetch SSRF Protection (§4)**: Added IPv6 ULA (`fc00::/7`), link-local (`fe80::/10`), loopback, and cloud metadata checks. Added hard-abort on DNS lookup failures and manual hop-by-hop redirect verification.
+
+### Core Engine & Accuracy
+
+- **Context Window Budget Overflow Hard Error (§6.2)**: `pipeline.ts` throws explicit `Context overflow` error when `contextRoom <= 0`.
+- **Tool Loop Message Alternation (§5)**: Strict alternating message role enforcement during permission denial sequences.
+- **Accurate Token Estimation Across All Providers (§6.3, §6.5)**: Unified prompt token and handoff chain estimation (`estimateMessagesTokens`) across all provider clients to account for tool schemas and arguments.
+- **Cost and Tier Routing (§6.4)**: `HandoffManager.route()` sorts candidates by `(tier, costPerMTokIn)`.
+- **Symmetrical Env Serialization (§6.6)**: `parseEnvFile` symmetrically unescapes double-quoted values using `JSON.parse`.
+- **Canonical Tool Schemas (§6.7)**: Anthropic tool definitions sorted alphabetically with canonicalized schemas.
+- **Parallel Model Probing (§7.6)**: Probed local and cloud providers concurrently in `/api/models` using `Promise.allSettled`.
+- **Hermetic Test Suite (§6.1)**: Cleared ambient `MUGIL_IDE_*` in jest setupFiles.
+
+### Performance & Architecture
+
+- **Incremental Tool-Loop Sizing (§7)**: Replaced $O(K^2)$ tool-loop token counting with incremental token accumulation across iterations.
+- **Single-Pass History Budgeting (§7)**: Eliminated duplicate tokenization passes on turns during conversation budgeting.
+- **Codegraph Edge Collection & Snippet Reuse (§7)**: Replaced $O(N^2)$ regex allocations with identifier Set lookups and reused pre-computed snippets.
+- **Pure Core Barrel (§8)**: Removed top-level `installOverrideReader()` side effect on barrel import; wired lazy initialization.
+- **Unified OpenAI Wire Client (§8)**: Consolidated `openAi`, `openRouter`, `vercel`, `together`, and `cloudflare` onto a shared wire base class in `provider.ts`.
+- **Automated Vendored Asset Generation (§8)**: Generated `embeddedVendor.ts` at build time from installed `@xterm/*` dependencies.
 
 ## [0.1.20] - 2026-10-21
 
@@ -297,3 +327,7 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.16]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.16
 
 [0.1.17]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.17
+[0.1.18]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.18
+[0.1.19]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.19
+[0.1.20]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.20
+[0.1.21]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.21

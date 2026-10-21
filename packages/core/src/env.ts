@@ -31,10 +31,13 @@ export function parseEnvFile(text: string): Record<string, string> {
     const key = line.slice(0, eq).trim();
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
     let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
+    if (value.startsWith('"') && value.endsWith('"')) {
+      try {
+        value = JSON.parse(value);
+      } catch {
+        value = value.slice(1, -1);
+      }
+    } else if (value.startsWith("'") && value.endsWith("'")) {
       value = value.slice(1, -1);
     } else {
       // Strip inline comments only for unquoted values.
@@ -55,6 +58,14 @@ export function readUserEnv(env: NodeJS.ProcessEnv = process.env): Record<string
   }
 }
 
+/** Helper to quote env value when needed */
+function formatEnvValue(value: string): string {
+  if (value.includes('\n') || value.includes('"') || value.includes("'") || value.includes(' ') || value.includes('#')) {
+    return JSON.stringify(value);
+  }
+  return value;
+}
+
 /** Serializes entries, preserving existing lines (keys are updated in place). */
 export function serializeEnvFile(entries: Record<string, string>, existing = ''): string {
   const current = parseEnvFile(existing);
@@ -66,11 +77,13 @@ export function serializeEnvFile(entries: Record<string, string>, existing = '')
     const key = line.slice(0, eq).trim();
     if (!(key in merged)) return line;
     seen.add(key);
-    return `${key}=${merged[key]}`;
+    return `${key}=${formatEnvValue(merged[key]!)}`;
   });
   for (const [key, value] of Object.entries(merged)) {
-    if (!seen.has(key)) lines.push(`${key}=${value}`);
+    if (!seen.has(key)) lines.push(`${key}=${formatEnvValue(value)}`);
   }
+  // Collapse leading blank lines if starting from an empty file.
+  while (lines.length > 0 && lines[0]!.trim() === '') lines.shift();
   // Collapse trailing blank lines.
   while (lines.length > 0 && lines[lines.length - 1]!.trim() === '') lines.pop();
   return lines.join('\n') + '\n';

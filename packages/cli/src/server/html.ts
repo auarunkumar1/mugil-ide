@@ -1434,7 +1434,8 @@ export function getWebUiHtml(): string {
 
     function connectWs() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      ws = new WebSocket(\`\${protocol}//\${location.host}/ws\`);
+      const wsUrl = \`\${protocol}//\${location.host}/ws\`;
+      ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         document.getElementById('status-dot').style.background = '#3fb950';

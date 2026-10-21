@@ -1,6 +1,8 @@
 import * as http from 'node:http';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as os from 'node:os';
+import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -34,6 +36,60 @@ function vendorAssetPath(name: string): string | null {
 const MAX_DIFF_LINES = 1000;
 const MAX_DIFF_CHARS = 512 * 1024;
 const MAX_PREVIEW_CHARS = 8 * 1024;
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+function isValidProviderBaseUrl(baseVar: string, urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (isLoopbackHost(host)) return true;
+
+    if (baseVar === 'OLLAMA_BASE_URL' || baseVar === 'LMSTUDIO_BASE_URL') {
+      return false;
+    }
+
+    const DOMAIN_MAP: Record<string, string[]> = {
+      OPENAI_BASE_URL: ['api.openai.com', 'openai.com'],
+      ANTHROPIC_BASE_URL: ['api.anthropic.com', 'anthropic.com'],
+      OPENROUTER_BASE_URL: ['openrouter.ai'],
+      VERCEL_BASE_URL: ['vercel.dev', 'vercel.com'],
+      CLOUDFLARE_BASE_URL: ['api.cloudflare.com', 'cloudflare.com', 'gateway.ai.cloudflare.com'],
+      TOGETHER_BASE_URL: ['together.xyz', 'together.ai'],
+      OPENCODE_BASE_URL: ['opencode.ai'],
+    };
+
+    const allowedDomains = DOMAIN_MAP[baseVar];
+    if (!allowedDomains) return false;
+    return allowedDomains.some((d) => host === d || host.endsWith('.' + d));
+  } catch {
+    return false;
+  }
+}
+
+function isSystemDirectory(dirPath: string): boolean {
+  const resolved = path.resolve(dirPath);
+  const root = path.parse(resolved).root;
+  if (resolved.toLowerCase() === root.toLowerCase()) return true;
+  const lower = resolved.toLowerCase();
+  const systemDirs = [
+    'c:\\windows',
+    'c:\\program files',
+    'c:\\program files (x86)',
+    '/etc',
+    '/bin',
+    '/sbin',
+    '/usr',
+    '/var',
+    '/sys',
+    '/proc',
+    '/dev',
+  ];
+  return systemDirs.some((sys) => lower === sys || lower.startsWith(sys + path.sep));
+}
 
 function listWorkspaceFiles(root: string, maxEntries = 200): Array<{ path: string; isDir: boolean; size?: number }> {
   const IGNORED = new Set(['node_modules', '.git', 'dist', '.cache', 'build', 'coverage']);
@@ -77,6 +133,7 @@ export interface ServerOptions {
 export interface RunningServer {
   port: number;
   url: string;
+  token: string;
   close: () => Promise<void>;
 }
 
@@ -85,6 +142,39 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   // Diffs are computed on a worker thread so a slow (O(N·M) worst-case) patch
   // never blocks the event loop for other requests. Disposed in close().
   const diffRunner = createDiffRunner();
+  const sessionToken = process.env.MUGIL_IDE_AUTH_TOKEN || crypto.randomBytes(24).toString('hex');
+  const tokenDir = path.join(os.homedir(), '.config', 'mugil-ide');
+  const tokenFile = path.join(tokenDir, 'session.token');
+  try {
+    fs.mkdirSync(tokenDir, { recursive: true });
+    fs.writeFileSync(tokenFile, sessionToken, { mode: 0o600 });
+  } catch {
+    // best-effort token persistence
+  }
+
+  function readJsonBody(req: http.IncomingMessage, maxBytes = 2 * 1024 * 1024): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let size = 0;
+      let body = '';
+      req.on('data', (chunk) => {
+        size += chunk.length;
+        if (size > maxBytes) {
+          req.destroy(new Error(`Payload too large: exceeds ${maxBytes} bytes ceiling`));
+          reject(new Error(`Payload too large: exceeds ${maxBytes} bytes ceiling`));
+          return;
+        }
+        body += chunk;
+      });
+      req.on('end', () => {
+        try {
+          resolve(body ? JSON.parse(body) : {});
+        } catch (err) {
+          reject(err);
+        }
+      });
+      req.on('error', reject);
+    });
+  }
   const userEnv = readUserEnv();
   let turboMode = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
   let activeModel = initialModel || process.env.MUGIL_IDE_MODEL || userEnv.MUGIL_IDE_MODEL || (engine.config.models && engine.config.models[0]?.id) || 'openrouter/auto';
@@ -107,7 +197,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   };
 
   function isOriginAllowed(originHeader?: string | string[]): boolean {
-    if (!originHeader) return true; // CLI, curl, local scripts have no Origin header
+    if (!originHeader) return true; // Direct non-browser clients (CLI/curl/tests) have no Origin header
     const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
     if (!origin) return true;
     try {
@@ -119,8 +209,38 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
   }
 
+  function isAuthorized(req: http.IncomingMessage, url: URL): boolean {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ') && authHeader.slice(7) === sessionToken) {
+      return true;
+    }
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+      const match = cookieHeader.match(/mugil_session=([a-zA-Z0-9_-]+)/);
+      if (match && match[1] === sessionToken) {
+        return true;
+      }
+    }
+    const customHeader = req.headers['x-mugil-token'];
+    if (customHeader && (Array.isArray(customHeader) ? customHeader[0] : customHeader) === sessionToken) {
+      return true;
+    }
+    const tokenQuery = url.searchParams.get('token');
+    if (tokenQuery && tokenQuery === sessionToken) {
+      return true;
+    }
+    return false;
+  }
+
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+
+    // Auth check for /api/* requests
+    if (url.pathname.startsWith('/api/') && !isAuthorized(req, url)) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized: valid session token required' }));
+      return;
+    }
 
     // Origin check for state-changing /api/* requests
     if (url.pathname.startsWith('/api/') && req.method !== 'GET' && !isOriginAllowed(req.headers.origin)) {
@@ -136,9 +256,21 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/' || url.pathname === '/index.html') {
+      if (!isAuthorized(req, url)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: valid session token or cookie required' }));
+        return;
+      }
+
+      const tokenQuery = url.searchParams.get('token');
+      const setCookie = tokenQuery && tokenQuery === sessionToken
+        ? { 'Set-Cookie': `mugil_session=${sessionToken}; HttpOnly; SameSite=Strict; Path=/` }
+        : {};
+
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Security-Policy': "default-src 'self' 'unsafe-inline'; connect-src 'self' ws: http:; img-src 'self' data: https:;",
+        ...setCookie,
       });
       res.end(getWebUiHtml());
       return;
@@ -175,152 +307,113 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const cloudModels: Array<any> = [];
         const env = readUserEnv();
 
-        // 1. Probe local Ollama if available
-        try {
-          const ollamaModels = await fetchProviderModels({
-            provider: 'ollama',
-            baseUrl: process.env.OLLAMA_BASE_URL || env.OLLAMA_BASE_URL || engine.config.ollamaBaseUrl || 'http://localhost:11434/v1',
-            timeoutMs: 1500,
-          });
-          if (ollamaModels && ollamaModels.length > 0) {
-            ollamaModels.forEach((m) => localModels.push({ ...m, provider: 'ollama', isLocal: true, providerLabel: 'Ollama (Local)' }));
-          }
-        } catch {
-          // ignore — Ollama not reachable, continue to other providers
-        }
-
-        // 2. Probe local LM Studio if available
-        try {
-          const lmModels = await fetchProviderModels({
-            provider: 'lmstudio',
-            baseUrl: process.env.LMSTUDIO_BASE_URL || env.LMSTUDIO_BASE_URL || engine.config.lmstudioBaseUrl || 'http://localhost:1234/v1',
-            timeoutMs: 1500,
-          });
-          if (lmModels && lmModels.length > 0) {
-            lmModels.forEach((m) => localModels.push({ ...m, provider: 'lmstudio', isLocal: true, providerLabel: 'LM Studio (Local)' }));
-          }
-        } catch {
-          // ignore — LM Studio not reachable, continue to other providers
-        }
-
-        // 3. Probe cloud providers with configured keys (OpenRouter, Anthropic, OpenAI, Vercel, Cloudflare, Together, OpenCode)
         const openRouterKey = process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || engine.config.openRouterApiKey;
         const openaiKey = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || engine.config.openaiApiKey;
         const anthropicKey = process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || engine.config.anthropicApiKey;
         const vercelKey = process.env.VERCEL_API_KEY || env.VERCEL_API_KEY || engine.config.vercelApiKey;
         const cloudflareKey = process.env.CLOUDFLARE_API_KEY || env.CLOUDFLARE_API_KEY || engine.config.cloudflareApiKey;
         const togetherKey = process.env.TOGETHER_API_KEY || env.TOGETHER_API_KEY || engine.config.togetherApiKey;
-
-        if (openRouterKey) {
-          try {
-            const cModels = await fetchProviderModels({
-              provider: 'openrouter',
-              apiKey: openRouterKey,
-              baseUrl: engine.config.openRouterBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (cModels && cModels.length > 0) {
-              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'openrouter', isLocal: false, providerLabel: 'OpenRouter' }));
-            }
-          } catch {
-            // ignore — OpenRouter probe failed (missing key / network), continue
-          }
-        }
-
-        if (openaiKey) {
-          try {
-            const cModels = await fetchProviderModels({
-              provider: 'openai',
-              apiKey: openaiKey,
-              baseUrl: engine.config.openaiBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (cModels && cModels.length > 0) {
-              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'openai', isLocal: false, providerLabel: 'OpenAI' }));
-            }
-          } catch {
-            // ignore — OpenAI probe failed (missing key / network), continue
-          }
-        }
-
-        if (anthropicKey) {
-          try {
-            const cModels = await fetchProviderModels({
-              provider: 'anthropic',
-              apiKey: anthropicKey,
-              baseUrl: engine.config.anthropicBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (cModels && cModels.length > 0) {
-              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'anthropic', isLocal: false, providerLabel: 'Anthropic' }));
-            }
-          } catch {
-            // ignore — Anthropic probe failed (missing key / network), continue
-          }
-        }
-
-        if (vercelKey) {
-          try {
-            const cModels = await fetchProviderModels({
-              provider: 'vercel',
-              apiKey: vercelKey,
-              baseUrl: engine.config.vercelBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (cModels && cModels.length > 0) {
-              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'vercel', isLocal: false, providerLabel: 'Vercel AI' }));
-            }
-          } catch {
-            // ignore — Vercel probe failed
-          }
-        }
-
-        if (cloudflareKey) {
-          try {
-            const cModels = await fetchProviderModels({
-              provider: 'cloudflare',
-              apiKey: cloudflareKey,
-              baseUrl: engine.config.cloudflareBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (cModels && cModels.length > 0) {
-              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'cloudflare', isLocal: false, providerLabel: 'Cloudflare' }));
-            }
-          } catch {
-            // ignore — Cloudflare probe failed
-          }
-        }
-
-        if (togetherKey) {
-          try {
-            const cModels = await fetchProviderModels({
-              provider: 'together',
-              apiKey: togetherKey,
-              baseUrl: engine.config.togetherBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (cModels && cModels.length > 0) {
-              cModels.forEach((m) => cloudModels.push({ ...m, provider: 'together', isLocal: false, providerLabel: 'Together AI' }));
-            }
-          } catch {
-            // ignore — Together probe failed
-          }
-        }
-
         const opencodeKey = process.env.OPENCODE_API_KEY || env.OPENCODE_API_KEY || engine.config.opencodeApiKey;
-        if (opencodeKey) {
-          try {
-            const zModels = await fetchProviderModels({
-              provider: 'opencode',
-              apiKey: opencodeKey,
-              baseUrl: engine.config.opencodeBaseUrl,
-              timeoutMs: 4000,
-            });
-            if (zModels && zModels.length > 0) {
-              zModels.forEach((m) => cloudModels.push({ ...m, provider: 'opencode', isLocal: false, providerLabel: 'OpenCode Zen' }));
+
+        // Run provider probes concurrently with Promise.allSettled
+        const probes: Array<Promise<{ isLocal: boolean; models: any[] }>> = [
+          fetchProviderModels({
+            provider: 'ollama',
+            baseUrl: process.env.OLLAMA_BASE_URL || env.OLLAMA_BASE_URL || engine.config.ollamaBaseUrl || 'http://localhost:11434/v1',
+            timeoutMs: 1500,
+          }).then((m) => ({
+            isLocal: true,
+            models: (m || []).map((x) => ({ ...x, provider: 'ollama', isLocal: true, providerLabel: 'Ollama (Local)' })),
+          })).catch(() => ({ isLocal: true, models: [] })),
+
+          fetchProviderModels({
+            provider: 'lmstudio',
+            baseUrl: process.env.LMSTUDIO_BASE_URL || env.LMSTUDIO_BASE_URL || engine.config.lmstudioBaseUrl || 'http://localhost:1234/v1',
+            timeoutMs: 1500,
+          }).then((m) => ({
+            isLocal: true,
+            models: (m || []).map((x) => ({ ...x, provider: 'lmstudio', isLocal: true, providerLabel: 'LM Studio (Local)' })),
+          })).catch(() => ({ isLocal: true, models: [] })),
+
+          openRouterKey ? fetchProviderModels({
+            provider: 'openrouter',
+            apiKey: openRouterKey,
+            baseUrl: engine.config.openRouterBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'openrouter', isLocal: false, providerLabel: 'OpenRouter' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+
+          openaiKey ? fetchProviderModels({
+            provider: 'openai',
+            apiKey: openaiKey,
+            baseUrl: engine.config.openaiBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'openai', isLocal: false, providerLabel: 'OpenAI' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+
+          anthropicKey ? fetchProviderModels({
+            provider: 'anthropic',
+            apiKey: anthropicKey,
+            baseUrl: engine.config.anthropicBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'anthropic', isLocal: false, providerLabel: 'Anthropic' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+
+          vercelKey ? fetchProviderModels({
+            provider: 'vercel',
+            apiKey: vercelKey,
+            baseUrl: engine.config.vercelBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'vercel', isLocal: false, providerLabel: 'Vercel AI' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+
+          cloudflareKey ? fetchProviderModels({
+            provider: 'cloudflare',
+            apiKey: cloudflareKey,
+            baseUrl: engine.config.cloudflareBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'cloudflare', isLocal: false, providerLabel: 'Cloudflare' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+
+          togetherKey ? fetchProviderModels({
+            provider: 'together',
+            apiKey: togetherKey,
+            baseUrl: engine.config.togetherBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'together', isLocal: false, providerLabel: 'Together AI' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+
+          opencodeKey ? fetchProviderModels({
+            provider: 'opencode',
+            apiKey: opencodeKey,
+            baseUrl: engine.config.opencodeBaseUrl,
+            timeoutMs: 4000,
+          }).then((m) => ({
+            isLocal: false,
+            models: (m || []).map((x) => ({ ...x, provider: 'opencode', isLocal: false, providerLabel: 'OpenCode Zen' })),
+          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+        ];
+
+        const settled = await Promise.allSettled(probes);
+        for (const res of settled) {
+          if (res.status === 'fulfilled') {
+            if (res.value.isLocal) {
+              localModels.push(...res.value.models);
+            } else {
+              cloudModels.push(...res.value.models);
             }
-          } catch {
-            // ignore — OpenCode Zen probe failed
           }
         }
 
@@ -348,23 +441,19 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/model' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => (body += chunk));
-      req.on('end', () => {
-        try {
-          const json = JSON.parse(body);
-          if (json.model) {
-            updateActiveModel(String(json.model), json.provider);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: true, activeModel, provider: engine.config.provider }));
-            return;
-          }
-        } catch {
-          // ignore
+      try {
+        const json = await readJsonBody(req);
+        if (json.model) {
+          updateActiveModel(String(json.model), json.provider);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, activeModel, provider: engine.config.provider }));
+          return;
         }
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'invalid model payload' }));
-      });
+      } catch {
+        // ignore
+      }
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid model payload' }));
       return;
     }
 
@@ -424,35 +513,36 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/workspace' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => (body += chunk));
-      req.on('end', () => {
-        try {
-          const json = JSON.parse(body);
-          if (json.path && typeof json.path === 'string') {
-            const target = path.resolve(json.path.trim());
-            let created = false;
-            if (!fs.existsSync(target) && json.create) {
-              fs.mkdirSync(target, { recursive: true });
-              created = true;
-            }
-            if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
-              process.chdir(target);
-              res.writeHead(200, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ ok: true, root: process.cwd(), created }));
-              return;
-            } else {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Directory does not exist' }));
-              return;
-            }
+      try {
+        const json = await readJsonBody(req);
+        if (json.path && typeof json.path === 'string') {
+          const target = path.resolve(json.path.trim());
+          if (isSystemDirectory(target)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Access denied: cannot select system directory as workspace' }));
+            return;
           }
-        } catch {
-          // ignore
+          let created = false;
+          if (!fs.existsSync(target) && json.create) {
+            fs.mkdirSync(target, { recursive: true });
+            created = true;
+          }
+          if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+            process.chdir(target);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, root: process.cwd(), created }));
+            return;
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Directory does not exist' }));
+            return;
+          }
         }
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid directory path' }));
-      });
+      } catch {
+        // ignore
+      }
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid directory path' }));
       return;
     }
 
@@ -482,6 +572,20 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       if (rel.startsWith('..') || path.isAbsolute(rel) || !fs.existsSync(resolved)) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'file not found or outside workspace' }));
+        return;
+      }
+      try {
+        const realRoot = fs.realpathSync(root);
+        const realTarget = fs.realpathSync(resolved);
+        const realRel = path.relative(realRoot, realTarget);
+        if (realRel.startsWith('..') || path.isAbsolute(realRel)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'forbidden: file outside workspace via symlink' }));
+          return;
+        }
+      } catch {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'file not found' }));
         return;
       }
       try {
@@ -586,92 +690,101 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/keys' && req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => (body += chunk));
-      req.on('end', async () => {
-        try {
-          const { writeUserEnv } = await import('@mugil-ide/core');
-          const json = JSON.parse(body);
-          const { keyVar, value, baseVar, baseUrl, provider } = json;
+      try {
+        const { writeUserEnv } = await import('@mugil-ide/core');
+        const json = await readJsonBody(req);
+        const { keyVar, value, baseVar, baseUrl, provider } = json;
 
-          const ALLOWED_KEY_VARS = new Set([
-            'OPENROUTER_API_KEY',
-            'OPENAI_API_KEY',
-            'ANTHROPIC_API_KEY',
-            'VERCEL_API_KEY',
-            'CLOUDFLARE_API_KEY',
-            'CLOUDFLARE_ACCOUNT_ID',
-            'TOGETHER_API_KEY',
-            'OPENCODE_API_KEY',
-          ]);
-          const ALLOWED_BASE_VARS = new Set([
-            'OPENROUTER_BASE_URL',
-            'OPENAI_BASE_URL',
-            'ANTHROPIC_BASE_URL',
-            'OLLAMA_BASE_URL',
-            'LMSTUDIO_BASE_URL',
-            'VERCEL_BASE_URL',
-            'CLOUDFLARE_BASE_URL',
-            'TOGETHER_BASE_URL',
-            'OPENCODE_BASE_URL',
-          ]);
+        const ALLOWED_KEY_VARS = new Set([
+          'OPENROUTER_API_KEY',
+          'OPENAI_API_KEY',
+          'ANTHROPIC_API_KEY',
+          'VERCEL_API_KEY',
+          'CLOUDFLARE_API_KEY',
+          'CLOUDFLARE_ACCOUNT_ID',
+          'TOGETHER_API_KEY',
+          'OPENCODE_API_KEY',
+        ]);
+        const ALLOWED_BASE_VARS = new Set([
+          'OPENROUTER_BASE_URL',
+          'OPENAI_BASE_URL',
+          'ANTHROPIC_BASE_URL',
+          'OLLAMA_BASE_URL',
+          'LMSTUDIO_BASE_URL',
+          'VERCEL_BASE_URL',
+          'CLOUDFLARE_BASE_URL',
+          'TOGETHER_BASE_URL',
+          'OPENCODE_BASE_URL',
+        ]);
 
-          if (keyVar && !ALLOWED_KEY_VARS.has(keyVar)) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: `Unauthorized environment key variable: ${keyVar}` }));
-            return;
-          }
-          if (baseVar && !ALLOWED_BASE_VARS.has(baseVar)) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: `Unauthorized environment base variable: ${baseVar}` }));
-            return;
-          }
-
-          const toSave: Record<string, string> = {};
-          if (keyVar && value) {
-            toSave[keyVar] = value;
-            process.env[keyVar] = value;
-            if (keyVar === 'OPENROUTER_API_KEY') engine.config.openRouterApiKey = value;
-            if (keyVar === 'OPENAI_API_KEY') engine.config.openaiApiKey = value;
-            if (keyVar === 'ANTHROPIC_API_KEY') engine.config.anthropicApiKey = value;
-          }
-          if (baseVar && baseUrl) {
-            toSave[baseVar] = baseUrl;
-            process.env[baseVar] = baseUrl;
-            if (baseVar === 'OPENROUTER_BASE_URL') engine.config.openRouterBaseUrl = baseUrl;
-            if (baseVar === 'OPENAI_BASE_URL') engine.config.openaiBaseUrl = baseUrl;
-            if (baseVar === 'ANTHROPIC_BASE_URL') engine.config.anthropicBaseUrl = baseUrl;
-            if (baseVar === 'OLLAMA_BASE_URL') engine.config.ollamaBaseUrl = baseUrl;
-            if (baseVar === 'LMSTUDIO_BASE_URL') engine.config.lmstudioBaseUrl = baseUrl;
-            if (baseVar === 'VERCEL_BASE_URL') engine.config.vercelBaseUrl = baseUrl;
-            if (baseVar === 'CLOUDFLARE_BASE_URL') engine.config.cloudflareBaseUrl = baseUrl;
-            if (baseVar === 'TOGETHER_BASE_URL') engine.config.togetherBaseUrl = baseUrl;
-            if (baseVar === 'OPENCODE_BASE_URL') engine.config.opencodeBaseUrl = baseUrl;
-          }
-          if (provider) {
-            toSave.AI_PROVIDER = provider;
-            process.env.AI_PROVIDER = provider;
-            engine.config.provider = provider;
-          }
-          const savedFile = writeUserEnv(toSave);
-          engine.reconfigure({
-            ...engine.config,
-            ...(toSave.OPENROUTER_API_KEY ? { openRouterApiKey: toSave.OPENROUTER_API_KEY } : {}),
-            ...(toSave.OPENAI_API_KEY ? { openaiApiKey: toSave.OPENAI_API_KEY } : {}),
-            ...(toSave.ANTHROPIC_API_KEY ? { anthropicApiKey: toSave.ANTHROPIC_API_KEY } : {}),
-            ...(toSave.VERCEL_API_KEY ? { vercelApiKey: toSave.VERCEL_API_KEY } : {}),
-            ...(toSave.CLOUDFLARE_API_KEY ? { cloudflareApiKey: toSave.CLOUDFLARE_API_KEY } : {}),
-            ...(toSave.TOGETHER_API_KEY ? { togetherApiKey: toSave.TOGETHER_API_KEY } : {}),
-            ...(toSave.OPENCODE_API_KEY ? { opencodeApiKey: toSave.OPENCODE_API_KEY } : {}),
-            ...(toSave.AI_PROVIDER ? { provider: toSave.AI_PROVIDER as any } : {}),
-          });
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, savedFile }));
-        } catch (err) {
+        if (keyVar && !ALLOWED_KEY_VARS.has(keyVar)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          res.end(JSON.stringify({ error: `Unauthorized environment key variable: ${keyVar}` }));
+          return;
         }
-      });
+        if (baseVar && !ALLOWED_BASE_VARS.has(baseVar)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Unauthorized environment base variable: ${baseVar}` }));
+          return;
+        }
+
+        // Validate baseUrl format and destination domain
+        if (baseVar && baseUrl) {
+          if (!isValidProviderBaseUrl(baseVar, baseUrl)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(
+              JSON.stringify({
+                error: `Disallowed Base URL for ${baseVar}: host is not recognized as a valid provider endpoint or loopback`,
+              }),
+            );
+            return;
+          }
+        }
+
+        const toSave: Record<string, string> = {};
+        if (keyVar && value) {
+          toSave[keyVar] = value;
+          process.env[keyVar] = value;
+          if (keyVar === 'OPENROUTER_API_KEY') engine.config.openRouterApiKey = value;
+          if (keyVar === 'OPENAI_API_KEY') engine.config.openaiApiKey = value;
+          if (keyVar === 'ANTHROPIC_API_KEY') engine.config.anthropicApiKey = value;
+        }
+        if (baseVar && baseUrl) {
+          toSave[baseVar] = baseUrl;
+          process.env[baseVar] = baseUrl;
+          if (baseVar === 'OPENROUTER_BASE_URL') engine.config.openRouterBaseUrl = baseUrl;
+          if (baseVar === 'OPENAI_BASE_URL') engine.config.openaiBaseUrl = baseUrl;
+          if (baseVar === 'ANTHROPIC_BASE_URL') engine.config.anthropicBaseUrl = baseUrl;
+          if (baseVar === 'OLLAMA_BASE_URL') engine.config.ollamaBaseUrl = baseUrl;
+          if (baseVar === 'LMSTUDIO_BASE_URL') engine.config.lmstudioBaseUrl = baseUrl;
+          if (baseVar === 'VERCEL_BASE_URL') engine.config.vercelBaseUrl = baseUrl;
+          if (baseVar === 'CLOUDFLARE_BASE_URL') engine.config.cloudflareBaseUrl = baseUrl;
+          if (baseVar === 'TOGETHER_BASE_URL') engine.config.togetherBaseUrl = baseUrl;
+          if (baseVar === 'OPENCODE_BASE_URL') engine.config.opencodeBaseUrl = baseUrl;
+        }
+        if (provider) {
+          toSave.AI_PROVIDER = provider;
+          process.env.AI_PROVIDER = provider;
+          engine.config.provider = provider;
+        }
+        const savedFile = writeUserEnv(toSave);
+        engine.reconfigure({
+          ...engine.config,
+          ...(toSave.OPENROUTER_API_KEY ? { openRouterApiKey: toSave.OPENROUTER_API_KEY } : {}),
+          ...(toSave.OPENAI_API_KEY ? { openaiApiKey: toSave.OPENAI_API_KEY } : {}),
+          ...(toSave.ANTHROPIC_API_KEY ? { anthropicApiKey: toSave.ANTHROPIC_API_KEY } : {}),
+          ...(toSave.VERCEL_API_KEY ? { vercelApiKey: toSave.VERCEL_API_KEY } : {}),
+          ...(toSave.CLOUDFLARE_API_KEY ? { cloudflareApiKey: toSave.CLOUDFLARE_API_KEY } : {}),
+          ...(toSave.TOGETHER_API_KEY ? { togetherApiKey: toSave.TOGETHER_API_KEY } : {}),
+          ...(toSave.OPENCODE_API_KEY ? { opencodeApiKey: toSave.OPENCODE_API_KEY } : {}),
+          ...(toSave.AI_PROVIDER ? { provider: toSave.AI_PROVIDER as any } : {}),
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, savedFile }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
       return;
     }
 
@@ -833,66 +946,55 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     if (url.pathname === '/api/config' && req.method === 'POST') {
       try {
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk;
-        });
-        req.on('end', async () => {
-          try {
-            const data = JSON.parse(body || '{}') as {
-              historyBudget?: number;
-              maxTurns?: number;
-              maxOutputTokens?: number;
-              maxToolIterations?: number;
-              webfetchEnabled?: boolean;
-              turboMode?: boolean;
-              thinkingLevel?: 'off' | 'low' | 'medium' | 'high';
-            };
-            if (typeof data.historyBudget === 'number' && data.historyBudget > 0) {
-              process.env.MUGIL_IDE_TOKEN_LIMIT = String(Math.floor(data.historyBudget));
-              process.env.MUGIL_IDE_HISTORY_BUDGET = String(Math.floor(data.historyBudget));
-            }
-            if (typeof data.maxTurns === 'number' && data.maxTurns > 0) {
-              process.env.MUGIL_IDE_MAX_TURNS = String(Math.floor(data.maxTurns));
-            }
-            if (typeof data.maxOutputTokens === 'number' && data.maxOutputTokens > 0) {
-              process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS = String(Math.floor(data.maxOutputTokens));
-            }
-            if (typeof data.maxToolIterations === 'number' && data.maxToolIterations > 0) {
-              process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS = String(Math.floor(data.maxToolIterations));
-            }
-            if (typeof data.webfetchEnabled === 'boolean') {
-              process.env.MUGIL_IDE_ENABLE_WEBFETCH = data.webfetchEnabled ? '1' : '0';
-            }
-            if (typeof data.turboMode === 'boolean') {
-              turboMode = data.turboMode;
-              process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
-            }
-            if (data.thinkingLevel && ['off', 'low', 'medium', 'high'].includes(data.thinkingLevel)) {
-              process.env.MUGIL_IDE_THINKING_LEVEL = data.thinkingLevel;
-              try { const { writeUserEnv } = await import('@mugil-ide/core'); writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel }); } catch { /* ignore */ }
-            }
-            const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(
-              JSON.stringify({
-                ok: true,
-                historyBudget: getHistoryBudget(),
-                maxTurns: getMaxHistoryTurns(),
-                maxOutputTokens: getMaxOutputTokens(),
-                maxToolIterations: getMaxToolIterations(),
-                webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
-                turboMode,
-                thinkingLevel: getThinkingLevel(),
-              }),
-            );
-          } catch {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Invalid JSON body' }));
-          }
-        });
+        const data = (await readJsonBody(req)) as {
+          historyBudget?: number;
+          maxTurns?: number;
+          maxOutputTokens?: number;
+          maxToolIterations?: number;
+          webfetchEnabled?: boolean;
+          turboMode?: boolean;
+          thinkingLevel?: 'off' | 'low' | 'medium' | 'high';
+        };
+        if (typeof data.historyBudget === 'number' && data.historyBudget > 0) {
+          process.env.MUGIL_IDE_TOKEN_LIMIT = String(Math.floor(data.historyBudget));
+          process.env.MUGIL_IDE_HISTORY_BUDGET = String(Math.floor(data.historyBudget));
+        }
+        if (typeof data.maxTurns === 'number' && data.maxTurns > 0) {
+          process.env.MUGIL_IDE_MAX_TURNS = String(Math.floor(data.maxTurns));
+        }
+        if (typeof data.maxOutputTokens === 'number' && data.maxOutputTokens > 0) {
+          process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS = String(Math.floor(data.maxOutputTokens));
+        }
+        if (typeof data.maxToolIterations === 'number' && data.maxToolIterations > 0) {
+          process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS = String(Math.floor(data.maxToolIterations));
+        }
+        if (typeof data.webfetchEnabled === 'boolean') {
+          process.env.MUGIL_IDE_ENABLE_WEBFETCH = data.webfetchEnabled ? '1' : '0';
+        }
+        if (typeof data.turboMode === 'boolean') {
+          turboMode = data.turboMode;
+          process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
+        }
+        if (data.thinkingLevel && ['off', 'low', 'medium', 'high'].includes(data.thinkingLevel)) {
+          process.env.MUGIL_IDE_THINKING_LEVEL = data.thinkingLevel;
+          try { const { writeUserEnv } = await import('@mugil-ide/core'); writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel }); } catch { /* ignore */ }
+        }
+        const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            historyBudget: getHistoryBudget(),
+            maxTurns: getMaxHistoryTurns(),
+            maxOutputTokens: getMaxOutputTokens(),
+            maxToolIterations: getMaxToolIterations(),
+            webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
+            turboMode,
+            thinkingLevel: getThinkingLevel(),
+          }),
+        );
       } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
       }
       return;
@@ -905,10 +1007,15 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (request, socket, head) => {
-    const { pathname } = new URL(request.url || '/', `http://${request.headers.host}`);
-    if (pathname === '/ws') {
+    const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+    if (url.pathname === '/ws') {
       if (!isOriginAllowed(request.headers.origin)) {
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      if (!isAuthorized(request, url)) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
         return;
       }
@@ -1181,10 +1288,7 @@ repl.setMode(newMode);
           }
         }
       } catch {
-        // Raw string input fallback
-        const str = messageRaw.toString();
-        if (!ptySession) await startPty();
-        ptySession?.write(str);
+        // Discard malformed non-JSON WebSocket frames rather than piping directly to shell PTY
       }
     });
 
@@ -1223,12 +1327,20 @@ repl.setMode(newMode);
     server.listen(desiredPort, host, () => {
       const addr = server.address() as AddressInfo;
       const actualPort = addr.port;
-      const url = `http://${host}:${actualPort}`;
+      const url = `http://${host}:${actualPort}/?token=${sessionToken}`;
       resolve({
         port: actualPort,
         url,
+        token: sessionToken,
         close: () =>
           new Promise<void>((res) => {
+            try {
+              if (fs.existsSync(tokenFile) && fs.readFileSync(tokenFile, 'utf8') === sessionToken) {
+                fs.unlinkSync(tokenFile);
+              }
+            } catch {
+              // best-effort cleanup
+            }
             wss.close();
             diffRunner.dispose();
             // Close keep-alive client connections (e.g. undici fetch pools) so

@@ -200,13 +200,8 @@ export class ToolLoop {
         const times = (denials.get(signature) ?? 0) + (outcome.ok ? 0 : 1);
         denials.set(signature, times);
         if (!outcome.ok && times > REPEAT_DENIAL_LIMIT && outcome.content.startsWith('Permission denied')) {
-          // Same call, same refusal — escalate the instruction once instead of
-          // letting the loop spend the remaining iterations re-asking.
-          msgs.push({
-            role: 'assistant',
-            content: `(repeating the denied call "${call.name}")`,
-            toolCalls: [call],
-          });
+          // Same call, same refusal — escalate the instruction in the tool result
+          // instead of pushing an invalid duplicate assistant turn.
           msgs.push({
             role: 'tool',
             toolCallId: call.id,

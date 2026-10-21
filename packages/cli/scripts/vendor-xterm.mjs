@@ -11,7 +11,7 @@
  * Runs after `tsc` in the cli package's build script.
  */
 import { createRequire } from 'node:module';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,11 +36,18 @@ const ASSETS = [
 ];
 
 mkdirSync(outDir, { recursive: true });
+const embedded = {};
 for (const [pkgJson, rel, out] of ASSETS) {
   const src = join(dirname(require.resolve(pkgJson)), rel);
   copyFileSync(src, join(outDir, out));
+  embedded[out] = readFileSync(src, 'utf8');
   console.log(`  vendored ${out} <- ${src}`);
 }
+
+// Generate src/server/embeddedVendor.ts from installed @xterm assets
+const embeddedTs = `export const EMBEDDED_VENDOR_ASSETS: Record<string, string> = ${JSON.stringify(embedded, null, 2)};\n`;
+writeFileSync(join(pkgRoot, 'src', 'server', 'embeddedVendor.ts'), embeddedTs, 'utf8');
+console.log(`  generated src/server/embeddedVendor.ts`);
 
 // Stage the diff-worker entry (plain JS — see diffRunner.ts for the client).
 const workerSrc = join(pkgRoot, 'src', 'server', 'diffWorker.js');

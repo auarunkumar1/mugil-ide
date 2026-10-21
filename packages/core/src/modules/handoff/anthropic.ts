@@ -7,6 +7,8 @@
 import type { ChatMessage, CompletionResult, ToolCall, ToolDefinition } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
+  canonicalizeJson,
+  estimateMessagesTokens,
   mockCompletion,
   ProviderError,
   requestSignal,
@@ -130,14 +132,15 @@ export class AnthropicClient implements ProviderClient {
       thinking: thinkingConfig,
     };
     if (options.tools && options.tools.length > 0) {
-      body.tools = options.tools.map((t: ToolDefinition, idx: number) => {
+      const stableTools = [...options.tools].sort((a, b) => a.name.localeCompare(b.name));
+      body.tools = stableTools.map((t: ToolDefinition, idx: number) => {
         const toolDef: Record<string, unknown> = {
           name: t.name,
           description: t.description,
-          input_schema: t.parameters,
+          input_schema: canonicalizeJson(t.parameters),
         };
         // Place cache breakpoint on the final tool to cache the full tools bundle
-        if (idx === options.tools!.length - 1) {
+        if (idx === stableTools.length - 1) {
           toolDef.cache_control = { type: 'ephemeral' };
         }
         return toolDef;
@@ -200,7 +203,7 @@ export class AnthropicClient implements ProviderClient {
       content = thinking;
     }
     const promptTokens =
-      streamed.usage?.promptTokens ?? countTokens(messages.map((m) => m.content).join('\n'));
+      streamed.usage?.promptTokens ?? estimateMessagesTokens(messages, options.tools);
     const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
     return {
       provider: 'anthropic',
@@ -262,8 +265,7 @@ export class AnthropicClient implements ProviderClient {
     if (content.trim().length === 0 && toolCalls.length === 0 && thinking.trim().length > 0) {
       content = thinking;
     }
-    const promptText = messages.map((m) => m.content).join('\n');
-    const promptTokens = data.usage?.input_tokens ?? countTokens(promptText);
+    const promptTokens = data.usage?.input_tokens ?? estimateMessagesTokens(messages, options.tools);
     const completionTokens = data.usage?.output_tokens ?? countTokens(content);
     const cachedTokens = data.usage?.cache_read_input_tokens;
     const usage = {

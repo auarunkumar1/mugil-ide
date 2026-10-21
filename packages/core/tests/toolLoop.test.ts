@@ -456,4 +456,41 @@ describe('ToolLoop', () => {
     expect(() => parseToolArguments({ id: 'c', name: 'add', arguments: 'not json' })).toThrow(ToolError);
     expect(parseToolArguments({ id: 'c', name: 'add', arguments: '{"a":1}' })).toEqual({ a: 1 });
   });
+
+  it('does not push duplicate assistant turns on repeated permission denials', async () => {
+    const call: ToolCall = { id: 'call_1', name: 'add', arguments: '{"a":1,"b":2}' };
+    // Repeat denial 3 times, then finish
+    const client = scriptedClient([
+      result({ toolCalls: [call], finishReason: 'tool_calls' }),
+      result({ toolCalls: [call], finishReason: 'tool_calls' }),
+      result({ toolCalls: [call], finishReason: 'tool_calls' }),
+      result({ content: 'Done after denial', finishReason: 'stop' }),
+    ]);
+
+    const denyPermission = {
+      check: async () => ({ allowed: false, reason: 'Permission denied: restricted tool' }),
+    };
+
+    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }), maxIterations: 5 });
+    const msgs: ChatMessage[] = [...system, { role: 'user', content: 'compute' }];
+    const out = await loop.run(msgs, {
+      tools: [ADD],
+      registry,
+      permission: denyPermission as any,
+    });
+
+    expect(out.content).toBe('Done after denial');
+
+    const completeCalls = (client.complete as unknown as jest.Mock).mock.calls;
+    expect(completeCalls.length).toBe(4);
+    for (const [sentMsgs] of completeCalls) {
+      for (let i = 0; i < (sentMsgs as ChatMessage[]).length - 1; i++) {
+        const cur = (sentMsgs as ChatMessage[])[i]!;
+        const next = (sentMsgs as ChatMessage[])[i + 1]!;
+        if (cur.role === 'assistant') {
+          expect(next.role).not.toBe('assistant');
+        }
+      }
+    }
+  });
 });

@@ -2,7 +2,7 @@ import type { ChatMessage, CompletionResult, HandoffOptions, ModelSpec } from '.
 import { countTokens } from '../../token/tokenizer.js';
 import { modelSupportsThinking } from '../../config.js';
 import type { ProviderClient, ProviderCompleteOptions } from './provider.js';
-import { isAbortError } from './provider.js';
+import { estimateMessagesTokens, isAbortError } from './provider.js';
 import type { StreamHandlers } from './stream.js';
 
 export interface HandoffManagerOptions {
@@ -67,8 +67,15 @@ export class HandoffManager {
     }
     const fits = this.models.filter((m) => m.contextWindow >= promptTokens);
     const candidates = fits.length > 0 ? fits : this.models;
-    if (candidates.length > 0 && candidates[0]) {
-      return candidates[0];
+    if (candidates.length > 0) {
+      const tierRank: Record<string, number> = { cheap: 1, standard: 2, smart: 3 };
+      const sorted = [...candidates].sort((a, b) => {
+        const trA = tierRank[a.tier] ?? 99;
+        const trB = tierRank[b.tier] ?? 99;
+        if (trA !== trB) return trA - trB;
+        return a.costPerMTokIn - b.costPerMTokIn;
+      });
+      return sorted[0]!;
     }
     return {
       id: 'default',
@@ -91,7 +98,7 @@ export class HandoffManager {
    * `[primary, ...fallbackChain, ...models-with-larger-context]`.
    */
   private buildChain(messages: ChatMessage[], options: HandoffOptions): string[] {
-    const promptTokens = messages.reduce((sum, m) => sum + this.tokens(m.content), 0);
+    const promptTokens = estimateMessagesTokens(messages, options.tools);
     const primary = this.route(promptTokens, options.preferredModel);
 
     const ladder = options.preferredModel ? [] : this.models;

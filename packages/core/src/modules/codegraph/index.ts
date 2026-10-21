@@ -192,25 +192,25 @@ function attachSnippets(
 
 /** Builds same-file reference (call) edges between symbols. */
 function collectCallEdges(
-  content: string,
-  symbols: Array<{ name: string; kind: string; line: number; snippet: string }>,
+  symbols: Array<{ name: string; kind: string; line: number; snippet?: string }>,
   file: string,
 ): CallEdge[] {
   const edges: CallEdge[] = [];
+  const symbolNames = new Set(symbols.map((s) => s.name));
+
   for (const a of symbols) {
-    for (const b of symbols) {
-      if (a.name === b.name) continue;
-      const re = new RegExp(`\\b${escapeRegExp(b.name)}\\b`, 'g');
-      if (re.test(a.snippet)) {
-        edges.push({ from: a.name, to: b.name, file });
+    if (!a.snippet) continue;
+    const seenTargets = new Set<string>();
+    const matches = a.snippet.match(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g);
+    if (!matches) continue;
+    for (const word of matches) {
+      if (word !== a.name && symbolNames.has(word) && !seenTargets.has(word)) {
+        seenTargets.add(word);
+        edges.push({ from: a.name, to: word, file });
       }
     }
   }
   return edges;
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** Parses a single source file into symbols, imports and call edges. */
@@ -282,7 +282,7 @@ export function buildCodeGraph(root: string, options: BuildCodeGraphOptions = {}
     const rel = path.relative(root, full).split(path.sep).join('/');
     const symbols = file.symbols.map((s) => ({ ...s, file: rel }));
     const imports = file.imports.map((i) => ({ ...i, from: rel }));
-    const calls = collectCallEdges(content, attachSnippets(content, file.symbols.map((s) => ({ name: s.name, kind: s.kind, line: s.line }))), rel);
+    const calls = collectCallEdges(symbols, rel);
 
     parsed.push({ path: rel, language: file.language, symbols, imports });
     allSymbols.push(...symbols);

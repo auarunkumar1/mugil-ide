@@ -15,9 +15,28 @@ import { startIdeServer } from '../src/server/server.js';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import WebSocket from 'ws';
+import RawWebSocket from 'ws';
+
+class WebSocket extends RawWebSocket {
+  constructor(address: string | URL, protocols?: any, options?: any) {
+    let clientOpts: RawWebSocket.ClientOptions | undefined;
+    if (typeof protocols === 'object' && !Array.isArray(protocols)) {
+      clientOpts = protocols;
+      protocols = undefined;
+    } else if (typeof options === 'object') {
+      clientOpts = options;
+    }
+    const headers: Record<string, string> = { ...(clientOpts?.headers as Record<string, string>) };
+    if (!headers['Authorization'] && !headers['x-no-auth'] && process.env.MUGIL_IDE_AUTH_TOKEN) {
+      headers['Authorization'] = `Bearer ${process.env.MUGIL_IDE_AUTH_TOKEN}`;
+    }
+    delete headers['x-no-auth'];
+    super(address, protocols, { ...clientOpts, headers });
+  }
+}
 
 let cacheDir = '';
+const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
   // Isolate session auto-save/resume (and never touch the real user cache).
@@ -33,9 +52,21 @@ beforeAll(() => {
   // Use the child_process PTY backend: node-pty's Windows kill() leaks its
   // named-pipe sockets, which would hang the jest process on exit.
   process.env.MUGIL_IDE_PTY_BACKEND = 'child';
+  process.env.MUGIL_IDE_AUTH_TOKEN = 'test-token-fixed-value';
+
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    if (!headers.has('Authorization') && !headers.has('x-no-auth') && process.env.MUGIL_IDE_AUTH_TOKEN) {
+      headers.set('Authorization', `Bearer ${process.env.MUGIL_IDE_AUTH_TOKEN}`);
+    }
+    headers.delete('x-no-auth');
+    return originalFetch(input, { ...init, headers });
+  }) as typeof fetch;
 });
 
 afterAll(async () => {
+  globalThis.fetch = originalFetch;
+  delete process.env.MUGIL_IDE_AUTH_TOKEN;
   delete process.env.MUGIL_IDE_CACHE_DIR;
   delete process.env.MUGIL_IDE_ENV_FILE;
   delete process.env.MUGIL_IDE_PTY_BACKEND;
@@ -1201,6 +1232,64 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(process.env.MUGIL_IDE_TURBO_MODE).toBe('1');
     } finally {
       process.env.MUGIL_IDE_ENABLE_WEBFETCH = '1';
+      await server.close();
+    }
+  });
+
+  it('rejects unauthenticated requests to / and /api/* when no token is supplied', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, model: 'test-model' });
+    try {
+      const resRoot = await originalFetch(`${server.url}/`);
+      expect(resRoot.status).toBe(401);
+
+      const resApi = await originalFetch(`${server.url}/api/status`);
+      expect(resApi.status).toBe(401);
+
+      const wsUnauth = new RawWebSocket(`ws://localhost:${server.port}/ws`);
+      await new Promise<void>((resolve) => {
+        wsUnauth.on('error', () => resolve());
+        wsUnauth.on('unexpected-response', (_req, res) => {
+          expect(res.statusCode).toBe(401);
+          resolve();
+        });
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects exfiltration attempts via POST /api/keys baseUrl', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, model: 'test-model' });
+    try {
+      const res = await fetch(`${server.url}/api/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseVar: 'OPENAI_BASE_URL', baseUrl: 'http://attacker.com/v1' }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as any;
+      expect(json.error).toContain('Disallowed Base URL');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects selection of system directories via POST /api/workspace', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, model: 'test-model' });
+    try {
+      const sysPath = process.platform === 'win32' ? 'C:\\Windows' : '/etc';
+      const res = await fetch(`${server.url}/api/workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: sysPath }),
+      });
+      expect(res.status).toBe(403);
+      const json = (await res.json()) as any;
+      expect(json.error).toContain('cannot select system directory');
+    } finally {
       await server.close();
     }
   });

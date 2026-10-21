@@ -23,14 +23,29 @@
 - [x] **Origin & WebSocket Security Hardening**: Reject untrusted foreign-origin WebSocket upgrades and HTTP mutations; add strict Content-Security-Policy; whitelist environment variable injection in `/api/keys`; prevent path traversal on `/api/file`.
 - [x] **Zero ESLint Errors & Partial Thinking Discarded Fix**: Decouple internal reasoning from conversational prose to eliminate false yellow warnings when models naturally reason before calling tools; resolve all linting issues across workspaces.
 
-## Planned for Next Release (v0.2.0 — Standalone Launcher, Security & Async Execution)
+## Next Release (Shipped in 0.1.21 — Security Hardening, Sandboxing & Core Engine Audit)
 
-- [ ] **Async & Cancellable `run_command`**: Replace synchronous execution with non-blocking child process streaming and `AbortSignal` support.
-- [ ] **Realpath Workspace Sandboxing**: Enforce `fs.realpathSync` to prevent symlink and Windows 8.3/junction containment escapes.
-- [ ] **Local Auth & Session Tokens**: Generate an ephemeral session token on server startup required for all local API access.
-- [ ] **Webfetch SSRF Protection**: Guard against requests targeting private or link-local network ranges (`169.254.169.254`, `127.0.0.1`, RFC 1918 CIDRs).
-- [ ] **Parallel Model Probing**: Probe local and cloud providers concurrently in `/api/models` using `Promise.allSettled`.
+- [x] **Async & Cancellable `run_command` (§3)**: Replaced synchronous execution with non-blocking child process execution and `AbortSignal` cancellation support.
+- [x] **Realpath Ancestor Workspace Sandboxing (§2)**: Enforced `fs.realpathSync` in `resolveInWorkspace` across nearest existing ancestors to prevent symlink and junction containment escapes on both existing and new files.
+- [x] **Local Server Auth & Session Cookies (§1a)**: Enforced ephemeral session token auth on all routes (`/`, `/api/*`, `/ws`). Unauthenticated requests reject with 401. Replaced cleartext token scraping and query-string WebSocket tokens with `HttpOnly; SameSite=Strict` cookies. Removed `MUGIL_IDE_DISABLE_AUTH` bypass.
+- [x] **Provider Base-URL Allowlisting (§1b)**: Restricted `/api/keys` base URLs to approved cloud domains or local loopback (`127.0.0.1`, `localhost`), completely blocking API key exfiltration.
+- [x] **Workspace Directory Confinement (§1c)**: Restricted `/api/workspace` targets to prevent selecting system directories or root drives.
+- [x] **Request Body 2MB Ceiling (§1e)**: Enforced 2MB payload ceiling on JSON body readers including `/api/model`.
+- [x] **Webfetch SSRF Protection (§4)**: Added IPv6 ULA (`fc00::/7`), link-local (`fe80::/10`), loopback, and cloud metadata checks. Added hard-abort on DNS lookup failures and manual hop-by-hop redirect verification.
+- [x] **Tool Loop Denial Message Sequence (§5)**: Verified alternating message roles on permission denials via client complete spies.
+- [x] **Context Window Budget Overflow Hard Error (§6.2)**: `pipeline.ts` throws explicit `Context overflow` error when `contextRoom <= 0`.
+- [x] **Accurate Token Estimation Across All Providers (§6.3, §6.5)**: Unified prompt token and handoff chain estimation (`estimateMessagesTokens`) across all 7 provider clients to account for tool schemas and arguments.
+- [x] **Cost and Tier Routing (§6.4)**: `HandoffManager.route()` sorts candidates by `(tier, costPerMTokIn)`.
+- [x] **Symmetrical Env Serialization (§6.6)**: `parseEnvFile` symmetrically unescapes double-quoted values using `JSON.parse`.
+- [x] **Canonical Tool Schemas (§6.7)**: Anthropic tool definitions sorted alphabetically with canonicalized schemas.
+- [x] **Parallel Model Probing (§7.6)**: Probing local and cloud providers concurrently in `/api/models` using `Promise.allSettled`.
+- [x] **Hermetic Test Suite (§6.1)**: Cleared ambient `MUGIL_IDE_*` in jest setupFiles.
+
+## Planned for Next Release (v0.2.0 — Standalone Launcher & UI Modularization)
+
 - [ ] **Standalone Launcher (SEA / npm link) & Project Folder Management UI**:
   - Add "Open Project Folder" and "Create New Project" modal & file-picker in Web UI when launched standalone or via global CLI.
   - Multi-workspace switching without restarting the Node server.
   - Native binary packaging (Node.js Single Executable Application / Bun compile) for zero-dependency desktop launching.
+- [ ] **Extract Web UI Assets**: Move inline HTML/CSS/JS template literal in `html.ts` into static files to drop `unsafe-inline` CSP directive.
+- [ ] **OpenAI Wire Client Consolidation**: Unify repetitive provider wire implementations into a single configurable client.

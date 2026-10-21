@@ -57,6 +57,50 @@ describe('webfetch tool', () => {
     );
   });
 
+  it('rejects loopback, link-local metadata and private IPs (SSRF protection)', async () => {
+    const { toolRegistry } = createWorkspaceTools(ROOT);
+    const loopback = await toolRegistry.webfetch(webfetchCall({ url: 'http://127.0.0.1:8080/secret' }));
+    expect(loopback).toContain('forbidden');
+
+    const metadata = await toolRegistry.webfetch(webfetchCall({ url: 'http://169.254.169.254/latest/meta-data/' }));
+    expect(metadata).toContain('forbidden');
+
+    const localHost = await toolRegistry.webfetch(webfetchCall({ url: 'http://localhost:3000/' }));
+    expect(localHost).toContain('forbidden');
+
+    const ipv6Ula = await toolRegistry.webfetch(webfetchCall({ url: 'http://[fd00::1]:8080/secret' }));
+    expect(ipv6Ula).toContain('forbidden');
+
+    const ipv6LinkLocal = await toolRegistry.webfetch(webfetchCall({ url: 'http://[fe80::1]:8080/secret' }));
+    expect(ipv6LinkLocal).toContain('forbidden');
+  });
+
+  it('rejects SSRF when a redirect points to a private or loopback host', async () => {
+    const redirectFetch = (async (input: RequestInfo | URL) => {
+      const urlStr = input.toString();
+      if (urlStr.includes('/start-redirect')) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+        });
+      }
+      return new Response('ok', { status: 200, headers: { 'content-type': 'text/plain' } });
+    }) as typeof fetch;
+
+    const { toolRegistry } = createWorkspaceTools(ROOT, { fetchFn: redirectFetch });
+    const out = await toolRegistry.webfetch(webfetchCall({ url: 'https://example.com/start-redirect' }));
+    expect(out).toContain('forbidden');
+  });
+
+  it('reports an error when DNS resolution fails', async () => {
+    const failingDns = async () => {
+      throw new Error('getaddrinfo ENOTFOUND unresolvable-host.internal');
+    };
+    const { toolRegistry } = createWorkspaceTools(ROOT, { dnsLookupFn: failingDns });
+    const out = await toolRegistry.webfetch(webfetchCall({ url: 'https://unresolvable-host.internal/path' }));
+    expect(out).toContain('DNS lookup failed');
+  });
+
   it('truncates long pages to maxChars', async () => {
     const { toolRegistry } = createWorkspaceTools(ROOT, {
       fetchFn: htmlFetch('<p>' + 'word '.repeat(5000) + '</p>'),

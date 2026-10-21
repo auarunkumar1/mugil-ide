@@ -344,7 +344,10 @@ describe('Pipeline', () => {
           ttlSeconds: 3600,
           embedding: new LexicalEmbedding(),
         }),
-        handoff: new HandoffManager({ client, models: MODELS }),
+        handoff: new HandoffManager({
+          client,
+          models: [{ id: 'cheap-1', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128_000 }],
+        }),
         // Deliberately tiny: the prompt budget must NOT cap generation.
         tokenBudget: 1000,
       });
@@ -685,5 +688,12 @@ describe('Pipeline', () => {
     // The third answer must not stack a second concatenation on top of the
     // second one; at most one prior answer may be prepended.
     expect(third.response.split('PART-B').length - 1).toBeLessThanOrEqual(1);
+  });
+
+  it('throws when prompt exceeds context window', async () => {
+    const pipeline = makePipeline();
+    // 8,000 words + margin (1024) exceeds 8000 contextWindow
+    const hugePrompt = 'word '.repeat(8000);
+    await expect(pipeline.ask(hugePrompt, { noCache: true })).rejects.toThrow(/Context overflow/);
   });
 });

@@ -16,7 +16,8 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+import * as dns from 'node:dns/promises';
+import { exec } from 'node:child_process';
 import type { ToolCall, ToolDefinition } from '../../types.js';
 import { ToolLoop, parseToolArguments, type ToolRegistry } from '../tool-loop/index.js';
 import type { HandoffManager } from '../handoff/index.js';
@@ -482,6 +483,8 @@ export interface WorkspaceToolsOptions {
   onSubagentTool?: (mode: 'explore' | 'general', call: ToolCall) => void;
   /** Injectable fetch for webfetch (tests). Defaults to globalThis.fetch. */
   fetchFn?: typeof fetch;
+  /** Injectable DNS lookup for webfetch (tests). Defaults to dns.lookup. */
+  dnsLookupFn?: (hostname: string) => Promise<{ address: string; family: number }>;
   /** Enable the webfetch tool (defaults to true; set MUGIL_IDE_ENABLE_WEBFETCH=0 to disable). */
   webfetchEnabled?: boolean;
   /** Injectable Exa MCP connector for websearch (tests). */
@@ -619,6 +622,44 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
   return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
 }
 
+/** Check if an IP address belongs to private, loopback, link-local, cloud metadata, or ULA ranges. */
+function isRestrictedIp(rawIp: string): boolean {
+  let ip = rawIp.trim();
+  if (ip === 'localhost' || ip === '::1' || ip === '::' || ip === '0.0.0.0') return true;
+  // Strip IPv6 brackets if present (e.g. [fd00::1])
+  if (ip.startsWith('[') && ip.endsWith(']')) {
+    ip = ip.slice(1, -1);
+  }
+  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+  if (ip.toLowerCase().startsWith('::ffff:')) {
+    const rest = ip.slice(7);
+    if (rest.includes('.')) {
+      ip = rest;
+    }
+  }
+  const lower = ip.toLowerCase();
+  // IPv6 ULA (fc00::/7 -> fc00 to fdff)
+  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;
+  // IPv6 Link-Local (fe80::/10 -> fe80 to febf)
+  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true;
+  // IPv6 loopback variants
+  if (lower === '::1' || lower === '0:0:0:0:0:0:0:1' || lower === '0:0:0:0:0:0:0:0') return true;
+
+  const parts = ip.split('.').map(Number);
+  if (parts.length === 4 && parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)) {
+    const [a, b] = parts;
+    if (a === 127) return true; // 127.0.0.0/8 Loopback
+    if (a === 10) return true; // 10.0.0.0/8 Private
+    if (a === 172 && b! >= 16 && b! <= 31) return true; // 172.16.0.0/12 Private
+    if (a === 192 && b === 168) return true; // 192.168.0.0/16 Private
+    if (a === 169 && b === 254) return true; // 169.254.0.0/16 Link-local / Cloud metadata
+    if (a === 100 && b! >= 64 && b! <= 127) return true; // 100.64.0.0/10 Carrier-grade NAT
+    if (a === 0) return true; // 0.0.0.0/8 Broadcast / Current network
+    return false;
+  }
+  return false;
+}
+
 export function createWorkspaceTools(
   workspaceRoot: string = process.cwd(),
   options: WorkspaceToolsOptions = {},
@@ -662,6 +703,27 @@ export function createWorkspaceTools(
     const rel = path.relative(normalizedRoot, target);
     if (rel.startsWith('..') || path.isAbsolute(rel)) {
       return { target, error: `Error: path "${rawPath}" is outside the workspace root (${normalizedRoot}). Paths must stay inside the workspace.` };
+    }
+    // Realpath containment check: prevents symlink/junction escapes.
+    // If target does not exist yet (e.g. creating a new file in a symlinked folder),
+    // probe the closest existing ancestor directory.
+    try {
+      const realRoot = fs.existsSync(normalizedRoot) ? fs.realpathSync(normalizedRoot) : normalizedRoot;
+      let probe = target;
+      while (!fs.existsSync(probe)) {
+        const parent = path.dirname(probe);
+        if (parent === probe) break;
+        probe = parent;
+      }
+      if (fs.existsSync(probe)) {
+        const realProbe = fs.realpathSync(probe);
+        const realRel = path.relative(realRoot, realProbe);
+        if (realRel.startsWith('..') || path.isAbsolute(realRel)) {
+          return { target, error: `Error: path "${rawPath}" resolves outside workspace via symlink (${realProbe}). Paths must stay inside the workspace.` };
+        }
+      }
+    } catch {
+      // If realpath resolution fails, lexical check above remains enforced
     }
     return { target };
   }
@@ -1023,26 +1085,33 @@ export function createWorkspaceTools(
         : Number.isFinite(envTimeout) && envTimeout > 0
           ? Math.floor(envTimeout)
           : 60_000;
-      try {
-        invalidateCache();
-        const stdout = execSync(args.command, {
+      invalidateCache();
+      return new Promise<string>((resolve) => {
+        const child = exec(args.command, {
           cwd: root,
           timeout: timeoutMs,
           maxBuffer: 4 * 1024 * 1024,
           encoding: 'utf-8',
-          stdio: ['pipe', 'pipe', 'pipe'],
+        }, (err, stdout, stderr) => {
+          if (err) {
+            const combined = [
+              stdout,
+              stderr,
+              err.signal === 'SIGTERM' ? `(command timed out after ${timeoutMs}ms)` : undefined,
+              err.message,
+            ].filter(Boolean).join('\n');
+            resolve(compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text);
+          } else {
+            resolve(compressCommandOutput(stdout || stderr || '', { command: args.command }).text);
+          }
         });
-        return compressCommandOutput(stdout, { command: args.command }).text;
-      } catch (err: unknown) {
-        const error = err as { stdout?: string; stderr?: string; message?: string; signal?: string };
-        const combined = [
-          error.stdout,
-          error.stderr,
-          error.signal === 'SIGTERM' ? `(command timed out after ${timeoutMs}ms)` : undefined,
-          error.message,
-        ].filter(Boolean).join('\n');
-        return compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text;
-      }
+
+        if (options.signal) {
+          options.signal.addEventListener('abort', () => {
+            try { child.kill(); } catch { /* ignore */ }
+          }, { once: true });
+        }
+      });
     },
 
     todowrite: async (call: ToolCall): Promise<string> => {
@@ -1106,12 +1175,58 @@ export function createWorkspaceTools(
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         return `Error: only http:// and https:// URLs are supported (got ${parsed.protocol}//).`;
       }
+
+      const dnsLookup = options.dnsLookupFn ?? dns.lookup;
       const fetchFn = options.fetchFn ?? globalThis.fetch;
+
+      let currentUrl = parsed;
+      let response: Response | undefined;
+      const MAX_REDIRECTS = 5;
+
       try {
-        const response = await fetchFn(parsed, {
-          redirect: 'follow',
-          signal: AbortSignal.timeout(WEBFETCH_TIMEOUT_MS),
-        });
+        for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+          const currentHostname = currentUrl.hostname;
+          if (currentHostname === 'localhost' || isRestrictedIp(currentHostname)) {
+            return `Error: webfetch to local or private network host "${currentHostname}" is forbidden for security.`;
+          }
+          try {
+            const lookup = await dnsLookup(currentHostname);
+            if (isRestrictedIp(lookup.address)) {
+              return `Error: host "${currentHostname}" resolves to private address ${lookup.address} (forbidden).`;
+            }
+          } catch (err: unknown) {
+            return `Error: DNS lookup failed for host "${currentHostname}": ${err instanceof Error ? err.message : String(err)}`;
+          }
+
+          response = await fetchFn(currentUrl, {
+            redirect: 'manual',
+            signal: AbortSignal.timeout(WEBFETCH_TIMEOUT_MS),
+          });
+
+          if ([301, 302, 303, 307, 308].includes(response.status)) {
+            const location = response.headers.get('location');
+            if (!location) {
+              return `Error: HTTP ${response.status} redirect without Location header.`;
+            }
+            if (redirectCount === MAX_REDIRECTS) {
+              return `Error: too many redirects (max ${MAX_REDIRECTS}).`;
+            }
+            try {
+              currentUrl = new URL(location, currentUrl);
+            } catch {
+              return `Error: invalid redirect URL: ${location}`;
+            }
+            if (currentUrl.protocol !== 'http:' && currentUrl.protocol !== 'https:') {
+              return `Error: only http:// and https:// URLs are supported in redirects (got ${currentUrl.protocol}//).`;
+            }
+            continue;
+          }
+          break;
+        }
+
+        if (!response) {
+          return `Error: no response received for ${args.url}`;
+        }
         if (!response.ok) {
           return `Error: HTTP ${response.status} ${response.statusText} for ${args.url}`;
         }

@@ -1,6 +1,6 @@
-import type { ChatMessage, CompletionResult, ThinkingLevel, ToolDefinition } from '../../types.js';
+import type { ChatMessage, CompletionResult, ThinkingLevel, ToolCall, ToolDefinition } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
-import type { StreamedCompletion, StreamHandlers } from './stream.js';
+import { parseOpenAiSse, type StreamedCompletion, type StreamHandlers } from './stream.js';
 
 export interface ProviderCompleteOptions {
   model: string;
@@ -86,6 +86,23 @@ export function toOpenAiTools(tools: ToolDefinition[]): Array<Record<string, unk
       parameters: canonicalizeJson(t.parameters),
     },
   }));
+}
+
+/** Accurate prompt token estimator across messages and tool calls/schemas. */
+export function estimateMessagesTokens(messages: ChatMessage[], tools?: ToolDefinition[]): number {
+  let count = 0;
+  for (const m of messages) {
+    count += countTokens(m.content || '');
+    if (m.toolCalls) {
+      for (const call of m.toolCalls) {
+        count += countTokens(call.name) + countTokens(call.arguments || '');
+      }
+    }
+  }
+  if (tools && tools.length > 0) {
+    count += countTokens(JSON.stringify(tools));
+  }
+  return count;
 }
 
 /**
@@ -211,7 +228,7 @@ export function openAiStreamResult(
     content = thinking;
   }
 
-  const promptTokens = streamed.usage?.promptTokens ?? countTokens(messages.map((m) => m.content).join('\n'));
+  const promptTokens = streamed.usage?.promptTokens ?? estimateMessagesTokens(messages, options.tools);
   const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
   return {
     provider,
@@ -262,4 +279,164 @@ export function mockCompletion(
     finishReason: 'stop',
     mock: true,
   };
+}
+
+export interface OpenAiWireConfig {
+  providerName: string;
+  baseUrl: string;
+  apiKey?: string;
+  missingEnvVar?: string;
+  chatEndpoint?: string;
+  defaultHeaders?: Record<string, string>;
+  extraHeaders?: Record<string, string>;
+  isLocalEndpoint?: () => boolean;
+}
+
+export class OpenAiWireClient implements ProviderClient {
+  readonly mock: boolean;
+  protected readonly config: OpenAiWireConfig;
+
+  constructor(config: OpenAiWireConfig) {
+    this.config = config;
+    const isLocal = config.isLocalEndpoint ? config.isLocalEndpoint() : false;
+    this.mock = !config.apiKey && !isLocal;
+  }
+
+  buildBody(messages: ChatMessage[], options: ProviderCompleteOptions): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      model: options.model,
+      messages: toOpenAiMessages(messages),
+    };
+    if (options.temperature !== undefined) body.temperature = options.temperature;
+    if (options.maxTokens !== undefined) body.max_tokens = options.maxTokens;
+    if (options.tools && options.tools.length > 0) {
+      const tools = toOpenAiTools(options.tools);
+      if (tools) {
+        body.tools = tools;
+        body.tool_choice = 'auto';
+      }
+    }
+    return body;
+  }
+
+  protected getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...this.config.defaultHeaders,
+      ...this.config.extraHeaders,
+    };
+    if (this.config.apiKey && !headers['Authorization']) {
+      headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+    }
+    return headers;
+  }
+
+  protected getUrl(): string {
+    const endpoint = this.config.chatEndpoint ?? '/chat/completions';
+    return `${this.config.baseUrl.replace(/\/+$/, '')}${endpoint}`;
+  }
+
+  async post(messages: ChatMessage[], options: ProviderCompleteOptions, stream = false): Promise<Response> {
+    const body = this.buildBody(messages, options);
+    if (stream) body.stream = true;
+
+    const res = await fetch(this.getUrl(), {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(body),
+      signal: requestSignal(options),
+    });
+
+    if (!res.ok) {
+      const retryable = res.status === 429 || res.status >= 500;
+      throw new ProviderError(
+        `${this.config.providerName} ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
+        res.status,
+        retryable,
+      );
+    }
+    return res;
+  }
+
+  async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers,
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      const mock = mockCompletion(messages, options, this.config.missingEnvVar ?? `${this.config.providerName.toUpperCase()}_API_KEY`);
+      handlers.onDelta?.(mock.content);
+      return mock;
+    }
+    const res = await this.post(messages, options, true);
+    if (!res.body) {
+      throw new ProviderError(`${this.config.providerName} returned no body to stream`, res.status, true);
+    }
+    const streamed = await parseOpenAiSse(res.body, handlers);
+    return openAiStreamResult(this.config.providerName, messages, options, streamed);
+  }
+
+  async complete(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Promise<CompletionResult> {
+    if (this.mock) {
+      return mockCompletion(messages, options, this.config.missingEnvVar ?? `${this.config.providerName.toUpperCase()}_API_KEY`);
+    }
+    const res = await this.post(messages, options, false);
+    const data = (await res.json()) as {
+      model?: string;
+      choices?: Array<{
+        message?: {
+          content?: string | null;
+          reasoning_content?: string;
+          reasoning?: string;
+          tool_calls?: Array<{
+            id?: string;
+            type?: string;
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
+        finish_reason?: string;
+      }>;
+      usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+        prompt_tokens_details?: { cached_tokens?: number };
+      };
+    };
+    const message = data.choices?.[0]?.message;
+    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
+    let content = split.content;
+    const thinking = split.thinking;
+    const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
+      .filter((tc) => Boolean(tc?.function?.name))
+      .map((tc) => ({
+        id: tc.id ?? '',
+        name: tc.function!.name!,
+        arguments: tc.function!.arguments ?? '{}',
+      }));
+    if (content.trim().length === 0 && toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
+      content = thinking;
+    }
+    const promptTokens = data.usage?.prompt_tokens ?? estimateMessagesTokens(messages, options.tools);
+    const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
+    const cachedTokens = data.usage?.prompt_tokens_details?.cached_tokens;
+    const usage = {
+      promptTokens,
+      completionTokens,
+      totalTokens: data.usage?.total_tokens ?? promptTokens + completionTokens,
+      ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+    };
+    return {
+      provider: this.config.providerName,
+      model: data.model ?? options.model,
+      content,
+      usage,
+      finishReason: data.choices?.[0]?.finish_reason,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      thinking: thinking && thinking.length > 0 ? thinking : undefined,
+    };
+  }
 }

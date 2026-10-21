@@ -89,7 +89,8 @@ export function budgetConversationHistory(
   let dropped = 0;
   let evictedTokens = 0;
   for (let i = turns.length - 1; i >= 0; i -= 1) {
-    let turn = turns[i]!;
+    const rawTurn = turns[i]!;
+    let turn = rawTurn;
     // Compact older turns to fit ~25-35% more context in the window
     if (options.compactOlderTurns && i < turns.length - 1) {
       turn = {
@@ -100,8 +101,8 @@ export function budgetConversationHistory(
     const cost = countTokens(turn.prompt) + countTokens(turn.response);
     if (tokens + cost > budgetTokens && kept.length > 0) {
       dropped += 1;
-      evicted.unshift(turns[i]!);
-      evictedTokens += countTokens(turns[i]!.prompt) + countTokens(turns[i]!.response);
+      evicted.unshift(rawTurn);
+      evictedTokens += (turn === rawTurn) ? cost : countTokens(rawTurn.prompt) + countTokens(rawTurn.response);
       continue;
     }
     kept.unshift(turn);

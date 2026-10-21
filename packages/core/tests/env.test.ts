@@ -52,6 +52,25 @@ describe('serializeEnvFile', () => {
     expect(out).toContain('B=keep');
     expect(out).toContain('C=added');
   });
+
+  it('quotes values containing hashes and spaces so parseEnvFile does not truncate', () => {
+    const serialized = serializeEnvFile({ SECRET: 'abc #def', SPACED: 'hello world' });
+    const parsed = parseEnvFile(serialized);
+    expect(parsed.SECRET).toBe('abc #def');
+    expect(parsed.SPACED).toBe('hello world');
+  });
+
+  it('round-trips values with embedded quotes, backslashes, and newlines', () => {
+    const serialized = serializeEnvFile({
+      WITH_QUOTES: 'has"quote',
+      WITH_NEWLINES: 'line1\nline2',
+      WITH_BACKSLASHES: 'path\\to\\file',
+    });
+    const parsed = parseEnvFile(serialized);
+    expect(parsed.WITH_QUOTES).toBe('has"quote');
+    expect(parsed.WITH_NEWLINES).toBe('line1\nline2');
+    expect(parsed.WITH_BACKSLASHES).toBe('path\\to\\file');
+  });
 });
 
 describe('writeUserEnv / readUserEnv / deleteUserEnvKeys', () => {

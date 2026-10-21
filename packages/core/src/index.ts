@@ -14,10 +14,6 @@ import { HandoffManager } from './modules/handoff/index.js';
 import { Pipeline } from './pipeline.js';
 import { installOverrideReader } from './modules/overridesNode.js';
 
-// Node callers get filesystem-backed rule overrides; browsers (which never
-// import this barrel) keep the bundled defaults via the browser entry.
-installOverrideReader();
-
 // --- Credited modules -------------------------------------------------------
 
 // Caveman (inspired by JuliusBrussee/caveman)
@@ -303,6 +299,7 @@ export type {
 
 /** Builds a fully-wired engine from the environment. */
 export function createEngine(config: AppConfig) {
+  installOverrideReader();
   let currentConfig = config;
   const cacheBackend = createCacheBackend({
     redisUrl: currentConfig.redisUrl,
