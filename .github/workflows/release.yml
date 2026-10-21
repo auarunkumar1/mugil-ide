@@ -66,10 +66,11 @@ jobs:
           tar -czvf mugil-ide-darwin-x64.tar.gz mugil-ide-darwin-x64
           cd ..
 
-      - name: Setup NFPM (Debian Package Generator)
-        uses: goreleaser/nfpm-action@v2
-        with:
-          version: latest
+      - name: Install nFPM
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update
+          sudo apt-get install -y nfpm
 
       - name: Generate Debian (.deb) Package
         run: |
