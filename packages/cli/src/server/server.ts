@@ -133,6 +133,7 @@ export interface ServerOptions {
 export interface RunningServer {
   port: number;
   url: string;
+  tokenUrl: string;
   token: string;
   close: () => Promise<void>;
 }
@@ -1327,10 +1328,12 @@ repl.setMode(newMode);
     server.listen(desiredPort, host, () => {
       const addr = server.address() as AddressInfo;
       const actualPort = addr.port;
-      const url = `http://${host}:${actualPort}/?token=${sessionToken}`;
+      const url = `http://${host}:${actualPort}`;
+      const tokenUrl = `http://${host}:${actualPort}/?token=${sessionToken}`;
       resolve({
         port: actualPort,
         url,
+        tokenUrl,
         token: sessionToken,
         close: () =>
           new Promise<void>((res) => {
@@ -1343,8 +1346,9 @@ repl.setMode(newMode);
             }
             wss.close();
             diffRunner.dispose();
-            // Close keep-alive client connections (e.g. undici fetch pools) so
-            // server.close() doesn't wait on idle sockets.
+            // Terminate and close all active and idle sockets so server.close()
+            // exits immediately without waiting on pooled client connections.
+            (server as any).closeAllConnections?.();
             server.closeIdleConnections?.();
             server.close(() => res());
           }),

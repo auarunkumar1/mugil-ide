@@ -338,7 +338,10 @@ export class OpenAiWireClient implements ProviderClient {
 
   async post(messages: ChatMessage[], options: ProviderCompleteOptions, stream = false): Promise<Response> {
     const body = this.buildBody(messages, options);
-    if (stream) body.stream = true;
+    if (stream) {
+      body.stream = true;
+      body.stream_options = { include_usage: true };
+    }
 
     const res = await fetch(this.getUrl(), {
       method: 'POST',
@@ -349,13 +352,18 @@ export class OpenAiWireClient implements ProviderClient {
 
     if (!res.ok) {
       const retryable = res.status === 429 || res.status >= 500;
-      throw new ProviderError(
-        `${this.config.providerName} ${res.status} ${res.statusText}: ${(await res.text()).slice(0, 300)}`,
-        res.status,
-        retryable,
-      );
+      const text = await res.text();
+      this.handleHttpError(res.status, res.statusText, text, retryable);
     }
     return res;
+  }
+
+  protected handleHttpError(status: number, statusText: string, bodyText: string, retryable: boolean): never {
+    throw new ProviderError(
+      `${this.config.providerName} ${status} ${statusText}: ${bodyText.slice(0, 300)}`,
+      status,
+      retryable,
+    );
   }
 
   async stream(

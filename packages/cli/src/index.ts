@@ -254,8 +254,9 @@ async function launchUi(options: { port?: string; host: string; model?: string; 
     model: options.model,
   });
 
+  const launchUrl = server.tokenUrl || server.url;
   console.log(`\n  ${bold('☁️ Mugil IDE')} ${dim('— Token-Efficient PTY + xterm.js Interface')}`);
-  console.log(`  ${green('✓')} Running at: ${bold(cyan(server.url))}`);
+  console.log(`  ${green('✓')} Running at: ${bold(cyan(launchUrl))}`);
   console.log(`  ${dim('Press Ctrl+C to stop server.\n')}`);
 
   if (options.open !== false) {
@@ -263,10 +264,10 @@ async function launchUi(options: { port?: string; host: string; model?: string; 
       const { exec } = await import('node:child_process');
       const startCmd =
         process.platform === 'win32'
-          ? `start ${server.url}`
+          ? `start ${launchUrl}`
           : process.platform === 'darwin'
-            ? `open ${server.url}`
-            : `xdg-open ${server.url}`;
+            ? `open ${launchUrl}`
+            : `xdg-open ${launchUrl}`;
       exec(startCmd);
     } catch {
       // ignore

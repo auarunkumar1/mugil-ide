@@ -492,6 +492,12 @@ export function getWebUiHtml(): string {
       align-items: center;
       justify-content: center;
     }
+    #account-modal, #welcome-modal, #model-modal {
+      z-index: 2000;
+    }
+    #question-modal, #approval-modal {
+      z-index: 3000;
+    }
     .modal-overlay.open { display: flex; }
     .modal-dialog {
       background: var(--panel-bg);
@@ -834,6 +840,70 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- First-Launch Onboarding: Welcome & AI Setup Modal -->
+  <div class="modal-overlay" id="welcome-modal">
+    <div class="modal-dialog" style="max-width:620px;">
+      <div class="modal-title-bar">
+        <span>✨ Welcome to Mugil IDE — Quick AI Setup</span>
+        <button class="btn" onclick="closeWelcomeModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:13px; color:var(--text); line-height:1.5;">
+          No AI provider or API keys are currently configured. Connect a cloud provider or local offline AI to enable autonomous coding:
+        </div>
+
+        <!-- Option 1: Cloud API Key -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong style="color:var(--accent); font-size:13px;">☁ Cloud AI (Recommended)</strong>
+            <span style="font-size:11px; color:var(--text-dim);">Fastest setup · 200+ models</span>
+          </div>
+          <div style="font-size:11.5px; color:var(--text-dim); margin-top:4px;">
+            Works with <b>OpenRouter</b>, <b>OpenAI</b>, <b>Anthropic</b>, or <b>OpenCode</b>.
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <select id="welcome-provider-select" style="background:#161b22; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px;">
+              <option value="openrouter|OPENROUTER_API_KEY">OpenRouter (Rec)</option>
+              <option value="openai|OPENAI_API_KEY">OpenAI</option>
+              <option value="anthropic|ANTHROPIC_API_KEY">Anthropic</option>
+              <option value="opencode|OPENCODE_API_KEY">OpenCode</option>
+            </select>
+            <input type="password" id="welcome-key-input" class="input-field" placeholder="Paste your API key here (sk-...)" style="flex:1;" />
+            <button class="btn btn-primary" onclick="saveWelcomeCloudKey()">Save Key</button>
+          </div>
+          <div style="font-size:10.5px; color:var(--text-dim); margin-top:6px;">
+            Don't have a key? <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent); text-decoration:underline;">Get OpenRouter Key ↗</a>
+          </div>
+        </div>
+
+        <!-- Option 2: Local AI -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong style="color:var(--green); font-size:13px;">🟢 Local AI (100% Offline & Free)</strong>
+            <span style="font-size:11px; color:var(--green); font-weight:600;">No API key needed</span>
+          </div>
+          <div style="font-size:11.5px; color:var(--text-dim); margin-top:4px;">
+            Connect to a running local model server (Ollama or LM Studio).
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px;">
+            <button class="btn" style="flex:1; justify-content:center; padding:8px 12px;" onclick="testAndSaveLocalAi('ollama', 'http://localhost:11434/v1')">
+              🦙 Connect Ollama (localhost:11434)
+            </button>
+            <button class="btn" style="flex:1; justify-content:center; padding:8px 12px;" onclick="testAndSaveLocalAi('lmstudio', 'http://localhost:1234/v1')">
+              🧪 Connect LM Studio (localhost:1234)
+            </button>
+          </div>
+          <div id="welcome-local-status" style="font-size:11px; margin-top:6px; display:none;"></div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+          <button class="btn" onclick="openAccountModal(); closeWelcomeModal();" style="font-size:11px;">⚙ All Provider Settings</button>
+          <button class="btn" onclick="closeWelcomeModal()" style="font-size:11px; color:var(--text-dim);">Skip for now (Mock mode)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Mid-task Question Modal (agent question tool) -->
   <div class="modal-overlay" id="question-modal">
     <div class="modal-dialog" style="max-width:560px;">
@@ -875,7 +945,10 @@ export function getWebUiHtml(): string {
       </div>
       <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:16px; overflow-y:auto;">
         <div>
-          <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Active Model & Provider:</label>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:0;">Active Model & Provider:</label>
+            <button type="button" class="btn" onclick="openAccountModal();" style="font-size:10.5px; padding:2px 8px; color:var(--accent);">🔑 Manage API Keys</button>
+          </div>
           <select id="setup-model-select" onchange="onSetupModelChange()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:13px; font-family:inherit;">
             <option value="">Loading models...</option>
           </select>
@@ -883,6 +956,10 @@ export function getWebUiHtml(): string {
             <span id="setup-model-provider" style="color:var(--accent);">Provider: Auto</span>
             <span id="setup-model-context" style="color:var(--text-dim);">Context: 128k</span>
             <span id="setup-model-pricing" style="color:var(--green); font-weight:600;">Pricing: Detecting...</span>
+          </div>
+          <div id="setup-no-keys-banner" style="display:none; margin-top:8px; padding:8px 12px; background:#f851491a; border:1px solid #f8514966; border-radius:6px; font-size:11.5px; color:#ff7b72;">
+            ⚠ No API keys or local AI servers configured. Responses will run in mock mode.
+            <a href="javascript:void(0)" onclick="openWelcomeModal();" style="color:var(--accent); font-weight:600; text-decoration:underline; margin-left:6px;">Connect AI Provider ↗</a>
           </div>
         </div>
 
@@ -2280,6 +2357,86 @@ export function getWebUiHtml(): string {
       }
     }
 
+    function openWelcomeModal() {
+      document.getElementById('welcome-modal').classList.add('open');
+      const st = document.getElementById('welcome-local-status');
+      if (st) st.style.display = 'none';
+    }
+    function closeWelcomeModal() {
+      document.getElementById('welcome-modal').classList.remove('open');
+      checkConfiguredProviders();
+      populateSetupModels();
+      if (!sessionStorage.getItem('mugil_session_configured')) {
+        openSessionSetupModal();
+      }
+    }
+
+    async function saveWelcomeCloudKey() {
+      const select = document.getElementById('welcome-provider-select');
+      const input = document.getElementById('welcome-key-input');
+      const keyVal = input ? input.value.trim() : '';
+      if (!keyVal) {
+        alert('Please paste an API key');
+        return;
+      }
+      const [provider, keyVar] = (select.value || 'openrouter|OPENROUTER_API_KEY').split('|');
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, keyVar, value: keyVal }),
+        });
+        if (res.ok) {
+          alert('Saved ' + provider + ' API key successfully!');
+          closeWelcomeModal();
+          await loadModels();
+          populateSetupModels();
+        } else {
+          const err = await res.json();
+          alert('Failed to save key: ' + (err.error || res.statusText));
+        }
+      } catch (e) {
+        alert('Error saving API key: ' + e.message);
+      }
+    }
+
+    async function testAndSaveLocalAi(provider, defaultUrl) {
+      const st = document.getElementById('welcome-local-status');
+      if (st) {
+        st.style.display = 'block';
+        st.style.color = 'var(--text-dim)';
+        st.textContent = 'Probing ' + provider + ' at ' + defaultUrl + '...';
+      }
+      const baseVar = provider === 'ollama' ? 'OLLAMA_BASE_URL' : 'LMSTUDIO_BASE_URL';
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, baseVar, baseUrl: defaultUrl }),
+        });
+        if (res.ok) {
+          if (st) {
+            st.style.color = 'var(--green)';
+            st.textContent = '✓ Connected to ' + provider + '! Updating models...';
+          }
+          await loadModels();
+          populateSetupModels();
+          setTimeout(() => closeWelcomeModal(), 900);
+        } else {
+          const err = await res.json();
+          if (st) {
+            st.style.color = 'var(--red)';
+            st.textContent = '⚠ ' + (err.error || 'Failed to connect');
+          }
+        }
+      } catch (e) {
+        if (st) {
+          st.style.color = 'var(--red)';
+          st.textContent = '⚠ Connection failed: ' + e.message;
+        }
+      }
+    }
+
     // Account & Keys Modal
     async function openAccountModal() {
       closeModelModal();
@@ -2298,6 +2455,8 @@ export function getWebUiHtml(): string {
     }
     function closeAccountModal() {
       document.getElementById('account-modal').classList.remove('open');
+      checkConfiguredProviders();
+      populateSetupModels();
     }
 
     function renderProviders(providers) {
@@ -2344,6 +2503,8 @@ export function getWebUiHtml(): string {
           alert('Saved successfully!');
           openAccountModal();
           loadModels();
+          checkConfiguredProviders();
+          populateSetupModels();
         }
       } catch (err) {
         alert('Failed to save key: ' + err.message);
@@ -2849,14 +3010,40 @@ export function getWebUiHtml(): string {
       }
     }
 
+    let hasConfiguredProviders = false;
+
+    async function checkConfiguredProviders() {
+      try {
+        const res = await fetch('/api/keys');
+        if (res.ok) {
+          const data = await res.json();
+          const configured = (data.providers || []).some(p => p.isConfigured);
+          hasConfiguredProviders = configured || (availableLocalModels && availableLocalModels.length > 0);
+          const banner = document.getElementById('setup-no-keys-banner');
+          if (banner) {
+            banner.style.display = hasConfiguredProviders ? 'none' : 'block';
+          }
+          return hasConfiguredProviders;
+        }
+      } catch (e) {
+        // ignore
+      }
+      return false;
+    }
+
     window.onload = async () => {
       initTerminals();
       connectWs();
       await loadModels();
       await loadConfigLimits();
       refreshFiles();
+      const anyKeys = await checkConfiguredProviders();
       if (!sessionStorage.getItem('mugil_session_configured')) {
-        openSessionSetupModal();
+        if (!anyKeys && availableLocalModels.length === 0) {
+          openWelcomeModal();
+        } else {
+          openSessionSetupModal();
+        }
       }
       const chatInput = document.getElementById('chat-input');
       if (chatInput) chatInput.focus();

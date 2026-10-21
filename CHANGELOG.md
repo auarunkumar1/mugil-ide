@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.1.22] - 2026-10-21
+
+### Added
+
+- **First-Run Quick AI Setup & Zero-Key Onboarding**: Automatically detects launches with zero configured API keys and displays a quick-setup modal for 1-click cloud provider configuration (OpenRouter, OpenAI, Anthropic, OpenCode) or free local offline models (Ollama, LM Studio).
+- **Setup Warning Banner**: Added persistent warning banner inside session setup when no AI providers are configured, with direct links to account management.
+
+### Fixed
+
+- **Modal Stacking & Z-Index Hierarchy**: Set `#account-modal`, `#welcome-modal`, and `#model-modal` to `z-index: 2000` so account/key management and welcome modals always open in front of `#session-setup-modal` without backdrop collisions.
+- **CI Test Suite Keep-Alive Hang**: Wired `closeAllConnections()` and `closeIdleConnections()` into `server.close()` to ensure lingering HTTP keep-alive connections terminate immediately upon test completion.
+- **GitHub Actions CI Timeout**: Added hard `timeout-minutes: 15` ceiling on GitHub Actions CI workflow to eliminate runner execution hangs past 1 hour.
+- **OpenRouter Streaming Token Usage**: Populated `stream_options = { include_usage: true }` in `OpenAiWireClient.post()` when streaming is active to ensure usage metrics are delivered by providers.
+- **Typed OpenRouter HTTP Error Handling**: Added `handleHttpError()` hook and typed `OpenRouterError` to parse and bubble provider error messages cleanly during handoffs.
+- **Clean Server URL Token Routing**: Separated pristine base server URL (`server.url`) from authenticated launch link (`server.tokenUrl`), preventing query parameter corruption and CLI duplication.
+
 ## [0.1.21] - 2026-10-21
 
 ### Security & Sandboxing
@@ -331,3 +349,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.19]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.19
 [0.1.20]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.20
 [0.1.21]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.21
+
+[0.1.22]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.22
