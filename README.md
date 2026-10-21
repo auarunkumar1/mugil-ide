@@ -329,7 +329,7 @@ All settings can be configured via the Web UI modals or by editing `~/.config/mu
 
 ## 🧑‍💻 Contributing & Building from Source
 
-We warmly welcome community contributions, issues, and pull requests!
+We warmly welcome community contributions, issues, and pull requests! Before preparing or publishing a release, consult the [Pre-Release & CI Verification Guide](docs/PRE_RELEASE_CI_GUIDE.md).
 
 ```bash
 # Clone the repository
