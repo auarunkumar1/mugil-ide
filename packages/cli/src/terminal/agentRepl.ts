@@ -782,6 +782,36 @@ export class AgentRepl {
   }
 
   /** Resolves metadata and token pricing for a given model ID. */
+  public async resolveModelMetaAsync(modelId: string): Promise<(ModelSpec & { provider?: string; isLocal?: boolean }) | undefined> {
+    const cached = this.resolveModelMeta(modelId);
+    if (cached && (cached.costPerMTokIn > 0 || cached.costPerMTokOut > 0 || cached.isLocal)) {
+      return cached;
+    }
+
+    // If pricing is missing or 0, dynamically probe OpenRouter directly using API key
+    const openRouterKey = process.env.OPENROUTER_API_KEY || this.engine.config.openRouterApiKey;
+    if (openRouterKey) {
+      try {
+        const liveModels = await fetchProviderModels({
+          provider: 'openrouter',
+          apiKey: openRouterKey,
+          baseUrl: this.engine.config.openRouterBaseUrl,
+          timeoutMs: 4000,
+        });
+        if (liveModels && liveModels.length > 0) {
+          this.setAvailableModels(liveModels.map((m) => ({ ...m, provider: 'openrouter', isLocal: false })));
+          const fresh = this.resolveModelMeta(modelId);
+          if (fresh) return fresh;
+        }
+      } catch {
+        // network probe failed, fallback to sync cache
+      }
+    }
+
+    return cached;
+  }
+
+  /** Resolves metadata and token pricing for a given model ID. */
   public resolveModelMeta(modelId: string): (ModelSpec & { provider?: string; isLocal?: boolean }) | undefined {
     if (!modelId) return undefined;
     const direct = this.lastListedModels.find((m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase());
@@ -1104,7 +1134,7 @@ export class AgentRepl {
       this.stats.promptTokens += result.usage.promptTokens;
       this.stats.completionTokens += result.usage.completionTokens;
       this.stats.totalTokens += result.usage.totalTokens;
-      const modelMeta = this.resolveModelMeta(result.model);
+      const modelMeta = await this.resolveModelMetaAsync(result.model);
       if (modelMeta && !modelMeta.isLocal) {
         const costIn = modelMeta.costPerMTokIn ? (result.usage.promptTokens * modelMeta.costPerMTokIn) / 1_000_000 : 0;
         const costOut = modelMeta.costPerMTokOut ? (result.usage.completionTokens * modelMeta.costPerMTokOut) / 1_000_000 : 0;
