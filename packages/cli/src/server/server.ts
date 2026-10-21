@@ -87,6 +87,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   const userEnv = readUserEnv();
   let turboMode = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
   let activeModel = initialModel || process.env.MUGIL_IDE_MODEL || userEnv.MUGIL_IDE_MODEL || (engine.config.models && engine.config.models[0]?.id) || 'openrouter/auto';
+  let probedModelsCache: Array<any> = [];
   const updateActiveModel = (newModel: string, newProvider?: string) => {
     activeModel = newModel;
     const providerToSet = newProvider || engine.config.provider;
@@ -120,6 +121,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     if (url.pathname.startsWith('/api/') && req.method !== 'GET' && !isOriginAllowed(req.headers.origin)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Forbidden: invalid origin' }));
+      return;
+    }
+
+    if (url.pathname === '/favicon.ico') {
+      res.writeHead(204);
+      res.end();
       return;
     }
 
@@ -303,6 +310,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           }
         }
 
+        const combinedModels = [...localModels, ...cloudModels];
+        probedModelsCache = combinedModels;
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
@@ -310,7 +320,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             activeProvider: engine.config.provider,
             localModels,
             cloudModels,
-            models: [...localModels, ...cloudModels],
+            models: combinedModels,
           }),
         );
       } catch (err) {
@@ -344,6 +354,88 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     if (url.pathname === '/api/status' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ provider: engine.config.provider, activeModel }));
+      return;
+    }
+
+    if (url.pathname === '/api/fs/browse' && req.method === 'GET') {
+      try {
+        const os = await import('os');
+        const queryPath = url.searchParams.get('path');
+        let targetDir = queryPath ? path.resolve(queryPath) : process.cwd();
+        if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+          targetDir = os.homedir();
+        }
+
+        const entries: Array<{ name: string; path: string }> = [];
+        try {
+          const dirEntries = fs.readdirSync(targetDir, { withFileTypes: true });
+          for (const d of dirEntries) {
+            if (d.isDirectory() && !d.name.startsWith('.')) {
+              entries.push({ name: d.name, path: path.join(targetDir, d.name) });
+            }
+          }
+          entries.sort((a, b) => a.name.localeCompare(b.name));
+        } catch {
+          // ignore permission errors
+        }
+
+        const parent = path.dirname(targetDir);
+        const hasParent = parent !== targetDir;
+
+        // Quick shortcuts
+        const shortcuts: Array<{ label: string; path: string }> = [
+          { label: 'Home', path: os.homedir() },
+          { label: 'Desktop', path: path.join(os.homedir(), 'Desktop') },
+          { label: 'Documents', path: path.join(os.homedir(), 'Documents') },
+          { label: 'Downloads', path: path.join(os.homedir(), 'Downloads') },
+        ].filter((s) => fs.existsSync(s.path));
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            current: targetDir,
+            parent: hasParent ? parent : null,
+            dirs: entries,
+            shortcuts,
+          }),
+        );
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/workspace' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => (body += chunk));
+      req.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          if (json.path && typeof json.path === 'string') {
+            const target = path.resolve(json.path.trim());
+            let created = false;
+            if (!fs.existsSync(target) && json.create) {
+              fs.mkdirSync(target, { recursive: true });
+              created = true;
+            }
+            if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
+              process.chdir(target);
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ ok: true, root: process.cwd(), created }));
+              return;
+            } else {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Directory does not exist' }));
+              return;
+            }
+          }
+        } catch (err) {
+          // ignore
+        }
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid directory path' }));
+      });
       return;
     }
 
@@ -955,6 +1047,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         },
       },
     );
+
+    if (probedModelsCache.length > 0) {
+      repl.setAvailableModels(probedModelsCache);
+    }
 
     // Lazy PTY for the Shell pane: the shell process only spawns on first use
     // (the browser sends resize_pty when the shell tab is activated, and

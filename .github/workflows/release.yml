@@ -1,0 +1,109 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Standalone Binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install NPM Dependencies & Build Internal Packages
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Compile Standalone Binaries with Bun
+        run: |
+          mkdir -p releases
+          # Windows x64 Executable
+          bun build packages/cli/src/index.ts --compile --target=bun-windows-x64 --outfile releases/mugil-ide-windows-x64.exe
+
+          # Linux x64 Executable
+          bun build packages/cli/src/index.ts --compile --target=bun-linux-x64 --outfile releases/mugil-ide-linux-x64
+          chmod +x releases/mugil-ide-linux-x64
+
+          # Linux arm64 Executable
+          bun build packages/cli/src/index.ts --compile --target=bun-linux-arm64 --outfile releases/mugil-ide-linux-arm64
+          chmod +x releases/mugil-ide-linux-arm64
+
+          # macOS Apple Silicon (arm64)
+          bun build packages/cli/src/index.ts --compile --target=bun-darwin-arm64 --outfile releases/mugil-ide-darwin-arm64
+          chmod +x releases/mugil-ide-darwin-arm64
+
+          # macOS Intel (x64)
+          bun build packages/cli/src/index.ts --compile --target=bun-darwin-x64 --outfile releases/mugil-ide-darwin-x64
+          chmod +x releases/mugil-ide-darwin-x64
+
+      - name: Package Linux & macOS Archives
+        run: |
+          cd releases
+          # Universal Linux tarball
+          tar -czvf mugil-ide-linux-x64.tar.gz mugil-ide-linux-x64
+          tar -czvf mugil-ide-linux-arm64.tar.gz mugil-ide-linux-arm64
+
+          # macOS tarballs
+          tar -czvf mugil-ide-darwin-arm64.tar.gz mugil-ide-darwin-arm64
+          tar -czvf mugil-ide-darwin-x64.tar.gz mugil-ide-darwin-x64
+          cd ..
+
+      - name: Setup NFPM (Debian Package Generator)
+        uses: goreleaser/nfpm-action@v2
+        with:
+          version: latest
+
+      - name: Generate Debian (.deb) Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          export VERSION
+          cat <<EOF > nfpm.yaml
+          name: "mugil-ide"
+          arch: "amd64"
+          platform: "linux"
+          version: "${VERSION}"
+          section: "devel"
+          priority: "optional"
+          maintainer: "Mugil IDE Contributors <support@mugil-ide.com>"
+          description: "Token-efficient Mugil IDE web IDE server (browser UI + PTY + autonomous tools)"
+          homepage: "https://github.com/${{ github.repository }}"
+          license: "MIT"
+          contents:
+            - src: ./releases/mugil-ide-linux-x64
+              dst: /usr/local/bin/mugil-ide
+              file_info:
+                mode: 0755
+          EOF
+          nfpm package --packager deb --target releases/mugil-ide-linux-amd64.deb
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            releases/mugil-ide-windows-x64.exe
+            releases/mugil-ide-linux-x64.tar.gz
+            releases/mugil-ide-linux-arm64.tar.gz
+            releases/mugil-ide-linux-amd64.deb
+            releases/mugil-ide-darwin-arm64.tar.gz
+            releases/mugil-ide-darwin-x64.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true

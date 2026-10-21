@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-10-21
+
+### Added
+
+- **Visual Directory & Workspace Browser**: Added interactive folder browser modal with quick directory shortcuts (`Home`, `Desktop`, `Documents`, `Downloads`), parent navigation (`⬆ Up`), and subfolder creation to easily point the IDE to any folder on your computer.
+- **First-Run Workspace Selector & Project Creator**: Users double-clicking standalone binaries (from `Downloads` or home directory) can immediately select an existing project directory or create a new project from scratch (`mkdir -p`) directly from the Web UI setup modal.
+- **Standalone Compiled GitHub Releases & npm Deprecation**: Offboarded distribution from npmjs. Added automated GitHub Actions release workflow cross-compiling click-to-run binaries via Bun for Windows (`.exe`), Linux (`.tar.gz` and `.deb`), and macOS (Apple Silicon & Intel).
+- **Favicon & Client Script Syntax Resilience**: Handled `/favicon.ico` with HTTP 204 to eliminate console 404 noise; hardened client script path splitting against regex escape collisions in template literals.
+
 ## [0.1.18] - 2026-10-20
 
 ### Added

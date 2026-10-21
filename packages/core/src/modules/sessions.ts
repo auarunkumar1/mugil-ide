@@ -56,6 +56,7 @@ export interface SessionStats {
   cacheHits: number;
   requests: number;
   tokensSaved: number;
+  estimatedCost?: number;
   filesModified: string[];
 }
 
@@ -197,6 +198,7 @@ function sanitizeStats(stats: unknown): SessionStats | null {
     cacheHits: num(s.cacheHits),
     requests: num(s.requests),
     tokensSaved: num(s.tokensSaved),
+    estimatedCost: typeof s.estimatedCost === 'number' && Number.isFinite(s.estimatedCost) ? s.estimatedCost : 0,
     filesModified: Array.isArray(s.filesModified) ? s.filesModified.filter((f): f is string => typeof f === 'string') : [],
   };
 }

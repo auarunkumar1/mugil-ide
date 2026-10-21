@@ -618,7 +618,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       complete: async (messages) => {
         fedBack.push(JSON.stringify(messages));
         calls += 1;
-        return scriptedResult({ content: calls === 1 ? 'first answer' : 'second answer' });
+        return scriptedResult({
+          model: 'openai/gpt-4o',
+          content: calls === 1 ? 'first answer' : 'second answer',
+          usage: { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 },
+        });
       },
     };
     const engine = scriptedEngine(client);
@@ -642,11 +646,13 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     expect(file).not.toContain('last-session.json');
     const saved = JSON.parse(readFileSync(file, 'utf8')) as {
       entries: Array<{ prompt: string }>;
-      stats: { requests: number };
+      stats: { requests: number; estimatedCost?: number };
     };
     expect(saved.entries.some((e) => e.prompt === 'hello')).toBe(true);
     // Session metrics are persisted with the conversation (the one completed turn).
     expect(saved.stats.requests).toBe(1);
+    // gpt-4o pricing is $2.50 / $10.00 per 1M: 1000 in ($0.0025) + 500 out ($0.005) = $0.0075
+    expect(saved.stats.estimatedCost).toBeCloseTo(0.0075, 4);
 
     // Connection 2: auto-resume restores that turn into the new session's history.
     const ws2 = new WebSocket(url);
@@ -661,8 +667,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     expect(fedBack[1]).toContain('first answer');
     // The restored stats carried into connection 2 and accumulated: the file
     // now shows 2 requests (1 restored + the new turn), not just 1.
-    const saved2 = JSON.parse(readFileSync(file, 'utf8')) as { stats: { requests: number } };
+    const saved2 = JSON.parse(readFileSync(file, 'utf8')) as { stats: { requests: number; estimatedCost?: number } };
     expect(saved2.stats.requests).toBe(2);
+    expect(saved2.stats.estimatedCost).toBeCloseTo(0.015, 4);
     ws2.terminate();
 
     await server.close();

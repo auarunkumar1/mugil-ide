@@ -37,6 +37,16 @@ connectMcpServers,
   namedSessionPath,
   loadMode,
   saveMode,
+  DEFAULT_OPENROUTER_MODELS,
+  DEFAULT_OPENAI_MODELS,
+  DEFAULT_ANTHROPIC_MODELS,
+  DEFAULT_OLLAMA_MODELS,
+  DEFAULT_LMSTUDIO_MODELS,
+  DEFAULT_LOCAL_MODELS,
+  DEFAULT_VERCEL_MODELS,
+  DEFAULT_CLOUDFLARE_MODELS,
+  DEFAULT_TOGETHER_MODELS,
+  DEFAULT_OPENCODE_MODELS,
   type ConversationTurn,
 } from '@mugil-ide/core';
 import { ANSI, c, bold, dim, cyan, green, yellow, red, magenta, formatMarkdown, StreamMarkdown } from './ansi.js';
@@ -764,10 +774,70 @@ export class AgentRepl {
     return { ...this.stats, filesModified: Array.from(this.stats.filesModified) };
   }
 
+  /** Sets available models probed by web UI or CLI, retaining pricing specs. */
+  public setAvailableModels(models: Array<ModelSpec & { provider?: string; isLocal?: boolean }>): void {
+    if (Array.isArray(models) && models.length > 0) {
+      this.lastListedModels = models;
+    }
+  }
+
+  /** Resolves metadata and token pricing for a given model ID. */
+  public resolveModelMeta(modelId: string): (ModelSpec & { provider?: string; isLocal?: boolean }) | undefined {
+    if (!modelId) return undefined;
+    const direct = this.lastListedModels.find((m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase());
+    if (direct) return direct;
+
+    const configured = this.engine.config.models?.find(
+      (m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase(),
+    );
+    if (configured) {
+      return { ...configured, provider: this.engine.config.provider, isLocal: false };
+    }
+
+    const allDefaults: ModelSpec[] = [
+      ...DEFAULT_OPENROUTER_MODELS,
+      ...DEFAULT_OPENAI_MODELS,
+      ...DEFAULT_ANTHROPIC_MODELS,
+      ...DEFAULT_TOGETHER_MODELS,
+      ...DEFAULT_CLOUDFLARE_MODELS,
+      ...DEFAULT_VERCEL_MODELS,
+      ...DEFAULT_OPENCODE_MODELS,
+      ...DEFAULT_OLLAMA_MODELS,
+      ...DEFAULT_LMSTUDIO_MODELS,
+      ...DEFAULT_LOCAL_MODELS,
+    ];
+
+    const foundDefault = allDefaults.find(
+      (m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase(),
+    );
+    if (foundDefault) {
+      const isLocal = DEFAULT_OLLAMA_MODELS.some((m) => m.id === foundDefault.id) ||
+        DEFAULT_LMSTUDIO_MODELS.some((m) => m.id === foundDefault.id) ||
+        DEFAULT_LOCAL_MODELS.some((m) => m.id === foundDefault.id);
+      return { ...foundDefault, isLocal };
+    }
+
+    // Heuristic lookup for prefixed or vendor-scoped model IDs (e.g. openrouter/anthropic/claude-3.7-sonnet)
+    const normalized = modelId.toLowerCase();
+    const fuzzy = allDefaults.find((m) => {
+      const mid = m.id.toLowerCase();
+      return normalized.endsWith(mid) || mid.endsWith(normalized);
+    });
+    if (fuzzy) {
+      return { ...fuzzy, isLocal: false };
+    }
+
+    return undefined;
+  }
+
   /** Restores persisted session metrics (no-op when the file had none). */
   private restoreSessionStats(stats: SessionStats | null): void {
     if (!stats) return;
-    this.stats = { ...stats, estimatedCost: 0, filesModified: new Set(stats.filesModified) };
+    this.stats = {
+      ...stats,
+      estimatedCost: typeof stats.estimatedCost === 'number' && Number.isFinite(stats.estimatedCost) ? stats.estimatedCost : 0,
+      filesModified: new Set(stats.filesModified),
+    };
   }
 
   /** Rebuilds message history + turn list from persisted entries. */
@@ -1026,7 +1096,7 @@ export class AgentRepl {
       this.stats.promptTokens += result.usage.promptTokens;
       this.stats.completionTokens += result.usage.completionTokens;
       this.stats.totalTokens += result.usage.totalTokens;
-      const modelMeta = this.lastListedModels.find((m) => m.id === result.model);
+      const modelMeta = this.resolveModelMeta(result.model);
       if (modelMeta && !modelMeta.isLocal) {
         const costIn = modelMeta.costPerMTokIn ? (result.usage.promptTokens * modelMeta.costPerMTokIn) / 1_000_000 : 0;
         const costOut = modelMeta.costPerMTokOut ? (result.usage.completionTokens * modelMeta.costPerMTokOut) / 1_000_000 : 0;

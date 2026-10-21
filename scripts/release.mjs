@@ -143,18 +143,10 @@ if (mode === 'bump' || mode === 'publish') {
   execFileSync('git', ['commit', '-m', `Release v${newVersion}`], { cwd: root, stdio: 'inherit' });
   execFileSync('git', ['tag', `v${newVersion}`], { cwd: root, stdio: 'inherit' });
   console.log(`  ✓ tagged v${newVersion}`);
+  console.log(`\n🚀 To trigger automated binary compilation on GitHub Actions, run:`);
+  console.log(`   git push origin master --tags\n`);
 }
 
 if (mode === 'publish') {
-  for (const pkg of PUBLISH_ORDER) {
-    console.log(`\n📦 publishing ${pkg} …`);
-    // `./` prefix: npm 11 misparses a bare path ("packages/core") as the
-    // GitHub shorthand github:packages/core and tries `git ls-remote`.
-    execFileSync('npm', ['publish', `./${pkg}`, '--access', 'public'], {
-      cwd: root,
-      stdio: 'inherit',
-      shell: true,
-    });
-  }
-  console.log('\n✅ published — `npm i -g mugil-ide` installs the new release.');
+  console.log('ℹ npm publishing is disabled. Binaries are compiled and published directly to GitHub Releases via Actions.');
 }

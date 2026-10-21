@@ -623,7 +623,7 @@ export function getWebUiHtml(): string {
     <div class="controls">
       <!-- Direct ribbon metrics -->
       <span class="metric-pill" id="token-savings">Savings: 0%</span>
-      <span class="metric-pill" id="session-spent" style="color:var(--green); border-color:#23863644;">Spent: $0.0000</span>
+      <span class="metric-pill" id="session-spent" style="color:var(--green); border-color:#23863644;">Est. Spent: $0.0000</span>
 
       <!-- Zoom controls directly on ribbon -->
       <div class="zoom-controls" style="display:flex; align-items:center; background:var(--card-bg); border:1px solid var(--border); border-radius:4px; overflow:hidden;" title="Adjust text & terminal zoom size">
@@ -655,6 +655,9 @@ export function getWebUiHtml(): string {
           <div class="menu-divider"></div>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openAccountModal();">
             <span>🔑 Accounts & API Keys</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openWorkspaceModal();">
+            <span>📂 Switch Project Folder</span>
           </button>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openModulesModal();">
             <span>⚡ Token Modules & Rules</span>
@@ -731,6 +734,10 @@ export function getWebUiHtml(): string {
       <!-- View 1: File Explorer -->
       <div id="view-files" class="right-view active">
         <div class="file-explorer-container">
+          <div style="padding:6px 10px; background:#11151c; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:11px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;" id="explorer-root-label" title="Current Workspace Root">Root: .</div>
+            <button class="btn" style="padding:2px 7px; font-size:10.5px;" onclick="openWorkspaceModal()" title="Change Project Workspace Folder">📂 Switch Folder</button>
+          </div>
           <div class="search-box">
             <input type="text" class="search-input" id="file-search" placeholder="Search workspace files..." oninput="filterFiles(this.value)" />
           </div>
@@ -785,8 +792,8 @@ export function getWebUiHtml(): string {
       <span><span class="dot" id="status-dot"></span><span id="connection-status">Connecting…</span></span>
       <span id="status-model">Model: auto</span>
       <span id="status-tokens">Used: 0 tok</span>
-      <span id="status-spent" style="color:var(--green);">Spent: $0.0000</span>
-      <span id="status-workspace">Workspace: Active</span>
+      <span id="status-spent" style="color:var(--green);">Est. Spent: $0.0000</span>
+      <span id="status-workspace" onclick="openWorkspaceModal()" style="cursor:pointer; text-decoration:underline;" title="Click to view or switch workspace directory">Workspace: Active</span>
     </div>
     <div>
       <span>Left: Chat & Autonomous Tools · Right: File Tree, Diffs & CodeGraph</span>
@@ -879,13 +886,42 @@ export function getWebUiHtml(): string {
           </div>
         </div>
 
+        <!-- Project Workspace Folder Selector inside Setup -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:12px; font-weight:600; color:var(--text);">📂 Project Workspace Folder:</label>
+            <span style="font-size:10.5px; color:var(--text-dim); font-family:monospace;" id="setup-workspace-current-badge">.</span>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom:10px;">
+            <button type="button" class="btn btn-primary" id="setup-tab-existing" onclick="switchSetupWorkspaceTab('existing')" style="font-size:11px; padding:4px 10px;">Open Existing Folder</button>
+            <button type="button" class="btn" id="setup-tab-create" onclick="switchSetupWorkspaceTab('create')" style="font-size:11px; padding:4px 10px;">✨ Create New Project</button>
+          </div>
+          <div id="setup-ws-existing-pane">
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="setup-workspace-input" placeholder="e.g. C:\projects\myapp or /home/user/code" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+              <button type="button" class="btn" onclick="openDirPicker('setup-workspace-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse...</button>
+              <button type="button" class="btn btn-primary" onclick="applySetupWorkspaceFolder(false)" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">Open Folder</button>
+            </div>
+            <div style="font-size:10.5px; color:var(--text-dim); margin-top:4px;">Enter the path or click <b>Browse...</b> to navigate your computer's folders.</div>
+          </div>
+          <div id="setup-ws-create-pane" style="display:none;">
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="setup-workspace-create-input" placeholder="e.g. C:\projects\my-new-app or ./new-project" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+              <button type="button" class="btn" onclick="openDirPicker('setup-workspace-create-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse Parent...</button>
+              <button type="button" class="btn btn-primary" onclick="applySetupWorkspaceFolder(true)" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">Create & Open</button>
+            </div>
+            <div style="font-size:10.5px; color:#58a6ff; margin-top:4px;">✨ Browse to choose location or type new project path. Creates folder automatically.</div>
+          </div>
+          <div id="setup-workspace-msg" style="display:none; font-size:11px; margin-top:6px;"></div>
+        </div>
+
         <!-- Workload Quick Presets -->
         <div>
           <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Suggested Workload Presets:</label>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="btn" onclick="applyWorkloadPreset('light')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="8k context, 4k output, 10 tools, 20 turns">💬 Light Convo</button>
-            <button type="button" class="btn btn-primary" onclick="applyWorkloadPreset('deep')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="24k context, 8k output, 25 tools, 50 turns">🛠 Deep Development (Rec)</button>
-            <button type="button" class="btn" onclick="applyWorkloadPreset('big')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="64k context, 16k output, 50 tools, 100 turns">🏗 Big Codebase & Audit</button>
+            <button type="button" id="preset-btn-light" class="btn preset-btn" onclick="applyWorkloadPreset('light')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="8k context, 4k output, 10 tools, 20 turns">💬 Light Convo</button>
+            <button type="button" id="preset-btn-deep" class="btn preset-btn btn-primary" onclick="applyWorkloadPreset('deep')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="24k context, 8k output, 25 tools, 50 turns">🛠 Deep Development (Rec)</button>
+            <button type="button" id="preset-btn-big" class="btn preset-btn" onclick="applyWorkloadPreset('big')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="64k context, 16k output, 50 tools, 100 turns">🏗 Big Codebase & Audit</button>
           </div>
         </div>
 
@@ -1026,6 +1062,97 @@ export function getWebUiHtml(): string {
       </div>
       <div class="modal-body" id="modules-list-container" style="max-height:480px; overflow-y:auto;">
         <div style="color:var(--text-dim); text-align:center; padding:20px;">Loading modules...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace Project Selector Modal -->
+  <div class="modal-overlay" id="workspace-modal">
+    <div class="modal-dialog" style="max-width:560px;">
+      <div class="modal-title-bar">
+        <span>📂 Project Workspace Selector</span>
+        <button class="btn" onclick="closeWorkspaceModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;">Active Project Directory:</label>
+          <div id="current-workspace-display" style="font-size:12px; font-family:monospace; color:var(--accent); background:#0d1117; padding:8px 10px; border-radius:6px; border:1px solid var(--border); word-break:break-all;">Loading...</div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn btn-primary" id="modal-ws-tab-existing" onclick="switchModalWorkspaceTab('existing')" style="font-size:11.5px; padding:4px 12px;">Open Existing Folder</button>
+          <button type="button" class="btn" id="modal-ws-tab-create" onclick="switchModalWorkspaceTab('create')" style="font-size:11.5px; padding:4px 12px;">✨ Create New Project</button>
+        </div>
+
+        <div id="modal-ws-existing-pane">
+          <label for="workspace-path-input" style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;">Switch to Folder Path:</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="workspace-path-input" placeholder="e.g. C:\projects\myapp or /home/user/mycode" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+            <button type="button" class="btn" onclick="openDirPicker('workspace-path-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse...</button>
+          </div>
+          <div style="font-size:10.5px; color:var(--text-dim); margin-top:4px;">Enter an absolute or relative directory path or click <b>Browse...</b> to navigate.</div>
+        </div>
+
+        <div id="modal-ws-create-pane" style="display:none;">
+          <label for="workspace-create-input" style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;">New Project Location / Path:</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="workspace-create-input" placeholder="e.g. C:\projects\my-new-app or ./new-project" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+            <button type="button" class="btn" onclick="openDirPicker('workspace-create-input')" style="font-size:11.5px; padding:6px 12px; white-space:nowrap;">📁 Browse Parent...</button>
+          </div>
+          <div style="font-size:10.5px; color:#58a6ff; margin-top:4px;">Creates the folder recursively if it does not exist and immediately opens it as your workspace.</div>
+        </div>
+
+        <div id="workspace-error-msg" style="display:none; color:var(--red); font-size:11.5px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+          <button class="btn" onclick="closeWorkspaceModal()">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit-workspace" onclick="submitChangeWorkspace()">✓ Switch Project</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Directory Browser Modal -->
+  <div class="modal-overlay" id="dirpicker-modal" style="z-index:10000;">
+    <div class="modal-dialog" style="max-width:580px; max-height:85vh; display:flex; flex-direction:column;">
+      <div class="modal-title-bar">
+        <span>📁 Select Folder</span>
+        <button class="btn" onclick="closeDirPicker()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:14px 18px; display:flex; flex-direction:column; gap:12px; overflow-y:auto;">
+        <!-- Shortcuts -->
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <span style="font-size:11px; color:var(--text-dim); font-weight:600;">Shortcuts:</span>
+          <div id="dirpicker-shortcuts" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+        </div>
+
+        <!-- Current Path Navigation Bar -->
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn" id="dirpicker-up-btn" onclick="dirPickerGoUp()" title="Go up to parent folder" style="padding:5px 10px; font-size:12px;">⬆ Up</button>
+          <div id="dirpicker-current-path" style="flex:1; font-family:monospace; font-size:11.5px; background:#0d1117; padding:6px 10px; border-radius:6px; border:1px solid var(--border); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--accent);"></div>
+          <button class="btn" onclick="refreshDirPicker()" title="Refresh directory" style="padding:5px 10px; font-size:12px;">🔄</button>
+        </div>
+
+        <!-- Directory Subfolders List -->
+        <div id="dirpicker-folder-list" style="max-height:280px; min-height:180px; overflow-y:auto; background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:6px; display:flex; flex-direction:column; gap:2px;">
+          <div style="color:var(--text-dim); text-align:center; padding:20px; font-size:12px;">Loading folders...</div>
+        </div>
+
+        <!-- New Folder Inside Current Location -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:10px 12px;">
+          <label style="font-size:11.5px; font-weight:600; color:var(--text); margin-bottom:4px; display:block;">Or Create New Subfolder Here:</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="dirpicker-newfolder-name" placeholder="subfolder-name" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:5px 8px; border-radius:4px; font-size:12px; font-family:monospace;" />
+            <button type="button" class="btn" onclick="dirPickerAppendSubfolder()" style="font-size:11px; padding:5px 10px; white-space:nowrap;">+ Use Subfolder</button>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+          <span style="font-size:11px; color:var(--text-dim);" id="dirpicker-selected-summary"></span>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" onclick="closeDirPicker()">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmDirPicker()">✓ Select This Folder</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1311,7 +1438,7 @@ export function getWebUiHtml(): string {
             if (msg.stats) {
               document.getElementById('status-tokens').textContent = 'Used: ' + msg.stats.totalTokens + ' tok';
               const cost = typeof msg.stats.estimatedCost === 'number' ? msg.stats.estimatedCost : 0;
-              const costText = 'Spent: $' + cost.toFixed(4);
+              const costText = 'Est. Spent: $' + cost.toFixed(4);
               const headerSpent = document.getElementById('session-spent');
               if (headerSpent) headerSpent.textContent = costText;
               const statusSpent = document.getElementById('status-spent');
@@ -1482,12 +1609,280 @@ export function getWebUiHtml(): string {
       else if (activeRightTab === 'graph') loadGraph();
     }
 
+    let currentWorkspaceRoot = '';
+    let currentWorkspaceModalTab = 'existing';
+    let currentSetupWorkspaceTab = 'existing';
+
+    // --- Directory Browser State & Functions ---
+    let dirPickerTargetInputId = '';
+    let dirPickerCurrentPath = '';
+    let dirPickerParentPath = null;
+
+    async function openDirPicker(targetInputId) {
+      dirPickerTargetInputId = targetInputId;
+      const targetInput = document.getElementById(targetInputId);
+      const initialPath = targetInput && targetInput.value.trim() ? targetInput.value.trim() : (currentWorkspaceRoot || '');
+      const modal = document.getElementById('dirpicker-modal');
+      if (modal) modal.classList.add('open');
+      await navigateDirPicker(initialPath);
+    }
+
+    function closeDirPicker() {
+      const modal = document.getElementById('dirpicker-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    async function navigateDirPicker(targetPath) {
+      const pathEl = document.getElementById('dirpicker-current-path');
+      const listEl = document.getElementById('dirpicker-folder-list');
+      const upBtn = document.getElementById('dirpicker-up-btn');
+      const shortcutsEl = document.getElementById('dirpicker-shortcuts');
+      const summaryEl = document.getElementById('dirpicker-selected-summary');
+      if (listEl) listEl.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding:20px; font-size:12px;">Scanning folders...</div>';
+
+      try {
+        const url = '/api/fs/browse' + (targetPath ? '?path=' + encodeURIComponent(targetPath) : '');
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to load folder');
+        const data = await res.json();
+        dirPickerCurrentPath = data.current;
+        dirPickerParentPath = data.parent;
+
+        if (pathEl) {
+          pathEl.textContent = data.current;
+          pathEl.title = data.current;
+        }
+        if (upBtn) {
+          upBtn.disabled = !data.parent;
+          upBtn.style.opacity = data.parent ? '1' : '0.4';
+        }
+        if (summaryEl) {
+          summaryEl.textContent = 'Selected: ' + data.current;
+        }
+
+        // Render Shortcuts
+        if (shortcutsEl && data.shortcuts) {
+          shortcutsEl.innerHTML = '';
+          data.shortcuts.forEach(s => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn';
+            btn.style.fontSize = '10.5px';
+            btn.style.padding = '2px 8px';
+            btn.textContent = s.label;
+            btn.onclick = () => navigateDirPicker(s.path);
+            shortcutsEl.appendChild(btn);
+          });
+        }
+
+        // Render Folder List
+        if (listEl) {
+          listEl.innerHTML = '';
+          if (!data.dirs || data.dirs.length === 0) {
+            listEl.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding:16px; font-size:11.5px;">(No subdirectories here)</div>';
+          } else {
+            data.dirs.forEach(d => {
+              const row = document.createElement('div');
+              row.style.display = 'flex';
+              row.style.alignItems = 'center';
+              row.style.justifyContent = 'space-between';
+              row.style.padding = '5px 8px';
+              row.style.borderRadius = '4px';
+              row.style.cursor = 'pointer';
+              row.style.fontSize = '12px';
+              row.style.color = 'var(--text)';
+              row.style.transition = 'background 0.1s';
+              row.onmouseenter = () => { row.style.background = '#161b22'; };
+              row.onmouseleave = () => { row.style.background = 'transparent'; };
+
+              const nameSpan = document.createElement('span');
+              nameSpan.innerHTML = '📁 ' + escapeHtml(d.name);
+              nameSpan.style.overflow = 'hidden';
+              nameSpan.style.textOverflow = 'ellipsis';
+              nameSpan.style.whiteSpace = 'nowrap';
+              row.appendChild(nameSpan);
+
+              const openBtn = document.createElement('button');
+              openBtn.type = 'button';
+              openBtn.className = 'btn';
+              openBtn.style.fontSize = '10px';
+              openBtn.style.padding = '2px 6px';
+              openBtn.textContent = 'Open →';
+              openBtn.onclick = (e) => {
+                e.stopPropagation();
+                navigateDirPicker(d.path);
+              };
+              row.appendChild(openBtn);
+
+              row.onclick = () => navigateDirPicker(d.path);
+              listEl.appendChild(row);
+            });
+          }
+        }
+      } catch (err) {
+        if (listEl) listEl.innerHTML = '<div style="color:var(--red); text-align:center; padding:16px; font-size:12px;">Failed to read folder: ' + escapeHtml(err.message) + '</div>';
+      }
+    }
+
+    function dirPickerGoUp() {
+      if (dirPickerParentPath) {
+        navigateDirPicker(dirPickerParentPath);
+      }
+    }
+
+    function refreshDirPicker() {
+      navigateDirPicker(dirPickerCurrentPath);
+    }
+
+    function dirPickerAppendSubfolder() {
+      const nameInp = document.getElementById('dirpicker-newfolder-name');
+      const subName = nameInp ? nameInp.value.trim() : '';
+      if (!subName) return;
+      const sep = dirPickerCurrentPath.indexOf('/') >= 0 ? '/' : String.fromCharCode(92);
+      const full = dirPickerCurrentPath.endsWith(sep) ? dirPickerCurrentPath + subName : dirPickerCurrentPath + sep + subName;
+      const targetInput = document.getElementById(dirPickerTargetInputId);
+      if (targetInput) targetInput.value = full;
+      if (nameInp) nameInp.value = '';
+      closeDirPicker();
+    }
+
+    function confirmDirPicker() {
+      const targetInput = document.getElementById(dirPickerTargetInputId);
+      if (targetInput && dirPickerCurrentPath) {
+        targetInput.value = dirPickerCurrentPath;
+      }
+      closeDirPicker();
+    }
+
+    function switchModalWorkspaceTab(tab) {
+      currentWorkspaceModalTab = tab;
+      const btnEx = document.getElementById('modal-ws-tab-existing');
+      const btnCr = document.getElementById('modal-ws-tab-create');
+      const paneEx = document.getElementById('modal-ws-existing-pane');
+      const paneCr = document.getElementById('modal-ws-create-pane');
+      const btnSubmit = document.getElementById('btn-submit-workspace');
+      const err = document.getElementById('workspace-error-msg');
+      if (err) { err.style.display = 'none'; err.textContent = ''; }
+
+      if (tab === 'existing') {
+        if (btnEx) btnEx.classList.add('btn-primary');
+        if (btnCr) btnCr.classList.remove('btn-primary');
+        if (paneEx) paneEx.style.display = 'block';
+        if (paneCr) paneCr.style.display = 'none';
+        if (btnSubmit) btnSubmit.textContent = '✓ Switch Project';
+        const inp = document.getElementById('workspace-path-input');
+        if (inp) setTimeout(() => inp.focus(), 50);
+      } else {
+        if (btnEx) btnEx.classList.remove('btn-primary');
+        if (btnCr) btnCr.classList.add('btn-primary');
+        if (paneEx) paneEx.style.display = 'none';
+        if (paneCr) paneCr.style.display = 'block';
+        if (btnSubmit) btnSubmit.textContent = '✨ Create & Open Project';
+        const inp = document.getElementById('workspace-create-input');
+        if (inp) setTimeout(() => inp.focus(), 50);
+      }
+    }
+
+    function switchSetupWorkspaceTab(tab) {
+      currentSetupWorkspaceTab = tab;
+      const btnEx = document.getElementById('setup-tab-existing');
+      const btnCr = document.getElementById('setup-tab-create');
+      const paneEx = document.getElementById('setup-ws-existing-pane');
+      const paneCr = document.getElementById('setup-ws-create-pane');
+      const msg = document.getElementById('setup-workspace-msg');
+      if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+
+      if (tab === 'existing') {
+        if (btnEx) btnEx.classList.add('btn-primary');
+        if (btnCr) btnCr.classList.remove('btn-primary');
+        if (paneEx) paneEx.style.display = 'block';
+        if (paneCr) paneCr.style.display = 'none';
+        const inp = document.getElementById('setup-workspace-input');
+        if (inp) setTimeout(() => inp.focus(), 50);
+      } else {
+        if (btnEx) btnEx.classList.remove('btn-primary');
+        if (btnCr) btnCr.classList.add('btn-primary');
+        if (paneEx) paneEx.style.display = 'none';
+        if (paneCr) paneCr.style.display = 'block';
+        const inp = document.getElementById('setup-workspace-create-input');
+        if (inp) setTimeout(() => inp.focus(), 50);
+      }
+    }
+
+    function openWorkspaceModal() {
+      const modal = document.getElementById('workspace-modal');
+      const cur = document.getElementById('current-workspace-display');
+      const err = document.getElementById('workspace-error-msg');
+      if (cur) cur.textContent = currentWorkspaceRoot || 'Detecting...';
+      if (err) { err.style.display = 'none'; err.textContent = ''; }
+      const inpEx = document.getElementById('workspace-path-input');
+      const inpCr = document.getElementById('workspace-create-input');
+      if (inpEx) inpEx.value = '';
+      if (inpCr) inpCr.value = '';
+      switchModalWorkspaceTab('existing');
+      if (modal) modal.classList.add('open');
+    }
+
+    function closeWorkspaceModal() {
+      const modal = document.getElementById('workspace-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    async function submitChangeWorkspace() {
+      const isCreate = currentWorkspaceModalTab === 'create';
+      const inp = isCreate
+        ? document.getElementById('workspace-create-input')
+        : document.getElementById('workspace-path-input');
+      const err = document.getElementById('workspace-error-msg');
+      const p = inp ? inp.value.trim() : '';
+      if (!p) {
+        if (err) {
+          err.textContent = isCreate ? 'Please enter a path for the new project.' : 'Please enter a directory path.';
+          err.style.display = 'block';
+        }
+        return;
+      }
+      try {
+        const res = await fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: p, create: isCreate }),
+        });
+        const data = await res.json();
+        if (res.ok && data.root) {
+          currentWorkspaceRoot = data.root;
+          closeWorkspaceModal();
+          await refreshFiles();
+          if (activeRightTab === 'graph') loadGraph();
+        } else {
+          if (err) { err.textContent = data.error || 'Failed to switch workspace.'; err.style.display = 'block'; }
+        }
+      } catch (e) {
+        if (err) { err.textContent = 'Error: ' + e.message; err.style.display = 'block'; }
+      }
+    }
+
     async function refreshFiles() {
       try {
         const res = await fetch('/api/files');
         if (res.ok) {
           const data = await res.json();
-          workspaceFiles = data.files;
+          workspaceFiles = data.files || [];
+          if (data.root) {
+            currentWorkspaceRoot = data.root;
+            const rootLabel = document.getElementById('explorer-root-label');
+            const parts = data.root.split(/[\\\\/]/);
+            const base = parts[parts.length - 1] || data.root;
+            if (rootLabel) {
+              rootLabel.textContent = '📂 ' + base;
+              rootLabel.title = data.root;
+            }
+            const statusWs = document.getElementById('status-workspace');
+            if (statusWs) {
+              statusWs.textContent = 'Workspace: ' + base;
+              statusWs.title = data.root;
+            }
+          }
           renderFileTree(workspaceFiles);
         }
       } catch (err) {
@@ -2005,6 +2400,7 @@ export function getWebUiHtml(): string {
       if (slider && input) {
         input.value = slider.value;
       }
+      updateActivePresetButton();
       updateCostEstimate();
     }
 
@@ -2014,7 +2410,37 @@ export function getWebUiHtml(): string {
       if (slider && input) {
         slider.value = input.value;
       }
+      updateActivePresetButton();
       updateCostEstimate();
+    }
+
+    function highlightPresetButton(preset) {
+      ['light', 'deep', 'big'].forEach((p) => {
+        const btn = document.getElementById('preset-btn-' + p);
+        if (btn) {
+          if (p === preset) {
+            btn.classList.add('btn-primary');
+          } else {
+            btn.classList.remove('btn-primary');
+          }
+        }
+      });
+    }
+
+    function updateActivePresetButton() {
+      const b = Number(document.getElementById('setup-history-budget')?.value);
+      const o = Number(document.getElementById('setup-max-output')?.value);
+      const i = Number(document.getElementById('setup-max-tool-iters')?.value);
+      const t = Number(document.getElementById('setup-max-turns')?.value);
+      if (b === 8000 && o === 4096 && i === 10 && t === 20) {
+        highlightPresetButton('light');
+      } else if (b === 24000 && o === 8192 && i === 25 && t === 50) {
+        highlightPresetButton('deep');
+      } else if (b === 64000 && o === 16384 && i === 50 && t === 100) {
+        highlightPresetButton('big');
+      } else {
+        highlightPresetButton(null);
+      }
     }
 
     function applyWorkloadPreset(preset) {
@@ -2036,6 +2462,7 @@ export function getWebUiHtml(): string {
       setField('max-output', output);
       setField('max-tool-iters', iters);
       setField('max-turns', turns);
+      highlightPresetButton(preset);
       updateCostEstimate();
     }
 
@@ -2053,11 +2480,69 @@ export function getWebUiHtml(): string {
       const maxTurnsEl = document.getElementById('cfg-max-turns');
       setField('max-turns', maxTurnsEl ? Number(maxTurnsEl.value) || 50 : 50);
 
+      const wsBadge = document.getElementById('setup-workspace-current-badge');
+      if (wsBadge) wsBadge.textContent = currentWorkspaceRoot || '.';
+      const wsInp = document.getElementById('setup-workspace-input');
+      if (wsInp) wsInp.value = currentWorkspaceRoot || '';
+      const wsCrInp = document.getElementById('setup-workspace-create-input');
+      if (wsCrInp) wsCrInp.value = '';
+      switchSetupWorkspaceTab('existing');
+      const wsMsg = document.getElementById('setup-workspace-msg');
+      if (wsMsg) { wsMsg.style.display = 'none'; wsMsg.textContent = ''; }
+
       const turboCb = document.getElementById('setup-turbo-checkbox');
       if (turboCb) turboCb.checked = currentTurboMode;
       onTurboCheckboxChange();
+      updateActivePresetButton();
       updateCostEstimate();
       document.getElementById('session-setup-modal').classList.add('open');
+    }
+
+    async function applySetupWorkspaceFolder(isCreate = false) {
+      const inp = isCreate
+        ? document.getElementById('setup-workspace-create-input')
+        : document.getElementById('setup-workspace-input');
+      const msg = document.getElementById('setup-workspace-msg');
+      const p = inp ? inp.value.trim() : '';
+      if (!p) {
+        if (msg) {
+          msg.style.color = 'var(--red)';
+          msg.textContent = isCreate ? '⚠ Please enter a path for the new project.' : '⚠ Please enter a folder path.';
+          msg.style.display = 'block';
+        }
+        return;
+      }
+      try {
+        const res = await fetch('/api/workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: p, create: isCreate }),
+        });
+        const data = await res.json();
+        if (res.ok && data.root) {
+          currentWorkspaceRoot = data.root;
+          const wsBadge = document.getElementById('setup-workspace-current-badge');
+          if (wsBadge) wsBadge.textContent = data.root;
+          if (msg) {
+            msg.style.color = 'var(--green)';
+            msg.textContent = (data.created ? '✓ Created & opened new project: ' : '✓ Workspace updated to: ') + data.root;
+            msg.style.display = 'block';
+          }
+          await refreshFiles();
+        } else {
+          if (msg) {
+            msg.style.color = 'var(--red)';
+            msg.textContent = '⚠ ' + (data.error || 'Failed to switch folder');
+            msg.style.display = 'block';
+          }
+        }
+      } catch (e) {
+        if (msg) {
+          msg.style.color = 'var(--red)';
+          msg.textContent = '⚠ ' + e.message;
+          msg.style.display = 'block';
+        }
+      }
     }
 
     function closeSessionSetupModal() {
@@ -2190,7 +2675,17 @@ export function getWebUiHtml(): string {
       const webfetchVal = Boolean(document.getElementById('setup-webfetch-checkbox')?.checked);
       const turboVal = Boolean(document.getElementById('setup-turbo-checkbox').checked);
 
-      // 1. Update model if changed
+      // 1. Update workspace if user filled a folder path
+      const isCreate = currentSetupWorkspaceTab === 'create';
+      const wsInputEl = isCreate
+        ? document.getElementById('setup-workspace-create-input')
+        : document.getElementById('setup-workspace-input');
+      const wsTarget = wsInputEl ? wsInputEl.value.trim() : '';
+      if (wsTarget && wsTarget !== currentWorkspaceRoot) {
+        await applySetupWorkspaceFolder(isCreate);
+      }
+
+      // 2. Update model if changed
       if (chosenModel && chosenModel !== activeModelId) {
         const m = (allAvailableModels || []).find((x) => x.id === chosenModel);
         await selectModel(chosenModel, m ? m.provider : undefined);

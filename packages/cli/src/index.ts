@@ -26,11 +26,19 @@ program
 program
   .command('ui')
   .description('Launch the modern PTY + xterm.js Web UI')
+  .argument('[dir]', 'project directory path to open as workspace', '.')
   .option('-p, --port <number>', 'server port (default: random open port)')
   .option('-h, --host <string>', 'server host', 'localhost')
   .option('-m, --model <id>', 'initial model id')
   .option('--no-open', 'do not automatically open the browser')
-  .action(async (options: { port?: string; host: string; model?: string; open?: boolean }) => {
+  .action(async (dir: string, options: { port?: string; host: string; model?: string; open?: boolean }) => {
+    if (dir && dir !== '.') {
+      try {
+        process.chdir(path.resolve(dir));
+      } catch (err) {
+        program.error(`error: invalid project directory ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
     await launchUi(options);
   });
 
@@ -224,9 +232,18 @@ program
   });
 
 // Default behavior when invoked without arguments: launch UI
-program.action(async () => {
-  await launchUi({ host: 'localhost', open: true });
-});
+program
+  .argument('[dir]', 'project directory path to open as workspace', '.')
+  .action(async (dir?: string) => {
+    if (dir && dir !== '.') {
+      try {
+        process.chdir(path.resolve(dir));
+      } catch (err) {
+        program.error(`error: invalid project directory ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    await launchUi({ host: 'localhost', open: true });
+  });
 
 async function launchUi(options: { port?: string; host: string; model?: string; open?: boolean }): Promise<void> {
   const engine = createEngine(loadConfig());

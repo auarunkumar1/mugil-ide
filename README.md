@@ -4,17 +4,40 @@
 
 ### The Token-Efficient, Autonomous AI Coding IDE for the Web
 
-[![npm version](https://img.shields.io/npm/v/mugil-ide?label=npm&color=1f6feb&style=flat-square)](https://www.npmjs.com/package/mugil-ide)
+[![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg?style=flat-square)](package.json)
+[![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![Tests: 464 Passing](https://img.shields.io/badge/tests-464%20passing-3fb950.svg?style=flat-square)](https://github.com)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
+
+</div>
+
+> [!IMPORTANT]
+> **Direct Standalone Installers & Binary Releases on GitHub (npm Sunset Notice)**
+>
+> Official distribution of Mugil IDE has migrated directly to **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**. Publishing to `npmjs.com` has been **sunset** starting with this release.
+>
+> You no longer need `npm`, `node`, or any package manager installed to run Mugil IDE. Download official, self-contained click-to-run binaries and installers for your operating system:
+>
+> | Platform | Download & Package Type | How to Run |
+> | :--- | :--- | :--- |
+> | **Windows (x64)** | `mugil-ide-windows-x64.exe` | Double-click or run `.\mugil-ide-windows-x64.exe` |
+> | **Linux (Ubuntu / Debian / Mint)** | `mugil-ide-linux-amd64.deb` | Double-click to install or `sudo dpkg -i mugil-ide-linux-amd64.deb` |
+> | **Linux Universal (x64 / arm64)** | `mugil-ide-linux-x64.tar.gz` | Extract and run `./mugil-ide-linux-x64` |
+> | **macOS (Apple Silicon M1/M2/M3/M4)** | `mugil-ide-darwin-arm64.tar.gz` | Extract and run `./mugil-ide-darwin-arm64` |
+> | **macOS (Intel x64)** | `mugil-ide-darwin-x64.tar.gz` | Extract and run `./mugil-ide-darwin-x64` |
+>
+> 👉 **[Download the Latest Standalone Release on GitHub ↗](https://github.com/auarunkumar1/mugil-ide/releases)**
+
+---
+
+<div align="center">
 
 **Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding environment that runs directly in your browser. Mugil IDE gives you a full-featured agentic coding partner that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
 
 Works seamlessly with **free local models** (Ollama, LM Studio) and **state-of-the-art cloud intelligence** (OpenRouter, Anthropic Claude 3.7 Sonnet, OpenAI, DeepSeek, and Vercel AI).
 
-[Quickstart](#-quickstart--installation) · [Feature Highlights](#-feature-highlights) · [Shipped vs Roadmap](#-whats-shipped-today-vs-next-release) · [Configuration](#-configuration--environment-variables) · [Attributions](#-open-source-attributions)
+[Downloads & Releases](#-downloads--installation) · [Feature Highlights](#-feature-highlights) · [Shipped vs Roadmap](#-whats-shipped-today-vs-next-release) · [Configuration](#-configuration--environment-variables) · [Attributions](#-open-source-attributions)
 
 </div>
 
@@ -160,10 +183,12 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.18**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.19**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.18 (Current Release)
+### ✅ Shipped & Ready in v0.1.19 (Current Release)
 
+- [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
+- [x] **Visual Folder Browser & First-Run Project Creator:** Interactive file system navigator with OS shortcuts, folder picker, and instant `mkdir -p` project creation for quick onboarding.
 - [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
 - [x] **Workload Presets & Interactive Sliders:** Presets (Light Convo, Deep Development, Big Codebase & Audit) with dual slider/number controls and real-time turn cost calculations.
 - [x] **Interactive Mid-Turn Limit Extension:** When the tool calling limit is reached, users can dynamically extend limits (+15/+30 iterations) or wrap up seamlessly mid-run.
@@ -192,28 +217,40 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 
 ---
 
-## 💻 Quickstart & Installation
+## 💻 Downloads & Installation
 
-### Requirements
-- **Node.js >= 20** (Linux, macOS, or Windows)
-- Any modern web browser (Chrome, Edge, Firefox, Safari)
+### Option 1: Standalone Compiled Executables (Recommended)
+Download the standalone executable directly from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
+- **Windows:** Download `mugil-ide-windows-x64.exe` and launch it from PowerShell or double-click.
+- **Linux (Debian/Ubuntu):** Install the `.deb` package:
+  ```bash
+  sudo dpkg -i mugil-ide-linux-amd64.deb
+  mugil-ide
+  ```
+- **Linux / macOS Universal:** Extract the `.tar.gz` and run the binary:
+  ```bash
+  tar -xzvf mugil-ide-linux-x64.tar.gz
+  ./mugil-ide-linux-x64
+  ```
 
-### Install via npm
+---
 
-Install the web IDE globally:
+### Option 2: Running from Source (Development)
+If you are developing or contributing to Mugil IDE:
+- Requirements: **Node.js >= 20** or **Bun >= 1.2**
 
 ```bash
-npm i -g mugil-ide
+# Clone the repository
+git clone https://github.com/auarunkumar1/mugil-ide.git
+cd mugil-ide
+
+# Install dependencies and build
+npm install
+npm run build
+
+# Start the IDE
+npm start
 ```
-
-Launch Mugil IDE in any project directory:
-
-```bash
-cd /path/to/your/project
-mugil-ide
-```
-
-Mugil IDE will boot a lightweight local server and automatically open the IDE in your default web browser!
 
 ---
 
