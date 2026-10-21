@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Engine } from '@mugil-ide/core';
 import { fetchProviderModels, readUserEnv, saveMode, writeUserEnv } from '@mugil-ide/core';
 import { getWebUiHtml } from './html.js';
+import { EMBEDDED_VENDOR_ASSETS } from './embeddedVendor.js';
 import { AgentRepl } from '../terminal/agentRepl.js';
 import { createPtySession, type PtyInstance } from './ptyManager.js';
 import { createDiffRunner } from './diffRunner.js';
@@ -139,19 +140,28 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
-    // Vendored xterm.js assets (baked into dist/vendor at build time — offline-capable).
+    // Vendored xterm.js assets (embedded directly into binary for 100% self-contained standalone execution).
     if (url.pathname.startsWith('/vendor/xterm/')) {
       const name = url.pathname.slice('/vendor/xterm/'.length);
       const ALLOWED = new Set(['xterm.css', 'xterm.js', 'addon-fit.js', 'addon-web-links.js']);
-      const file = vendorAssetPath(name);
-      if (!ALLOWED.has(name) || !file) {
+      if (!ALLOWED.has(name)) {
         res.writeHead(404);
         res.end('not found');
         return;
       }
       const type = name.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
       res.writeHead(200, { 'Content-Type': type });
-      fs.createReadStream(file).pipe(res);
+      if (EMBEDDED_VENDOR_ASSETS[name]) {
+        res.end(EMBEDDED_VENDOR_ASSETS[name]);
+        return;
+      }
+      const file = vendorAssetPath(name);
+      if (file && fs.existsSync(file)) {
+        fs.createReadStream(file).pipe(res);
+        return;
+      }
+      res.writeHead(404);
+      res.end('not found');
       return;
     }
 
