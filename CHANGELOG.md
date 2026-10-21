@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-10-21
+
+### Added
+
+- **Configurable Reasoning / Thinking Effort**: Added UI controls for thinking models in the Session Setup modal with four effort tiers: `Off`, `Low`, `Medium (Default / Recommended)`, and `High`.
+- **Thinking Model Capability Detection**: Dynamically detects thinking-capable models (Claude 3.7 Sonnet, DeepSeek-R1, OpenAI o1/o3-mini, Gemini 2.5 thinking, QwQ) and presents live support status badge.
+- **Multi-Provider Thinking Integration**: Passed `thinkingLevel` through `AgentRepl` and `Pipeline.ask()` to provider clients (Anthropic `budget_tokens`, OpenRouter `reasoning_effort`, OpenAI `reasoning_effort`, Together, Vercel).
+- **Thinking Setting Persistence**: Added `MUGIL_IDE_THINKING_LEVEL` support to `/api/config` and persisted into user environment.
+
 ## [0.1.19] - 2026-10-21
 
 ### Added

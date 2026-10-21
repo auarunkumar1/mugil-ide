@@ -20,6 +20,7 @@ import {
   getHistoryBudget,
   getMaxHistoryTurns,
   getMaxToolIterations,
+  getThinkingLevel,
   buildEnvironmentContext,
   createPermissionCheck,
   defaultPolicyForMode,
@@ -999,6 +1000,7 @@ export class AgentRepl {
         toolRegistry: allRegistry,
         permission,
         maxToolIterations: getMaxToolIterations(),
+        thinkingLevel: getThinkingLevel(),
         onLimitReached: async ({ currentIterations, usage }) => {
           if (!this.options.onQuestion) return 0;
           try {

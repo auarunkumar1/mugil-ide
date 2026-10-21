@@ -264,6 +264,7 @@ export {
   loadConfig,
   isLocalUrl,
   modelSupportsThinking,
+  getThinkingLevel,
   modelSupportsTools,
   fetchRemoteModels,
   DEFAULT_OPENROUTER_MODELS,

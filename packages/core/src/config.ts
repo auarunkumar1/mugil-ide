@@ -15,8 +15,20 @@ export function modelSupportsThinking(id: string): boolean {
     lower.includes('o3') ||
     lower.includes('thinking') ||
     lower.includes('reasoning') ||
-    lower.includes('qwq')
+    lower.includes('qwq') ||
+    lower.includes('gemini-2.5') ||
+    lower.includes('flash-thinking') ||
+    lower.includes('r1-distill')
   );
+}
+
+/** Resolves the default thinking effort level ('off' | 'low' | 'medium' | 'high'). */
+export function getThinkingLevel(env: NodeJS.ProcessEnv = process.env): 'off' | 'low' | 'medium' | 'high' {
+  const custom = (env.MUGIL_IDE_THINKING_LEVEL || '').toLowerCase().trim();
+  if (custom === 'off' || custom === 'low' || custom === 'medium' || custom === 'high') {
+    return custom;
+  }
+  return 'medium';
 }
 
 /**

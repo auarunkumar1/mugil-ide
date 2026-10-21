@@ -815,7 +815,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/config' && req.method === 'GET') {
-      const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations } = await import('@mugil-ide/core');
+      const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -825,6 +825,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           maxToolIterations: getMaxToolIterations(),
           webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
           turboMode,
+          thinkingLevel: getThinkingLevel(),
         }),
       );
       return;
@@ -845,6 +846,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
               maxToolIterations?: number;
               webfetchEnabled?: boolean;
               turboMode?: boolean;
+              thinkingLevel?: 'off' | 'low' | 'medium' | 'high';
             };
             if (typeof data.historyBudget === 'number' && data.historyBudget > 0) {
               process.env.MUGIL_IDE_TOKEN_LIMIT = String(Math.floor(data.historyBudget));
@@ -866,7 +868,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
               turboMode = data.turboMode;
               process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
             }
-            const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations } = await import('@mugil-ide/core');
+            if (data.thinkingLevel && ['off', 'low', 'medium', 'high'].includes(data.thinkingLevel)) {
+              process.env.MUGIL_IDE_THINKING_LEVEL = data.thinkingLevel;
+              try { const { writeUserEnv } = await import('@mugil-ide/core'); writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel }); } catch {}
+            }
+            const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(
               JSON.stringify({
@@ -877,6 +883,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
                 maxToolIterations: getMaxToolIterations(),
                 webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
                 turboMode,
+                thinkingLevel: getThinkingLevel(),
               }),
             );
           } catch {

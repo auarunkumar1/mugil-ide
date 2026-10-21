@@ -995,6 +995,22 @@ export function getWebUiHtml(): string {
           </div>
         </div>
 
+        <!-- Thinking / Reasoning Effort Selector -->
+        <div id="setup-thinking-container" style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:12px; font-weight:600; color:var(--text);">🧠 Reasoning / Thinking Effort:</label>
+            <span id="setup-thinking-support-badge" style="font-size:10.5px; color:var(--cyan);">Supported</span>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" id="thinking-btn-off" class="btn thinking-btn" onclick="setThinkingLevel('off')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;">Off</button>
+            <button type="button" id="thinking-btn-low" class="btn thinking-btn" onclick="setThinkingLevel('low')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="~1k tokens / quick reasoning">Low</button>
+            <button type="button" id="thinking-btn-medium" class="btn thinking-btn btn-primary" onclick="setThinkingLevel('medium')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="~4k tokens / balanced coding (default)">Medium (Rec)</button>
+            <button type="button" id="thinking-btn-high" class="btn thinking-btn" onclick="setThinkingLevel('high')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="~16k+ tokens / deep audits & complex logic">High</button>
+          </div>
+          <div style="font-size:10.5px; color:#58a6ff; margin-top:6px;">• <b>Def:</b> Controls how deeply the AI thinks before writing code or running tools.</div>
+          <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Sets reasoning_effort (OpenAI/OpenRouter) or budget_tokens (Anthropic).</div>
+        </div>
+
         <!-- Webfetch Online Access Toggle -->
         <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:600; font-size:13px; color:var(--text); user-select:none;">
@@ -1158,6 +1174,32 @@ export function getWebUiHtml(): string {
   </div>
 
   <script>
+    let currentThinkingLevel = "medium";
+
+    function highlightThinkingButtons(lvl) {
+      currentThinkingLevel = lvl || "medium";
+      ["off", "low", "medium", "high"].forEach(k => {
+        const btn = document.getElementById("thinking-btn-" + k);
+        if (!btn) return;
+        if (k === currentThinkingLevel) btn.classList.add("btn-primary");
+        else btn.classList.remove("btn-primary");
+      });
+    }
+
+    function setThinkingLevel(lvl) {
+      highlightThinkingButtons(lvl);
+    }
+
+    function checkModelThinkingSupport(modelId) {
+      const m = (allAvailableModels || []).find(x => x.id === modelId);
+      const badge = document.getElementById("setup-thinking-support-badge");
+      const container = document.getElementById("setup-thinking-container");
+      const isSupported = m ? Boolean(m.supportsThinking) : false;
+      if (badge) {
+        badge.textContent = isSupported ? "Supported by Model" : "Standard (Non-Thinking)";
+        badge.style.color = isSupported ? "var(--cyan)" : "var(--text-dim)";
+      }
+    }
     let currentTurboMode = false;
     let configuredHistoryBudget = 16000;
     let configuredMaxOutputTokens = 8192;
@@ -2402,6 +2444,7 @@ export function getWebUiHtml(): string {
       }
       updateActivePresetButton();
       updateCostEstimate();
+      checkModelThinkingSupport(chosenId);
     }
 
     function syncSliderFromInput(field) {
@@ -2714,6 +2757,7 @@ export function getWebUiHtml(): string {
           maxTurns: maxTurns,
           webfetchEnabled: webfetchVal,
           turboMode: turboVal,
+          thinkingLevel: currentThinkingLevel,
         }),
       });
 

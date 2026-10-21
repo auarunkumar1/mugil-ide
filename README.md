@@ -183,9 +183,9 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.19**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.20**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.19 (Current Release)
+### ✅ Shipped & Ready in v0.1.20 (Current Release)
 
 - [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
 - [x] **Visual Folder Browser & First-Run Project Creator:** Interactive file system navigator with OS shortcuts, folder picker, and instant `mkdir -p` project creation for quick onboarding.
