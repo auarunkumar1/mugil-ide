@@ -194,9 +194,14 @@ export class AgentRepl {
     this.mode = mode;
   }
 
-  /** True while a turn is in flight. */
+  /**
+   * True while a turn is in flight. Once a cancel is requested the turn is
+   * effectively over (the abort unwinds the in-flight request), so report idle
+   * immediately — otherwise the UI's Stop button stays lit until the aborted
+   * request finally settles.
+   */
   public get isBusy(): boolean {
-    return this.isProcessing;
+    return this.isProcessing && !this.turnAbort?.signal.aborted;
   }
 
   /**
@@ -207,7 +212,9 @@ export class AgentRepl {
    * input, so the session was wedged until the request eventually returned.
    */
   public cancelTurn(): boolean {
-    if (!this.turnAbort) return false;
+    // Idempotent: a second Stop/any late cancel frame must not re-print
+    // "Cancelling turn..." or re-settle prompts it already settled.
+    if (!this.turnAbort || this.turnAbort.signal.aborted) return false;
     this.turnAbort.abort(new Error('cancelled by user'));
     return true;
   }
@@ -544,7 +551,7 @@ export class AgentRepl {
         { provider: 'openrouter', label: 'OpenRouter', apiKey: keyFor(['OPENROUTER_API_KEY']), baseUrl: this.engine.config.openRouterBaseUrl },
         { provider: 'openai', label: 'OpenAI', apiKey: keyFor(['OPENAI_API_KEY']), baseUrl: this.engine.config.openaiBaseUrl },
         { provider: 'anthropic', label: 'Anthropic', apiKey: keyFor(['ANTHROPIC_API_KEY']), baseUrl: this.engine.config.anthropicBaseUrl },
-        { provider: 'vercel', label: 'Vercel AI', apiKey: keyFor(['VERCEL_API_KEY']), baseUrl: this.engine.config.vercelBaseUrl },
+        { provider: 'vercel', label: 'Vercel AI', apiKey: keyFor(['VERCEL_API_KEY', 'AI_GATEWAY_API_KEY']), baseUrl: this.engine.config.vercelBaseUrl },
         { provider: 'cloudflare', label: 'Cloudflare', apiKey: keyFor(['CLOUDFLARE_API_KEY']), baseUrl: this.engine.config.cloudflareBaseUrl },
         { provider: 'together', label: 'Together AI', apiKey: keyFor(['TOGETHER_API_KEY']), baseUrl: this.engine.config.togetherBaseUrl },
         { provider: 'opencode', label: 'OpenCode Zen', apiKey: keyFor(['OPENCODE_API_KEY']), baseUrl: this.engine.config.opencodeBaseUrl },

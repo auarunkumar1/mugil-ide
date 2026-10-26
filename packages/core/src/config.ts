@@ -185,13 +185,16 @@ export const DEFAULT_LOCAL_MODELS: ModelSpec[] = [
   { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
 ];
 
-/** Default Vercel AI Gateway ladder. */
+/**
+ * Default Vercel AI Gateway ladder. Gateway model ids are namespaced
+ * (`creator/model`); bare ids like `gpt-4o-mini` do not exist there.
+ */
 export const DEFAULT_VERCEL_MODELS: ModelSpec[] = [
-  { id: 'gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000 },
-  { id: 'gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, contextWindow: 128000 },
-  { id: 'claude-3-5-sonnet-latest', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000 },
-  { id: 'claude-3-7-sonnet-latest', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000, supportsThinking: true },
-  { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0.55, costPerMTokOut: 2.19, contextWindow: 160000, supportsThinking: true },
+  { id: 'openai/gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000 },
+  { id: 'anthropic/claude-haiku-4.5', tier: 'cheap', costPerMTokIn: 1, costPerMTokOut: 5, contextWindow: 200000, supportsThinking: true },
+  { id: 'openai/gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, contextWindow: 128000 },
+  { id: 'anthropic/claude-sonnet-4.5', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 1000000, supportsThinking: true },
+  { id: 'deepseek/deepseek-r1', tier: 'smart', costPerMTokIn: 1.35, costPerMTokOut: 5.4, contextWindow: 128000, supportsThinking: true },
 ];
 
 /** Default Cloudflare Workers AI ladder. */
@@ -378,7 +381,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const openRouterApiKey = merged.OPENROUTER_API_KEY || undefined;
   const openaiApiKey = merged.OPENAI_API_KEY || undefined;
   const anthropicApiKey = merged.ANTHROPIC_API_KEY || undefined;
-  const vercelApiKey = merged.VERCEL_API_KEY || undefined;
+  // Vercel's own docs expose AI_GATEWAY_API_KEY; accept it as an alias so
+  // copying their snippet does not silently drop into mock mode.
+  const vercelApiKey = merged.VERCEL_API_KEY || merged.AI_GATEWAY_API_KEY || undefined;
   const cloudflareApiKey = merged.CLOUDFLARE_API_KEY || undefined;
   const cloudflareAccountId = merged.CLOUDFLARE_ACCOUNT_ID || undefined;
   const togetherApiKey = merged.TOGETHER_API_KEY || undefined;
@@ -477,7 +482,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     lmstudioBaseUrl: merged.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1',
     localBaseUrl: merged.LOCAL_BASE_URL || 'http://localhost:8000/v1',
     vercelApiKey,
-    vercelBaseUrl: merged.VERCEL_BASE_URL || 'https://api.vercel.ai/v1',
+    vercelBaseUrl: merged.VERCEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
     cloudflareApiKey,
     cloudflareAccountId,
     cloudflareBaseUrl: merged.CLOUDFLARE_BASE_URL || 'https://api.cloudflare.com/client/v4',

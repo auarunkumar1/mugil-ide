@@ -35,7 +35,7 @@ export const PROVIDERS: ProviderDef[] = [
     id: 'vercel',
     label: 'Vercel AI Gateway (GPT-4o, Claude, DeepSeek)',
     keyVar: 'VERCEL_API_KEY',
-    url: 'https://vercel.com/integrations',
+    url: 'https://vercel.com/dashboard/ai-gateway/api-keys',
   },
   {
     id: 'cloudflare',

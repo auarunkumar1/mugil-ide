@@ -1,18 +1,20 @@
 name: Release Binaries
-
 on:
   push:
     tags:
       - 'v*'
-
 permissions:
   contents: write
-
+# One release per tag; never let two runs race for the same release assets.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build-and-release:
     name: Build & Release Standalone Binaries
     runs-on: ubuntu-latest
-
+    # Whole-job ceiling. Every step below also has its own, tighter budget.
+    timeout-minutes: 30
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,8 +23,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
       - name: Install NPM Dependencies & Build Internal Packages
+        timeout-minutes: 10
         run: |
           npm ci
           npm run build
@@ -33,47 +37,73 @@ jobs:
           bun-version: latest
 
       - name: Compile Standalone Binaries with Bun
+        timeout-minutes: 15
         run: |
+          set -euo pipefail
           mkdir -p releases
-          # Windows x64 Executable
-          bun build packages/cli/src/index.ts --compile --target=bun-windows-x64 --outfile releases/mugil-ide-windows-x64.exe
+          build() { # build <target> <outfile>
+            echo "▸ $1 → $2"
+            bun build packages/cli/src/index.ts --compile --target="$1" --outfile="$2"
+          }
+          build bun-windows-x64 releases/mugil-ide-windows-x64.exe
+          build bun-linux-x64   releases/mugil-ide-linux-x64
+          build bun-linux-arm64 releases/mugil-ide-linux-arm64
+          build bun-darwin-arm64 releases/mugil-ide-darwin-arm64
+          build bun-darwin-x64  releases/mugil-ide-darwin-x64
+          chmod +x releases/mugil-ide-linux-x64 releases/mugil-ide-linux-arm64 \
+                   releases/mugil-ide-darwin-arm64 releases/mugil-ide-darwin-x64
 
-          # Linux x64 Executable
-          bun build packages/cli/src/index.ts --compile --target=bun-linux-x64 --outfile releases/mugil-ide-linux-x64
-          chmod +x releases/mugil-ide-linux-x64
-
-          # Linux arm64 Executable
-          bun build packages/cli/src/index.ts --compile --target=bun-linux-arm64 --outfile releases/mugil-ide-linux-arm64
-          chmod +x releases/mugil-ide-linux-arm64
-
-          # macOS Apple Silicon (arm64)
-          bun build packages/cli/src/index.ts --compile --target=bun-darwin-arm64 --outfile releases/mugil-ide-darwin-arm64
-          chmod +x releases/mugil-ide-darwin-arm64
-
-          # macOS Intel (x64)
-          bun build packages/cli/src/index.ts --compile --target=bun-darwin-x64 --outfile releases/mugil-ide-darwin-x64
-          chmod +x releases/mugil-ide-darwin-x64
+      - name: Verify Binaries (arch, non-empty, runnable on this runner)
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          # Every artifact must exist, be plausibly sized, and carry the right
+          # CPU architecture — a cross-compile typo would otherwise ship a
+          # mislabelled download.
+          check() { # check <path> <description-substring>
+            local f="$1" want="$2" size
+            test -f "$f" || { echo "✗ missing $f"; exit 1; }
+            size=$(stat -c%s "$f")
+            if [ "$size" -lt 20000000 ]; then
+              echo "✗ $f is only $size bytes — compile likely failed"; exit 1
+            fi
+            file "$f" | grep -qi "$want" || { echo "✗ $f is not $want: $(file "$f")"; exit 1; }
+            echo "✓ $(basename "$f") ($(numfmt --to=iec "$size")) — $want"
+          }
+          check releases/mugil-ide-windows-x64.exe 'PE32+'
+          check releases/mugil-ide-linux-x64      'x86-64'
+          check releases/mugil-ide-linux-arm64    'aarch64'
+          check releases/mugil-ide-darwin-arm64   'arm64'
+          check releases/mugil-ide-darwin-x64     'x86_64'
+          # Only the native build can actually execute here; prove it starts and
+          # reports the tag's version.
+          want="${GITHUB_REF_NAME#v}"
+          got=$(./releases/mugil-ide-linux-x64 --version)
+          echo "▸ linux-x64 --version → $got (expected $want)"
+          test "$got" = "$want" || { echo "✗ version mismatch: binary says $got, tag says $want"; exit 1; }
 
       - name: Package Linux & macOS Archives
+        timeout-minutes: 5
         run: |
+          set -euo pipefail
           cd releases
-          # Universal Linux tarball
           tar -czvf mugil-ide-linux-x64.tar.gz mugil-ide-linux-x64
           tar -czvf mugil-ide-linux-arm64.tar.gz mugil-ide-linux-arm64
-
-          # macOS tarballs
           tar -czvf mugil-ide-darwin-arm64.tar.gz mugil-ide-darwin-arm64
           tar -czvf mugil-ide-darwin-x64.tar.gz mugil-ide-darwin-x64
           cd ..
 
       - name: Install nFPM
+        timeout-minutes: 5
         run: |
           echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
           sudo apt-get update
           sudo apt-get install -y nfpm
 
       - name: Generate Debian (.deb) Package
+        timeout-minutes: 5
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           export VERSION
           cat <<EOF > nfpm.yaml
@@ -95,6 +125,34 @@ jobs:
           EOF
           nfpm package --packager deb --target releases/mugil-ide-linux-amd64.deb
 
+      - name: Generate checksums
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          cd releases
+          sha256sum mugil-ide-windows-x64.exe mugil-ide-linux-x64.tar.gz \
+            mugil-ide-linux-arm64.tar.gz mugil-ide-linux-amd64.deb \
+            mugil-ide-darwin-arm64.tar.gz mugil-ide-darwin-x64.tar.gz \
+            > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+          cd ..
+
+      - name: Build release notes from CHANGELOG
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # Prefer the hand-written CHANGELOG section; fall back to a short
+          # compare link so the release body is never empty.
+          if node scripts/release-notes.mjs "$version" > release-notes.md && [ -s release-notes.md ]; then
+            echo "✓ using CHANGELOG section for v$version"
+          else
+            echo "▸ no CHANGELOG section — using compare link"
+            printf '**Full Changelog**: https://github.com/%s/compare/%s...%s\n' \
+              "$GITHUB_REPOSITORY" "$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo v0.0.0)" "$GITHUB_REF_NAME" \
+              > release-notes.md
+          fi
+          head -20 release-notes.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -105,6 +163,10 @@ jobs:
             releases/mugil-ide-linux-amd64.deb
             releases/mugil-ide-darwin-arm64.tar.gz
             releases/mugil-ide-darwin-x64.tar.gz
+            releases/SHA256SUMS.txt
+          # A missing asset is a broken release, not a warning.
+          fail_on_unmatched_files: true
+          body_path: release-notes.md
           draft: false
           prerelease: false
-          generate_release_notes: true
+

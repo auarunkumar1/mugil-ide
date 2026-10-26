@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-10-26
+
+### Added
+- **Stop Button for Agent Streams**: The web UI now has a dedicated `■ Stop` control beside the prompt box (and `Esc` as a shortcut). It aborts the in-flight turn — the streaming completion, the tool loop, or a running subagent — without closing the session or the terminal.
+- **Live Busy State over WebSocket**: `status` frames now carry a `busy` flag, so the Stop button mirrors the server's real state (visible while a turn runs, hidden the moment it settles or the socket drops) instead of being inferred from keystrokes.
+- **`cancel_turn` WebSocket Frame**: A first-class, idempotent cancel message. The Ctrl-C terminal path is preserved; both converge on the same `AgentRepl.cancelTurn()` abort.
+- **Pending-Prompt Cleanup on Cancel**: Cancelling a turn settles any open permission or `question` prompt immediately (approvals deny, questions dismiss) and emits `dismiss_prompts` so the modals close. Previously the turn could stay blocked on the 120s prompt timeout after the user had already stopped it.
+- **Vercel AI Gateway Pricing & Context Metadata**: `fetchProviderModels` now reads the gateway catalog's real `pricing`, `context_window`, and `supported_parameters` instead of flattening every model to `cost 0 / 128k`, so smart-routing cost estimates work for this provider.
+- **Version Shown in the Web UI**: The header carries a `v0.1.23` badge linking to the matching GitHub release, and the page title includes the version, so a running build is identifiable at a glance instead of only via `--version`. Both come from `VERSION` in `@mugil-ide/core`, so they cannot drift from the package version.
+- **Busy Indicator in the Status Bar**: A pulsing `● Working…` label sits beside the connection dot while a turn streams (with a `prefers-reduced-motion` fallback), so in-flight work stays visible even when the Stop button is off-screen.
+
+### Fixed
+- **Vercel AI Gateway Base URL**: The Vercel provider pointed at `https://api.vercel.ai/v1`, which is not a Gateway host (it answers `404 DEPLOYMENT_NOT_FOUND`). It now defaults to `https://ai-gateway.vercel.sh/v1` in the client, the config loader, model discovery, and `.env.example`.
+- **Vercel Model IDs**: Gateway model ids are namespaced `creator/model`; the bare ids in the default ladder (`gpt-4o-mini`, `claude-3-5-sonnet-latest`, `deepseek-r1`) do not exist there, so every default handoff would have failed. The ladder now uses `openai/gpt-4o-mini`, `anthropic/claude-haiku-4.5`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, and `deepseek/deepseek-r1`.
+- **Vercel Base-URL Allowlist**: `POST /api/keys` rejected the correct Gateway host as an exfiltration attempt (`400 Disallowed Base URL`). `ai-gateway.vercel.sh` and `vercel.sh` are now allowlisted alongside the existing `vercel.com` entries.
+- **Vercel "Get Key" Link**: The Accounts & Keys row pointed at `vercel.com/integrations`; it now links to the AI Gateway's own API-keys page (`vercel.com/dashboard/ai-gateway/api-keys`), where gateway keys are minted.
+- **`AI_GATEWAY_API_KEY` Alias**: Vercel documents its key under `AI_GATEWAY_API_KEY`; it is now accepted as an alias for `VERCEL_API_KEY` by the config loader, the `/models` discovery probe, and `GET /api/models`, so following Vercel's own snippet no longer silently falls back to mock mode — or hides every Vercel model from the picker.
+
+### Changed
+- **CI Can No Longer Hang for Hours**: Added a workflow `concurrency` group with `cancel-in-progress` (a superseded push cancels the stale run), per-step `timeout-minutes` budgets, and a `timeout` wrapper around `npm test` so a leaked handle kills the step instead of idling to the job ceiling. A previous run sat blocked for 1h12m before being cancelled by hand.
+- **Release Artifacts Are Verified Before Publishing**: The release workflow now checks that all five binaries exist, are plausibly sized, and carry the expected CPU architecture (`PE32+` / `x86-64` / `aarch64` / `arm64` / `x86_64`), runs the native build's `--version` against the tag, and publishes `SHA256SUMS.txt`. A failed compile now fails the release instead of being silently omitted.
+- **Release Notes Come From the CHANGELOG**: `scripts/release-notes.mjs` extracts the tag's `CHANGELOG.md` section for the release body, falling back to a compare link when the section is missing.
+
 ## [0.1.22] - 2026-10-21
 
 ### Added
@@ -351,3 +374,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.21]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.21
 
 [0.1.22]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.22
+
+[0.1.23]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.23

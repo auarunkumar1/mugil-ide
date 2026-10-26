@@ -56,7 +56,7 @@ function isValidProviderBaseUrl(baseVar: string, urlStr: string): boolean {
       OPENAI_BASE_URL: ['api.openai.com', 'openai.com'],
       ANTHROPIC_BASE_URL: ['api.anthropic.com', 'anthropic.com'],
       OPENROUTER_BASE_URL: ['openrouter.ai'],
-      VERCEL_BASE_URL: ['vercel.dev', 'vercel.com'],
+      VERCEL_BASE_URL: ['ai-gateway.vercel.sh', 'vercel.sh', 'vercel.dev', 'vercel.com'],
       CLOUDFLARE_BASE_URL: ['api.cloudflare.com', 'cloudflare.com', 'gateway.ai.cloudflare.com'],
       TOGETHER_BASE_URL: ['together.xyz', 'together.ai'],
       OPENCODE_BASE_URL: ['opencode.ai'],
@@ -311,7 +311,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const openRouterKey = process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || engine.config.openRouterApiKey;
         const openaiKey = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || engine.config.openaiApiKey;
         const anthropicKey = process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || engine.config.anthropicApiKey;
-        const vercelKey = process.env.VERCEL_API_KEY || env.VERCEL_API_KEY || engine.config.vercelApiKey;
+        // Accept AI_GATEWAY_API_KEY too — loadConfig() does, and a key set that
+        // way would otherwise be invisible here and hide every Vercel model.
+        const vercelKey = process.env.VERCEL_API_KEY || process.env.AI_GATEWAY_API_KEY || env.VERCEL_API_KEY || env.AI_GATEWAY_API_KEY || engine.config.vercelApiKey;
         const cloudflareKey = process.env.CLOUDFLARE_API_KEY || env.CLOUDFLARE_API_KEY || engine.config.cloudflareApiKey;
         const togetherKey = process.env.TOGETHER_API_KEY || env.TOGETHER_API_KEY || engine.config.togetherApiKey;
         const opencodeKey = process.env.OPENCODE_API_KEY || env.OPENCODE_API_KEY || engine.config.opencodeApiKey;
@@ -1043,6 +1045,26 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     const approvalResolvers = new Map<number, { resolve: (granted: boolean) => void; timer: NodeJS.Timeout }>();
     let approvalSeq = 0;
     const APPROVAL_TIMEOUT_MS = 120_000;
+    /**
+     * Settles any open question/approval prompt so an aborted turn unwinds now
+     * instead of blocking on the 120s timeout. Denies approvals (never grants
+     * unattended work) and answers questions as dismissed.
+     */
+    const cancelPendingInteractions = (): void => {
+      for (const entry of questionResolvers.values()) {
+        clearTimeout(entry.timer);
+        entry.resolve('(dismissed — turn cancelled)');
+      }
+      for (const entry of approvalResolvers.values()) {
+        clearTimeout(entry.timer);
+        entry.resolve(false);
+      }
+      questionResolvers.clear();
+      approvalResolvers.clear();
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'dismiss_prompts' }));
+      }
+    };
 
     // Send data to frontend
     const sendAgentData = (data: string) => {
@@ -1065,6 +1087,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             activeModel: repl.getActiveModel(),
             mode: repl.getMode(),
             turboMode,
+            busy: repl.isBusy,
             stats: {
               ...repl.stats,
               filesModified: Array.from(repl.stats.filesModified),
@@ -1271,12 +1294,23 @@ repl.setMode(newMode);
             // Cancel the running turn first — otherwise Ctrl-C just clears the
             // input box and the session stays wedged until the request returns.
             if (repl.cancelTurn()) {
+              cancelPendingInteractions();
               sendAgentData('\r\n\x1b[33m■ Cancelling turn...\x1b[0m\r\n');
             } else {
               sendAgentData('^C\r\n');
               repl.printPrompt();
             }
+            sendStatusNow();
           }
+        } else if (msg.type === 'cancel_turn') {
+          // UI Stop button / Esc. Same abort path as Ctrl-C, but idempotent and
+          // silent when idle — the browser always gets a fresh status back so
+          // the button never sticks in the running state.
+          if (repl.cancelTurn()) {
+            cancelPendingInteractions();
+            sendAgentData('\r\n\x1b[33m■ Cancelling turn...\x1b[0m\r\n');
+          }
+          sendStatusNow();
         } else if (msg.type === 'pty_input') {
           if (msg.data) {
             await startPty();

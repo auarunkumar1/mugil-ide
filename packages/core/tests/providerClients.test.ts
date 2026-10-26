@@ -816,6 +816,69 @@ describe('fetchProviderModels', () => {
   });
 });
 
+describe('Vercel AI Gateway', () => {
+  it('probes the gateway host, not api.vercel.ai', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(okResponse({ data: [{ id: 'openai/gpt-4o-mini' }] }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await fetchProviderModels({ provider: 'vercel', apiKey: 'vck_test', baseUrl: 'https://ai-gateway.vercel.sh/v1' });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://ai-gateway.vercel.sh/v1/models',
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer vck_test' }) }),
+    );
+  });
+
+  it('maps catalog pricing (per token) to per-MTok and keeps context windows', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        data: [
+          {
+            id: 'anthropic/claude-sonnet-4.5',
+            context_window: 1000000,
+            supported_parameters: ['tools', 'reasoning'],
+            pricing: { input: '0.000003', output: '0.000015' },
+          },
+          {
+            id: 'openai/gpt-4o-mini',
+            context_window: 128000,
+            supported_parameters: ['tools'],
+            pricing: { input: '0.00000015', output: '0.0000006' },
+          },
+        ],
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const models = await fetchProviderModels({
+      provider: 'vercel',
+      apiKey: 'vck_test',
+      baseUrl: 'https://gateway.pricing.test/v1',
+    });
+    const sonnet = models.find((m) => m.id === 'anthropic/claude-sonnet-4.5')!;
+    expect(sonnet.costPerMTokIn).toBeCloseTo(3);
+    expect(sonnet.costPerMTokOut).toBeCloseTo(15);
+    expect(sonnet.contextWindow).toBe(1000000);
+    expect(sonnet.supportsThinking).toBe(true);
+    const mini = models.find((m) => m.id === 'openai/gpt-4o-mini')!;
+    expect(mini.tier).toBe('cheap');
+    expect(mini.costPerMTokIn).toBeCloseTo(0.15);
+  });
+
+  it('defaults the Vercel client to the AI Gateway base URL', () => {
+    const engine = createEngine(
+      loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'vercel', VERCEL_API_KEY: 'vck_test' }),
+    );
+    expect(engine.config.vercelBaseUrl).toBe('https://ai-gateway.vercel.sh/v1');
+    expect(engine.handoff.isMock).toBe(false);
+  });
+
+  it('accepts AI_GATEWAY_API_KEY as an alias for VERCEL_API_KEY', () => {
+    const engine = createEngine(
+      loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'vercel', AI_GATEWAY_API_KEY: 'vck_alias' }),
+    );
+    expect(engine.config.vercelApiKey).toBe('vck_alias');
+    expect(engine.handoff.isMock).toBe(false);
+  });
+});
+
 describe('opencode engine wiring', () => {
   it('createEngine wires OpenCodeClient when provider is opencode', () => {
     const engine = createEngine(

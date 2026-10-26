@@ -235,9 +235,11 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
       }
     }
 
-    // Vercel AI Gateway — OpenAI-compatible /v1/models
+    // Vercel AI Gateway — OpenAI-compatible /v1/models. Model ids are
+    // namespaced (`creator/model`) and the catalog carries real pricing and
+    // context windows, so prefer those over the substring heuristics.
     if (provider === 'vercel') {
-      const ep = baseUrl || 'https://api.vercel.ai/v1';
+      const ep = baseUrl || 'https://ai-gateway.vercel.sh/v1';
       if (apiKey) {
         try {
           const res = await fetch(`${ep}/models`, {
@@ -245,17 +247,37 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             signal: AbortSignal.timeout(timeoutMs),
           });
           if (res.ok) {
-            const json = (await res.json()) as { data?: Array<{ id: string }> };
+            const json = (await res.json()) as {
+              data?: Array<{
+                id: string;
+                context_window?: number;
+                supported_parameters?: string[];
+                pricing?: { input?: string; output?: string };
+              }>;
+            };
             if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-              const list: ModelSpec[] = json.data.map((m) => ({
-                id: m.id,
-                tier: m.id.includes('mini') || m.id.includes('small') ? 'cheap' : m.id.includes('r1') || m.id.includes('thinking') ? 'smart' : 'standard',
-                costPerMTokIn: 0,
-                costPerMTokOut: 0,
-                contextWindow: 128000,
-                supportsThinking: modelSupportsThinking(m.id),
-                supportsTools: modelSupportsTools(m.id),
-              }));
+              // The catalog prices per token — convert to per-MTok.
+              const perMTok = (v?: string): number => {
+                const n = Number(v);
+                return Number.isFinite(n) && n > 0 ? n * 1_000_000 : 0;
+              };
+              const list: ModelSpec[] = json.data.map((m) => {
+                const id = m.id.toLowerCase();
+                return {
+                  id: m.id,
+                  tier:
+                    id.includes('mini') || id.includes('small') || id.includes('flash') || id.includes('haiku')
+                      ? 'cheap'
+                      : id.includes('r1') || id.includes('thinking')
+                        ? 'smart'
+                        : 'standard',
+                  costPerMTokIn: perMTok(m.pricing?.input),
+                  costPerMTokOut: perMTok(m.pricing?.output),
+                  contextWindow: m.context_window ?? 128000,
+                  supportsThinking: modelSupportsThinking(m.id) || (m.supported_parameters ?? []).includes('reasoning'),
+                  supportsTools: modelSupportsTools(m.id),
+                };
+              });
               modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
               return list;
             }

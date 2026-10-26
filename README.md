@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 475 Passing](https://img.shields.io/badge/tests-475%20passing-3fb950.svg?style=flat-square)](https://github.com)
+[![Tests: 481 Passing](https://img.shields.io/badge/tests-481%20passing-3fb950.svg?style=flat-square)](https://github.com)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
 
 </div>
@@ -183,9 +183,11 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.22**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.23**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.22 (Current Release)
+### ✅ Shipped & Ready in v0.1.23 (Current Release)
+- [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn — streaming completion, tool loop, or running subagent — without closing the session. Pending permission/question prompts are dismissed instantly and any partial answer is marked "incomplete, not saved".
+- [x] **Working Vercel AI Gateway:** The Vercel provider now targets `https://ai-gateway.vercel.sh/v1` (the previously configured host did not resolve), uses the gateway's namespaced `creator/model` ids, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing and context windows from the live catalog.
 
 - [x] **First-Run AI Setup & Zero-Key Onboarding:** Automatically detects fresh launches without configured API keys. Presents a streamlined welcome modal offering 1-click cloud provider configuration (OpenRouter, OpenAI, Anthropic, OpenCode) and free 100% offline local AI (Ollama `:11434`, LM Studio `:1234`).
 - [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
@@ -210,7 +212,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **17 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, and web exploration.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
-- [x] **Comprehensive Test Suite:** 475 unit and integration tests passing across all packages.
+- [x] **Comprehensive Test Suite:** 481 unit and integration tests passing across all packages.
 
 ### 🎯 Planned for Next Release Push (v0.2.0 Roadmap)
 
@@ -320,6 +322,8 @@ All settings can be configured via the Web UI modals or by editing `~/.config/mu
 | `OPENROUTER_API_KEY` | — | API key for OpenRouter (primary cloud gateway) |
 | `OPENAI_API_KEY` | — | API key for OpenAI |
 | `ANTHROPIC_API_KEY` | — | API key for Anthropic |
+| `VERCEL_API_KEY` | — | API key for the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY` is accepted as an alias) |
+| `VERCEL_BASE_URL` | `https://ai-gateway.vercel.sh/v1` | AI Gateway endpoint — model ids are namespaced, e.g. `anthropic/claude-sonnet-4.5` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | URL for local Ollama instances |
 | `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | URL for local LM Studio instances |
 | `MUGIL_IDE_COMMAND_TIMEOUT`| `60000` | Terminal command execution timeout in milliseconds |
@@ -340,7 +344,7 @@ cd IDE
 npm install
 npm run build
 
-# Run the full test suite (475 tests)
+# Run the full test suite (481 tests)
 npm test
 
 # Launch local development server

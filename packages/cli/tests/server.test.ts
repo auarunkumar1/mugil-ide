@@ -9,6 +9,7 @@ import {
   saveSession,
   sessionFilePath,
   pushEdit,
+  VERSION,
 } from '@mugil-ide/core';
 import type { Engine, ProviderClient } from '@mugil-ide/core';
 import { startIdeServer } from '../src/server/server.js';
@@ -144,6 +145,16 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     const html = await htmlRes.text();
     expect(html).toContain('xterm');
     expect(html).toContain('MUGIL IDE');
+    // The UI shows the running build's version (links to its release page).
+    expect(html).toContain(`id="app-version"`);
+    expect(html).toContain(`v${VERSION}`);
+    expect(html).toContain(`<title>Mugil IDE v${VERSION}`);
+    // Stop button for in-flight agent streams.
+    expect(html).toContain('id="stop-btn"');
+    expect(html).toContain('stopAgentTurn()');
+    expect(html).toContain("type: 'cancel_turn'");
+    // Busy state is visible in the status bar, not just on the Stop button.
+    expect(html).toContain('id="status-busy"');
     // Vendored assets, no CDN dependency (offline-capable).
     expect(html).toContain('/vendor/xterm/xterm.js');
     expect(html).not.toContain('cdn.jsdelivr');
@@ -1079,6 +1090,88 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('stops a streaming turn when the UI sends cancel_turn', async () => {
+    // Same parked-stream shape as the Ctrl-C test, but driven by the Stop
+    // button's frame rather than a terminal keystroke.
+    let aborted = false;
+    let calls = 0;
+    const client = {
+      mock: false,
+      complete: async () => scriptedResult({ content: 'unused' }),
+      stream: async (_messages: unknown, options: any, handlers: any) => {
+        calls += 1;
+        if (calls > 1) {
+          handlers?.onDelta?.('after cancel', true);
+          return scriptedResult({ content: 'after cancel' });
+        }
+        handlers?.onDelta?.('streaming…', true);
+        await new Promise<void>((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => {
+            aborted = true;
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        });
+        return scriptedResult({ content: 'never' });
+      },
+    } as unknown as ProviderClient;
+    const server = await startIdeServer({ engine: scriptedEngine(client), port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const chunks: string[] = [];
+    const busyFrames: boolean[] = [];
+    try {
+      await new Promise<void>((resolve) => ws.on('open', () => resolve()));
+      ws.on('message', (raw) => {
+        const msg = JSON.parse(String(raw));
+        if (msg.type === 'agent_data') chunks.push(msg.data as string);
+        if (msg.type === 'status' && typeof msg.busy === 'boolean') busyFrames.push(msg.busy);
+      });
+      ws.send(JSON.stringify({ type: 'agent_input', data: 'stream forever\r' }));
+      const deadline = Date.now() + 10000;
+      while (!agentOutput(chunks).includes('streaming') && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(agentOutput(chunks)).toContain('streaming');
+      // Wait for the coalesced status frame that reports the turn as busy, so
+      // the assertion below is about the server's state, not frame timing.
+      const busyDeadline = Date.now() + 10000;
+      while (!busyFrames.includes(true) && Date.now() < busyDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      ws.send(JSON.stringify({ type: 'cancel_turn' }));
+      const cancelled = Date.now() + 10000;
+      while (!aborted && Date.now() < cancelled) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(aborted).toBe(true);
+      // The UI is told the turn ended, so the Stop button hides itself.
+      const settled = Date.now() + 10000;
+      while (busyFrames[busyFrames.length - 1] !== false && Date.now() < settled) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      // The connect-time frame is idle; the stream itself must have reported
+      // busy at least once, and the last frame after cancelling must be idle.
+      expect(busyFrames).toContain(true);
+      expect(busyFrames[busyFrames.length - 1]).toBe(false);
+
+      // The session must still accept work after a cancel — a wedged repl is
+      // worse than a turn that ran to completion. The cancel request clears
+      // isBusy immediately but isProcessing only when the turn unwinds, so
+      // resend past a "Still processing" refusal instead of racing it.
+      let next: { turn: { response: string } } | undefined;
+      const retryDeadline = Date.now() + 10000;
+      while (!next && Date.now() < retryDeadline) {
+        const pending = waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete', 1000).catch(
+          () => undefined,
+        );
+        ws.send(JSON.stringify({ type: 'agent_input', data: 'try again\r' }));
+        next = await pending;
+      }
+      expect(next?.turn.response).toBe('after cancel');
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
   it('marks partial streamed text as incomplete when the turn is cancelled', async () => {
     // Ctrl-C mid-stream. The fake client streams a fragment, then parks until
     // the turn's AbortSignal fires — the same shape as a real SSE body being
@@ -1276,6 +1369,22 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('allows the Vercel AI Gateway host for VERCEL_BASE_URL', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, model: 'test-model' });
+    try {
+      const res = await fetch(`${server.url}/api/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseVar: 'VERCEL_BASE_URL', baseUrl: 'https://ai-gateway.vercel.sh/v1' }),
+      });
+      // The gateway lives on vercel.sh, not vercel.com — rejecting it made the
+      // provider unusable from the Accounts & Keys modal.
+      expect(res.status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
   it('rejects selection of system directories via POST /api/workspace', async () => {
     const engine = createEngine(loadConfig());
     const server = await startIdeServer({ engine, model: 'test-model' });

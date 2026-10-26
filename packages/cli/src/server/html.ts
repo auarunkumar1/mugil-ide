@@ -1,10 +1,12 @@
+import { VERSION } from '@mugil-ide/core';
+
 export function getWebUiHtml(): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mugil IDE — Two-Paned Autonomous Terminal & IDE</title>
+  <title>Mugil IDE v${VERSION} — Two-Paned Autonomous Terminal & IDE</title>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
   <script src="/vendor/xterm/xterm.js"></script>
   <script src="/vendor/xterm/addon-fit.js"></script>
@@ -124,6 +126,21 @@ export function getWebUiHtml(): string {
       font-size: calc(11px * var(--font-scale));
       font-weight: 700;
       border: 1px solid #1f6feb66;
+    }
+    .version-badge {
+      color: var(--text-dim);
+      font-size: calc(10.5px * var(--font-scale));
+      font-weight: 600;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-decoration: none;
+      padding: 1px 5px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .version-badge:hover {
+      color: var(--accent);
+      border-color: var(--border);
     }
     .controls {
       display: flex;
@@ -318,6 +335,14 @@ export function getWebUiHtml(): string {
       outline: none;
     }
     .quick-input:focus { border-color: var(--accent); }
+    .btn-stop {
+      background: #3d1418;
+      border-color: #f8514988;
+      color: #ff7b72;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-stop:hover { background: #f8514933; border-color: #f85149; }
 
     /* Right Pane Views */
     .right-view {
@@ -615,6 +640,18 @@ export function getWebUiHtml(): string {
       background: var(--green);
       margin-right: 4px;
     }
+    .busy-indicator {
+      color: var(--yellow);
+      font-weight: 600;
+      animation: busyPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes busyPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .busy-indicator { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -623,6 +660,7 @@ export function getWebUiHtml(): string {
       <div class="logo-container">
         <span>☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
         <span class="logo-badge">TOKEN EFFICIENT</span>
+        <a class="version-badge" id="app-version" href="https://github.com/auarunkumar1/mugil-ide/releases/tag/v${VERSION}" target="_blank" rel="noopener noreferrer" title="Mugil IDE version ${VERSION} — view release notes">v${VERSION}</a>
         <span id="logo-model-sub" style="font-size:11px; color:var(--text-dim); font-weight:normal; margin-left:6px; white-space:nowrap;">Active: <b id="sub-active-model" style="color:var(--accent);">Detecting...</b></span>
       </div>
 
@@ -721,6 +759,7 @@ export function getWebUiHtml(): string {
 
       <div class="quick-input-container">
         <input type="text" class="quick-input" id="chat-input" placeholder="Type prompt or command (/models, /undo, /stats, /help)..." onkeydown="handleQuickInput(event)" />
+        <button class="btn btn-stop" id="stop-btn" onclick="stopAgentTurn()" title="Stop the running turn (Esc)" style="display:none;">■ Stop</button>
         <button class="btn btn-primary" onclick="submitQuickInput()">Send ↵</button>
       </div>
     </div>
@@ -796,6 +835,7 @@ export function getWebUiHtml(): string {
   <div class="status-bar">
     <div class="status-left">
       <span><span class="dot" id="status-dot"></span><span id="connection-status">Connecting…</span></span>
+      <span id="status-busy" class="busy-indicator" style="display:none;">● Working…</span>
       <span id="status-model">Model: auto</span>
       <span id="status-tokens">Used: 0 tok</span>
       <span id="status-spent" style="color:var(--green);">Est. Spent: $0.0000</span>
@@ -1495,6 +1535,28 @@ export function getWebUiHtml(): string {
       }
     }
 
+    // A turn is "busy" between submit and the server's next status/turn_complete
+    // frame. The server is the source of truth (status.busy, sent on turn start,
+    // cancel and completion); the optimistic set below only covers the gap
+    // before the first frame lands so Stop is clickable immediately.
+    let agentBusy = false;
+    function setAgentBusy(busy) {
+      agentBusy = Boolean(busy);
+      const btn = document.getElementById('stop-btn');
+      if (btn) btn.style.display = agentBusy ? '' : 'none';
+      const busyEl = document.getElementById('status-busy');
+      if (busyEl) busyEl.style.display = agentBusy ? '' : 'none';
+      const dot = document.getElementById('status-dot');
+      if (dot && ws && ws.readyState === WebSocket.OPEN) {
+        dot.style.background = agentBusy ? '#d29922' : '#3fb950';
+      }
+    }
+    function stopAgentTurn() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'cancel_turn' }));
+      }
+      setAgentBusy(false);
+    }
     function submitQuickInput() {
       const input = document.getElementById('chat-input');
       const val = input.value.trim();
@@ -1504,8 +1566,10 @@ export function getWebUiHtml(): string {
         input.value = '';
         return;
       }
+      const isSlash = val.startsWith('/');
       sendAgentCmd(val);
       input.value = '';
+      if (!isSlash) setAgentBusy(true);
       switchLeftTab('agent');
     }
 
@@ -1521,6 +1585,7 @@ export function getWebUiHtml(): string {
       };
 
       ws.onclose = () => {
+        setAgentBusy(false);
         document.getElementById('status-dot').style.background = '#ff7b72';
         document.getElementById('connection-status').textContent = 'Disconnected (Reconnecting...)';
         setTimeout(connectWs, 2000);
@@ -1536,13 +1601,25 @@ export function getWebUiHtml(): string {
             ptyTerm.write(msg.data);
             ptyTerm.scrollToBottom();
           } else if (msg.type === 'turn_complete') {
+            setAgentBusy(false);
             addTurnChip(msg.turn);
             refreshFiles();
+          } else if (msg.type === 'dismiss_prompts') {
+            // The turn was cancelled server-side; drop any prompt it was waiting on.
+            if (pendingQuestionId != null) {
+              pendingQuestionId = null;
+              document.getElementById('question-modal').classList.remove('open');
+            }
+            if (pendingApprovalId != null) {
+              pendingApprovalId = null;
+              document.getElementById('approval-modal').classList.remove('open');
+            }
           } else if (msg.type === 'question') {
             showQuestion(msg);
           } else if (msg.type === 'approval') {
             showApproval(msg);
           } else if (msg.type === 'status') {
+            if (msg.busy !== undefined) setAgentBusy(msg.busy);
             if (msg.turboMode !== undefined) {
               updateTurboUI(msg.turboMode);
             }
@@ -1672,9 +1749,13 @@ export function getWebUiHtml(): string {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         const qm = document.getElementById('question-modal');
-        if (qm && qm.classList.contains('open')) dismissQuestion();
         const am = document.getElementById('approval-modal');
+        const modalOpen = (qm && qm.classList.contains('open')) || (am && am.classList.contains('open'));
+        if (qm && qm.classList.contains('open')) dismissQuestion();
         if (am && am.classList.contains('open')) denyApproval();
+        // Esc also stops the running turn — but never while a prompt/approval
+        // modal owns the key, since there Esc means "dismiss".
+        if (!modalOpen && agentBusy) stopAgentTurn();
       }
     });
 
