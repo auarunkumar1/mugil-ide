@@ -35,6 +35,14 @@ This document records the architectural root causes, operational lessons, and ma
   - Always enforce `stream_options: { include_usage: true }` on streaming POST requests.
   - Wrap provider error payloads with typed domain errors (`OpenRouterError`, `OpenAiError`) rather than generic silent drops.
 
+### 4. `localhost` Is Not Always `127.0.0.1` (v0.1.24 CI failure)
+- **The Issue**: The server binds `localhost`, which GitHub runners resolve to **both** `127.0.0.1` and `::1`. A test opened a raw socket to a hard-coded `127.0.0.1`, but Node's happy-eyeballs bind picked `::1` first — the connection was refused (`connect ECONNREFUSED 127.0.0.1:<port>`) while the server itself was healthy. It passed locally because this machine's `localhost` maps to IPv4 only.
+- **The Symptom**: One test failed on both Node 20 and 22 (`45 total, 1 failed`) while the build, typecheck and lint steps were green, so the tag shipped with a red CI run.
+- **The Solution**:
+  - Never hard-code a loopback address in a test; derive it from the bound server: `new URL(server.url).hostname`.
+  - Treat a red CI run as a failed release even when the *Release Binaries* workflow is green — it only compiles and uploads.
+  - After pushing a tag, confirm **both** workflows are `success` for the tag's commit (`gh run list --limit 4`); amend and force-push the tag if a test-only fix is needed, then re-verify the assets.
+
 ---
 
 ## 📋 Mandatory Pre-Release CI Verification Checklist
