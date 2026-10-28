@@ -17,11 +17,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as dns from 'node:dns/promises';
-import { exec } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import type { ToolCall, ToolDefinition } from '../../types.js';
 import { ToolLoop, parseToolArguments, type ToolRegistry } from '../tool-loop/index.js';
 import type { HandoffManager } from '../handoff/index.js';
-import { buildCodeGraph, queryCodeGraph } from '../codegraph/index.js';
+import { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } from '../codegraph/index.js';
 import { cavemanStrategy } from '../caveman/index.js';
 import { compressCommandOutput } from '../rtk/index.js';
 import { discoverSkills, loadSkill } from '../skills/index.js';
@@ -680,6 +680,9 @@ export function createWorkspaceTools(
   function invalidateCache() {
     workspaceRev += 1;
     toolCache.clear();
+    // The graph cache follows the same revision as the tool cache: a write,
+    // edit, move or delete must never leave `/api/graph` serving old symbols.
+    invalidateCodeGraphCache();
   }
 
   /** Appends post-edit typecheck diagnostics to a successful tool result, skipping documentation and log files. */
@@ -1087,33 +1090,93 @@ export function createWorkspaceTools(
           : 60_000;
       invalidateCache();
       return new Promise<string>((resolve) => {
-        const child = exec(args.command, {
+        // spawn (not exec): execFile silently drops `detached`, so exec cannot
+        // put the command in its own process group. Without that, a timeout
+        // signals only the direct child and `nohup … &` grandchildren survive
+        // the turn. The group kill below reaps the whole tree.
+        const child = spawn(args.command, {
           cwd: root,
-          timeout: timeoutMs,
-          maxBuffer: 4 * 1024 * 1024,
-          encoding: 'utf-8',
-        }, (err, stdout, stderr) => {
-          if (err) {
-            const combined = [
-              stdout,
-              stderr,
-              err.signal === 'SIGTERM' ? `(command timed out after ${timeoutMs}ms)` : undefined,
-              err.message,
-            ].filter(Boolean).join('\n');
-            resolve(compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text);
-          } else {
-            resolve(compressCommandOutput(stdout || stderr || '', { command: args.command }).text);
-          }
+          shell: true,
+          detached: process.platform !== 'win32',
+          windowsHide: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
         });
-
+        const MAX_BUFFER = 4 * 1024 * 1024;
+        const stdoutChunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
+        let buffered = 0;
+        let timedOut = false;
+        let settled = false;
+        let killedForBuffer = false;
+        const killTree = (signal: NodeJS.Signals): void => {
+          try {
+            if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, signal);
+            else child.kill(signal);
+          } catch {
+            // Already gone.
+          }
+        };
+        const collect = (into: Buffer[]) => (chunk: Buffer): void => {
+          if (settled || killedForBuffer) return;
+          buffered += chunk.length;
+          if (buffered > MAX_BUFFER) {
+            killedForBuffer = true;
+            killTree('SIGKILL');
+            return;
+          }
+          into.push(chunk);
+        };
+        child.stdout.on('data', collect(stdoutChunks));
+        child.stderr.on('data', collect(stderrChunks));
+        const timer = setTimeout(() => {
+          timedOut = true;
+          killTree('SIGTERM');
+          // A shell that ignores SIGTERM must not outlive the turn either.
+          const hard = setTimeout(() => killTree('SIGKILL'), 500);
+          hard.unref?.();
+        }, timeoutMs);
+        timer.unref?.();
+        const finish = (code: number | null, signal: NodeJS.Signals | null): void => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          const stdout = Buffer.concat(stdoutChunks).toString('utf-8');
+          const stderr = Buffer.concat(stderrChunks).toString('utf-8');
+          const failed = timedOut || killedForBuffer || code !== 0 || signal !== null;
+          if (!failed) {
+            resolve(compressCommandOutput(stdout || stderr || '', { command: args.command }).text);
+            return;
+          }
+          const combined = [
+            stdout,
+            stderr,
+            timedOut ? `(command timed out after ${timeoutMs}ms)` : undefined,
+            killedForBuffer ? `(output exceeded ${MAX_BUFFER} bytes; command killed)` : undefined,
+            signal && !timedOut ? `(terminated by ${signal})` : undefined,
+          ]
+            .filter(Boolean)
+            .join('\n');
+          resolve(compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text);
+        };
+        child.on('error', (err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(compressCommandOutput(`Command failed:\n${err.message}`, { command: args.command }).text);
+        });
+        child.on('close', (code, signal) => finish(code, signal));
         if (options.signal) {
-          options.signal.addEventListener('abort', () => {
-            try { child.kill(); } catch { /* ignore */ }
-          }, { once: true });
+          options.signal.addEventListener(
+            'abort',
+            () => {
+              killTree('SIGKILL');
+              finish(null, 'SIGKILL');
+            },
+            { once: true },
+          );
         }
       });
     },
-
     todowrite: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { todos?: TodoItem[] };
       const todos = Array.isArray(args.todos)

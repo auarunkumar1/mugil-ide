@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   buildCodeGraph,
+  invalidateCodeGraphCache,
   languageFor,
   parseCodeFile,
   queryCodeGraph,
@@ -110,6 +111,43 @@ describe('buildCodeGraph', () => {
     fs.writeFileSync(path.join(dir, 'src', 'x.py'), 'def pyfn(): pass\n');
     const graph = buildCodeGraph(dir, { languages: ['typescript'], ignoreDirs: ['src'] });
     expect(graph.stats.files).toBe(0);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  it('skips files above the size cap and never reports their symbols', () => {
+    const dir = fixture();
+    fs.writeFileSync(
+      path.join(dir, 'src', 'generated.ts'),
+      'export function generated() { return 1; }\n' + '// filler\n'.repeat(2000),
+    );
+    const capped = buildCodeGraph(dir, { maxFileBytes: 1024 });
+    expect(capped.files.map((f) => f.path)).not.toContain('src/generated.ts');
+    expect(capped.symbols.some((s) => s.name === 'generated')).toBe(false);
+    const full = buildCodeGraph(dir, { maxFileBytes: 10 * 1024 * 1024 });
+    expect(full.files.map((f) => f.path)).toContain('src/generated.ts');
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  it('keeps line numbers correct with the precomputed line index', () => {
+    const dir = fixture();
+    const content = ['// one', '// two', '', 'export function onLineFour() {}', '', 'export function onLineSix() {}'].join('\n');
+    fs.writeFileSync(path.join(dir, 'src', 'lines.ts'), content);
+    invalidateCodeGraphCache();
+    const graph = buildCodeGraph(dir);
+    const a = graph.symbols.find((s) => s.name === 'onLineFour')!;
+    const b = graph.symbols.find((s) => s.name === 'onLineSix')!;
+    expect(a.line).toBe(4);
+    expect(b.line).toBe(6);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  it('caches the graph until invalidated (rebuilds are the same object)', () => {
+    const dir = fixture();
+    invalidateCodeGraphCache();
+    const first = buildCodeGraph(dir);
+    expect(buildCodeGraph(dir)).toBe(first);
+    fs.writeFileSync(path.join(dir, 'src', 'c.ts'), 'export function fresh() {}\n');
+    invalidateCodeGraphCache();
+    const rebuilt = buildCodeGraph(dir);
+    expect(rebuilt).not.toBe(first);
+    expect(rebuilt.symbols.some((s) => s.name === 'fresh')).toBe(true);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });

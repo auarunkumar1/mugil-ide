@@ -1,7 +1,7 @@
 /**
- * OpenCode Zen gateway client (https://opencode.ai/zen).
+ * OpenCode gateway client (https://opencode.ai/docs/zen — base `/zen/v1` or `/inference`).
  *
- * Zen serves three wire formats behind one base URL and Bearer key:
+ * OpenCode serves these wire formats behind one base URL and Bearer key:
  *   - `{base}/v1/messages`         — Anthropic Messages API (claude-* models)
  *   - `{base}/v1/chat/completions` — OpenAI chat format (everything else)
  *   - `{base}/v1/responses`        — OpenAI Responses API (gpt-* / codex-* — NOT supported yet)
@@ -33,24 +33,50 @@ export interface OpenCodeClientOptions {
  */
 export const OPENCODE_USER_AGENT = 'opencode/1.18.27';
 
+/**
+ * Resolves wire-protocol base URLs from the configured provider base.
+ *
+ * OpenCode documents two shapes:
+ *   - current: https://opencode.ai/inference -> /openai/v1, /anthropic, /v1/models
+ *   - legacy:  https://opencode.ai/zen/v1    -> /v1/chat/completions, /v1/messages
+ *
+ * Both are still served. The legacy base stays the default so existing saved
+ * keys keep working; an `/inference` base opts into the documented paths.
+ */
+export function opencodeBaseUrls(baseUrl = 'https://opencode.ai/zen/v1'): {
+  openAi: string;
+  anthropic: string;
+  models: string;
+} {
+  const base = baseUrl.replace(/\/+$/, '');
+  if (/\/inference$/.test(base)) {
+    return {
+      openAi: `${base}/openai/v1`,
+      anthropic: `${base}/anthropic`,
+      models: `${base}/v1/models`,
+    };
+  }
+  // AnthropicClient appends `/v1/messages`, the OpenAI client `/chat/completions`.
+  const root = base.replace(/\/v1$/, '');
+  return { openAi: `${root}/v1`, anthropic: root, models: `${root}/v1/models` };
+}
+
 export class OpenCodeClient implements ProviderClient {
   private readonly openai: OpenAiClient;
   private readonly anthropic: AnthropicClient;
   readonly mock: boolean;
 
   constructor(options: OpenCodeClientOptions = {}) {
-    const base = options.baseUrl ?? 'https://opencode.ai/zen/v1';
+    const urls = opencodeBaseUrls(options.baseUrl);
     const headers = { 'User-Agent': OPENCODE_USER_AGENT };
-    // AnthropicClient appends `/v1/messages`; strip our `/v1` so the combined
-    // path is `{root}/v1/messages` exactly as Zen documents it.
     this.anthropic = new AnthropicClient({
       apiKey: options.apiKey,
-      baseUrl: base.replace(/\/v1\/?$/, ''),
+      baseUrl: urls.anthropic,
       headers,
     });
     this.openai = new OpenAiClient({
       apiKey: options.apiKey,
-      baseUrl: base,
+      baseUrl: urls.openAi,
       headers,
     });
     this.mock = !options.apiKey;

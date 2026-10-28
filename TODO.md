@@ -41,6 +41,31 @@
 - [x] **Parallel Model Probing (§7.6)**: Probing local and cloud providers concurrently in `/api/models` using `Promise.allSettled`.
 - [x] **Hermetic Test Suite (§6.1)**: Cleared ambient `MUGIL_IDE_*` in jest setupFiles.
 
+## Crash Audit 2026-10-26 — fixed in this release (see `crash-audit-26-10-26.md`)
+- [x] **Global Error Handlers (crash amplifier)**: `unhandledRejection` / `uncaughtException` log and keep the server serving (`packages/cli/src/index.ts`).
+- [x] **Malformed `Host` Header (unauthenticated DoS)**: both `new URL` sites now parse against a fixed base and answer 400 (`parseRequestUrl` in `server.ts`); HTTP handler is wrapped so a stray rejection becomes a 500.
+- [x] **Malformed WebSocket Frame**: `ws.on('error')` + `socket.on('error')` on the upgrade socket; frame-level violations terminate only that socket.
+- [x] **Session Autosave Failure**: fire-and-forget saves go through `autoSaveSession()` with a one-time warning; `saveSession()` returns `''` on write failure instead of throwing.
+- [x] **Fallback PTY Spawn Error**: `child.on('error')` + early-output buffering surface `[Shell failed to start: …]` in the pane; `stdin` EPIPE is swallowed.
+- [x] **`/api/graph` O(n²) Stall**: single-pass line-index + binary search, 1 MB per-file cap, one-entry graph cache invalidated with the workspace tool cache (20k symbols: 5 099 ms → ~83 ms).
+- [x] **No WebSocket Backpressure**: 8 MB high / 1 MB low watermarks (`MUGIL_IDE_WS_HIGH_WATERMARK` / `_LOW_`), PTY pause/resume, one-time `[output throttled]` notice; agent output is dropped rather than buffered.
+- [x] **`run_command` Process Tree**: `spawn(..., { detached: true })` (exec/execFile drops `detached`) + `process.kill(-pid)` on timeout/abort; explicit output cap instead of `maxBuffer` crash.
+- [x] **`SmartCache.prefixTrie` Leak**: bounded at `maxTrieEntries` (default 2 000) with a generation flush; backend scan keeps partial lookups correct.
+
+## Provider API path audit (2026-10-28)
+- [x] **Cloudflare Workers AI**: direct path `https://api.cloudflare.com/client/v4/accounts/{id}/ai/v1/chat/completions`; AI Gateway now uses its real host `https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` (the old `/gateway/accounts/...` path on `api.cloudflare.com` 404s). `CLOUDFLARE_GATEWAY_ID` wires the option through config.
+- [x] **Cloudflare model discovery**: `/accounts/{id}/ai/models/search` is now called with `engine.config.cloudflareAccountId`; previously the id was parsed out of the base URL, which never contains `/accounts/`, so the catalog was never probed.
+- [x] **OpenCode**: legacy `https://opencode.ai/zen/v1` paths still served; added documented `https://opencode.ai/inference` support (`/openai/v1`, `/anthropic`, `/v1/models`) via `opencodeBaseUrls()`.
+- [x] **OpenRouter / OpenAI / Anthropic / Vercel / Together / Ollama / LM Studio**: paths re-probed live (200/401 as expected, no 404s) — unchanged.
+## Update-available indicator
+- [x] **Header badge**: `⬆ vX.Y.Z` pill next to the version text, backed by `GET /api/update-check` (npm `latest` vs `VERSION`, 6 h cache, 4 s timeout) linking to the release tag.
+## Savings indicator (2026-10-28)
+- [x] **Savings Always 0%**: denominator was the provider's whole prompt count; now `savedTokens / (savedTokens + compressibleTokens)` over Caveman/RTK refinement, signature stripping, history eviction/compaction, tool-output compression and cache hits. One helper (`inputSavingsPercent`) backs the TUI `/stats`, the Web UI pill and `AskResult.savings`.
+## Kill Server button (v0.1.24)
+- [x] **Header Control + Warning Modal**: red `⚠ Kill Server` button opens a confirmation dialog (warning icon, list of what terminates) with Cancel focused by default and Esc/Cancel wired up.
+- [x] **Authorized `POST /api/shutdown`**: session-token + Origin gated; responds `{ok:true, shuttingDown:true}` then flushes before the listener closes; `SIGINT`/`SIGTERM` share one idempotent shutdown path.
+- [x] **No Reconnect After Shutdown**: the WebSocket `onclose` handler shows "Server stopped" plus a final overlay instead of looping on reconnect.
+
 ## Planned for Next Release (v0.2.0 — Standalone Launcher & UI Modularization)
 
 - [ ] **Standalone Launcher (SEA / npm link) & Project Folder Management UI**:

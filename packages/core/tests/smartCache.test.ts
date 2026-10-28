@@ -346,3 +346,23 @@ describe('partial lookup guards', () => {
     expect(res.delta).toBe('B'.repeat(40));
   });
 });
+
+describe('prefix trie eviction', () => {
+  it('caps trie entries and stays correct after a flush', async () => {
+    const cache = new SmartCache({
+      backend: new MemoryBackend(),
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+      maxTrieEntries: 10,
+    });
+    for (let i = 0; i < 35; i += 1) {
+      await cache.store(`Prompt number ${i} with enough shared padding text.`, `answer ${i}`, 'm');
+    }
+    // A generation flush keeps the trie bounded instead of growing forever.
+    expect(cache.trieSize).toBeLessThanOrEqual(10);
+    // Exact lookups are backend-only, so they still work for every entry.
+    const hit = await cache.lookup('Prompt number 3 with enough shared padding text.');
+    expect(hit.kind).toBe('exact');
+    expect(hit.entry?.response).toBe('answer 3');
+  });
+});

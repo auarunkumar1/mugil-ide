@@ -299,6 +299,8 @@ export interface AppConfig {
   vercelBaseUrl: string;
   cloudflareApiKey?: string;
   cloudflareAccountId?: string;
+  /** When set, requests go through the AI Gateway (/v1/{account}/{gateway}/openai). */
+  cloudflareGatewayId?: string;
   cloudflareBaseUrl: string;
   togetherApiKey?: string;
   togetherBaseUrl: string;
@@ -386,6 +388,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const vercelApiKey = merged.VERCEL_API_KEY || merged.AI_GATEWAY_API_KEY || undefined;
   const cloudflareApiKey = merged.CLOUDFLARE_API_KEY || undefined;
   const cloudflareAccountId = merged.CLOUDFLARE_ACCOUNT_ID || undefined;
+  const cloudflareGatewayId = merged.CLOUDFLARE_GATEWAY_ID || undefined;
   const togetherApiKey = merged.TOGETHER_API_KEY || undefined;
   const opencodeApiKey = merged.OPENCODE_API_KEY || undefined;
 
@@ -485,6 +488,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     vercelBaseUrl: merged.VERCEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
     cloudflareApiKey,
     cloudflareAccountId,
+    cloudflareGatewayId,
     cloudflareBaseUrl: merged.CLOUDFLARE_BASE_URL || 'https://api.cloudflare.com/client/v4',
     togetherApiKey,
     togetherBaseUrl: merged.TOGETHER_BASE_URL || 'https://api.together.xyz/v1',

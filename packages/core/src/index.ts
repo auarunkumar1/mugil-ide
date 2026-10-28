@@ -42,6 +42,7 @@ export {
   parseCodeFile,
   queryCodeGraph,
   languageFor,
+  invalidateCodeGraphCache,
 } from './modules/codegraph/index.js';
 export type {
   CodeGraph,
@@ -211,6 +212,7 @@ export { BRAND, BRAND_SLUG, VERSION, BANNER_ART, LOGO_GRID, getBanner, getColore
 
 export { refinePrompt, truncateToBudget } from './refine.js';
 export type { RefineOptions } from './refine.js';
+export { inputSavingsPercent } from './savings.js';
 export { getTokenizer, countTokens } from './token/tokenizer.js';
 export type { Tokenizer } from './token/tokenizer.js';
 
@@ -289,6 +291,7 @@ export type {
   CompletionResult,
   HandoffOptions,
   RefineResult,
+  InputSavings,
   StrategyResult,
   CacheHitKind,
   CacheLookupResult,
@@ -373,6 +376,7 @@ function createClient(config: AppConfig): ProviderClient {
     return new CloudflareClient({
       apiKey: config.cloudflareApiKey,
       accountId: config.cloudflareAccountId,
+      gatewayId: config.cloudflareGatewayId,
       baseUrl: config.cloudflareBaseUrl,
     });
   }

@@ -7,7 +7,14 @@ import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Engine } from '@mugil-ide/core';
-import { fetchProviderModels, readUserEnv, saveMode, writeUserEnv } from '@mugil-ide/core';
+import {
+  fetchProviderModels,
+  readUserEnv,
+  saveMode,
+  inputSavingsPercent,
+  VERSION,
+  writeUserEnv,
+} from '@mugil-ide/core';
 import { getWebUiHtml } from './html.js';
 import { EMBEDDED_VENDOR_ASSETS } from './embeddedVendor.js';
 import { AgentRepl } from '../terminal/agentRepl.js';
@@ -38,7 +45,50 @@ const MAX_DIFF_CHARS = 512 * 1024;
 const MAX_PREVIEW_CHARS = 8 * 1024;
 
 function isLoopbackHost(hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]'
+  );
+}
+
+/**
+ * Parses a request URL without trusting the `Host` header. The header is
+ * client-controlled and `new URL` throws `ERR_INVALID_URL` on values like
+ * `a b` or `ünicode` — which used to exit the process. Returns null for a
+ * genuinely malformed request target so callers can answer 400.
+ */
+function parseRequestUrl(rawUrl: string | undefined, hostHeader: string | undefined): URL | null {
+  for (const base of [`http://${hostHeader || 'localhost'}`, 'http://localhost']) {
+    try {
+      return new URL(rawUrl || '/', base);
+    } catch {
+      // fall through to the fixed base
+    }
+  }
+  return null;
+}
+
+/** npm version check for the header badge, cached so a reload storm hits npm once. */
+let packageUpdateCache: {
+  result: { current: string; latest: string; updateAvailable: boolean } | null;
+  at: number;
+} | null = null;
+const PACKAGE_UPDATE_TTL_MS = 6 * 60 * 60 * 1000;
+async function getPackageUpdate(): Promise<{
+  current: string;
+  latest: string;
+  updateAvailable: boolean;
+} | null> {
+  if (packageUpdateCache && Date.now() - packageUpdateCache.at < PACKAGE_UPDATE_TTL_MS) {
+    return packageUpdateCache.result;
+  }
+  const { UpdateManager } = await import('@mugil-ide/core');
+  // checkPackage() never throws; a network failure just means "no badge".
+  const result = await new UpdateManager({ checkNpm: true }).checkPackage();
+  packageUpdateCache = { result, at: Date.now() };
+  return result;
 }
 
 function isValidProviderBaseUrl(baseVar: string, urlStr: string): boolean {
@@ -91,7 +141,10 @@ function isSystemDirectory(dirPath: string): boolean {
   return systemDirs.some((sys) => lower === sys || lower.startsWith(sys + path.sep));
 }
 
-function listWorkspaceFiles(root: string, maxEntries = 200): Array<{ path: string; isDir: boolean; size?: number }> {
+function listWorkspaceFiles(
+  root: string,
+  maxEntries = 200,
+): Array<{ path: string; isDir: boolean; size?: number }> {
   const IGNORED = new Set(['node_modules', '.git', 'dist', '.cache', 'build', 'coverage']);
   const results: Array<{ path: string; isDir: boolean; size?: number }> = [];
 
@@ -128,6 +181,8 @@ export interface ServerOptions {
   host?: string;
   engine: Engine;
   model?: string;
+  /** Called after `POST /api/shutdown` has been flushed to the browser. */
+  onShutdown?: () => void;
 }
 
 export interface RunningServer {
@@ -177,8 +232,14 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     });
   }
   const userEnv = readUserEnv();
-  let turboMode = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
-  let activeModel = initialModel || process.env.MUGIL_IDE_MODEL || userEnv.MUGIL_IDE_MODEL || (engine.config.models && engine.config.models[0]?.id) || 'openrouter/auto';
+  let turboMode =
+    process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
+  let activeModel =
+    initialModel ||
+    process.env.MUGIL_IDE_MODEL ||
+    userEnv.MUGIL_IDE_MODEL ||
+    (engine.config.models && engine.config.models[0]?.id) ||
+    'openrouter/auto';
   let probedModelsCache: Array<any> = [];
   let activeRepl: AgentRepl | null = null;
   const updateActiveModel = (newModel: string, newProvider?: string) => {
@@ -191,7 +252,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       activeRepl.setAvailableModels(probedModelsCache);
     }
     try {
-      writeUserEnv({ MUGIL_IDE_MODEL: newModel, ...(providerToSet ? { AI_PROVIDER: providerToSet } : {}) });
+      writeUserEnv({
+        MUGIL_IDE_MODEL: newModel,
+        ...(providerToSet ? { AI_PROVIDER: providerToSet } : {}),
+      });
     } catch {
       // ignore — model selection still applies for this session; persistence is best-effort
     }
@@ -223,7 +287,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       }
     }
     const customHeader = req.headers['x-mugil-token'];
-    if (customHeader && (Array.isArray(customHeader) ? customHeader[0] : customHeader) === sessionToken) {
+    if (
+      customHeader &&
+      (Array.isArray(customHeader) ? customHeader[0] : customHeader) === sessionToken
+    ) {
       return true;
     }
     const tokenQuery = url.searchParams.get('token');
@@ -233,8 +300,16 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     return false;
   }
 
-  const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  const handleHttpRequest = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ): Promise<void> => {
+    const url = parseRequestUrl(req.url, req.headers.host);
+    if (!url) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end('Bad request');
+      return;
+    }
 
     // Auth check for /api/* requests
     if (url.pathname.startsWith('/api/') && !isAuthorized(req, url)) {
@@ -244,7 +319,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     // Origin check for state-changing /api/* requests
-    if (url.pathname.startsWith('/api/') && req.method !== 'GET' && !isOriginAllowed(req.headers.origin)) {
+    if (
+      url.pathname.startsWith('/api/') &&
+      req.method !== 'GET' &&
+      !isOriginAllowed(req.headers.origin)
+    ) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Forbidden: invalid origin' }));
       return;
@@ -264,13 +343,15 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       }
 
       const tokenQuery = url.searchParams.get('token');
-      const setCookie = tokenQuery && tokenQuery === sessionToken
-        ? { 'Set-Cookie': `mugil_session=${sessionToken}; HttpOnly; SameSite=Strict; Path=/` }
-        : {};
+      const setCookie =
+        tokenQuery && tokenQuery === sessionToken
+          ? { 'Set-Cookie': `mugil_session=${sessionToken}; HttpOnly; SameSite=Strict; Path=/` }
+          : {};
 
       res.writeHead(200, {
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': "default-src 'self' 'unsafe-inline'; connect-src 'self' ws: http:; img-src 'self' data: https:;",
+        'Content-Security-Policy':
+          "default-src 'self' 'unsafe-inline'; connect-src 'self' ws: http:; img-src 'self' data: https:;",
         ...setCookie,
       });
       res.end(getWebUiHtml());
@@ -286,7 +367,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         res.end('not found');
         return;
       }
-      const type = name.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
+      const type = name.endsWith('.css')
+        ? 'text/css; charset=utf-8'
+        : 'application/javascript; charset=utf-8';
       res.writeHead(200, { 'Content-Type': type });
       if (EMBEDDED_VENDOR_ASSETS[name]) {
         res.end(EMBEDDED_VENDOR_ASSETS[name]);
@@ -308,105 +391,205 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const cloudModels: Array<any> = [];
         const env = readUserEnv();
 
-        const openRouterKey = process.env.OPENROUTER_API_KEY || env.OPENROUTER_API_KEY || engine.config.openRouterApiKey;
-        const openaiKey = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || engine.config.openaiApiKey;
-        const anthropicKey = process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || engine.config.anthropicApiKey;
+        const openRouterKey =
+          process.env.OPENROUTER_API_KEY ||
+          env.OPENROUTER_API_KEY ||
+          engine.config.openRouterApiKey;
+        const openaiKey =
+          process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || engine.config.openaiApiKey;
+        const anthropicKey =
+          process.env.ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || engine.config.anthropicApiKey;
         // Accept AI_GATEWAY_API_KEY too — loadConfig() does, and a key set that
         // way would otherwise be invisible here and hide every Vercel model.
-        const vercelKey = process.env.VERCEL_API_KEY || process.env.AI_GATEWAY_API_KEY || env.VERCEL_API_KEY || env.AI_GATEWAY_API_KEY || engine.config.vercelApiKey;
-        const cloudflareKey = process.env.CLOUDFLARE_API_KEY || env.CLOUDFLARE_API_KEY || engine.config.cloudflareApiKey;
-        const togetherKey = process.env.TOGETHER_API_KEY || env.TOGETHER_API_KEY || engine.config.togetherApiKey;
-        const opencodeKey = process.env.OPENCODE_API_KEY || env.OPENCODE_API_KEY || engine.config.opencodeApiKey;
+        const vercelKey =
+          process.env.VERCEL_API_KEY ||
+          process.env.AI_GATEWAY_API_KEY ||
+          env.VERCEL_API_KEY ||
+          env.AI_GATEWAY_API_KEY ||
+          engine.config.vercelApiKey;
+        const cloudflareKey =
+          process.env.CLOUDFLARE_API_KEY ||
+          env.CLOUDFLARE_API_KEY ||
+          engine.config.cloudflareApiKey;
+        const togetherKey =
+          process.env.TOGETHER_API_KEY || env.TOGETHER_API_KEY || engine.config.togetherApiKey;
+        const opencodeKey =
+          process.env.OPENCODE_API_KEY || env.OPENCODE_API_KEY || engine.config.opencodeApiKey;
 
         // Run provider probes concurrently with Promise.allSettled
         const probes: Array<Promise<{ isLocal: boolean; models: any[] }>> = [
           fetchProviderModels({
             provider: 'ollama',
-            baseUrl: process.env.OLLAMA_BASE_URL || env.OLLAMA_BASE_URL || engine.config.ollamaBaseUrl || 'http://localhost:11434/v1',
+            baseUrl:
+              process.env.OLLAMA_BASE_URL ||
+              env.OLLAMA_BASE_URL ||
+              engine.config.ollamaBaseUrl ||
+              'http://localhost:11434/v1',
             timeoutMs: 1500,
-          }).then((m) => ({
-            isLocal: true,
-            models: (m || []).map((x) => ({ ...x, provider: 'ollama', isLocal: true, providerLabel: 'Ollama (Local)' })),
-          })).catch(() => ({ isLocal: true, models: [] })),
+          })
+            .then((m) => ({
+              isLocal: true,
+              models: (m || []).map((x) => ({
+                ...x,
+                provider: 'ollama',
+                isLocal: true,
+                providerLabel: 'Ollama (Local)',
+              })),
+            }))
+            .catch(() => ({ isLocal: true, models: [] })),
 
           fetchProviderModels({
             provider: 'lmstudio',
-            baseUrl: process.env.LMSTUDIO_BASE_URL || env.LMSTUDIO_BASE_URL || engine.config.lmstudioBaseUrl || 'http://localhost:1234/v1',
+            baseUrl:
+              process.env.LMSTUDIO_BASE_URL ||
+              env.LMSTUDIO_BASE_URL ||
+              engine.config.lmstudioBaseUrl ||
+              'http://localhost:1234/v1',
             timeoutMs: 1500,
-          }).then((m) => ({
-            isLocal: true,
-            models: (m || []).map((x) => ({ ...x, provider: 'lmstudio', isLocal: true, providerLabel: 'LM Studio (Local)' })),
-          })).catch(() => ({ isLocal: true, models: [] })),
+          })
+            .then((m) => ({
+              isLocal: true,
+              models: (m || []).map((x) => ({
+                ...x,
+                provider: 'lmstudio',
+                isLocal: true,
+                providerLabel: 'LM Studio (Local)',
+              })),
+            }))
+            .catch(() => ({ isLocal: true, models: [] })),
 
-          openRouterKey ? fetchProviderModels({
-            provider: 'openrouter',
-            apiKey: openRouterKey,
-            baseUrl: engine.config.openRouterBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'openrouter', isLocal: false, providerLabel: 'OpenRouter' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          openRouterKey
+            ? fetchProviderModels({
+                provider: 'openrouter',
+                apiKey: openRouterKey,
+                baseUrl: engine.config.openRouterBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'openrouter',
+                    isLocal: false,
+                    providerLabel: 'OpenRouter',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
 
-          openaiKey ? fetchProviderModels({
-            provider: 'openai',
-            apiKey: openaiKey,
-            baseUrl: engine.config.openaiBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'openai', isLocal: false, providerLabel: 'OpenAI' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          openaiKey
+            ? fetchProviderModels({
+                provider: 'openai',
+                apiKey: openaiKey,
+                baseUrl: engine.config.openaiBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'openai',
+                    isLocal: false,
+                    providerLabel: 'OpenAI',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
 
-          anthropicKey ? fetchProviderModels({
-            provider: 'anthropic',
-            apiKey: anthropicKey,
-            baseUrl: engine.config.anthropicBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'anthropic', isLocal: false, providerLabel: 'Anthropic' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          anthropicKey
+            ? fetchProviderModels({
+                provider: 'anthropic',
+                apiKey: anthropicKey,
+                baseUrl: engine.config.anthropicBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'anthropic',
+                    isLocal: false,
+                    providerLabel: 'Anthropic',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
 
-          vercelKey ? fetchProviderModels({
-            provider: 'vercel',
-            apiKey: vercelKey,
-            baseUrl: engine.config.vercelBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'vercel', isLocal: false, providerLabel: 'Vercel AI' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          vercelKey
+            ? fetchProviderModels({
+                provider: 'vercel',
+                apiKey: vercelKey,
+                baseUrl: engine.config.vercelBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'vercel',
+                    isLocal: false,
+                    providerLabel: 'Vercel AI',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
 
-          cloudflareKey ? fetchProviderModels({
-            provider: 'cloudflare',
-            apiKey: cloudflareKey,
-            baseUrl: engine.config.cloudflareBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'cloudflare', isLocal: false, providerLabel: 'Cloudflare' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          cloudflareKey
+            ? fetchProviderModels({
+                provider: 'cloudflare',
+                apiKey: cloudflareKey,
+                baseUrl: engine.config.cloudflareBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'cloudflare',
+                    isLocal: false,
+                    providerLabel: 'Cloudflare',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
 
-          togetherKey ? fetchProviderModels({
-            provider: 'together',
-            apiKey: togetherKey,
-            baseUrl: engine.config.togetherBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'together', isLocal: false, providerLabel: 'Together AI' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          togetherKey
+            ? fetchProviderModels({
+                provider: 'together',
+                apiKey: togetherKey,
+                baseUrl: engine.config.togetherBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'together',
+                    isLocal: false,
+                    providerLabel: 'Together AI',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
 
-          opencodeKey ? fetchProviderModels({
-            provider: 'opencode',
-            apiKey: opencodeKey,
-            baseUrl: engine.config.opencodeBaseUrl,
-            timeoutMs: 4000,
-          }).then((m) => ({
-            isLocal: false,
-            models: (m || []).map((x) => ({ ...x, provider: 'opencode', isLocal: false, providerLabel: 'OpenCode Zen' })),
-          })).catch(() => ({ isLocal: false, models: [] })) : Promise.resolve({ isLocal: false, models: [] }),
+          opencodeKey
+            ? fetchProviderModels({
+                provider: 'opencode',
+                apiKey: opencodeKey,
+                baseUrl: engine.config.opencodeBaseUrl,
+                timeoutMs: 4000,
+              })
+                .then((m) => ({
+                  isLocal: false,
+                  models: (m || []).map((x) => ({
+                    ...x,
+                    provider: 'opencode',
+                    isLocal: false,
+                    providerLabel: 'OpenCode Zen',
+                  })),
+                }))
+                .catch(() => ({ isLocal: false, models: [] }))
+            : Promise.resolve({ isLocal: false, models: [] }),
         ];
 
         const settled = await Promise.allSettled(probes);
@@ -463,6 +646,21 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     if (url.pathname === '/api/status' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ provider: engine.config.provider, activeModel }));
+      return;
+    }
+    if (url.pathname === '/api/shutdown' && req.method === 'POST') {
+      // Auth (session token) and Origin checks above already gate this to the
+      // owning browser tab. Flush the response before stopping the server so
+      // the UI can show a "stopped" state instead of a network error.
+      if (!options.onShutdown) {
+        res.writeHead(501, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'This server instance has no shutdown hook' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, shuttingDown: true }), () => {
+        setTimeout(options.onShutdown!, 50);
+      });
       return;
     }
 
@@ -522,7 +720,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           const target = path.resolve(json.path.trim());
           if (isSystemDirectory(target)) {
             res.writeHead(403, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Access denied: cannot select system directory as workspace' }));
+            res.end(
+              JSON.stringify({
+                error: 'Access denied: cannot select system directory as workspace',
+              }),
+            );
             return;
           }
           let created = false;
@@ -819,6 +1021,27 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
+    if (url.pathname === '/api/update-check' && req.method === 'GET') {
+      try {
+        const npm = await getPackageUpdate();
+        const updateAvailable = Boolean(npm?.updateAvailable);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            current: VERSION,
+            latest: updateAvailable ? npm!.latest : null,
+            updateAvailable,
+            releaseUrl: updateAvailable
+              ? `https://github.com/auarunkumar1/mugil-ide/releases/tag/v${npm!.latest}`
+              : null,
+          }),
+        );
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
     if (url.pathname === '/api/modules' && req.method === 'GET') {
       try {
         const { UpdateManager } = await import('@mugil-ide/core');
@@ -833,7 +1056,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/JuliusBrussee/caveman',
             version: updater.localVersion('caveman') || '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Strips fluff and redundant qualifiers while preserving full technical semantics.',
+            savingsStrategy:
+              'Strips fluff and redundant qualifiers while preserving full technical semantics.',
           },
           {
             id: 'rtk',
@@ -843,7 +1067,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/rtk-ai/rtk',
             version: updater.localVersion('rtk') || '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Deduplicates diffs, collapses duplicate log lines, and compresses shell outputs.',
+            savingsStrategy:
+              'Deduplicates diffs, collapses duplicate log lines, and compresses shell outputs.',
           },
           {
             id: 'ponytail',
@@ -853,7 +1078,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/DietrichGebert/ponytail',
             version: updater.localVersion('ponytail') || '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Prevents speculative abstractions, enforces standard library reuse and minimal surgical edits.',
+            savingsStrategy:
+              'Prevents speculative abstractions, enforces standard library reuse and minimal surgical edits.',
           },
           {
             id: 'signature-remover',
@@ -863,7 +1089,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/conorbronsdon/avoid-ai-writing',
             version: updater.localVersion('signature-remover') || '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Removes ChatGPT/Claude persona preambles and generated attribution comments.',
+            savingsStrategy:
+              'Removes ChatGPT/Claude persona preambles and generated attribution comments.',
           },
           {
             id: 'watermark-remover',
@@ -873,7 +1100,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/guillaumemeyer/watermarks-remover',
             version: updater.localVersion('watermark-remover') || '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Strips zero-width spaces, bidi overrides, and synthetic sampling watermarks.',
+            savingsStrategy:
+              'Strips zero-width spaces, bidi overrides, and synthetic sampling watermarks.',
           },
           {
             id: 'codegraph',
@@ -883,7 +1111,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/colbymchenry/codegraph',
             version: updater.localVersion('codegraph') || '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Pre-indexes symbols, call hierarchies, and imports to eliminate blind file-reading grep loops.',
+            savingsStrategy:
+              'Pre-indexes symbols, call hierarchies, and imports to eliminate blind file-reading grep loops.',
           },
           {
             id: 'opencode-runtime',
@@ -893,7 +1122,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://github.com/sst/opencode',
             version: '1.18.18',
             status: 'Active',
-            savingsStrategy: '3000-token sliding window history compaction to prevent context explosion across long sessions.',
+            savingsStrategy:
+              '3000-token sliding window history compaction to prevent context explosion across long sessions.',
           },
           {
             id: 'smart-cache',
@@ -903,7 +1133,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             url: 'https://redis.io',
             version: '1.0.0',
             status: 'Active',
-            savingsStrategy: 'Zero-cost instant retrieval for repeated query patterns and subagent tools.',
+            savingsStrategy:
+              'Zero-cost instant retrieval for repeated query patterns and subagent tools.',
           },
         ];
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -922,7 +1153,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const checkResult = await updater.check();
         const applied = await updater.apply(checkResult.updates);
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, applied, updates: checkResult.updates, npm: checkResult.npm }));
+        res.end(
+          JSON.stringify({ ok: true, applied, updates: checkResult.updates, npm: checkResult.npm }),
+        );
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -931,7 +1164,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
 
     if (url.pathname === '/api/config' && req.method === 'GET') {
-      const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
+      const {
+        getHistoryBudget,
+        getMaxHistoryTurns,
+        getMaxOutputTokens,
+        getMaxToolIterations,
+        getThinkingLevel,
+      } = await import('@mugil-ide/core');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -939,7 +1178,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           maxTurns: getMaxHistoryTurns(),
           maxOutputTokens: getMaxOutputTokens(),
           maxToolIterations: getMaxToolIterations(),
-          webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
+          webfetchEnabled:
+            process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' &&
+            process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
           turboMode,
           thinkingLevel: getThinkingLevel(),
         }),
@@ -980,9 +1221,20 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         }
         if (data.thinkingLevel && ['off', 'low', 'medium', 'high'].includes(data.thinkingLevel)) {
           process.env.MUGIL_IDE_THINKING_LEVEL = data.thinkingLevel;
-          try { const { writeUserEnv } = await import('@mugil-ide/core'); writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel }); } catch { /* ignore */ }
+          try {
+            const { writeUserEnv } = await import('@mugil-ide/core');
+            writeUserEnv({ MUGIL_IDE_THINKING_LEVEL: data.thinkingLevel });
+          } catch {
+            /* ignore */
+          }
         }
-        const { getHistoryBudget, getMaxHistoryTurns, getMaxOutputTokens, getMaxToolIterations, getThinkingLevel } = await import('@mugil-ide/core');
+        const {
+          getHistoryBudget,
+          getMaxHistoryTurns,
+          getMaxOutputTokens,
+          getMaxToolIterations,
+          getThinkingLevel,
+        } = await import('@mugil-ide/core');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
           JSON.stringify({
@@ -991,7 +1243,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             maxTurns: getMaxHistoryTurns(),
             maxOutputTokens: getMaxOutputTokens(),
             maxToolIterations: getMaxToolIterations(),
-            webfetchEnabled: process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
+            webfetchEnabled:
+              process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' &&
+              process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false',
             turboMode,
             thinkingLevel: getThinkingLevel(),
           }),
@@ -1005,12 +1259,30 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
+  };
+
+  // Every route handles its own errors, but a missed one must become a 500 —
+  // not an unhandled rejection that terminates the process.
+  const server = http.createServer((req, res) => {
+    void handleHttpRequest(req, res).catch((err: unknown) => {
+      console.error(`  ⚠ request failed: ${err instanceof Error ? err.message : String(err)}`);
+      if (!res.headersSent) res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal server error' }));
+    });
   });
 
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (request, socket, head) => {
-    const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+    // An upgrade socket has no request-level error handling; without this a
+    // reset during the handshake emits an uncaught 'error' and kills us.
+    socket.on('error', () => socket.destroy());
+    const url = parseRequestUrl(request.url, request.headers.host);
+    if (!url) {
+      socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     if (url.pathname === '/ws') {
       if (!isOriginAllowed(request.headers.origin)) {
         socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
@@ -1030,19 +1302,30 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     }
   });
 
-  wss.on('connection', async (ws: WebSocket) => {
+  wss.on('connection', (ws: WebSocket) => {
     let ptySession: PtyInstance | null = null;
 
+    // `ws` emits 'error' for frame-level violations (invalid opcode, bad UTF-8,
+    // oversized frame). Unhandled, that event takes down the whole process.
+    ws.on('error', () => ws.terminate());
+
     // Mid-task `question` tool round-trip: server asks → browser picks → answer.
-    const questionResolvers = new Map<number, { resolve: (answer: string) => void; timer: NodeJS.Timeout }>();
+    const questionResolvers = new Map<
+      number,
+      { resolve: (answer: string) => void; timer: NodeJS.Timeout }
+    >();
     let questionSeq = 0;
     // 120s default; overridable so the browser smoke can exercise the timeout
     // path in seconds instead of minutes.
     const questionTimeoutRaw = Number(process.env.MUGIL_IDE_QUESTION_TIMEOUT_MS ?? 120_000);
-    const QUESTION_TIMEOUT_MS = Number.isFinite(questionTimeoutRaw) && questionTimeoutRaw > 0 ? questionTimeoutRaw : 120_000;
+    const QUESTION_TIMEOUT_MS =
+      Number.isFinite(questionTimeoutRaw) && questionTimeoutRaw > 0 ? questionTimeoutRaw : 120_000;
 
     // Tool-permission approval round-trip: `ask`-gated call → browser modal → allow/deny.
-    const approvalResolvers = new Map<number, { resolve: (granted: boolean) => void; timer: NodeJS.Timeout }>();
+    const approvalResolvers = new Map<
+      number,
+      { resolve: (granted: boolean) => void; timer: NodeJS.Timeout }
+    >();
     let approvalSeq = 0;
     const APPROVAL_TIMEOUT_MS = 120_000;
     /**
@@ -1066,17 +1349,89 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       }
     };
 
+    // WebSocket backpressure. A throttled/backgrounded tab stops draining the
+    // socket while a chatty command keeps producing output; `ws` buffers it in
+    // memory without limit (118 MB → 774 MB in the audit). Above the high
+    // watermark the PTY is paused and further chunks are dropped; once the
+    // socket drains below the low watermark the PTY resumes.
+    const envNumber = (name: string, fallback: number): number => {
+      const value = Number(process.env[name]);
+      return Number.isFinite(value) && value > 0 ? value : fallback;
+    };
+    const WS_HIGH_WATERMARK = envNumber('MUGIL_IDE_WS_HIGH_WATERMARK', 8 * 1024 * 1024);
+    const WS_LOW_WATERMARK = Math.min(
+      envNumber('MUGIL_IDE_WS_LOW_WATERMARK', 1 * 1024 * 1024),
+      WS_HIGH_WATERMARK,
+    );
+    let ptyPaused = false;
+    let drainTimer: NodeJS.Timeout | null = null;
+    let agentThrottleNoticed = false;
+    const safeSend = (payload: string): void => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      try {
+        ws.send(payload);
+      } catch {
+        // Socket died between the readyState check and send.
+      }
+    };
+    function scheduleDrainCheck(): void {
+      if (drainTimer) return;
+      drainTimer = setTimeout(checkDrain, 100);
+      drainTimer.unref?.();
+    }
+    function checkDrain(): void {
+      drainTimer = null;
+      if (ws.readyState !== WebSocket.OPEN) return;
+      if (ws.bufferedAmount > WS_LOW_WATERMARK) {
+        scheduleDrainCheck();
+        return;
+      }
+      if (ptyPaused) {
+        ptyPaused = false;
+        ptySession?.resume?.();
+        safeSend(
+          JSON.stringify({ type: 'pty_data', data: '\r\n\x1b[33m[output resumed]\x1b[0m\r\n' }),
+        );
+      }
+      agentThrottleNoticed = false;
+    }
     // Send data to frontend
     const sendAgentData = (data: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'agent_data', data }));
+      if (ws.readyState !== WebSocket.OPEN) return;
+      if (ws.bufferedAmount > WS_HIGH_WATERMARK) {
+        if (!agentThrottleNoticed) {
+          agentThrottleNoticed = true;
+          safeSend(
+            JSON.stringify({
+              type: 'agent_data',
+              data: '\r\n\x1b[33m[agent output throttled — browser is not keeping up]\x1b[0m\r\n',
+            }),
+          );
+        }
+        scheduleDrainCheck();
+        return;
       }
+      safeSend(JSON.stringify({ type: 'agent_data', data }));
     };
 
     const sendPtyData = (data: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'pty_data', data }));
+      if (ws.readyState !== WebSocket.OPEN) return;
+      if (ws.bufferedAmount > WS_HIGH_WATERMARK) {
+        if (!ptyPaused) {
+          ptyPaused = true;
+          // Stop the producer instead of buffering its output in the server.
+          ptySession?.pause?.();
+          safeSend(
+            JSON.stringify({
+              type: 'pty_data',
+              data: '\r\n\x1b[33m[output throttled — browser is not keeping up; paused until it catches up]\x1b[0m\r\n',
+            }),
+          );
+        }
+        scheduleDrainCheck();
+        return;
       }
+      safeSend(JSON.stringify({ type: 'pty_data', data }));
     };
 
     const sendStatus = () => {
@@ -1091,6 +1446,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             stats: {
               ...repl.stats,
               filesModified: Array.from(repl.stats.filesModified),
+              // Computed server-side so the terminal (/stats) and the web pill
+              // can never disagree on the denominator.
+              savingsPct: inputSavingsPercent(
+                repl.stats.tokensSaved,
+                repl.stats.compressibleTokens,
+              ),
             },
           }),
         );
@@ -1132,11 +1493,14 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         return;
       }
       if (statusTimer) return;
-      const timer = setTimeout(() => {
-        statusTimer = null;
-        lastStatusAt = Date.now();
-        sendStatus();
-      }, Math.max(0, STATUS_INTERVAL_MS - elapsed));
+      const timer = setTimeout(
+        () => {
+          statusTimer = null;
+          lastStatusAt = Date.now();
+          sendStatus();
+        },
+        Math.max(0, STATUS_INTERVAL_MS - elapsed),
+      );
       // Never hold the process open for a status frame.
       timer.unref?.();
       statusTimer = timer;
@@ -1169,7 +1533,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           const id = ++questionSeq;
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(
-              JSON.stringify({ type: 'question', id, header: q.header, question: q.question, options: q.options }),
+              JSON.stringify({
+                type: 'question',
+                id,
+                header: q.header,
+                question: q.question,
+                options: q.options,
+              }),
             );
           }
           return new Promise<string>((resolve) => {
@@ -1218,13 +1588,17 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       if (!ptyStartPromise) {
         ptyStartPromise = (async () => {
           try {
-            ptySession = await createPtySession(cols !== undefined && rows !== undefined ? { cols, rows } : undefined);
+            ptySession = await createPtySession(
+              cols !== undefined && rows !== undefined ? { cols, rows } : undefined,
+            );
             ptySession.onData((data) => sendPtyData(data));
             ptySession.onExit((code) => {
               sendPtyData(`\r\n[Process completed with code ${code}]\r\n`);
             });
           } catch (err) {
-            sendPtyData(`\r\n[Failed to start PTY shell: ${err instanceof Error ? err.message : String(err)}]\r\n`);
+            sendPtyData(
+              `\r\n[Failed to start PTY shell: ${err instanceof Error ? err.message : String(err)}]\r\n`,
+            );
           }
         })();
       }
@@ -1243,16 +1617,20 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           const newModel = String(msg.model);
           repl.setActiveModel(newModel, msg.provider);
           updateActiveModel(newModel, msg.provider);
-          sendAgentData(`\r\n\x1b[32m✓\x1b[0m Active model changed to: \x1b[1m\x1b[36m${newModel}\x1b[0m${engine.config.provider ? ` \x1b[2m(${engine.config.provider})\x1b[0m` : ''}\r\n\r\n`);
+          sendAgentData(
+            `\r\n\x1b[32m✓\x1b[0m Active model changed to: \x1b[1m\x1b[36m${newModel}\x1b[0m${engine.config.provider ? ` \x1b[2m(${engine.config.provider})\x1b[0m` : ''}\r\n\r\n`,
+          );
           repl.printPrompt();
           sendStatusNow();
         } else if (msg.type === 'set_mode') {
           const newMode = msg.mode === 'plan' ? 'plan' : 'act';
-repl.setMode(newMode);
+          repl.setMode(newMode);
           // Persist per workspace so plan mode in one repo does not make
           // every other repo on the machine start read-only.
           saveMode(newMode);
-          sendAgentData(`\r\n\x1b[32m✓\x1b[0m Mode changed to: \x1b[1m\x1b[33m${newMode}\x1b[0m\r\n\r\n`);
+          sendAgentData(
+            `\r\n\x1b[32m✓\x1b[0m Mode changed to: \x1b[1m\x1b[33m${newMode}\x1b[0m\r\n\r\n`,
+          );
           repl.printPrompt();
           sendStatusNow();
         } else if (msg.type === 'question_answer') {
@@ -1265,7 +1643,9 @@ repl.setMode(newMode);
         } else if (msg.type === 'set_turbo_mode') {
           turboMode = Boolean(msg.enabled);
           process.env.MUGIL_IDE_TURBO_MODE = turboMode ? '1' : '0';
-          sendAgentData(`\r\n\x1b[33m⚡ Turbo Mode: ${turboMode ? '\x1b[32mENABLED (Autonomous execution without user prompts)\x1b[0m' : '\x1b[31mDISABLED (User approval required)\x1b[0m'}\x1b[0m\r\n\r\n`);
+          sendAgentData(
+            `\r\n\x1b[33m⚡ Turbo Mode: ${turboMode ? '\x1b[32mENABLED (Autonomous execution without user prompts)\x1b[0m' : '\x1b[31mDISABLED (User approval required)\x1b[0m'}\x1b[0m\r\n\r\n`,
+          );
           repl.printPrompt();
           sendStatusNow();
         } else if (msg.type === 'approval_answer') {
@@ -1332,6 +1712,10 @@ repl.setMode(newMode);
         activeRepl = null;
       }
       clearStatusTimer();
+      if (drainTimer) {
+        clearTimeout(drainTimer);
+        drainTimer = null;
+      }
       repl.stopLogoAnimation();
       void repl.dispose(); // close MCP stdio children
       if (ptySession) {

@@ -20,7 +20,9 @@ const program = new Command();
 
 program
   .name('mugil-ide')
-  .description('Mugil IDE — token-efficient AI IDE: PTY + xterm.js UI, refines prompts, caches aggressively, hands off models automatically.')
+  .description(
+    'Mugil IDE — token-efficient AI IDE: PTY + xterm.js UI, refines prompts, caches aggressively, hands off models automatically.',
+  )
   .version(VERSION);
 
 program
@@ -31,16 +33,23 @@ program
   .option('-h, --host <string>', 'server host', 'localhost')
   .option('-m, --model <id>', 'initial model id')
   .option('--no-open', 'do not automatically open the browser')
-  .action(async (dir: string, options: { port?: string; host: string; model?: string; open?: boolean }) => {
-    if (dir && dir !== '.') {
-      try {
-        process.chdir(path.resolve(dir));
-      } catch (err) {
-        program.error(`error: invalid project directory ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+  .action(
+    async (
+      dir: string,
+      options: { port?: string; host: string; model?: string; open?: boolean },
+    ) => {
+      if (dir && dir !== '.') {
+        try {
+          process.chdir(path.resolve(dir));
+        } catch (err) {
+          program.error(
+            `error: invalid project directory ${dir}: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
       }
-    }
-    await launchUi(options);
-  });
+      await launchUi(options);
+    },
+  );
 
 program
   .command('run')
@@ -90,14 +99,17 @@ program
       });
     } else {
       const result = await manager.check();
-      const applied = result.updates.length > 0 && !options.check ? await manager.apply(result.updates) : [];
+      const applied =
+        result.updates.length > 0 && !options.check ? await manager.apply(result.updates) : [];
       printUpdates(result, applied);
     }
   });
 
 program
   .command('graph')
-  .description('Build a code knowledge graph for a project (symbols, imports, call edges) and query it for context')
+  .description(
+    'Build a code knowledge graph for a project (symbols, imports, call edges) and query it for context',
+  )
   .argument('[dir]', 'project root to scan', '.')
   .option('-q, --query <text>', 'find the symbols most relevant to a task (context injection)')
   .option('-o, --output <file>', 'write the serialized graph as JSON')
@@ -110,7 +122,9 @@ program
       const results = queryCodeGraph(graph, options.query, { top: Number(options.top ?? 10) });
       console.log(`\n  codegraph — ${results.length} relevant symbols for "${options.query}"\n`);
       for (const { symbol, score } of results) {
-        console.log(`  [${String(score).padStart(3)}] ${symbol.file}:${symbol.line}  ${symbol.signature}`);
+        console.log(
+          `  [${String(score).padStart(3)}] ${symbol.file}:${symbol.line}  ${symbol.signature}`,
+        );
         const head = symbol.snippet.split('\n').slice(0, 2).join(' ');
         console.log(`        ${head.slice(0, 110)}`);
       }
@@ -154,7 +168,9 @@ program
         ? [keyVarByProvider[provider]]
         : [];
     if (keys.length === 0 || keys.some((k) => !k)) {
-      program.error('error: provide a provider (openrouter | openai | anthropic | ollama | lmstudio) or --all');
+      program.error(
+        'error: provide a provider (openrouter | openai | anthropic | ollama | lmstudio) or --all',
+      );
     }
     const { file, removed } = deleteUserEnvKeys(keys as string[]);
     if (removed.length === 0) {
@@ -217,14 +233,21 @@ program
       output: typeof options.output === 'string' ? options.output : undefined,
       globs: (options.glob as string[]).length > 0 ? (options.glob as string[]) : undefined,
     };
-    const report = (result: { output: string; filesScanned: number; symbols: number; tokens: number }): void => {
+    const report = (result: {
+      output: string;
+      filesScanned: number;
+      symbols: number;
+      tokens: number;
+    }): void => {
       console.log(
         `\n  docs: ${result.output}\n  files: ${result.filesScanned} · symbols: ${result.symbols} · ~${result.tokens} tokens\n`,
       );
     };
     if (options.watch) {
       const interval = Number(options.interval ?? 60);
-      console.log(`Mugil IDE docs: watching ${dir} — regenerating every ${interval}s (Ctrl+C to stop)`);
+      console.log(
+        `Mugil IDE docs: watching ${dir} — regenerating every ${interval}s (Ctrl+C to stop)`,
+      );
       watchDocs({ ...docsOptions, intervalSeconds: interval, onGenerated: report });
     } else {
       report(await generateDocs(docsOptions));
@@ -239,25 +262,53 @@ program
       try {
         process.chdir(path.resolve(dir));
       } catch (err) {
-        program.error(`error: invalid project directory ${dir}: ${err instanceof Error ? err.message : String(err)}`);
+        program.error(
+          `error: invalid project directory ${dir}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
     await launchUi({ host: 'localhost', open: true });
   });
 
-async function launchUi(options: { port?: string; host: string; model?: string; open?: boolean }): Promise<void> {
+async function launchUi(options: {
+  port?: string;
+  host: string;
+  model?: string;
+  open?: boolean;
+}): Promise<void> {
+  installCrashGuards();
   const engine = createEngine(loadConfig());
+  let shutdownUi: () => Promise<void> = async () => {};
   const server = await startIdeServer({
     port: options.port !== undefined ? Number(options.port) : undefined,
     host: options.host || 'localhost',
     engine,
     model: options.model,
+    // The in-browser "Kill Server" button calls POST /api/shutdown.
+    onShutdown: () => void shutdownUi(),
   });
 
   const launchUrl = server.tokenUrl || server.url;
   console.log(`\n  ${bold('☁️ Mugil IDE')} ${dim('— Token-Efficient PTY + xterm.js Interface')}`);
   console.log(`  ${green('✓')} Running at: ${bold(cyan(launchUrl))}`);
   console.log(`  ${dim('Press Ctrl+C to stop server.\n')}`);
+
+  let shuttingDown = false;
+  const shutdown = async (): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('\n  Shutting down server...');
+    try {
+      await server.close();
+      await engine.backend.close();
+    } finally {
+      // node-pty on Windows leaks its named-pipe sockets on kill(); exit
+      // explicitly so shutdown always terminates cleanly.
+      process.exit(0);
+    }
+  };
+
+  shutdownUi = shutdown;
 
   if (options.open !== false) {
     try {
@@ -274,24 +325,34 @@ async function launchUi(options: { port?: string; host: string; model?: string; 
     }
   }
 
-  // Keep alive until SIGINT (process.exit in the handler terminates the app).
+  // Keep alive until SIGINT/SIGTERM (shutdown() terminates the process).
   await new Promise<void>(() => {
-    process.on('SIGINT', async () => {
-      console.log('\n  Shutting down server...');
-      try {
-        await server.close();
-        await engine.backend.close();
-      } finally {
-        // node-pty on Windows leaks its named-pipe sockets on kill(); exit
-        // explicitly so Ctrl+C always terminates cleanly.
-        process.exit(0);
-      }
-    });
+    process.on('SIGINT', () => void shutdown());
+    process.on('SIGTERM', () => void shutdown());
   });
 }
 
+/**
+ * A single missed error must not take down the whole IDE and the user's
+ * session. Log it and keep serving instead — request handlers and socket
+ * listeners already degrade individually.
+ */
+function installCrashGuards(): void {
+  const report = (kind: string) => (err: unknown) => {
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error(`\n  ⚠ ${kind} — server kept running:\n${detail}\n`);
+  };
+  process.on('unhandledRejection', report('Unhandled promise rejection'));
+  process.on('uncaughtException', report('Uncaught exception'));
+}
+
 function printUpdates(
-  result: { configured: boolean; registryUrl?: string; updates: Array<{ id: string; current: string; latest: string; applied?: boolean }>; npm: { current: string; latest: string } | null },
+  result: {
+    configured: boolean;
+    registryUrl?: string;
+    updates: Array<{ id: string; current: string; latest: string; applied?: boolean }>;
+    npm: { current: string; latest: string } | null;
+  },
   applied: Array<{ id: string; applied?: boolean }>,
 ): void {
   console.log('');
@@ -300,13 +361,19 @@ function printUpdates(
   }
   for (const update of result.updates) {
     const wasApplied = applied.some((a) => a.id === update.id && a.applied);
-    console.log(`  module  ${update.id.padEnd(18)} ${update.current} -> ${update.latest}  ${wasApplied ? '✓ applied' : 'available'}`);
+    console.log(
+      `  module  ${update.id.padEnd(18)} ${update.current} -> ${update.latest}  ${wasApplied ? '✓ applied' : 'available'}`,
+    );
   }
   if (result.npm) {
-    console.log(`  package ${'mugil-ide'.padEnd(18)} ${result.npm.current} -> ${result.npm.latest}  (npm i -g mugil-ide@latest)`);
+    console.log(
+      `  package ${'mugil-ide'.padEnd(18)} ${result.npm.current} -> ${result.npm.latest}  (npm i -g mugil-ide@latest)`,
+    );
   }
   if (!result.configured) {
-    console.log('  note: no module registry configured — set MUGIL_IDE_MODULES_REGISTRY (or --registry) to enable remote module updates');
+    console.log(
+      '  note: no module registry configured — set MUGIL_IDE_MODULES_REGISTRY (or --registry) to enable remote module updates',
+    );
   }
   console.log('');
 }

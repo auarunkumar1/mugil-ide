@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 481 Passing](https://img.shields.io/badge/tests-481%20passing-3fb950.svg?style=flat-square)](https://github.com)
+[![Tests: 481 Passing](https://img.shields.io/badge/tests-506%20passing-3fb950.svg?style=flat-square)](https://github.com)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
 
 </div>
@@ -177,15 +177,20 @@ flowchart LR
 | **Attribution Strip** | Single-line compact strip giving direct credit to upstream projects: *Caveman, RTK Headroom, Ponytail, De-AI, Watermarks, CodeGraph AST, OpenCode* |
 | **Left Pane (Agent Loop)** | Live xterm.js terminal with token-by-token streaming, markdown formatting, turn history pills, and isolated shell terminal with PTY support |
 | **Right Pane (Code & Inspection)** | Interactive file tree, live diff viewer with syntax highlights, file viewer, and structural symbol CodeGraph |
-| **Bottom Status Bar** | Live WebSocket connection indicator, active model ID, session token tally, and calculated token savings percentage |
+| **Bottom Status Bar** | Live WebSocket connection indicator, active model ID, session token tally, and real input-token savings (`saved / compressible input` across Caveman, RTK, history compaction and cache hits) |
 
 ---
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.23**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.24**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.23 (Current Release)
+### ✅ Shipped & Ready in v0.1.24 (Current Release)
+- [x] **Kill Server Button:** A red `⚠ Kill Server` header control opens a warning modal and stops the backend via the authorized `POST /api/shutdown` route, then shows a "Server stopped" screen instead of endlessly reconnecting.
+- [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
+- [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
+- [x] **Verified Provider API Paths:** Cloudflare workers AI Gateway now uses `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` and its model catalog actually loads; OpenCode supports the documented `https://opencode.ai/inference` base (`/openai/v1`, `/anthropic`, `/v1/models`) alongside legacy `zen/v1`; OpenRouter, OpenAI, Anthropic, Vercel, Together, Ollama and LM Studio were re-probed live with no 404s.
+- [x] **Honest Savings Indicator:** The status-bar pill reports real input-token savings instead of always reading `0%` — measured against compressible input (Caveman/RTK refinement, signature stripping, history compaction, tool-output compression, cache hits) rather than the provider's whole-prompt count, which is dominated by system prompt and tool schemas no module touches.
 - [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn — streaming completion, tool loop, or running subagent — without closing the session. Pending permission/question prompts are dismissed instantly and any partial answer is marked "incomplete, not saved".
 - [x] **Working Vercel AI Gateway:** The Vercel provider now targets `https://ai-gateway.vercel.sh/v1` (the previously configured host did not resolve), uses the gateway's namespaced `creator/model` ids, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing and context windows from the live catalog.
 
@@ -212,7 +217,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **17 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, and web exploration.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
-- [x] **Comprehensive Test Suite:** 481 unit and integration tests passing across all packages.
+- [x] **Comprehensive Test Suite:** 506 unit and integration tests passing across all packages.
 
 ### 🎯 Planned for Next Release Push (v0.2.0 Roadmap)
 
@@ -344,7 +349,7 @@ cd IDE
 npm install
 npm run build
 
-# Run the full test suite (481 tests)
+# Run the full test suite (506 tests)
 npm test
 
 # Launch local development server

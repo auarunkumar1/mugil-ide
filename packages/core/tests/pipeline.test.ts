@@ -7,6 +7,7 @@ import {
   getMaxToolIterations,
 } from '../src/pipeline.js';
 import { SmartCache } from '../src/modules/smart-cache/index.js';
+import { inputSavingsPercent } from '../src/savings.js';
 import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { HandoffManager } from '../src/modules/handoff/index.js';
 import { OpenRouterClient } from '../src/modules/handoff/openRouter.js';
@@ -125,6 +126,45 @@ describe('Pipeline', () => {
     const result = await pipeline.ask(verbose, { noCache: true });
     expect(result.refine.refinedTokens).toBeLessThanOrEqual(result.refine.originalTokens);
     expect(result.refine.appliedStrategies.length).toBeGreaterThan(0);
+    // Real input savings, measured against compressible input only.
+    expect(result.savings.savedTokens).toBeGreaterThan(0);
+    expect(result.savings.keptTokens).toBeGreaterThan(0);
+    expect(inputSavingsPercent(result.savings.savedTokens, result.savings.keptTokens)).toBeGreaterThan(0);
+  });
+  it('does not dilute prompt savings with the whole prompt count', async () => {
+    // A live provider reports tens of thousands of prompt tokens (system prompt,
+    // tool schemas, history). Dividing a handful of saved tokens by that total
+    // rounded the status bar to 0% on every run; savings must ignore it.
+    const client = {
+      mock: false,
+      complete: jest.fn().mockResolvedValue({
+        provider: 'openai',
+        model: 'big-context',
+        content: 'ok',
+        usage: { promptTokens: 24_500, completionTokens: 5, totalTokens: 24_505 },
+        finishReason: 'stop',
+      }),
+    };
+    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const cache = new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() });
+    const pipeline = new Pipeline({ cache, handoff, tokenBudget: 100_000 });
+    const result = await pipeline.ask(
+      'Can you please fix the login bug in order to make the tests pass?',
+      { noCache: true },
+    );
+    expect(result.usage.promptTokens).toBe(24_500);
+    expect(result.savings.savedTokens).toBeGreaterThan(0);
+    expect(inputSavingsPercent(result.savings.savedTokens, result.savings.keptTokens)).toBeGreaterThan(0);
+  });
+  it('counts an exact cache hit as 100% of the compressible input saved', async () => {
+    const pipeline = makePipeline();
+    const prompt = 'Please explain recursion in order to help me learn.';
+    const first = await pipeline.ask(prompt);
+    expect(first.cache.hit).toBe(false);
+    const second = await pipeline.ask(prompt);
+    expect(second.cache.hit).toBe(true);
+    expect(second.savings.keptTokens).toBe(0);
+    expect(second.savings.savedTokens).toBeGreaterThan(0);
   });
 
   it('serves cache entries only for the same explicitly requested model', async () => {

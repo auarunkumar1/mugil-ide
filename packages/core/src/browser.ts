@@ -21,10 +21,12 @@ export { stripSignatures, stripCodeSignatures } from './modules/signature-remove
 export type { ProviderName, StripOptions } from './modules/signature-remover/index.js';
 export { refinePrompt, truncateToBudget } from './refine.js';
 export type { RefineOptions } from './refine.js';
+export { inputSavingsPercent } from './savings.js';
 export { countTokens, getTokenizer } from './token/tokenizer.js';
 export type { Tokenizer } from './token/tokenizer.js';
 export type {
   RefineResult,
+  InputSavings,
   StrategyResult,
   Usage,
   ModelSpec,

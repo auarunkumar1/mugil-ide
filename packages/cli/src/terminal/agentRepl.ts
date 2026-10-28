@@ -21,6 +21,7 @@ import {
   getMaxHistoryTurns,
   getMaxToolIterations,
   getThinkingLevel,
+  inputSavingsPercent,
   buildEnvironmentContext,
   createPermissionCheck,
   defaultPolicyForMode,
@@ -95,7 +96,10 @@ export interface ReplSessionStats {
   totalTokens: number;
   cacheHits: number;
   requests: number;
+  /** Compressible input tokens removed by the token modules. */
   tokensSaved: number;
+  /** Compressible input tokens that were still sent (post-compression). */
+  compressibleTokens: number;
   estimatedCost: number;
   filesModified: Set<string>;
 }
@@ -124,6 +128,8 @@ export class AgentRepl {
   /** Abort handle for the turn currently in flight; null when idle. */
   private turnAbort: AbortController | null = null;
   private isProcessing = false;
+  /** Set after the first autosave failure so the warning prints once per run. */
+  private autoSaveFailed = false;
   private messageHistory: ChatMessage[] = [];
   public turns: SessionTurn[] = [];
   private shimmerInterval: NodeJS.Timeout | null = null;
@@ -164,6 +170,7 @@ export class AgentRepl {
       cacheHits: 0,
       requests: 0,
       tokensSaved: 0,
+      compressibleTokens: 0,
       estimatedCost: 0,
       filesModified: new Set<string>(),
     };
@@ -395,7 +402,7 @@ export class AgentRepl {
             this.io.write(`\r\n  ${green('✓')} Reverted edit to: ${bold(snapshot.path)}\r\n\r\n`);
             this.stats.filesModified.delete(snapshot.path);
             // Keep the auto-saved session in sync with the updated stats.
-            void this.saveCurrentSession();
+            this.autoSaveSession();
           } else {
             this.io.write(`\r\n  ${yellow('ℹ')} Nothing to undo.\r\n\r\n`);
           }
@@ -600,9 +607,7 @@ export class AgentRepl {
 
   private printStats(): void {
     const s = this.stats;
-    const savingsPct = s.promptTokens + s.tokensSaved > 0
-      ? Math.round((s.tokensSaved / (s.promptTokens + s.tokensSaved)) * 100)
-      : 0;
+    const savingsPct = inputSavingsPercent(s.tokensSaved, s.compressibleTokens);
     const cm = this.engine.cache?.getMetrics?.();
 
     const lines = [
@@ -613,7 +618,7 @@ export class AgentRepl {
       `  ${dim('Completion Tokens:')}  ${magenta(s.completionTokens)}`,
       `  ${dim('Total Tokens Used:')}  ${bold(s.totalTokens)}`,
       `  ${dim('Estimated Cost:')}     ${green(`$${s.estimatedCost.toFixed(4)}`)}`,
-      `  ${dim('Tokens Saved:')}       ${green(s.tokensSaved)} ${green(`(${savingsPct}% reduction)`)}`,
+      `  ${dim('Tokens Saved:')}       ${green(s.tokensSaved)} of ${cyan(s.tokensSaved + s.compressibleTokens)} ${green(`(${savingsPct}% reduction)`)}`,
       `  ${dim('Smart Cache Hits:')}   ${yellow(s.cacheHits)}${cm ? dim(` (lookups: ${cm.lookups}, hit rate: ${cm.hitRatePct}%)`) : ''}`,
       `  ${dim('Files Modified:')}     ${cyan(s.filesModified.size)} ${dim(Array.from(s.filesModified).join(', ') || '(none)')}`,
       '',
@@ -774,7 +779,21 @@ export class AgentRepl {
   private async saveCurrentSession(file?: string): Promise<string> {
     const entries = this.sessionEntries();
     if (entries.length === 0) return '';
-    return saveSession(entries, file, this.statsToSession());
+    const saved = saveSession(entries, file, this.statsToSession());
+    // saveSession() degrades to '' on a write failure; surface that to
+    // explicit callers (/session) while automatic saves just warn once.
+    if (!saved) throw new Error(`could not write session file${file ? ` (${file})` : ''}`);
+    return saved;
+  }
+  /** Fire-and-forget autosave: a failed write must never escape the turn. */
+  private autoSaveSession(): void {
+    void this.saveCurrentSession().catch((err: unknown) => {
+      if (this.autoSaveFailed) return;
+      this.autoSaveFailed = true;
+      this.io.write(
+        `\r\n  ${yellow('⚠')} Session autosave failed (${err instanceof Error ? err.message : String(err)}) — the conversation continues.\r\n`,
+      );
+    });
   }
 
   /** Session metrics in the JSON-friendly shape persisted with the session. */
@@ -881,6 +900,10 @@ export class AgentRepl {
     if (!stats) return;
     this.stats = {
       ...stats,
+      compressibleTokens:
+        typeof stats.compressibleTokens === 'number' && Number.isFinite(stats.compressibleTokens)
+          ? stats.compressibleTokens
+          : 0,
       estimatedCost: typeof stats.estimatedCost === 'number' && Number.isFinite(stats.estimatedCost) ? stats.estimatedCost : 0,
       filesModified: new Set(stats.filesModified),
     };
@@ -979,8 +1002,6 @@ export class AgentRepl {
       }
       const historyBudget = getHistoryBudget();
       const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, { compactOlderTurns: true });
-      // History savings for turns that actually fell out of the active window
-      const historyTokensSaved = budgeted.evictedTokens;
       const budgetedHistory: ChatMessage[] = [];
       if (budgeted.compactedSummary) {
         budgetedHistory.push({ role: 'user', content: budgeted.compactedSummary });
@@ -1150,10 +1171,23 @@ export class AgentRepl {
         this.stats.estimatedCost += costIn + costOut;
       }
       if (result.cache.hit) this.stats.cacheHits++;
-      const promptSaved = Math.max(0, result.refine.originalTokens - result.refine.refinedTokens);
-      const cacheSaved = result.cache.hit ? result.usage.totalTokens : 0;
-      const turnTokensSaved = promptSaved + historyTokensSaved + cacheSaved;
+      // Input-side savings: what the modules removed, and what was still sent
+      // after compression. The denominator excludes the fixed cost of system
+      // prompt / tool schemas, which no module compresses — counting those is
+      // what pinned the indicator at 0%.
+      // A cache hit sends nothing, so the history that would have gone with it
+      // counts as saved too (and leaves the denominator).
+      const historySavings = result.cache.hit
+        ? {
+            savedTokens:
+              budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
+            keptTokens: 0,
+          }
+        : budgeted.compressionSavings;
+      const turnTokensSaved = result.savings.savedTokens + historySavings.savedTokens;
+      const turnCompressible = result.savings.keptTokens + historySavings.keptTokens;
       this.stats.tokensSaved += turnTokensSaved;
+      this.stats.compressibleTokens += Math.max(0, turnCompressible);
 
       // Add to multi-turn memory
       this.messageHistory.push({ role: 'user', content: prompt });
@@ -1249,7 +1283,7 @@ export class AgentRepl {
         this.io.onTurnComplete(turnObj);
       }
       // Auto-save the conversation for next-launch resume (fire-and-forget).
-      void this.saveCurrentSession();
+      this.autoSaveSession();
     } catch (err) {
       // A user cancel is not a failure: report it as such and keep the session
       // usable. Anything else is a real error worth surfacing.

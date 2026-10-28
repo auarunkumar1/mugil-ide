@@ -14,20 +14,25 @@ export interface CloudflareClientOptions {
 
 export class CloudflareClient extends OpenAiWireClient {
   constructor(options: CloudflareClientOptions = {}) {
-    const baseUrl = options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
-    const chatEndpoint =
+    // Two distinct APIs:
+    //   gateway → https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions
+    //   direct  → https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions
+    // The gateway lives on its own host, so it cannot be derived from the
+    // direct Workers AI base URL (the old code produced a 404 path).
+    const gatewayBase =
       options.gatewayId && options.accountId
-        ? `/gateway/accounts/${options.accountId}/gateways/${options.gatewayId}/openai/v1/chat/completions`
-        : options.accountId
-          ? `/accounts/${options.accountId}/ai/v1/chat/completions`
-          : '/chat/completions';
-
-    const effectiveBaseUrl =
-      options.gatewayId && options.accountId ? baseUrl.replace('/client/v4', '') : baseUrl;
+        ? `https://gateway.ai.cloudflare.com/v1/${options.accountId}/${options.gatewayId}`
+        : undefined;
+    const baseUrl = gatewayBase ?? options.baseUrl ?? 'https://api.cloudflare.com/client/v4';
+    const chatEndpoint = gatewayBase
+      ? '/openai/chat/completions'
+      : options.accountId
+        ? `/accounts/${options.accountId}/ai/v1/chat/completions`
+        : '/chat/completions';
 
     super({
       providerName: 'cloudflare',
-      baseUrl: effectiveBaseUrl,
+      baseUrl,
       apiKey: options.apiKey,
       missingEnvVar: 'CLOUDFLARE_API_KEY',
       chatEndpoint,

@@ -91,6 +91,16 @@ export interface StrategyResult {
   removed?: string[];
 }
 
+/**
+ * Token savings for input that passed through compression. `savedTokens` were
+ * removed, `keptTokens` are the compressed tokens that were still sent — so
+ * `saved / (saved + kept)` is the real compression ratio for that input.
+ */
+export interface InputSavings {
+  savedTokens: number;
+  keptTokens: number;
+}
+
 export interface RefineResult {
   original: string;
   refined: string;
@@ -148,6 +158,8 @@ export interface AskResult {
   mock: boolean;
   usage: Usage;
   refine: RefineResult;
+  /** Input tokens removed by compression, and the compressed tokens still sent. */
+  savings: InputSavings;
   cache: {
     hit: boolean;
     kind?: CacheHitKind;

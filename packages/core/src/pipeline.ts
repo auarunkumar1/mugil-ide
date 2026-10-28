@@ -1,4 +1,13 @@
-import type { AskResult, CacheLookupResult, ChatMessage, HandoffOptions, PipelineEvent, ToolCall, Usage } from './types.js';
+import type {
+  AskResult,
+  CacheLookupResult,
+  ChatMessage,
+  HandoffOptions,
+  InputSavings,
+  PipelineEvent,
+  ToolCall,
+  Usage,
+} from './types.js';
 import { SmartCache } from './modules/smart-cache/index.js';
 import { stripSignatures } from './modules/signature-remover/index.js';
 import { stripWatermarks } from './modules/watermark-remover/index.js';
@@ -196,6 +205,17 @@ export class Pipeline {
       budgetTokens: effectiveBudget,
     });
     emit({ type: 'refined', refine });
+    // Input-side savings actually realised for this request. Measured against
+    // the compressible input (signature-stripped prompt, compacted history and
+    // compressed tool output) — never against the provider's prompt count,
+    // which includes tens of thousands of uncompressed system/tool tokens and
+    // diluted every real saving to 0%.
+    const signatureSaved = options.noRefine ? 0 : Math.max(0, countTokens(prompt) - refine.originalTokens);
+    const refineSaved = options.noRefine ? 0 : Math.max(0, refine.originalTokens - refine.refinedTokens);
+    const savings: InputSavings = {
+      savedTokens: signatureSaved + refineSaved,
+      keptTokens: options.noRefine ? 0 : refine.refinedTokens,
+    };
 
     // 2. Cache lookup
     emit({ type: 'stage', stage: 'cache' });
@@ -239,6 +259,10 @@ export class Pipeline {
         mock: false,
         usage,
         refine,
+        // A cache hit sends no prompt at all: the entire compressible input
+        // was saved. Measured against the refined prompt (the part the modules
+        // own), never the provider's whole-prompt count.
+        savings: { savedTokens: refine.refinedTokens, keptTokens: 0 },
         cache: { hit: true, kind: cacheLookup.kind },
         toolCalls: 0,
         truncated: false,
@@ -380,6 +404,13 @@ export class Pipeline {
       model: completion.model,
       mock: completion.mock,
     });
+    if (hasTools) {
+      const toolSavings = (completion as ToolLoopResult).savings;
+      if (toolSavings) {
+        savings.savedTokens += toolSavings.savedTokens;
+        savings.keptTokens += toolSavings.keptTokens;
+      }
+    }
 
     // 4. Strip AI provenance watermarks from the generated content, store in
     //    cache (original prompt so future variants can hit), and return.
@@ -443,6 +474,7 @@ export class Pipeline {
       mock: completion.mock ?? false,
       usage: completion.usage,
       refine,
+      savings,
       cache: { hit: Boolean(cacheLookup.entry), kind: cacheLookup.kind },
       thinking: completion.thinking,
       toolCalls: hasTools ? (completion as ToolLoopResult).toolCalls : 0,

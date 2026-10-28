@@ -23,6 +23,14 @@ export interface SmartCacheOptions {
   partialMinRatio?: number;
   /** Absolute floor on the shared prefix, in characters. */
   partialMinChars?: number;
+  /**
+   * Upper bound on trie entries. The backend LRU (2 000 by default) evicts
+   * prompts, but the parallel trie used to keep every prompt ever stored —
+   * a heap leak in a process meant to stay up for days. When the cap is
+   * reached the trie is flushed (it is a fast path only; lookups fall back
+   * to scanning backend keys).
+   */
+  maxTrieEntries?: number;
 }
 
 /**
@@ -99,6 +107,9 @@ export class SmartCache {
   private readonly partialMinRatio: number;
   private readonly partialMinChars: number;
   private readonly prefixTrie = new PrefixTrie<string>();
+  private readonly maxTrieEntries: number;
+  /** Prompts currently represented in the trie (insertion order). */
+  private readonly triePrompts = new Set<string>();
   private lookups = 0;
   private exactHits = 0;
   private partialHits = 0;
@@ -114,6 +125,12 @@ export class SmartCache {
     this.namespace = options.namespace;
     this.partialMinRatio = resolveRatio(options.partialMinRatio);
     this.partialMinChars = options.partialMinChars ?? 40;
+    this.maxTrieEntries = Math.max(1, options.maxTrieEntries ?? 2000);
+  }
+
+  /** Number of prompts currently in the prefix trie (diagnostics/tests). */
+  get trieSize(): number {
+    return this.triePrompts.size;
   }
 
   getMetrics(): CacheMetrics {
@@ -207,16 +224,34 @@ export class SmartCache {
       partial,
     };
     await this.backend.set(entry);
-    this.prefixTrie.insert(normalized, entry.key);
+    this.insertTrie(normalized, entry.key);
+  }
+
+  /**
+   * Inserts into the prefix trie, keeping it bounded. The backend evicts
+   * oldest-first, but it does not report evictions; flushing the whole trie
+   * at the cap keeps the fast path useful on average and the heap bounded,
+   * while `partialLookup`'s backend scan preserves correctness when the trie
+   * is empty.
+   */
+  private insertTrie(prompt: string, key: string): void {
+    if (!this.triePrompts.has(prompt) && this.triePrompts.size >= this.maxTrieEntries) {
+      this.prefixTrie.clear();
+      this.triePrompts.clear();
+    }
+    this.prefixTrie.insert(prompt, key);
+    this.triePrompts.add(prompt);
   }
 
   async clear(): Promise<void> {
     this.prefixTrie.clear();
+    this.triePrompts.clear();
     await this.backend.clear();
   }
 
   async close(): Promise<void> {
     this.prefixTrie.clear();
+    this.triePrompts.clear();
     await this.backend.close();
   }
 

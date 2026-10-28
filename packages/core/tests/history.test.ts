@@ -76,6 +76,19 @@ describe('budgetConversationHistory', () => {
     expect(result.compactedSummary).toContain('Autonomous context compaction');
     expect(result.compactedSummary).toContain('create server.js');
   });
+  it('reports compaction as input savings when older turns shrink', () => {
+    const verbose = 'In order to add the feature, please could you kindly update the parser?';
+    const turns = [turn(verbose, verbose), turn(verbose, verbose), turn('newest turn', 'ok')];
+    const result = budgetConversationHistory(turns, 10_000, { compactOlderTurns: true });
+    expect(result.compressionSavings.savedTokens).toBeGreaterThan(0);
+    expect(result.compressionSavings.keptTokens).toBeGreaterThan(0);
+  });
+  it('reports no saved tokens when nothing was evicted or compacted', () => {
+    const result = budgetConversationHistory([turn('a turn', 'a response')], 10_000);
+    expect(result.compressionSavings.savedTokens).toBe(0);
+    // Everything stayed in context, so the whole history is the denominator.
+    expect(result.compressionSavings.keptTokens).toBe(result.tokens);
+  });
 });
 
 describe('renderConversationForSummary', () => {

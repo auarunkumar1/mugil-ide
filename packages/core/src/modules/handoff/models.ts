@@ -1,5 +1,5 @@
 import type { ModelSpec } from '../../types.js';
-import { OPENCODE_USER_AGENT } from './openCode.js';
+import { OPENCODE_USER_AGENT, opencodeBaseUrls } from './openCode.js';
 import {
   modelSupportsThinking,
   modelSupportsTools,
@@ -10,6 +10,8 @@ export interface FetchModelsOptions {
   provider: CompletionProvider;
   apiKey?: string;
   baseUrl?: string;
+  /** Cloudflare account id (its model catalog lives under /accounts/{id}). */
+  accountId?: string;
   timeoutMs?: number;
   /** Cache duration in milliseconds (defaults to MUGIL_IDE_MODELS_CACHE_TTL or 60,000ms). */
   cacheTtlMs?: number;
@@ -31,7 +33,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
   const { provider, apiKey, baseUrl, timeoutMs = 4000 } = options;
   const envTtl = typeof process !== 'undefined' && process.env?.MUGIL_IDE_MODELS_CACHE_TTL ? Number(process.env.MUGIL_IDE_MODELS_CACHE_TTL) : undefined;
   const effectiveTtl = options.cacheTtlMs ?? (envTtl !== undefined && !isNaN(envTtl) ? envTtl : DEFAULT_MODELS_CACHE_TTL_MS);
-  const cacheKey = `${provider}:${baseUrl || 'default'}:${apiKey ? 'auth' : 'noauth'}`;
+  const cacheKey = `${provider}:${baseUrl || 'default'}:${options.accountId || ''}:${apiKey ? 'auth' : 'noauth'}`;
   const cached = modelsCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < effectiveTtl) {
     return cached.models;
@@ -78,7 +80,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
     }
 
     if (provider === 'opencode') {
-      const url = `${baseUrl || 'https://opencode.ai/zen/v1'}/models`;
+      const url = opencodeBaseUrls(baseUrl).models;
       const res = await fetch(url, {
         headers: {
           // Zen rejects non-fingerprinted clients on free models.
@@ -291,7 +293,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
     // Cloudflare Workers AI — OpenAI-compatible /ai/v1/models
     if (provider === 'cloudflare') {
       const ep = baseUrl || 'https://api.cloudflare.com/client/v4';
-      const accountId = options.baseUrl?.match(/accounts\/([^/]+)/)?.[1];
+      const accountId = options.accountId ?? options.baseUrl?.match(/accounts\/([^/]+)/)?.[1];
       if (apiKey && accountId) {
         try {
           const res = await fetch(`${ep}/accounts/${accountId}/ai/models/search`, {

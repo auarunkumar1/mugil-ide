@@ -56,6 +56,12 @@ export interface SessionStats {
   cacheHits: number;
   requests: number;
   tokensSaved: number;
+  /**
+   * Compressible input tokens that were actually sent (post-compression).
+   * `tokensSaved / (tokensSaved + compressibleTokens)` is the savings rate;
+   * older files lack it and load as 0.
+   */
+  compressibleTokens?: number;
   estimatedCost?: number;
   filesModified: string[];
 }
@@ -173,17 +179,26 @@ export function clearNamedSession(name: string, env: NodeJS.ProcessEnv = process
   }
 }
 
-/** Writes the conversation (newest last) + session metrics to the file. */
+/**
+ * Writes the conversation (newest last) + session metrics to the file.
+ * Returns the written path, or '' when the write failed (EACCES, EROFS,
+ * ENOSPC…). Persistence is best-effort: a full or read-only cache dir must
+ * never take down the session it was trying to save.
+ */
 export function saveSession(entries: SessionEntry[], file = sessionFilePath(), stats?: SessionStats): string {
-  const session: SessionFile = {
-    version: 2,
-    savedAt: Date.now(),
-    entries: entries.slice(-MAX_ENTRIES),
-    ...(stats ? { stats } : {}),
-  };
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(session, null, 2), 'utf-8');
-  return file;
+  try {
+    const session: SessionFile = {
+      version: 2,
+      savedAt: Date.now(),
+      entries: entries.slice(-MAX_ENTRIES),
+      ...(stats ? { stats } : {}),
+    };
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(session, null, 2), 'utf-8');
+    return file;
+  } catch {
+    return '';
+  }
 }
 
 /** Coerces a persisted stats blob into a valid `SessionStats` (zeros/[] on garbage). */
@@ -198,6 +213,7 @@ function sanitizeStats(stats: unknown): SessionStats | null {
     cacheHits: num(s.cacheHits),
     requests: num(s.requests),
     tokensSaved: num(s.tokensSaved),
+    compressibleTokens: num(s.compressibleTokens),
     estimatedCost: typeof s.estimatedCost === 'number' && Number.isFinite(s.estimatedCost) ? s.estimatedCost : 0,
     filesModified: Array.isArray(s.filesModified) ? s.filesModified.filter((f): f is string => typeof f === 'string') : [],
   };

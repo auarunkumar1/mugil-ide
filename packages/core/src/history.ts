@@ -12,6 +12,7 @@
 import { countTokens } from './token/tokenizer.js';
 import { cavemanStrategy } from './modules/caveman/index.js';
 import { rtkStrategy } from './modules/rtk/index.js';
+import type { InputSavings } from './types.js';
 
 export interface ConversationTurn {
   prompt: string;
@@ -36,6 +37,12 @@ export interface HistoryBudgetResult {
   evictedTokens: number;
   /** Dense background summary of evicted turns if any dropped. */
   compactedSummary?: string;
+  /**
+   * Input savings realised by history management: tokens dropped by eviction
+   * and by compaction, plus the tokens still sent (kept turns + the compaction
+   * summary). `saved / (saved + kept)` is the history compression ratio.
+   */
+  compressionSavings: InputSavings;
 }
 
 export const DEFAULT_HISTORY_BUDGET = 16_000;
@@ -85,6 +92,7 @@ export function budgetConversationHistory(
 ): HistoryBudgetResult {
   const kept: ConversationTurn[] = [];
   const evicted: ConversationTurn[] = [];
+  const compressionSavings: InputSavings = { savedTokens: 0, keptTokens: 0 };
   let tokens = 0;
   let dropped = 0;
   let evictedTokens = 0;
@@ -97,6 +105,9 @@ export function budgetConversationHistory(
         prompt: cavemanStrategy(turn.prompt).text,
         response: rtkStrategy(turn.response).text,
       };
+      const before = countTokens(rawTurn.prompt) + countTokens(rawTurn.response);
+      const after = countTokens(turn.prompt) + countTokens(turn.response);
+      compressionSavings.savedTokens += Math.max(0, before - after);
     }
     const cost = countTokens(turn.prompt) + countTokens(turn.response);
     if (tokens + cost > budgetTokens && kept.length > 0) {
@@ -109,7 +120,20 @@ export function budgetConversationHistory(
     tokens += cost;
   }
   const compactedSummary = evicted.length > 0 ? buildAutonomousCompaction(evicted) : undefined;
-  return { turns: kept, droppedCount: dropped, evictedTurns: evicted, tokens, evictedTokens, compactedSummary };
+  // History input = what was dropped/compacted + what is still sent. Counting
+  // eviction here lets the status line report a real ratio instead of adding
+  // saved tokens to a denominator that never saw them.
+  compressionSavings.savedTokens += evictedTokens;
+  compressionSavings.keptTokens += tokens + (compactedSummary ? countTokens(compactedSummary) : 0);
+  return {
+    turns: kept,
+    droppedCount: dropped,
+    evictedTurns: evicted,
+    tokens,
+    evictedTokens,
+    compactedSummary,
+    compressionSavings,
+  };
 }
 
 /** Renders turns as plain text for the summarizer (capped in length). */

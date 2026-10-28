@@ -1,5 +1,5 @@
 import { diffWords } from 'diff';
-import type { Engine, AskOptions, ThinkingLevel } from '@mugil-ide/core';
+import { inputSavingsPercent, type Engine, type AskOptions, type ThinkingLevel } from '@mugil-ide/core';
 
 export interface RunOptions {
   model?: string;
@@ -59,6 +59,16 @@ export async function runOnce(
     line(
       'tokens',
       `${result.refine.originalTokens} -> ${result.refine.refinedTokens} (-${result.refine.savingsPct}%)`,
+    ),
+  );
+  // Input savings across every module (signature strip, refine, tool-output
+  // compression, history management) as a share of compressible input.
+  const savedInput = result.savings.savedTokens;
+  const keptInput = result.savings.keptTokens;
+  console.log(
+    line(
+      'input savings',
+      `${savedInput} of ${savedInput + keptInput} compressible tok (${inputSavingsPercent(savedInput, keptInput)}%)`,
     ),
   );
   console.log(

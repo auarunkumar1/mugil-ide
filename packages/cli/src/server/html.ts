@@ -142,6 +142,22 @@ export function getWebUiHtml(): string {
       color: var(--accent);
       border-color: var(--border);
     }
+    .update-badge {
+      display: none;
+      align-items: center;
+      color: #d29922;
+      background: #d299221a;
+      border: 1px solid #d2992266;
+      font-size: calc(10px * var(--font-scale));
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 10px;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .update-badge:hover {
+      background: #d2992233;
+    }
     .controls {
       display: flex;
       align-items: center;
@@ -343,6 +359,20 @@ export function getWebUiHtml(): string {
       white-space: nowrap;
     }
     .btn-stop:hover { background: #f8514933; border-color: #f85149; }
+    .btn-kill {
+      background: #3d1418;
+      border-color: #f8514988;
+      color: #ff7b72;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .btn-kill:hover { background: #f8514933; border-color: #f85149; }
+    .btn-kill:disabled { opacity: 0.6; cursor: not-allowed; }
+    .kill-warning {
+      color: var(--yellow);
+      font-size: calc(12px * var(--font-scale));
+      line-height: 1.5;
+    }
 
     /* Right Pane Views */
     .right-view {
@@ -523,6 +553,9 @@ export function getWebUiHtml(): string {
     #question-modal, #approval-modal {
       z-index: 3000;
     }
+    #kill-server-modal {
+      z-index: 3500;
+    }
     .modal-overlay.open { display: flex; }
     .modal-dialog {
       background: var(--panel-bg);
@@ -661,6 +694,7 @@ export function getWebUiHtml(): string {
         <span>☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
         <span class="logo-badge">TOKEN EFFICIENT</span>
         <a class="version-badge" id="app-version" href="https://github.com/auarunkumar1/mugil-ide/releases/tag/v${VERSION}" target="_blank" rel="noopener noreferrer" title="Mugil IDE version ${VERSION} — view release notes">v${VERSION}</a>
+        <a class="update-badge" id="version-update" href="#" target="_blank" rel="noopener noreferrer" title="" aria-label="Update available">⬆ update</a>
         <span id="logo-model-sub" style="font-size:11px; color:var(--text-dim); font-weight:normal; margin-left:6px; white-space:nowrap;">Active: <b id="sub-active-model" style="color:var(--accent);">Detecting...</b></span>
       </div>
 
@@ -679,6 +713,11 @@ export function getWebUiHtml(): string {
       <!-- Main Action: Session Setup -->
       <button class="btn btn-primary" onclick="openSessionSetupModal()" title="Configure session budgets, limits & turbo mode">
         <span>🚀 Session Setup</span>
+      </button>
+
+      <!-- Stop the backend process entirely (closes the terminal session too) -->
+      <button class="btn btn-kill" id="kill-server-btn" onclick="openKillServerModal()" title="Stop the Mugil IDE server process">
+        <span aria-hidden="true">⚠</span> Kill Server
       </button>
 
       <!-- Collapsible Menu for remaining controls -->
@@ -941,6 +980,40 @@ export function getWebUiHtml(): string {
           <button class="btn" onclick="closeWelcomeModal()" style="font-size:11px; color:var(--text-dim);">Skip for now (Mock mode)</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Kill Server Confirmation Modal -->
+  <div class="modal-overlay" id="kill-server-modal" role="dialog" aria-modal="true" aria-labelledby="kill-server-title">
+    <div class="modal-dialog" style="max-width:480px;">
+      <div class="modal-title-bar">
+        <span id="kill-server-title">⚠ Kill Server</span>
+        <button class="btn" onclick="closeKillServerModal()" title="Cancel" aria-label="Cancel">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; gap:14px;">
+        <div style="font-size:28px; text-align:center; color:var(--yellow);" aria-hidden="true">⚠</div>
+        <div class="kill-warning" style="text-align:center;">
+          This <b>stops the Mugil IDE server process</b>.
+        </div>
+        <ul style="color:var(--text-dim); font-size:12px; line-height:1.6; margin:0; padding-left:18px;">
+          <li>The browser UI and WebSocket connection will disconnect.</li>
+          <li>The shell terminal and any running agent turn are terminated.</li>
+          <li>Unsaved session state is written before shutdown where possible.</li>
+        </ul>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:4px;">
+          <button class="btn" id="kill-server-cancel" onclick="closeKillServerModal()">Cancel</button>
+          <button class="btn btn-kill" id="kill-server-confirm" onclick="confirmKillServer()">⚠ Kill Server</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shown once the shutdown response comes back -->
+  <div id="server-stopped-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:4000; align-items:center; justify-content:center; flex-direction:column; gap:12px; text-align:center; padding:24px;">
+    <div style="font-size:36px;" aria-hidden="true">⏻</div>
+    <div style="font-size:16px; font-weight:600; color:var(--text);">Server stopped</div>
+    <div style="font-size:12.5px; color:var(--text-dim); max-width:420px; line-height:1.6;">
+      The Mugil IDE backend has exited. You can close this tab. Start it again with <code style="color:var(--accent);">mugil-ide</code>.
     </div>
   </div>
 
@@ -1557,6 +1630,62 @@ export function getWebUiHtml(): string {
       }
       setAgentBusy(false);
     }
+
+    // --- Kill Server (stops the backend process, not just the turn) ---
+    let serverShutdown = false;
+    function openKillServerModal() {
+      document.getElementById('kill-server-modal').classList.add('open');
+      // Default focus to Cancel: the destructive action must be deliberate.
+      document.getElementById('kill-server-cancel')?.focus();
+    }
+    function closeKillServerModal() {
+      document.getElementById('kill-server-modal').classList.remove('open');
+    }
+    async function confirmKillServer() {
+      const btn = document.getElementById('kill-server-confirm');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Stopping…';
+      }
+      // Stop reconnecting before the socket drops so the UI never flashes
+      // "Disconnected (Reconnecting...)" after an intentional shutdown.
+      serverShutdown = true;
+      /** True when the socket has dropped, i.e. the backend really is gone. */
+      const socketDropped = () =>
+        new Promise((resolve) => {
+          if (!ws || ws.readyState === WebSocket.CLOSED) return resolve(true);
+          const timer = setTimeout(() => resolve(ws.readyState === WebSocket.CLOSED), 2000);
+          ws.addEventListener(
+            'close',
+            () => {
+              clearTimeout(timer);
+              resolve(true);
+            },
+            { once: true },
+          );
+        });
+      try {
+        const res = await fetch('/api/shutdown', { method: 'POST' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+      } catch (err) {
+        // A lost reply usually means the process exited before it could answer;
+        // that is success, not failure. Only report an error if we are still
+        // connected afterwards.
+        if (!(await socketDropped())) {
+          serverShutdown = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '⚠ Kill Server';
+          }
+          alert('Could not stop the server: ' + err.message);
+          return;
+        }
+      }
+      closeKillServerModal();
+      const stopped = document.getElementById('server-stopped-overlay');
+      if (stopped) stopped.style.display = 'flex';
+      if (ws) ws.close();
+    }
     function submitQuickInput() {
       const input = document.getElementById('chat-input');
       const val = input.value.trim();
@@ -1587,6 +1716,10 @@ export function getWebUiHtml(): string {
       ws.onclose = () => {
         setAgentBusy(false);
         document.getElementById('status-dot').style.background = '#ff7b72';
+        if (serverShutdown) {
+          document.getElementById('connection-status').textContent = 'Server stopped';
+          return;
+        }
         document.getElementById('connection-status').textContent = 'Disconnected (Reconnecting...)';
         setTimeout(connectWs, 2000);
       };
@@ -1641,10 +1774,18 @@ export function getWebUiHtml(): string {
               const statusSpent = document.getElementById('status-spent');
               if (statusSpent) statusSpent.textContent = costText;
 
-              const pct = msg.stats.promptTokens + msg.stats.tokensSaved > 0
-                ? Math.round((msg.stats.tokensSaved / (msg.stats.promptTokens + msg.stats.tokensSaved)) * 100)
-                : 0;
-              document.getElementById('token-savings').textContent = 'Savings: ' + pct + '% (' + msg.stats.tokensSaved + ' tok)';
+              // Percent is precomputed by the server (same helper as the
+              // terminal's /stats). Fall back to the compressible-input ratio
+              // for older frames that predate the field.
+              const saved = Number(msg.stats.tokensSaved) || 0;
+              const kept = Number(msg.stats.compressibleTokens) || 0;
+              const pct = typeof msg.stats.savingsPct === 'number'
+                ? msg.stats.savingsPct
+                : (saved + kept > 0 ? Math.round((saved / (saved + kept)) * 100) : 0);
+              const savingsPill = document.getElementById('token-savings');
+              savingsPill.textContent = 'Savings: ' + pct + '% (' + saved + ' tok)';
+              savingsPill.title = saved + ' input tokens removed by Caveman / RTK / history compaction / cache' +
+                (saved + kept > 0 ? ' out of ' + (saved + kept) + ' compressible tokens' : '');
               if (msg.stats.filesModified) {
                 modifiedFiles = msg.stats.filesModified;
                 document.getElementById('diff-count').textContent = modifiedFiles.length;
@@ -1750,9 +1891,11 @@ export function getWebUiHtml(): string {
       if (e.key === 'Escape') {
         const qm = document.getElementById('question-modal');
         const am = document.getElementById('approval-modal');
-        const modalOpen = (qm && qm.classList.contains('open')) || (am && am.classList.contains('open'));
+        const km = document.getElementById('kill-server-modal');
+        const modalOpen = (qm && qm.classList.contains('open')) || (am && am.classList.contains('open')) || (km && km.classList.contains('open'));
         if (qm && qm.classList.contains('open')) dismissQuestion();
         if (am && am.classList.contains('open')) denyApproval();
+        if (km && km.classList.contains('open')) closeKillServerModal();
         // Esc also stops the running turn — but never while a prompt/approval
         // modal owns the key, since there Esc means "dismiss".
         if (!modalOpen && agentBusy) stopAgentTurn();
@@ -3112,8 +3255,28 @@ export function getWebUiHtml(): string {
       return false;
     }
 
+    /** Header badge: shows when npm has a newer mugil-ide than this build. */
+    async function checkForAppUpdate() {
+      try {
+        const res = await fetch('/api/update-check');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data || !data.updateAvailable) return;
+        const badge = document.getElementById('version-update');
+        if (!badge) return;
+        badge.textContent = '⬆ v' + data.latest;
+        badge.title = 'Update available: v' + data.current + ' → v' + data.latest + ' — run: npm install -g mugil-ide@latest';
+        badge.setAttribute('aria-label', badge.title);
+        if (data.releaseUrl) badge.href = data.releaseUrl;
+        badge.style.display = 'inline-flex';
+      } catch {
+        // Offline or registry unreachable — no badge.
+      }
+    }
+
     window.onload = async () => {
       initTerminals();
+      void checkForAppUpdate();
       connectWs();
       await loadModels();
       await loadConfigLimits();

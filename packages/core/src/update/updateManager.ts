@@ -174,10 +174,20 @@ export class UpdateManager {
     return { stop };
   }
 
+  /** npm check for the header badge: the newer version plus a real compare. */
+  async checkPackage(): Promise<(NpmUpdateInfo & { updateAvailable: boolean }) | null> {
+    const info = await this.checkNpmVersion();
+    if (!info) return null;
+    return { ...info, updateAvailable: compareVersions(info.latest, info.current) > 0 };
+  }
+
   /** Compares the installed package version against the npm registry. */
   private async checkNpmVersion(): Promise<NpmUpdateInfo | null> {
     try {
-      const res = await this.fetchFn('https://registry.npmjs.org/mugil-ide/latest');
+      // The UI calls this on load; never let a slow registry stall it.
+      const res = await this.fetchFn('https://registry.npmjs.org/mugil-ide/latest', {
+        signal: AbortSignal.timeout(4000),
+      });
       const data = (await res.json()) as { version?: string };
       if (!data.version) return null;
       const current = LOCAL_REGISTRY.package.version;

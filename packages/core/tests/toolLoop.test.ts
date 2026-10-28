@@ -386,6 +386,28 @@ describe('ToolLoop', () => {
     expect(out.toolCalls).toBe(3);
   });
 
+  it('reports tool-output compression as input savings', async () => {
+    const noisy = Array.from({ length: 200 }, (_, i) => `same log line ${i % 3}`).join('\n') + '\n' + 'x'.repeat(5000);
+    const noisyRegistry = {
+      add: async (): Promise<string> => noisy,
+    };
+    const client = scriptedClient([
+      result({
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+      }),
+      result({ content: 'done', finishReason: 'stop' }),
+    ]);
+    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
+    const out = await loop.run([...system, { role: 'user', content: 'go' }], {
+      tools: [ADD],
+      registry: noisyRegistry,
+    });
+    // The 400-char+ tool result is compressed before it is fed back.
+    expect(out.savings!.savedTokens).toBeGreaterThan(0);
+    expect(out.savings!.keptTokens).toBeGreaterThan(0);
+  });
   it('sums usage across iterations', async () => {
     const client = scriptedClient([
       result({

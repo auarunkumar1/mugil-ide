@@ -15,11 +15,19 @@
  *
  * See ATTRIBUTIONS.md at the repository root for the full credit list.
  */
-import type { ChatMessage, HandoffOptions, ToolCall, ToolDefinition, Usage } from '../../types.js';
+import type {
+  ChatMessage,
+  HandoffOptions,
+  InputSavings,
+  ToolCall,
+  ToolDefinition,
+  Usage,
+} from '../../types.js';
 import type { HandoffManager, HandoffResult } from '../handoff/index.js';
 import { streamCompletion, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
 import { globalBlobStore } from '../tools/blobStore.js';
+import { countTokens } from '../../token/tokenizer.js';
 
 export type ToolExecutor = (call: ToolCall) => Promise<string>;
 export type ToolRegistry = Record<string, ToolExecutor>;
@@ -84,6 +92,8 @@ export interface ToolLoopResult {
   attempts: string[];
   /** Number of tool calls executed across the loop. */
   toolCalls: number;
+  /** Input tokens removed by tool-output compression, and the tokens still sent. */
+  savings?: InputSavings;
 }
 
 export class ToolError extends Error {
@@ -145,6 +155,7 @@ export class ToolLoop {
     const msgs = [...messages];
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
     let toolCalls = 0;
+    const savings: InputSavings = { savedTokens: 0, keptTokens: 0 };
     // A model that keeps re-issuing a call the gate refused spends a full
     // round-trip (and the whole resend context) per attempt. Count denials by
     // call signature and, past the limit, tell it plainly that retrying is
@@ -163,7 +174,7 @@ export class ToolLoop {
       );
       usage = this.sum(usage, completion.usage);
       if (!completion.toolCalls || completion.toolCalls.length === 0) {
-        return this.finish(completion, msgs, options, usage, toolCalls);
+        return this.finish(completion, msgs, options, usage, toolCalls, savings);
       }
 
       // Check if we hit the iteration ceiling on this step and can ask user to extend
@@ -195,6 +206,8 @@ export class ToolLoop {
         toolCalls += 1;
         this.onTool?.(call, toolCalls);
         const outcome = await this.execute(call, options.registry, options.permission);
+        savings.savedTokens += outcome.savedTokens;
+        savings.keptTokens += outcome.keptTokens;
         this.onToolResult?.(call, outcome, toolCalls);
         const signature = `${call.name}:${call.arguments}`;
         const times = (denials.get(signature) ?? 0) + (outcome.ok ? 0 : 1);
@@ -228,7 +241,7 @@ export class ToolLoop {
       this.handlers,
     );
     usage = this.sum(usage, final.usage);
-    return this.finish(final, forcedMessages, options, usage, toolCalls);
+    return this.finish(final, forcedMessages, options, usage, toolCalls, savings);
   }
 
   /** Re-sizes the output budget against the context accumulated so far. */
@@ -251,9 +264,10 @@ export class ToolLoop {
     options: ToolLoopRunOptions,
     usage: Usage,
     toolCalls: number,
+    savings: InputSavings,
   ): Promise<ToolLoopResult> {
     if (completion.content.trim().length > 0) {
-      return { ...completion, usage, toolCalls };
+      return { ...completion, usage, toolCalls, savings };
     }
     const retryPrompt =
       'Your previous response was empty. Provide your final answer now without calling any tools.';
@@ -277,10 +291,10 @@ export class ToolLoop {
     );
     usage = this.sum(usage, retry.usage);
     if (retry.content.trim().length > 0) {
-      return { ...retry, usage, toolCalls };
+      return { ...retry, usage, toolCalls, savings };
     }
     if (retry.thinking && retry.thinking.trim().length > 0) {
-      return { ...retry, content: retry.thinking, usage, toolCalls };
+      return { ...retry, content: retry.thinking, usage, toolCalls, savings };
     }
     // Rather than throwing a fatal ToolError that crashes the conversation turn,
     // return a clean status message with the actions performed so the turn stays valid.
@@ -289,6 +303,7 @@ export class ToolLoop {
       content: `The model completed ${toolCalls} tool operation(s) but produced no further text.`,
       usage,
       toolCalls,
+      savings,
     };
   }
 
@@ -296,10 +311,11 @@ export class ToolLoop {
     call: ToolCall,
     registry: ToolRegistry,
     permission?: (call: ToolCall) => boolean | Promise<boolean>,
-  ): Promise<{ content: string; ok: boolean }> {
+  ): Promise<{ content: string; ok: boolean; savedTokens: number; keptTokens: number }> {
+    const none = { savedTokens: 0, keptTokens: 0 };
     const executor = registry[call.name];
     if (!executor) {
-      return { content: `Error: unknown tool "${call.name}"`, ok: false };
+      return { content: `Error: unknown tool "${call.name}"`, ok: false, ...none };
     }
     if (permission) {
       let allowed = true;
@@ -314,14 +330,18 @@ export class ToolLoop {
             'Permission denied: the user did not approve the "' +
             `${call.name}" tool call. Explain what you wanted to do and ask for approval, or find another approach that does not need this tool.`,
           ok: false,
+          ...none,
         };
       }
     }
     try {
       const raw = await executor(call);
       let content = typeof raw === 'string' ? raw : String(raw ?? '');
+      let savedTokens = 0;
       if (content.length > 400) {
+        const before = countTokens(content);
         content = compressCommandOutput(content, { maxLineLength: 400 }).text;
+        savedTokens = Math.max(0, before - countTokens(content));
       }
       const envMaxChars =
         process.env.MUGIL_IDE_MAX_TOOL_OUTPUT_CHARS ?? process.env.MUGIL_IDE_MAX_TOOL_CHARS;
@@ -334,9 +354,13 @@ export class ToolLoop {
           content.slice(0, MAX_TOOL_OUTPUT_CHARS) +
           `\n\n… [output truncated: ${content.length - MAX_TOOL_OUTPUT_CHARS} characters omitted to conserve context | Cached as ${blobId} (use read_blob tool to retrieve specific chunks)]`;
       }
-      return { content, ok: true };
+      return { content, ok: true, savedTokens, keptTokens: countTokens(content) };
     } catch (err) {
-      return { content: `Error: ${err instanceof Error ? err.message : String(err)}`, ok: false };
+      return {
+        content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+        ok: false,
+        ...none,
+      };
     }
   }
 

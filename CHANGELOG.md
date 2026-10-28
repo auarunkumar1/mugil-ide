@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.24] - 2026-10-28
+
+### Added
+- **Kill Server Button**: A red `⚠ Kill Server` header control opens a confirmation modal (warning icon plus a list of what will be terminated), then stops the backend through the session-token- and Origin-gated `POST /api/shutdown`. The UI shows a final "Server stopped" screen instead of reconnecting forever; `SIGINT`/`SIGTERM` share the same idempotent shutdown path.
+- **Update-Available Indicator**: A `⬆ vX.Y.Z` pill appears beside the header version when a newer release exists, backed by `GET /api/update-check` (npm `latest` vs the running `VERSION`, six-hour cache, four-second timeout, never throws). The pill links to the matching GitHub release tag.
+- **Cloudflare AI Gateway Support**: `CLOUDFLARE_GATEWAY_ID` routes Workers AI through the documented gateway host and paths.
+- **OpenCode `/inference` Base**: The documented modern base (`https://opencode.ai/inference` → `/openai/v1`, `/anthropic`, `/v1/models`) is supported alongside the legacy `zen/v1` base.
+- **WebSocket Flow Control**: PTY pause/resume above an 8 MB socket watermark with one-time `[output throttled]` / `[output resumed]` notices, configurable via `MUGIL_IDE_WS_HIGH_WATERMARK` and `MUGIL_IDE_WS_LOW_WATERMARK`.
+
+### Fixed
+- **Savings Indicator Always Read 0%**: The status-bar pill divided the tokens removed by the modules by the provider's *whole* prompt count — system prompt, tool schemas and history, tens of thousands of tokens no module touches — so refinement alone rounded to zero. Savings are now `savedTokens / (savedTokens + compressibleTokens)` (Caveman/RTK refinement, signature stripping, history eviction, tool-output compression, cache hits), so an ordinary Caveman run reports a real percentage.
+- **Crash Audit 2026-10-26** (all nine findings from `crash-audit-26-10-26.md`): global `unhandledRejection`/`uncaughtException` handlers keep the server serving; a malformed `Host` header answers 400 instead of killing the process; malformed WebSocket frames terminate only their own socket; session autosave can no longer reject out of a turn; a failed fallback-PTY spawn surfaces `[Shell failed to start: …]`; `/api/graph` is linear-time (20 000 symbols: 5 099 ms → 83 ms) with a per-file size cap and a revision-keyed cache; WebSocket output is flow-controlled; `run_command` timeouts kill the whole process group; and the `SmartCache` prefix trie is bounded.
+- **Cloudflare Gateway URL**: Requests went to `api.cloudflare.com/gateway/accounts/…` (404); they now use `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions`.
+- **Cloudflare Model Catalog**: Discovery parsed the account id out of a base URL that never contains `/accounts/`, so the catalog was never listed; the id is now passed from config.
+- **`run_command` Backgrounded Processes**: `exec` silently ignores `detached`, so timeouts left `nohup … &` grandchildren alive; it now spawns its own process group and kills the group.
+
 ## [0.1.23] - 2026-10-26
 
 ### Added
@@ -376,3 +392,4 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.22]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.22
 
 [0.1.23]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.23
+[0.1.24]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.24

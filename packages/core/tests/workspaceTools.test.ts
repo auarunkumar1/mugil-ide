@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { createWorkspaceTools, WORKSPACE_TOOL_DEFINITIONS, extractCodeSkeleton } from '../src/modules/tools/workspaceTools.js';
 import type { ToolCall } from '../src/types.js';
@@ -384,4 +385,29 @@ export class AccountService {
       fs.rmSync(tmpBase, { recursive: true, force: true });
     }
   });
+});
+
+describe('run_command process-group cleanup', () => {
+  it('kills backgrounded grandchildren when the command times out', async () => {
+    if (process.platform === 'win32') return;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-pgroup-'));
+    const tools = createWorkspaceTools(dir).toolRegistry;
+    const marker = path.join(dir, 'survivor.txt');
+    const started = Date.now();
+    const out = await tools.run_command({
+      id: '1',
+      name: 'run_command',
+      // The shell outlives the timeout; its background grandchild writes the
+      // marker 2s from now. Neither may survive the group kill.
+      arguments: JSON.stringify({
+        command: `(sleep 2; touch '${marker}') >/dev/null 2>&1 & sleep 30`,
+        timeout: 500,
+      }),
+    } as unknown as ToolCall);
+    expect(String(out)).toContain('timed out');
+    expect(Date.now() - started).toBeLessThan(5000);
+    await new Promise((r) => setTimeout(r, 2500));
+    expect(fs.existsSync(marker)).toBe(false);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }, 15000);
 });

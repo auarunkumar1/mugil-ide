@@ -1,6 +1,7 @@
 import { AnthropicClient } from '../src/modules/handoff/anthropic.js';
 import { OpenAiClient } from '../src/modules/handoff/openAi.js';
 import { OpenCodeClient } from '../src/modules/handoff/openCode.js';
+import { CloudflareClient } from '../src/modules/handoff/cloudflare.js';
 import { fetchProviderModels } from '../src/modules/handoff/models.js';
 import { createEngine, loadConfig } from '../src/index.js';
 import type { ToolDefinition } from '../src/types.js';
@@ -467,6 +468,34 @@ describe('OpenCodeClient', () => {
     ).rejects.toMatchObject({ status: 400, retryable: false });
     expect(global.fetch).not.toHaveBeenCalled();
   });
+  it('uses the documented /inference paths when that base is configured', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'claude-sonnet-4-5',
+        content: [{ type: 'text', text: 'ok' }],
+        usage: { input_tokens: 1, output_tokens: 1 },
+        stop_reason: 'end_turn',
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-test',
+      baseUrl: 'https://opencode.ai/inference',
+    });
+    await client.complete([{ role: 'user', content: 'hi' }], { model: 'claude-sonnet-4-5' });
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/inference/anthropic/v1/messages');
+    fetchMock.mockResolvedValue(
+      okResponse({
+        model: 'qwen3-coder',
+        choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+    );
+    await client.complete([{ role: 'user', content: 'hi' }], { model: 'qwen3-coder' });
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      'https://opencode.ai/inference/openai/v1/chat/completions',
+    );
+  });
 });
 
 describe('provider selection in createEngine', () => {
@@ -814,6 +843,19 @@ describe('fetchProviderModels', () => {
     expect(models.map((m) => m.id)).toEqual(['claude-haiku-4-5', 'qwen3-coder']);
     expect(models[0]).toMatchObject({ tier: 'standard', contextWindow: 200000 });
   });
+  it('lists models from the /inference base at /v1/models', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(okResponse({ data: [{ id: 'big-pickle' }] }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+    await fetchProviderModels({
+      provider: 'opencode',
+      apiKey: 'oc-test',
+      baseUrl: 'https://opencode.ai/inference',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/inference/v1/models',
+      expect.anything(),
+    );
+  });
 });
 
 describe('Vercel AI Gateway', () => {
@@ -886,5 +928,58 @@ describe('opencode engine wiring', () => {
     );
     expect(engine.client).toBeInstanceOf(OpenCodeClient);
     expect(engine.handoff.isMock).toBe(false);
+  });
+});
+
+describe('CloudflareClient API paths', () => {
+  const ok = () =>
+    okResponse({
+      model: '@cf/meta/llama-3.1-8b-instruct',
+      choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    });
+  it('uses the Workers AI direct path under /client/v4/accounts/{id}/ai/v1', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(ok());
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new CloudflareClient({ apiKey: 'k', accountId: 'acct' });
+    await client.complete([{ role: 'user', content: 'hi' }], {
+      model: '@cf/meta/llama-3.1-8b-instruct',
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      'https://api.cloudflare.com/client/v4/accounts/acct/ai/v1/chat/completions',
+    );
+  });
+  it('uses the gateway host (not api.cloudflare.com) when a gateway id is set', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(ok());
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new CloudflareClient({ apiKey: 'k', accountId: 'acct', gatewayId: 'gw' });
+    await client.complete([{ role: 'user', content: 'hi' }], {
+      model: '@cf/meta/llama-3.1-8b-instruct',
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      'https://gateway.ai.cloudflare.com/v1/acct/gw/openai/chat/completions',
+    );
+  });
+});
+
+describe('Cloudflare model discovery', () => {
+  it('uses the configured account id (not just one parsed from the URL)', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({ result: [{ id: '@cf/meta/llama-3.1-8b-instruct' }] }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const models = await fetchProviderModels({
+      provider: 'cloudflare',
+      apiKey: 'k',
+      baseUrl: 'https://api.cloudflare.com/client/v4',
+      accountId: 'acct-123',
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.cloudflare.com/client/v4/accounts/acct-123/ai/models/search',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer k' }),
+      }),
+    );
+    expect(models.map((m) => m.id)).toEqual(['@cf/meta/llama-3.1-8b-instruct']);
   });
 });

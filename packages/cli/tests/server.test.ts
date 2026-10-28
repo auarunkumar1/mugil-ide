@@ -14,6 +14,7 @@ import {
 import type { Engine, ProviderClient } from '@mugil-ide/core';
 import { startIdeServer } from '../src/server/server.js';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import * as net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import RawWebSocket from 'ws';
@@ -57,7 +58,11 @@ beforeAll(() => {
 
   globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
-    if (!headers.has('Authorization') && !headers.has('x-no-auth') && process.env.MUGIL_IDE_AUTH_TOKEN) {
+    if (
+      !headers.has('Authorization') &&
+      !headers.has('x-no-auth') &&
+      process.env.MUGIL_IDE_AUTH_TOKEN
+    ) {
       headers.set('Authorization', `Bearer ${process.env.MUGIL_IDE_AUTH_TOKEN}`);
     }
     headers.delete('x-no-auth');
@@ -83,7 +88,11 @@ afterAll(async () => {
 
 /** A minimal Engine whose handoff/pipeline use a scripted client (mock mode). */
 function scriptedEngine(client: ProviderClient): Engine {
-  const cache = new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 0, embedding: new LexicalEmbedding() });
+  const cache = new SmartCache({
+    backend: new MemoryBackend(),
+    ttlSeconds: 0,
+    embedding: new LexicalEmbedding(),
+  });
   const handoff = new HandoffManager({ client, models: [] });
   const pipeline = new Pipeline({ cache, handoff });
   const engine = {
@@ -100,7 +109,9 @@ function scriptedEngine(client: ProviderClient): Engine {
   return engine as unknown as Engine;
 }
 
-function scriptedResult(over: Partial<import('@mugil-ide/core').CompletionResult>): import('@mugil-ide/core').CompletionResult {
+function scriptedResult(
+  over: Partial<import('@mugil-ide/core').CompletionResult>,
+): import('@mugil-ide/core').CompletionResult {
   return {
     provider: 'mock',
     model: 'mock-model',
@@ -111,7 +122,11 @@ function scriptedResult(over: Partial<import('@mugil-ide/core').CompletionResult
 }
 
 /** Connects a WS client and resolves with the first message matching a predicate. */
-function waitForMessage<T>(ws: WebSocket, predicate: (msg: any) => boolean, timeoutMs = 10000): Promise<T> {
+function waitForMessage<T>(
+  ws: WebSocket,
+  predicate: (msg: any) => boolean,
+  timeoutMs = 10000,
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timed out waiting for message')), timeoutMs);
     const onMessage = (data: WebSocket.RawData): void => {
@@ -205,7 +220,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       body: JSON.stringify({ model: 'deepseek/deepseek-chat', provider: 'openrouter' }),
     });
     expect(postModelRes.status).toBe(200);
-    const postJson = (await postModelRes.json()) as { ok: boolean; activeModel: string; provider: string };
+    const postJson = (await postModelRes.json()) as {
+      ok: boolean;
+      activeModel: string;
+      provider: string;
+    };
     expect(postJson.ok).toBe(true);
     expect(postJson.activeModel).toBe('deepseek/deepseek-chat');
 
@@ -324,7 +343,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         const echoed = await Promise.race([
           gotEcho,
           new Promise<never>((_, reject) => {
-            timeout = setTimeout(() => reject(new Error(`pty echo timed out; got: ${ptyOutput.join('|')}`)), 15000);
+            timeout = setTimeout(
+              () => reject(new Error(`pty echo timed out; got: ${ptyOutput.join('|')}`)),
+              15000,
+            );
           }),
         ]);
         expect(echoed).toContain('pty-alive');
@@ -353,7 +375,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
               {
                 id: 'q1',
                 name: 'question',
-                arguments: JSON.stringify({ header: 'Runner', question: 'Which test runner?', options: ['jest', 'vitest'] }),
+                arguments: JSON.stringify({
+                  header: 'Runner',
+                  question: 'Which test runner?',
+                  options: ['jest', 'vitest'],
+                }),
               },
             ],
           });
@@ -368,20 +394,70 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     try {
       ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'hello\r' })));
 
-      const question = await waitForMessage<{ id: number; question: string; options: string[] }>(ws, (m) => m.type === 'question');
+      const question = await waitForMessage<{ id: number; question: string; options: string[] }>(
+        ws,
+        (m) => m.type === 'question',
+      );
       expect(question.question).toBe('Which test runner?');
       expect(question.options).toEqual(['jest', 'vitest']);
 
       ws.send(JSON.stringify({ type: 'question_answer', id: question.id, answer: 'vitest' }));
 
-      const turn = await waitForMessage<{ turn: { response: string; toolsCalled: Array<{ name: string }> } }>(
-        ws,
-        (m) => m.type === 'turn_complete',
-      );
+      const turn = await waitForMessage<{
+        turn: { response: string; toolsCalled: Array<{ name: string }> };
+      }>(ws, (m) => m.type === 'turn_complete');
       expect(turn.turn.response).toContain('Final answer after the question.');
       expect(turn.turn.toolsCalled.map((t) => t.name)).toContain('question');
       // The chosen answer was fed back to the model (tool result).
       expect(fedBack.some((s) => s.includes('vitest'))).toBe(true);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
+  it('reports non-zero input savings after a turn', async () => {
+    // Verbose prompt: caveman strips the filler, so the status frame must show
+    // a positive savingsPct. The old formula divided the few saved tokens by the
+    // provider's whole prompt count and rounded to 0% on every run.
+    const client: ProviderClient = {
+      mock: false,
+      complete: async () =>
+        scriptedResult({
+          content: 'fixed',
+          usage: { promptTokens: 24500, completionTokens: 12, totalTokens: 24512 },
+        }),
+    };
+    const engine = scriptedEngine(client);
+    const server = await startIdeServer({ engine, port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    // Status frames are coalesced and can land before a listener is attached,
+    // so collect every snapshot from the moment the socket opens.
+    const statuses: Array<{ tokensSaved: number; compressibleTokens: number; savingsPct: number }> =
+      [];
+    ws.on('message', (data: WebSocket.RawData) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'status' && msg.stats) statuses.push(msg.stats);
+      } catch {
+        // raw frames — ignore
+      }
+    });
+    try {
+      ws.on('open', () =>
+        ws.send(
+          JSON.stringify({
+            type: 'agent_input',
+            data: 'Can you please fix the login bug in order to make the tests pass?\r',
+          }),
+        ),
+      );
+      await waitForMessage(ws, (m) => m.type === 'turn_complete');
+      const last = statuses.at(-1);
+      expect(last).toBeDefined();
+      expect(last!.tokensSaved).toBeGreaterThan(0);
+      expect(last!.compressibleTokens).toBeGreaterThan(0);
+      expect(last!.savingsPct).toBeGreaterThan(0);
     } finally {
       ws.terminate();
       await server.close();
@@ -420,10 +496,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
 
     try {
       ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'delegate\r' })));
-      const turn = await waitForMessage<{ turn: { response: string; toolsCalled: Array<{ name: string }> } }>(
-        ws,
-        (m) => m.type === 'turn_complete',
-      );
+      const turn = await waitForMessage<{
+        turn: { response: string; toolsCalled: Array<{ name: string }> };
+      }>(ws, (m) => m.type === 'turn_complete');
       expect(turn.turn.response).toContain('Main answer using the subagent result.');
       expect(turn.turn.toolsCalled.map((t) => t.name)).toContain('task');
     } finally {
@@ -444,7 +519,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
           return scriptedResult({
             finishReason: 'tool_calls',
             toolCalls: [
-              { id: 'c1', name: 'run_command', arguments: JSON.stringify({ command: 'echo approved-ok' }) },
+              {
+                id: 'c1',
+                name: 'run_command',
+                arguments: JSON.stringify({ command: 'echo approved-ok' }),
+              },
             ],
           });
         }
@@ -458,12 +537,18 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     try {
       ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'run it\r' })));
 
-      const approval = await waitForMessage<{ id: number; tool: string; args: string }>(ws, (m) => m.type === 'approval');
+      const approval = await waitForMessage<{ id: number; tool: string; args: string }>(
+        ws,
+        (m) => m.type === 'approval',
+      );
       expect(approval.tool).toBe('run_command');
       expect(approval.args).toContain('echo approved-ok');
       ws.send(JSON.stringify({ type: 'approval_answer', id: approval.id, granted: true }));
 
-      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      const turn = await waitForMessage<{ turn: { response: string } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
       expect(turn.turn.response).toContain('Done after approval.');
       // Environment-context injection: the system prompt carries the workspace.
       expect(fedBack[0]).toContain('Working directory:');
@@ -485,7 +570,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
           return scriptedResult({
             finishReason: 'tool_calls',
             toolCalls: [
-              { id: 'c1', name: 'run_command', arguments: JSON.stringify({ command: 'echo never-runs' }) },
+              {
+                id: 'c1',
+                name: 'run_command',
+                arguments: JSON.stringify({ command: 'echo never-runs' }),
+              },
             ],
           });
         }
@@ -501,7 +590,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       const approval = await waitForMessage<{ id: number }>(ws, (m) => m.type === 'approval');
       ws.send(JSON.stringify({ type: 'approval_answer', id: approval.id, granted: false }));
 
-      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      const turn = await waitForMessage<{ turn: { response: string } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
       expect(turn.turn.response).toContain('Understood, skipped it.');
       // The denial was fed back to the model as a tool result.
       expect(fedBack.some((s) => s.includes('Permission denied'))).toBe(true);
@@ -524,7 +616,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
           return scriptedResult({
             finishReason: 'tool_calls',
             toolCalls: [
-              { id: 'c1', name: 'run_command', arguments: JSON.stringify({ command: 'echo nope' }) },
+              {
+                id: 'c1',
+                name: 'run_command',
+                arguments: JSON.stringify({ command: 'echo nope' }),
+              },
             ],
           });
         }
@@ -545,10 +641,16 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     try {
       ws.on('open', () => {
         ws.send(JSON.stringify({ type: 'agent_input', data: '/plan\r' }));
-        setTimeout(() => ws.send(JSON.stringify({ type: 'agent_input', data: 'try write\r' })), 200);
+        setTimeout(
+          () => ws.send(JSON.stringify({ type: 'agent_input', data: 'try write\r' })),
+          200,
+        );
       });
 
-      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      const turn = await waitForMessage<{ turn: { response: string } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
       expect(turn.turn.response).toContain('Plan only');
       expect(messages.some((m) => m.type === 'approval')).toBe(false);
       expect(fedBack.some((s) => s.includes('Permission denied'))).toBe(true);
@@ -571,7 +673,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
           return scriptedResult({
             finishReason: 'tool_calls',
             toolCalls: [
-              { id: 'c1', name: 'write_file', arguments: JSON.stringify({ path: 'plan-test.txt', content: 'nope' }) },
+              {
+                id: 'c1',
+                name: 'write_file',
+                arguments: JSON.stringify({ path: 'plan-test.txt', content: 'nope' }),
+              },
             ],
           });
         }
@@ -591,20 +697,29 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       // NOTE: predicate must include the mode — the server broadcasts an
       // initial `status` (mode 'act') on connect, so filtering on type alone
       // is racy.
-      const planStatus = await waitForMessage<{ mode: string }>(ws, (m) => m.type === 'status' && m.mode === 'plan');
+      const planStatus = await waitForMessage<{ mode: string }>(
+        ws,
+        (m) => m.type === 'status' && m.mode === 'plan',
+      );
       expect(planStatus.mode).toBe('plan');
 
       // Now send a prompt — the write tool call should be denied in plan mode
       ws.send(JSON.stringify({ type: 'agent_input', data: 'write a file\r' }));
 
-      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      const turn = await waitForMessage<{ turn: { response: string } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
       expect(turn.turn.response).toContain('Done in act mode.');
       // The plan-mode denial was fed back to the model as a tool result.
       expect(fedBack.some((s) => s.includes('Permission denied'))).toBe(true);
 
       // Switch back to act mode
       ws.send(JSON.stringify({ type: 'set_mode', mode: 'act' }));
-      const actStatus = await waitForMessage<{ mode: string }>(ws, (m) => m.type === 'status' && m.mode === 'act');
+      const actStatus = await waitForMessage<{ mode: string }>(
+        ws,
+        (m) => m.type === 'status' && m.mode === 'act',
+      );
       expect(actStatus.mode).toBe('act');
     } finally {
       ws.terminate();
@@ -613,7 +728,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
   });
 
   it('tolerates an unreachable MCP server (soft failure, turn still runs)', async () => {
-    process.env.MUGIL_IDE_MCP_SERVERS = JSON.stringify([{ name: 'bad', command: 'no-such-mcp-binary-xyz', args: [] }]);
+    process.env.MUGIL_IDE_MCP_SERVERS = JSON.stringify([
+      { name: 'bad', command: 'no-such-mcp-binary-xyz', args: [] },
+    ]);
     try {
       let calls = 0;
       const client: ProviderClient = {
@@ -638,7 +755,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
 
       try {
         ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'hi\r' })));
-        const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+        const turn = await waitForMessage<{ turn: { response: string } }>(
+          ws,
+          (m) => m.type === 'turn_complete',
+        );
         expect(turn.turn.response).toContain('Turn completed');
         expect(calls).toBeGreaterThan(0);
         // The soft-failure warning was surfaced in the terminal.
@@ -703,13 +823,18 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       ws2.on('error', reject);
     });
     ws2.send(JSON.stringify({ type: 'agent_input', data: 'again\r' }));
-    const turn2 = await waitForMessage<{ turn: { response: string } }>(ws2, (m) => m.type === 'turn_complete');
+    const turn2 = await waitForMessage<{ turn: { response: string } }>(
+      ws2,
+      (m) => m.type === 'turn_complete',
+    );
     expect(turn2.turn.response).toContain('second answer');
     // The second prompt saw the restored history.
     expect(fedBack[1]).toContain('first answer');
     // The restored stats carried into connection 2 and accumulated: the file
     // now shows 2 requests (1 restored + the new turn), not just 1.
-    const saved2 = JSON.parse(readFileSync(file, 'utf8')) as { stats: { requests: number; estimatedCost?: number } };
+    const saved2 = JSON.parse(readFileSync(file, 'utf8')) as {
+      stats: { requests: number; estimatedCost?: number };
+    };
     expect(saved2.stats.requests).toBe(2);
     expect(saved2.stats.estimatedCost).toBeCloseTo(0.015, 4);
     ws2.terminate();
@@ -743,7 +868,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       await new Promise((r) => setTimeout(r, 250));
       ws.send(JSON.stringify({ type: 'agent_input', data: 'continue\r' }));
 
-      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete' && m.turn?.prompt === 'continue');
+      const turn = await waitForMessage<{ turn: { response: string } }>(
+        ws,
+        (m) => m.type === 'turn_complete' && m.turn?.prompt === 'continue',
+      );
       expect(turn.turn.response).toContain('after compact');
       // The post-compact prompt carried the summary as its history.
       expect(fedBack[2]).toContain('COMPACT-SUMMARY');
@@ -789,8 +917,14 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       // diff ran synchronously on the event loop, /api/status could only be
       // served after the ~400ms patch finished.)
       const t0 = Date.now();
-      const statusP = fetch(`${server.url}/api/status`).then(() => ({ kind: 'status', t: Date.now() - t0 }));
-      const diffsP = fetch(`${server.url}/api/diffs`).then(() => ({ kind: 'diffs', t: Date.now() - t0 }));
+      const statusP = fetch(`${server.url}/api/status`).then(() => ({
+        kind: 'status',
+        t: Date.now() - t0,
+      }));
+      const diffsP = fetch(`${server.url}/api/diffs`).then(() => ({
+        kind: 'diffs',
+        t: Date.now() - t0,
+      }));
       const results = await Promise.all([statusP, diffsP]);
       const first = [...results].sort((a, b) => a.t - b.t)[0];
       expect(first.kind).toBe('status');
@@ -798,7 +932,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       const res = results[1].kind === 'diffs' ? results[1].t : 0;
       expect(res).toBeLessThan(2000);
 
-      const data = await (await fetch(`${server.url}/api/diffs`)).json() as {
+      const data = (await (await fetch(`${server.url}/api/diffs`)).json()) as {
         diffs: Array<{ rel: string; patch: string; skipped?: boolean; before: string }>;
       };
       const small = data.diffs.find((d) => d.rel.includes('diff-smoke-small'));
@@ -828,7 +962,13 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     await new Promise<void>((resolve, reject) => {
       ws.on('open', () => {
         // Send set_model message
-        ws.send(JSON.stringify({ type: 'set_model', model: 'anthropic/claude-3.7-sonnet', provider: 'anthropic' }));
+        ws.send(
+          JSON.stringify({
+            type: 'set_model',
+            model: 'anthropic/claude-3.7-sonnet',
+            provider: 'anthropic',
+          }),
+        );
       });
       ws.on('message', (data) => {
         try {
@@ -860,7 +1000,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     const testFile = 'act-write-test-output.txt';
     const testContent = 'hello from act mode write test';
     // Clean up any leftover file from a prior run.
-    try { rmSync(testFile, { force: true }); } catch { /* ignore */ }
+    try {
+      rmSync(testFile, { force: true });
+    } catch {
+      /* ignore */
+    }
 
     let calls = 0;
     const fedBack: string[] = [];
@@ -889,7 +1033,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
 
     try {
-      ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'create the file\r' })));
+      ws.on('open', () =>
+        ws.send(JSON.stringify({ type: 'agent_input', data: 'create the file\r' })),
+      );
 
       // The write_file tool should trigger an approval modal.
       const approval = await waitForMessage<{ id: number; tool: string; args: string }>(
@@ -902,10 +1048,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       // User approves.
       ws.send(JSON.stringify({ type: 'approval_answer', id: approval.id, granted: true }));
 
-      const turn = await waitForMessage<{ turn: { response: string; toolsCalled: Array<{ name: string }> } }>(
-        ws,
-        (m) => m.type === 'turn_complete',
-      );
+      const turn = await waitForMessage<{
+        turn: { response: string; toolsCalled: Array<{ name: string }> };
+      }>(ws, (m) => m.type === 'turn_complete');
       expect(turn.turn.response).toContain('File written successfully.');
 
       // The write_file tool was actually called.
@@ -921,14 +1066,19 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       ws.terminate();
       await server.close();
       // Clean up.
-      try { rmSync(testFile, { force: true }); } catch { /* ignore */ }
+      try {
+        rmSync(testFile, { force: true });
+      } catch {
+        /* ignore */
+      }
     }
   });
 
   /** Concatenated `agent_data` payloads seen on a socket, in arrival order. */
   const agentOutput = (chunks: string[]): string => chunks.join('');
 
-  const occurrences = (haystack: string, needle: string): number => haystack.split(needle).length - 1;
+  const occurrences = (haystack: string, needle: string): number =>
+    haystack.split(needle).length - 1;
 
   it('streams assistant text to the browser before the turn completes', async () => {
     // The completion parks mid-flight so "the delta arrived while the turn was
@@ -976,7 +1126,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(midTurn).not.toContain('world');
 
       release();
-      const turn = await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
+      const turn = await waitForMessage<{ turn: { response: string } }>(
+        ws,
+        (m) => m.type === 'turn_complete',
+      );
       expect(turn.turn.response).toBe('Hello world');
 
       // The streamed text is the answer, so the formatted response must not be
@@ -1160,9 +1313,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       let next: { turn: { response: string } } | undefined;
       const retryDeadline = Date.now() + 10000;
       while (!next && Date.now() < retryDeadline) {
-        const pending = waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete', 1000).catch(
-          () => undefined,
-        );
+        const pending = waitForMessage<{ turn: { response: string } }>(
+          ws,
+          (m) => m.type === 'turn_complete',
+          1000,
+        ).catch(() => undefined);
         ws.send(JSON.stringify({ type: 'agent_input', data: 'try again\r' }));
         next = await pending;
       }
@@ -1241,7 +1396,11 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
               {
                 id: 'q1',
                 name: 'question',
-                arguments: JSON.stringify({ header: 'Runner', question: 'Which runner?', options: ['jest', 'vitest'] }),
+                arguments: JSON.stringify({
+                  header: 'Runner',
+                  question: 'Which runner?',
+                  options: ['jest', 'vitest'],
+                }),
               },
             ],
           });
@@ -1265,10 +1424,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       const question = await waitForMessage<{ id: number }>(ws, (m) => m.type === 'question');
       ws.send(JSON.stringify({ type: 'question_answer', id: question.id, answer: 'jest' }));
 
-      const turn = await waitForMessage<{ turn: { response: string; toolsCalled: Array<{ name: string }> } }>(
-        ws,
-        (m) => m.type === 'turn_complete',
-      );
+      const turn = await waitForMessage<{
+        turn: { response: string; toolsCalled: Array<{ name: string }> };
+      }>(ws, (m) => m.type === 'turn_complete');
       expect(turn.turn.response).toBe('The answer.');
       expect(turn.turn.toolsCalled.map((t) => t.name)).toContain('question');
 
@@ -1376,7 +1534,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       const res = await fetch(`${server.url}/api/keys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ baseVar: 'VERCEL_BASE_URL', baseUrl: 'https://ai-gateway.vercel.sh/v1' }),
+        body: JSON.stringify({
+          baseVar: 'VERCEL_BASE_URL',
+          baseUrl: 'https://ai-gateway.vercel.sh/v1',
+        }),
       });
       // The gateway lives on vercel.sh, not vercel.com — rejecting it made the
       // provider unusable from the Accounts & Keys modal.
@@ -1402,4 +1563,230 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       await server.close();
     }
   });
+
+  it('survives a malformed Host header on HTTP and on the upgrade path', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    // Connect to the host the server actually bound to: `localhost` resolves to
+    // ::1 on some CI runners, so a hard-coded 127.0.0.1 gets ECONNREFUSED.
+    const connectHost = new URL(server.url).hostname;
+    const raw = (payload: string): Promise<string> =>
+      new Promise((resolve, reject) => {
+        const socket = net.connect(server.port, connectHost, () => socket.write(payload));
+        let out = '';
+        socket.on('data', (d) => (out += d.toString()));
+        socket.on('end', () => resolve(out));
+        socket.on('close', () => resolve(out));
+        socket.on('error', reject);
+        setTimeout(() => socket.destroy(), 3000).unref?.();
+      });
+    try {
+      // The malformed Host header is answered (400), or — when auth runs first —
+      // 401. What matters is that the request never reaches `new URL` unguarded.
+      const httpReply = await raw('GET / HTTP/1.1\r\nHost: a b\r\nConnection: close\r\n\r\n');
+      expect(httpReply).toMatch(/^HTTP\/1\.1 (400|401)/);
+      const upgradeReply = await raw(
+        'GET /ws HTTP/1.1\r\nHost: a b\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
+          'Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n',
+      );
+      expect(upgradeReply).toMatch(/^HTTP\/1\.1 (400|401)/);
+      // The process is still serving — the malformed request was not fatal.
+      const res = await fetch(`${server.url}/api/status`);
+      expect(res.status).toBe(200);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('survives a malformed WebSocket frame from an authenticated client', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', resolve);
+        ws.on('error', reject);
+      });
+      // Reserved opcode: `ws` emits 'error' on the server socket. Without a
+      // listener that event is an uncaught exception and the process exits.
+      (ws as unknown as { _socket: { write: (b: Buffer) => void } })._socket.write(
+        Buffer.from([0x8f, 0x00]),
+      );
+      await new Promise((r) => setTimeout(r, 300));
+      const res = await fetch(`${server.url}/api/status`);
+      expect(res.status).toBe(200);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
+  it('reports a shell spawn failure in the pane instead of exiting (fallback PTY)', async () => {
+    const engine = createEngine(loadConfig());
+    const originalShell = process.env.SHELL;
+    process.env.SHELL = '/does/not/exist/mugil-shell';
+    const server = await startIdeServer({ engine, port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const messages: string[] = [];
+    ws.on('message', (data) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'pty_data') messages.push(String(msg.data));
+      } catch {
+        // ignore
+      }
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', resolve);
+        ws.on('error', reject);
+      });
+      ws.send(JSON.stringify({ type: 'resize_pty', cols: 80, rows: 24 }));
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline && !messages.some((m) => /failed to start/i.test(m))) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      expect(messages.join('')).toMatch(/failed to start/i);
+      const res = await fetch(`${server.url}/api/status`);
+      expect(res.status).toBe(200);
+    } finally {
+      ws.terminate();
+      await server.close();
+      if (originalShell === undefined) delete process.env.SHELL;
+      else process.env.SHELL = originalShell;
+    }
+  });
+
+  it('exposes the update-available indicator and its data route', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    const html = await (await fetch(`${server.url}/`)).text();
+    expect(html).toContain('id="version-update"');
+    expect(html).toContain('checkForAppUpdate');
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('registry.npmjs.org/mugil-ide/latest')) {
+        return new Response(JSON.stringify({ version: '99.0.0' }), { status: 200 });
+      }
+      return realFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const res = await fetch(`${server.url}/api/update-check`);
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        current: string;
+        latest: string | null;
+        updateAvailable: boolean;
+        releaseUrl: string | null;
+      };
+      expect(json.current).toBe(VERSION);
+      expect(json.updateAvailable).toBe(true);
+      expect(json.latest).toBe('99.0.0');
+      expect(json.releaseUrl).toContain('releases/tag/v99.0.0');
+    } finally {
+      globalThis.fetch = realFetch;
+      await server.close();
+    }
+  });
+
+  it('offers a Kill Server button and shuts down only on an authorized POST', async () => {
+    const engine = createEngine(loadConfig());
+    let shutdownCalls = 0;
+    const onShutdown = () => {
+      shutdownCalls++;
+    };
+    const server = await startIdeServer({ engine, port: 0, onShutdown });
+    try {
+      // The control and the warning modal ship in the page.
+      const html = await (await fetch(`${server.url}/`)).text();
+      expect(html).toContain('id="kill-server-btn"');
+      expect(html).toContain('openKillServerModal');
+      expect(html).toContain('id="kill-server-modal"');
+      expect(html).toContain('confirmKillServer');
+      expect(html).toMatch(/Kill Server<\/button>/);
+
+      // Unauthenticated callers must not be able to stop the server.
+      const unauth = await originalFetch(`${server.url}/api/shutdown`, { method: 'POST' });
+      expect(unauth.status).toBe(401);
+      expect(shutdownCalls).toBe(0);
+
+      const res = await fetch(`${server.url}/api/shutdown`, { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, shuttingDown: true });
+      // The callback fires just after the response flushes.
+      const deadline = Date.now() + 2000;
+      while (shutdownCalls === 0 && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(shutdownCalls).toBe(1);
+    } finally {
+      await server.close();
+    }
+
+    // Without a shutdown hook (embedded/test instances) the route declines
+    // instead of pretending the server will exit.
+    const headless = await startIdeServer({ engine, port: 0 });
+    try {
+      const res = await fetch(`${headless.url}/api/shutdown`, { method: 'POST' });
+      expect(res.status).toBe(501);
+    } finally {
+      await headless.close();
+    }
+  });
+  it('throttles a paused WebSocket instead of buffering without bound (backpressure)', async () => {
+    if (process.platform === 'win32') return;
+    process.env.MUGIL_IDE_WS_HIGH_WATERMARK = '65536';
+    process.env.MUGIL_IDE_WS_LOW_WATERMARK = '8192';
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const output: string[] = [];
+    const seen = new Promise<void>((resolve) => {
+      ws.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'pty_data') {
+            output.push(String(msg.data));
+            if (output.join('').includes('output throttled')) resolve();
+          }
+        } catch {
+          // ignore
+        }
+      });
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ws.on('open', resolve);
+        ws.on('error', reject);
+      });
+      ws.send(JSON.stringify({ type: 'resize_pty', cols: 80, rows: 24 }));
+      await new Promise((r) => setTimeout(r, 400));
+      // Simulate a backgrounded tab: stop reading from the socket, then run a
+      // command that never stops producing output.
+      (ws as unknown as { _socket: net.Socket })._socket.pause();
+      ws.send(JSON.stringify({ type: 'pty_input', data: 'yes mugil-backpressure\r\n' }));
+      const timer = setTimeout(() => {
+        (ws as unknown as { _socket: net.Socket })._socket.resume();
+      }, 4000);
+      await Promise.race([
+        seen,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('no throttle notice after 20s')), 20000),
+        ),
+      ]);
+      clearTimeout(timer);
+      (ws as unknown as { _socket: net.Socket })._socket.resume();
+      // Stop the flood and let the pane drain before tearing the socket down.
+      ws.send(JSON.stringify({ type: 'pty_input', data: '\u0003' }));
+      await new Promise((r) => setTimeout(r, 500));
+      // The server is alive and the pane still responds.
+      const res = await fetch(`${server.url}/api/status`);
+      expect(res.status).toBe(200);
+    } finally {
+      delete process.env.MUGIL_IDE_WS_HIGH_WATERMARK;
+      delete process.env.MUGIL_IDE_WS_LOW_WATERMARK;
+      ws.terminate();
+      await server.close();
+    }
+  }, 30000);
 });

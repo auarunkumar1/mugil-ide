@@ -6,6 +6,9 @@ export interface PtyInstance {
   write: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   kill: () => void;
+  /** Flow control for WebSocket backpressure (optional per backend). */
+  pause?: () => void;
+  resume?: () => void;
 }
 
 export interface PtyOptions {
@@ -56,6 +59,8 @@ export async function createPtySession(options: PtyOptions = {}): Promise<PtyIns
       write: (data) => ptyProcess.write(data),
       resize: (c, r) => ptyProcess.resize(c, r),
       kill: () => ptyProcess.kill(),
+      pause: () => ptyProcess.pause(),
+      resume: () => ptyProcess.resume(),
     };
   } catch {
     // 2. Fallback to child_process spawn
@@ -69,32 +74,78 @@ function createFallbackPty(
   cwd: string,
   env: Record<string, string | undefined>,
 ): PtyInstance {
+  // Own process group: closing the Shell tab, or a `yes`/watch loop that
+  // keeps producing output, must take the shell's children down with it.
+  // Killing only the shell leaves grandchildren holding the stdout pipe open.
   const child: ChildProcessWithoutNullStreams = spawn(shell, [], {
     cwd,
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
   });
 
   const dataCallbacks: Array<(data: string) => void> = [];
   const exitCallbacks: Array<(code: number) => void> = [];
+  // A spawn failure fires on nextTick, before `startPty` has registered the
+  // data/exit callbacks. Buffer early output so the error still reaches the pane.
+  let pendingData = '';
+  let pendingExit: number | null = null;
+  let exited = false;
+  const emitData = (data: string): void => {
+    if (dataCallbacks.length === 0) {
+      pendingData += data;
+      return;
+    }
+    dataCallbacks.forEach((cb) => cb(data));
+  };
+  const emitExit = (code: number): void => {
+    if (exited) return;
+    exited = true;
+    if (exitCallbacks.length === 0) {
+      pendingExit = code;
+      return;
+    }
+    exitCallbacks.forEach((cb) => cb(code));
+  };
+
+  // A spawn failure (ENOENT for a stale $SHELL, EACCES, ENOMEM) emits 'error'
+  // on the child. Unhandled, that event kills the whole server when the Shell
+  // pane opens — surface it in the pane instead.
+  child.on('error', (err) => {
+    emitData(`\r\n\x1b[31m[Shell failed to start: ${err.message}]\x1b[0m\r\n`);
+    emitExit(1);
+  });
+  // Writing to a shell that already exited raises EPIPE on stdin; unhandled
+  // that is another process-killer.
+  child.stdin.on('error', () => {
+    /* shell is gone — the pane already showed the exit */
+  });
 
   child.stdout.on('data', (chunk) => {
-    const str = chunk.toString('utf-8');
-    dataCallbacks.forEach((cb) => cb(str));
+    emitData(chunk.toString('utf-8'));
   });
 
   child.stderr.on('data', (chunk) => {
-    const str = chunk.toString('utf-8');
-    dataCallbacks.forEach((cb) => cb(str));
+    emitData(chunk.toString('utf-8'));
   });
 
   child.on('exit', (code) => {
-    exitCallbacks.forEach((cb) => cb(code ?? 0));
+    emitExit(code ?? 0);
   });
 
   return {
-    onData: (cb) => dataCallbacks.push(cb),
-    onExit: (cb) => exitCallbacks.push(cb),
+    onData: (cb) => {
+      dataCallbacks.push(cb);
+      if (pendingData) {
+        const buffered = pendingData;
+        pendingData = '';
+        cb(buffered);
+      }
+    },
+    onExit: (cb) => {
+      exitCallbacks.push(cb);
+      if (pendingExit !== null) cb(pendingExit);
+    },
     write: (data) => {
       if (!child.stdin.destroyed) {
         child.stdin.write(data);
@@ -103,6 +154,15 @@ function createFallbackPty(
     resize: () => {
       // No-op for standard stream fallback
     },
-    kill: () => child.kill(),
+    kill: () => {
+      try {
+        if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, 'SIGKILL');
+        else child.kill('SIGKILL');
+      } catch {
+        // Already gone.
+      }
+    },
+    pause: () => child.stdout.pause(),
+    resume: () => child.stdout.resume(),
   };
 }

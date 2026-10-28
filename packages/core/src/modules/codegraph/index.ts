@@ -83,7 +83,12 @@ export interface BuildCodeGraphOptions {
   ignoreDirs?: string[];
   /** Restrict to specific languages. */
   languages?: CodeLanguage[];
+  /** Skip source files larger than this (default 1 MB) — generated bundles and
+   * minified vendor files are not useful symbols and blow up build time/heap. */
+  maxFileBytes?: number;
 }
+
+const DEFAULT_MAX_FILE_BYTES = 1024 * 1024;
 
 interface LanguageRules {
   extensions: string[];
@@ -135,15 +140,40 @@ export function languageFor(file: string): CodeLanguage | undefined {
 
 const MAX_SNIPPET_LINES = 60;
 
+/** Offsets of every line start, computed once per file (single pass). */
+function computeLineStarts(content: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < content.length; i += 1) {
+    if (content.charCodeAt(i) === 10) starts.push(i + 1);
+  }
+  return starts;
+}
+
+/** 1-indexed line number for a character offset (binary search in `starts`). */
+function lineNumberAt(starts: number[], offset: number): number {
+  let lo = 0;
+  let hi = starts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (starts[mid]! <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo + 1;
+}
+
 /** Extracts symbols (with line numbers) from source content. */
-function collectSymbols(content: string, rules: Array<{ kind: string; re: RegExp }>): Array<{ name: string; kind: string; line: number }> {
+function collectSymbols(
+  content: string,
+  rules: Array<{ kind: string; re: RegExp }>,
+  lineStarts: number[] = computeLineStarts(content),
+): Array<{ name: string; kind: string; line: number }> {
   const found: Array<{ name: string; kind: string; line: number }> = [];
   for (const { kind, re } of rules) {
     re.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = re.exec(content)) !== null) {
       const name = match[1]!;
-      const line = content.slice(0, match.index).split('\n').length;
+      const line = lineNumberAt(lineStarts, match.index);
       found.push({ name, kind, line });
     }
   }
@@ -266,8 +296,24 @@ export function collectSourceFiles(root: string, options: BuildCodeGraphOptions 
   return files;
 }
 
+/**
+ * One-entry graph cache keyed by root + options + rules revision. `/api/graph`
+ * and `/api/graph/query` used to rebuild the whole workspace synchronously on
+ * every request; callers now pay for it once until the workspace changes
+ * (`invalidateCodeGraphCache`, wired to the workspace tool cache) or rules are
+ * reloaded (`currentRevision`).
+ */
+let graphCache: { key: string; graph: CodeGraph } | null = null;
+
+export function invalidateCodeGraphCache(): void {
+  graphCache = null;
+}
+
 /** Builds a knowledge graph for a project root. */
 export function buildCodeGraph(root: string, options: BuildCodeGraphOptions = {}): CodeGraph {
+  const key = `${path.resolve(root)}\u0000${JSON.stringify(options)}\u0000${currentRevision()}`;
+  if (graphCache?.key === key) return graphCache.graph;
+  const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   const files = collectSourceFiles(root, options);
   const parsed: CodeFile[] = [];
   const allSymbols: CodeSymbol[] = [];
@@ -276,7 +322,13 @@ export function buildCodeGraph(root: string, options: BuildCodeGraphOptions = {}
   const languageCounts: Record<string, number> = {};
 
   for (const full of files) {
-    const content = fs.readFileSync(full, 'utf8');
+    let content: string;
+    try {
+      if (fs.statSync(full).size > maxFileBytes) continue;
+      content = fs.readFileSync(full, 'utf8');
+    } catch {
+      continue;
+    }
     const file = parseCodeFile(full, content);
     // Rebase paths relative to root with forward slashes.
     const rel = path.relative(root, full).split(path.sep).join('/');
@@ -291,7 +343,7 @@ export function buildCodeGraph(root: string, options: BuildCodeGraphOptions = {}
     languageCounts[file.language] = (languageCounts[file.language] ?? 0) + 1;
   }
 
-  return {
+  const graph: CodeGraph = {
     root,
     files: parsed,
     symbols: allSymbols,
@@ -304,6 +356,8 @@ export function buildCodeGraph(root: string, options: BuildCodeGraphOptions = {}
       languages: languageCounts,
     },
   };
+  graphCache = { key, graph };
+  return graph;
 }
 
 export interface QueryResult {
