@@ -90,8 +90,8 @@ const DEFAULT_SYSTEM_PROMPT =
  * generous: an answer cut off mid-sentence is a functional bug, not a token
  * saving.
  */
-export const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
-export const DEFAULT_MAX_TOOL_ITERATIONS = 20;
+export const DEFAULT_MAX_OUTPUT_TOKENS = 32_768;
+export const DEFAULT_MAX_TOOL_ITERATIONS = 40;
 
 /**
  * Resolves the default max tool iterations from environment or falls back to DEFAULT_MAX_TOOL_ITERATIONS.

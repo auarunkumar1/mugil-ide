@@ -1109,9 +1109,9 @@ export function getWebUiHtml(): string {
         <div>
           <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Suggested Workload Presets:</label>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" id="preset-btn-light" class="btn preset-btn" onclick="applyWorkloadPreset('light')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="8k context, 4k output, 10 tools, 20 turns">💬 Light Convo</button>
-            <button type="button" id="preset-btn-deep" class="btn preset-btn btn-primary" onclick="applyWorkloadPreset('deep')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="24k context, 8k output, 25 tools, 50 turns">🛠 Deep Development (Rec)</button>
-            <button type="button" id="preset-btn-big" class="btn preset-btn" onclick="applyWorkloadPreset('big')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="64k context, 16k output, 50 tools, 100 turns">🏗 Big Codebase & Audit</button>
+            <button type="button" id="preset-btn-light" class="btn preset-btn" onclick="applyWorkloadPreset('light')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="32k context, 8k output, 10 tools, 20 turns">💬 Light Convo</button>
+            <button type="button" id="preset-btn-deep" class="btn preset-btn btn-primary" onclick="applyWorkloadPreset('deep')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="64k context, 32k output, 25 tools, 50 turns">🛠 Deep Development (Rec)</button>
+            <button type="button" id="preset-btn-big" class="btn preset-btn" onclick="applyWorkloadPreset('big')" style="font-size:11.5px; padding:5px 12px; border-radius:6px;" title="128k context, 64k output, 60 tools, 100 turns">🏗 Big Codebase & Audit</button>
           </div>
         </div>
 
@@ -1122,11 +1122,11 @@ export function getWebUiHtml(): string {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-history-budget">Context Token Budget:</label>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="setup-history-budget" value="16000" step="1000" min="1000" max="128000" oninput="syncSliderFromInput('history-budget')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <input type="number" id="setup-history-budget" value="64000" step="1000" min="1000" max="256000" oninput="syncSliderFromInput('history-budget')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
                 <span style="font-size:11px; color:var(--text-dim);">tok</span>
               </div>
             </div>
-            <input type="range" id="slider-history-budget" min="1000" max="128000" step="1000" value="16000" oninput="syncInputFromSlider('history-budget')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <input type="range" id="slider-history-budget" min="1000" max="256000" step="1000" value="64000" oninput="syncInputFromSlider('history-budget')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
             <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> How much past conversation and project code the AI can remember at once.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> History sliding-window budget for history compaction before sending prompt.</div>
           </div>
@@ -1136,11 +1136,11 @@ export function getWebUiHtml(): string {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-max-output">Max Output Tokens:</label>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="setup-max-output" value="8192" step="512" min="1024" max="32768" oninput="syncSliderFromInput('max-output')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <input type="number" id="setup-max-output" value="32768" step="1024" min="1024" max="131072" oninput="syncSliderFromInput('max-output')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
                 <span style="font-size:11px; color:var(--text-dim);">tok</span>
               </div>
             </div>
-            <input type="range" id="slider-max-output" min="1024" max="32768" step="512" value="8192" oninput="syncInputFromSlider('max-output')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <input type="range" id="slider-max-output" min="1024" max="131072" step="1024" value="32768" oninput="syncInputFromSlider('max-output')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
             <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> Maximum length of a single AI reply or file written in one step.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Model completion max_tokens ceiling; stops responses or reports from truncating.</div>
           </div>
@@ -1150,11 +1150,11 @@ export function getWebUiHtml(): string {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-max-tool-iters">Max Tool Calls per Turn:</label>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="setup-max-tool-iters" value="20" min="5" max="100" oninput="syncSliderFromInput('max-tool-iters')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <input type="number" id="setup-max-tool-iters" value="40" min="5" max="200" oninput="syncSliderFromInput('max-tool-iters')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
                 <span style="font-size:11px; color:var(--text-dim);">calls</span>
               </div>
             </div>
-            <input type="range" id="slider-max-tool-iters" min="5" max="100" step="1" value="20" oninput="syncInputFromSlider('max-tool-iters')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <input type="range" id="slider-max-tool-iters" min="5" max="200" step="1" value="40" oninput="syncInputFromSlider('max-tool-iters')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
             <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> Max actions (reading/writing files, shell commands) before pausing for your approval.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Bounded iteration limit for ToolLoop; if reached mid-task, prompts user to extend.</div>
           </div>
@@ -1164,11 +1164,11 @@ export function getWebUiHtml(): string {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <label style="font-size:12px; font-weight:600; color:var(--text);" for="setup-max-turns">Max History Turns:</label>
               <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="setup-max-turns" value="50" min="5" max="200" oninput="syncSliderFromInput('max-turns')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
+                <input type="number" id="setup-max-turns" value="100" min="5" max="500" oninput="syncSliderFromInput('max-turns')" style="width:80px; background:#161b22; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px; text-align:right;" />
                 <span style="font-size:11px; color:var(--text-dim);">turns</span>
               </div>
             </div>
-            <input type="range" id="slider-max-turns" min="5" max="200" step="5" value="50" oninput="syncInputFromSlider('max-turns')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
+            <input type="range" id="slider-max-turns" min="5" max="500" step="5" value="100" oninput="syncInputFromSlider('max-turns')" style="width:100%; accent-color:var(--accent); cursor:pointer;" />
             <div style="font-size:10.5px; color:#58a6ff; margin-top:2px;">• <b>Def:</b> Number of conversational rounds kept before summarizing earlier turns.</div>
             <div style="font-size:10px; color:var(--text-dim); margin-top:1px;">• <b>Technical:</b> Message eviction threshold in budgetConversationHistory.</div>
           </div>
@@ -1244,15 +1244,15 @@ export function getWebUiHtml(): string {
         <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
           <div style="display:flex; align-items:center; gap:6px;">
             <label style="font-size:11px; color:var(--text-dim);" for="cfg-history-budget">Budget (Tokens):</label>
-            <input type="number" id="cfg-history-budget" style="width:90px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="16000" step="1000" min="1000" />
+            <input type="number" id="cfg-history-budget" style="width:90px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="64000" step="1000" min="1000" />
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-turns">Max History Turns:</label>
-            <input type="number" id="cfg-max-turns" style="width:70px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="50" min="2" max="500" />
+            <input type="number" id="cfg-max-turns" style="width:70px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="100" min="2" max="500" />
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-output">Max Output Tokens:</label>
-            <input type="number" id="cfg-max-output" style="width:80px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="8192" step="512" min="1024" />
+            <input type="number" id="cfg-max-output" style="width:80px; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:3px 6px; border-radius:4px; font-size:11px;" value="32768" step="1024" min="1024" />
           </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <label style="font-size:11px; color:var(--text-dim);" for="cfg-max-tool-iters">Max Tool Calls:</label>
@@ -1391,9 +1391,9 @@ export function getWebUiHtml(): string {
       }
     }
     let currentTurboMode = false;
-    let configuredHistoryBudget = 16000;
-    let configuredMaxOutputTokens = 8192;
-    let configuredMaxToolIters = 20;
+    let configuredHistoryBudget = 64000;
+    let configuredMaxOutputTokens = 32768;
+    let configuredMaxToolIters = 40;
     let activeLeftTab = 'agent';
     let activeRightTab = 'files';
     let activeModelTab = 'local';
@@ -2861,11 +2861,11 @@ export function getWebUiHtml(): string {
       const o = Number(document.getElementById('setup-max-output')?.value);
       const i = Number(document.getElementById('setup-max-tool-iters')?.value);
       const t = Number(document.getElementById('setup-max-turns')?.value);
-      if (b === 8000 && o === 4096 && i === 10 && t === 20) {
+      if (b === 32000 && o === 8192 && i === 10 && t === 20) {
         highlightPresetButton('light');
-      } else if (b === 24000 && o === 8192 && i === 25 && t === 50) {
+      } else if (b === 64000 && o === 32768 && i === 25 && t === 50) {
         highlightPresetButton('deep');
-      } else if (b === 64000 && o === 16384 && i === 50 && t === 100) {
+      } else if (b === 128000 && o === 65536 && i === 60 && t === 100) {
         highlightPresetButton('big');
       } else {
         highlightPresetButton(null);
@@ -2873,13 +2873,13 @@ export function getWebUiHtml(): string {
     }
 
     function applyWorkloadPreset(preset) {
-      let budget = 16000, output = 8192, iters = 20, turns = 50;
+      let budget = 64000, output = 32768, iters = 40, turns = 100;
       if (preset === 'light') {
-        budget = 8000; output = 4096; iters = 10; turns = 20;
+        budget = 32000; output = 8192; iters = 10; turns = 20;
       } else if (preset === 'deep') {
-        budget = 24000; output = 8192; iters = 25; turns = 50;
+        budget = 64000; output = 32768; iters = 25; turns = 50;
       } else if (preset === 'big') {
-        budget = 64000; output = 16384; iters = 50; turns = 100;
+        budget = 128000; output = 65536; iters = 60; turns = 100;
       }
       const setField = (name, val) => {
         const inp = document.getElementById('setup-' + name);
@@ -2907,7 +2907,7 @@ export function getWebUiHtml(): string {
       setField('max-output', configuredMaxOutputTokens);
       setField('max-tool-iters', configuredMaxToolIters);
       const maxTurnsEl = document.getElementById('cfg-max-turns');
-      setField('max-turns', maxTurnsEl ? Number(maxTurnsEl.value) || 50 : 50);
+      setField('max-turns', maxTurnsEl ? Number(maxTurnsEl.value) || 100 : 100);
 
       const wsBadge = document.getElementById('setup-workspace-current-badge');
       if (wsBadge) wsBadge.textContent = currentWorkspaceRoot || '.';
@@ -3037,8 +3037,8 @@ export function getWebUiHtml(): string {
       const m = (allAvailableModels || []).find((x) => x.id === chosenId);
       const budgetInput = document.getElementById('setup-history-budget');
       const maxOutputInput = document.getElementById('setup-max-output');
-      const historyBudget = Number(budgetInput ? budgetInput.value : 16000) || 16000;
-      const maxOutput = Number(maxOutputInput ? maxOutputInput.value : 8192) || 8192;
+      const historyBudget = Number(budgetInput ? budgetInput.value : 64000) || 64000;
+      const maxOutput = Number(maxOutputInput ? maxOutputInput.value : 32768) || 32768;
 
       const costIn = (m && typeof m.costPerMTokIn === 'number') ? m.costPerMTokIn : 0;
       const costOut = (m && typeof m.costPerMTokOut === 'number') ? m.costPerMTokOut : 0;
@@ -3097,10 +3097,10 @@ export function getWebUiHtml(): string {
     async function applySessionSetup() {
       const select = document.getElementById('setup-model-select');
       const chosenModel = select ? select.value : activeModelId;
-      const budget = Number(document.getElementById('setup-history-budget').value) || 16000;
-      const maxOutput = Number(document.getElementById('setup-max-output').value) || 8192;
-      const maxToolIters = Number(document.getElementById('setup-max-tool-iters')?.value || 20);
-      const maxTurns = Number(document.getElementById('setup-max-turns')?.value || 50);
+      const budget = Number(document.getElementById('setup-history-budget').value) || 64000;
+      const maxOutput = Number(document.getElementById('setup-max-output').value) || 32768;
+      const maxToolIters = Number(document.getElementById('setup-max-tool-iters')?.value || 40);
+      const maxTurns = Number(document.getElementById('setup-max-turns')?.value || 100);
       const webfetchVal = Boolean(document.getElementById('setup-webfetch-checkbox')?.checked);
       const turboVal = Boolean(document.getElementById('setup-turbo-checkbox').checked);
 

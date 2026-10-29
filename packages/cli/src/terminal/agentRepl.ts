@@ -991,7 +991,7 @@ export class AgentRepl {
       const allTools = [...workspace.tools, ...mcp.tools];
       const allRegistry = { ...workspace.toolRegistry, ...mcp.registry };
 
-      // Prepare token-budgeted conversation history (MUGIL_IDE_HISTORY_BUDGET, default 16,000 tokens)
+      // Prepare token-budgeted conversation history (MUGIL_IDE_HISTORY_BUDGET, default 64,000 tokens)
       const turnsForBudget: ConversationTurn[] = [];
       for (let i = 0; i < this.messageHistory.length; i += 2) {
         const u = this.messageHistory[i];

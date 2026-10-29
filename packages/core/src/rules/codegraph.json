@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "ignoreDirs": [
     "node_modules",
     "dist",
@@ -20,21 +20,35 @@
   ],
   "languages": {
     "typescript": {
-      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"],
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".mts",
+        ".cts"
+      ],
       "symbols": [
         {
           "kind": "function",
-          "pattern": "export\\s+(?:async\\s+)?function\\s+([A-Za-z_$][\\w$]*)\\s*\\(",
+          "pattern": "export\\s+(?:default\\s+)?(?:async\\s+)?function\\s*\\*?\\s*([A-Za-z_$][\\w$]*)\\s*[<(]",
           "flags": "g"
         },
         {
           "kind": "const",
-          "pattern": "export\\s+const\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[A-Za-z_$][\\w$]*)\\s*=>",
+          "pattern": "export\\s+const\\s+([A-Za-z_$][\\w$]*)\\s*(?::[^=\\n]+)?=",
+          "flags": "g"
+        },
+        {
+          "kind": "namespace",
+          "pattern": "export\\s+(?:namespace|module)\\s+([A-Za-z_$][\\w$]*)",
           "flags": "g"
         },
         {
           "kind": "class",
-          "pattern": "export\\s+(?:default\\s+)?class\\s+([A-Za-z_$][\\w$]*)",
+          "pattern": "export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+([A-Za-z_$][\\w$]*)",
           "flags": "g"
         },
         {
@@ -49,7 +63,7 @@
         },
         {
           "kind": "enum",
-          "pattern": "export\\s+enum\\s+([A-Za-z_$][\\w$]*)",
+          "pattern": "export\\s+(?:const\\s+)?enum\\s+([A-Za-z_$][\\w$]*)",
           "flags": "g"
         }
       ],
@@ -67,7 +81,10 @@
       ]
     },
     "python": {
-      "extensions": [".py", ".pyw"],
+      "extensions": [
+        ".py",
+        ".pyw"
+      ],
       "symbols": [
         {
           "kind": "function",
@@ -94,7 +111,9 @@
       ]
     },
     "go": {
-      "extensions": [".go"],
+      "extensions": [
+        ".go"
+      ],
       "symbols": [
         {
           "kind": "function",
@@ -121,7 +140,9 @@
       ]
     },
     "rust": {
-      "extensions": [".rs"],
+      "extensions": [
+        ".rs"
+      ],
       "symbols": [
         {
           "kind": "function",

@@ -68,6 +68,30 @@ describe('parseCodeFile', () => {
     expect(fn.snippet).toContain('return root');
   });
 
+  it('sees non-arrow consts, generics, default/abstract exports and namespaces', () => {
+    const content = [
+      'export const LIMIT = 64_000;',
+      'export const CONFIG: Options = new Options();',
+      'export const entry = () => 1;',
+      'export function loadRulesSync<T>(id: string) {}',
+      'export default function bootstrap() {}',
+      'export function* walk() {}',
+      'export abstract class Base {}',
+      'export namespace Util {}',
+      'export const enum Mode { A }',
+    ].join('\n');
+    const names = parseCodeFile('src/x.ts', content).symbols.map((s) => s.name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'LIMIT', 'CONFIG', 'entry', 'loadRulesSync', 'bootstrap', 'walk', 'Base', 'Util', 'Mode',
+      ]),
+    );
+  });
+  it('never returns an empty snippet for two symbols on one line', () => {
+    const parsed = parseCodeFile('src/y.ts', 'export const a = () => 1; export const b = () => 2;');
+    expect(parsed.symbols.map((s) => s.name)).toEqual(['a', 'b']);
+    for (const s of parsed.symbols) expect(s.snippet).toContain('export const');
+  });
   it('parses python, go and rust', () => {
     const py = parseCodeFile(
       'mod.py',

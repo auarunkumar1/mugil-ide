@@ -1,8 +1,8 @@
 {
   "name": "mugil-ide",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "private": true,
-  "description": "Token-efficient Mugil IDE — core engine + web IDE",
+  "description": "Token-efficient Mugil IDE \u2014 core engine + web IDE",
   "license": "MIT",
   "workspaces": [
     "packages/*"

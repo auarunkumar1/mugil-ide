@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.1.25] - 2026-10-29
+### Changed
+- **Big-Codebase Token Presets**: Default limits raised across the board so large repositories no longer truncate prompts or cut replies off mid-file. `DEFAULT_HISTORY_BUDGET` 16,000 → 64,000, `DEFAULT_MAX_OUTPUT_TOKENS` 8,192 → 32,768, prompt-trimming `TOKEN_BUDGET` 32,000 → 128,000, `DEFAULT_MAX_HISTORY_TURNS` 50 → 100 and `DEFAULT_MAX_TOOL_ITERATIONS` 20 → 40.
+- **Workload Presets Rebalanced**: Light (32k context / 8k output), Deep (64k / 32k), and Big Codebase & Audit (128k / 64k, 60 tool calls) — sliders now allow up to 256k context and 128k output.
+### Fixed
+- **CodeGraph Missed Most Exports**: The TypeScript rules only matched arrow-function consts, so `export const LIMIT = 64_000`, `export const X: T = …`, default/abstract classes, generator and generic functions were absent from the graph (37+ symbols in this repo alone). Rules bumped to `1.0.1`; `export namespace` / `export const enum` are covered too.
+- **Empty CodeGraph Snippets**: Two symbols declared on one line left the first with `snippet: ""`; a snippet now always includes the declaration line.
+- **Stale `/api/graph`**: The graph cache is now invalidated per request, so external edits (`git checkout`, another editor) show up without restarting.
 
 ## [0.1.24] - 2026-10-28
 
@@ -392,4 +400,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.22]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.22
 
 [0.1.23]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.23
+[0.1.25]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.25
 [0.1.24]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.24

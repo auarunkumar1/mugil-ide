@@ -45,8 +45,8 @@ export interface HistoryBudgetResult {
   compressionSavings: InputSavings;
 }
 
-export const DEFAULT_HISTORY_BUDGET = 16_000;
-export const DEFAULT_MAX_HISTORY_TURNS = 50;
+export const DEFAULT_HISTORY_BUDGET = 64_000;
+export const DEFAULT_MAX_HISTORY_TURNS = 100;
 
 export function getHistoryBudget(env: NodeJS.ProcessEnv = process.env): number {
   const custom = env.MUGIL_IDE_TOKEN_LIMIT || env.MUGIL_IDE_HISTORY_BUDGET;

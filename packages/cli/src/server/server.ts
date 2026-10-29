@@ -995,7 +995,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     if (url.pathname === '/api/graph' && req.method === 'GET') {
       try {
-        const { buildCodeGraph } = await import('@mugil-ide/core');
+        const { buildCodeGraph, invalidateCodeGraphCache } = await import('@mugil-ide/core');
+        // Files may have changed outside the agent's tools (git checkout, editor);
+        // the in-process cache only invalidates on agent writes.
+        invalidateCodeGraphCache();
         const graph = buildCodeGraph(process.cwd());
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(graph));
@@ -1009,7 +1012,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     if (url.pathname === '/api/graph/query' && req.method === 'GET') {
       try {
         const query = url.searchParams.get('q') || '';
-        const { buildCodeGraph, queryCodeGraph } = await import('@mugil-ide/core');
+        const { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } = await import('@mugil-ide/core');
+        invalidateCodeGraphCache();
         const graph = buildCodeGraph(process.cwd());
         const results = queryCodeGraph(graph, query, { top: 15 });
         res.writeHead(200, { 'Content-Type': 'application/json' });

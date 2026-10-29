@@ -214,7 +214,10 @@ function attachSnippets(
   const lines = content.split('\n');
   return symbols.map((s, i) => {
     const nextLine = symbols[i + 1] ? symbols[i + 1]!.line : lines.length + 1;
-    const end = Math.min(nextLine - 1, s.line - 1 + MAX_SNIPPET_LINES, lines.length);
+    // Always include at least the symbol's own line: two symbols can share a
+    // line (`export const a = 1; export const b = 2;`), where `nextLine - 1`
+    // would be `s.line - 1` and leave the first snippet empty.
+    const end = Math.min(Math.max(nextLine - 1, s.line), s.line - 1 + MAX_SNIPPET_LINES, lines.length);
     const snippet = lines.slice(s.line - 1, end).join('\n');
     return { ...s, snippet };
   });

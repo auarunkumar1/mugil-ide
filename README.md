@@ -122,7 +122,7 @@ flowchart LR
 - **💡 Def:**  
   Ever had an AI write 90% of a complex script only to stop in the middle of a loop because it ran out of output tokens? In Mugil IDE, you have dedicated knobs for both **History Budget** (how much past context to remember) and **Max Output Tokens** (how long an answer can be). Expanding your history will never accidentally squeeze your output generation budget!
 - **⚙️ Under the Hood:**  
-  Previous agent architectures floored completion tokens when conversation history grew large. Mugil IDE separates input history budgeting (`DEFAULT_HISTORY_BUDGET = 16,000`, override via `MUGIL_IDE_TOKEN_LIMIT`) from output generation (`DEFAULT_MAX_OUTPUT_TOKENS = 8,192`, override via `MUGIL_IDE_MAX_OUTPUT_TOKENS`). The pipeline computes:
+  Previous agent architectures floored completion tokens when conversation history grew large. Mugil IDE separates input history budgeting (`DEFAULT_HISTORY_BUDGET = 64,000`, override via `MUGIL_IDE_TOKEN_LIMIT`) from output generation (`DEFAULT_MAX_OUTPUT_TOKENS = 32,768`, override via `MUGIL_IDE_MAX_OUTPUT_TOKENS`). The pipeline computes:
   $$\text{contextRoom} = \text{contextWindow} - \text{promptTokens} - 1024$$
   and safely clamps generation headroom so the model always has space to complete its work.
 
@@ -183,9 +183,9 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.24**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.25**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.24 (Current Release)
+### ✅ Shipped & Ready in v0.1.25 (Current Release)
 - [x] **Kill Server Button:** A red `⚠ Kill Server` header control opens a warning modal and stops the backend via the authorized `POST /api/shutdown` route, then shows a "Server stopped" screen instead of endlessly reconnecting.
 - [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
 - [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
@@ -318,11 +318,11 @@ All settings can be configured via the Web UI modals or by editing `~/.config/mu
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `MUGIL_IDE_TOKEN_LIMIT` | `32000` | Context token budget for multi-turn history window |
-| `MUGIL_IDE_MAX_OUTPUT_TOKENS` | `8192` | Model generation ceiling (prevents output cutoff errors) |
+| `MUGIL_IDE_TOKEN_LIMIT` | `64000` | Context token budget for multi-turn history window |
+| `MUGIL_IDE_MAX_OUTPUT_TOKENS` | `32768` | Model generation ceiling (prevents output cutoff errors) |
 | `MUGIL_IDE_TURBO_MODE` | `0` | Set to `1` to enable autonomous execution without user prompts |
-| `MUGIL_IDE_HISTORY_BUDGET` | `16000` | Sliding window token budget for past conversation turns |
-| `MUGIL_IDE_MAX_TURNS` | `50` | Maximum number of turns kept in active history before compacting |
+| `MUGIL_IDE_HISTORY_BUDGET` | `64000` | Sliding window token budget for past conversation turns |
+| `MUGIL_IDE_MAX_TURNS` | `100` | Maximum number of turns kept in active history before compacting |
 | `MUGIL_IDE_MODE` | `act` | Default mode: `act` (prompts before changes) or `plan` (read-only) |
 | `OPENROUTER_API_KEY` | — | API key for OpenRouter (primary cloud gateway) |
 | `OPENAI_API_KEY` | — | API key for OpenAI |
