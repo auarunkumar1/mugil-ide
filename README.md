@@ -2,7 +2,7 @@
 
 # ☁️ Mugil IDE
 
-### The Token-Efficient, Autonomous AI Coding IDE for the Web
+### The Token-Efficient, Autonomous AI Coding Agent Harness & Web IDE
 
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
@@ -33,7 +33,7 @@
 
 <div align="center">
 
-**Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding environment that runs directly in your browser. Mugil IDE gives you a full-featured agentic coding partner that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
+**Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding agent harness and developer environment that runs directly in your browser. Mugil IDE wraps state-of-the-art LLMs in a full-featured harness that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
 
 Works seamlessly with **free local models** (Ollama, LM Studio) and **state-of-the-art cloud intelligence** (OpenRouter, Anthropic Claude 3.7 Sonnet, OpenAI, DeepSeek, and Vercel AI).
 
@@ -52,6 +52,15 @@ Most AI coding assistants treat tokens like water — stuffing thousands of line
 **Mugil IDE is built differently.** It acts as an intelligent, token-compressing buffer between you and the LLM. It refines your input, strips AI signatures and watermarks, caches repetitive queries, extracts compact AST code skeletons, bounds generation limits dynamically, and gives you instant 1-click rollbacks if something goes wrong.
 
 Best of all, **it's 100% browser-based with zero telemetry**. Launch it from your terminal, and it immediately opens a polished, two-pane dark-mode IDE in your browser with fully vendored assets — running fast, cleanly, and completely offline-capable.
+
+### 🛡️ What is an Autonomous Agent Harness?
+
+In AI-assisted software engineering, raw LLMs cannot write or maintain production code in isolation. An **Agent Harness** provides the robust execution substrate, tooling environment, and safety boundaries that enable an AI model to safely interact with a real repository:
+
+- **Execution & Tool Loop:** Provides a sandboxed execution runtime for shell commands (`run_command`), surgical file edits (`edit_file`, `apply_patch`), CodeGraph AST symbol mapping, blob pagination (`read_blob`), and multi-provider asset generation (`generate_image`).
+- **Token Economy & Context Engineering:** Optimizes token budgets before input hits the LLM (via Caveman linguistic compression and RTK deduplication) and extracts lightweight AST skeletons (`read_skeleton`) to save 70–80% of context tokens during codebase research.
+- **Verification & Safe Rollbacks:** Pre-write snapshotting and an immutable session journal enable instant 1-click `/undo` rollbacks for both text and binary assets.
+- **Interactive Developer Control:** Bridges the loop to a browser UI with token-by-token xterm.js streaming, live split-pane diff viewing, and Model Context Protocol (MCP) tooling.
 
 ---
 
