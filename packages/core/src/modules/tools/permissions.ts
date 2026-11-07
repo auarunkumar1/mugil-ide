@@ -39,7 +39,7 @@ export interface PermissionPolicy {
 /** Reads tools — safe to expose to every agent without approval. */
 export const READ_TOOLS = ['read_file', 'read_skeleton', 'read_blob', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
 /** Write tools — mutate the workspace. */
-export const WRITE_TOOLS = ['write_file', 'edit_file', 'apply_patch', 'todowrite'];
+export const WRITE_TOOLS = ['write_file', 'edit_file', 'apply_patch', 'todowrite', 'generate_image'];
 
 /**
  * Tools that record the agent's own plan rather than mutate the workspace.

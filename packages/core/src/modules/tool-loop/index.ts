@@ -155,7 +155,12 @@ export class ToolLoop {
     const msgs = [...messages];
     let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
     let toolCalls = 0;
-    const savings: InputSavings = { savedTokens: 0, keptTokens: 0 };
+    const savings: InputSavings = {
+      savedTokens: 0,
+      keptTokens: 0,
+      breakdown: { caveman: 0, yagni: 0, cache: 0, mcp: 0 },
+      optimisticSavedTokens: 0,
+    };
     // A model that keeps re-issuing a call the gate refused spends a full
     // round-trip (and the whole resend context) per attempt. Count denials by
     // call signature and, past the limit, tell it plainly that retrying is
@@ -208,6 +213,11 @@ export class ToolLoop {
         const outcome = await this.execute(call, options.registry, options.permission);
         savings.savedTokens += outcome.savedTokens;
         savings.keptTokens += outcome.keptTokens;
+        if (savings.breakdown) {
+          savings.breakdown.yagni += outcome.yagniSaved;
+          savings.breakdown.mcp += outcome.mcpSaved;
+        }
+        savings.optimisticSavedTokens = savings.savedTokens + (savings.breakdown?.yagni ?? 0);
         this.onToolResult?.(call, outcome, toolCalls);
         const signature = `${call.name}:${call.arguments}`;
         const times = (denials.get(signature) ?? 0) + (outcome.ok ? 0 : 1);
@@ -311,8 +321,8 @@ export class ToolLoop {
     call: ToolCall,
     registry: ToolRegistry,
     permission?: (call: ToolCall) => boolean | Promise<boolean>,
-  ): Promise<{ content: string; ok: boolean; savedTokens: number; keptTokens: number }> {
-    const none = { savedTokens: 0, keptTokens: 0 };
+  ): Promise<{ content: string; ok: boolean; savedTokens: number; keptTokens: number; yagniSaved: number; mcpSaved: number }> {
+    const none = { savedTokens: 0, keptTokens: 0, yagniSaved: 0, mcpSaved: 0 };
     const executor = registry[call.name];
     if (!executor) {
       return { content: `Error: unknown tool "${call.name}"`, ok: false, ...none };
@@ -338,10 +348,21 @@ export class ToolLoop {
       const raw = await executor(call);
       let content = typeof raw === 'string' ? raw : String(raw ?? '');
       let savedTokens = 0;
+      let yagniSaved = 0;
+      let mcpSaved = 0;
+
+      // Detect read_skeleton avoided tokens
+      const skelMatch = content.match(/\/\* \[read_skeleton: saved ~(\d+) tokens/);
+      if (skelMatch) {
+        yagniSaved = Number(skelMatch[1]) || 0;
+      }
+
       if (content.length > 400) {
         const before = countTokens(content);
         content = compressCommandOutput(content, { maxLineLength: 400 }).text;
-        savedTokens = Math.max(0, before - countTokens(content));
+        const rtkSaved = Math.max(0, before - countTokens(content));
+        savedTokens += rtkSaved;
+        mcpSaved += rtkSaved;
       }
       const envMaxChars =
         process.env.MUGIL_IDE_MAX_TOOL_OUTPUT_CHARS ?? process.env.MUGIL_IDE_MAX_TOOL_CHARS;
@@ -349,12 +370,16 @@ export class ToolLoop {
       const MAX_TOOL_OUTPUT_CHARS =
         Number.isFinite(parsedMaxChars) && parsedMaxChars > 0 ? Math.floor(parsedMaxChars) : 48_000;
       if (content.length > MAX_TOOL_OUTPUT_CHARS) {
+        const beforeTrunc = countTokens(content);
         const blobId = globalBlobStore.put(content);
         content =
           content.slice(0, MAX_TOOL_OUTPUT_CHARS) +
           `\n\n… [output truncated: ${content.length - MAX_TOOL_OUTPUT_CHARS} characters omitted to conserve context | Cached as ${blobId} (use read_blob tool to retrieve specific chunks)]`;
+        const truncSaved = Math.max(0, beforeTrunc - countTokens(content));
+        savedTokens += truncSaved;
+        mcpSaved += truncSaved;
       }
-      return { content, ok: true, savedTokens, keptTokens: countTokens(content) };
+      return { content, ok: true, savedTokens, keptTokens: countTokens(content), yagniSaved, mcpSaved };
     } catch (err) {
       return {
         content: `Error: ${err instanceof Error ? err.message : String(err)}`,
@@ -365,13 +390,15 @@ export class ToolLoop {
   }
 
   private sum(
-    a: { promptTokens: number; completionTokens: number; totalTokens: number },
-    b: { promptTokens: number; completionTokens: number; totalTokens: number },
-  ): { promptTokens: number; completionTokens: number; totalTokens: number } {
+    a: Usage,
+    b: Usage,
+  ): Usage {
+    const cachedTokens = (a.cachedTokens ?? 0) + (b.cachedTokens ?? 0);
     return {
       promptTokens: a.promptTokens + b.promptTokens,
       completionTokens: a.completionTokens + b.completionTokens,
       totalTokens: a.totalTokens + b.totalTokens,
+      ...(cachedTokens > 0 ? { cachedTokens } : {}),
     };
   }
 }

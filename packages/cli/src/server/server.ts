@@ -10,8 +10,10 @@ import type { Engine } from '@mugil-ide/core';
 import {
   fetchProviderModels,
   readUserEnv,
+  loadUserEnvIntoProcess,
   saveMode,
   inputSavingsPercent,
+  optimisticSavingsPercent,
   VERSION,
   writeUserEnv,
 } from '@mugil-ide/core';
@@ -194,6 +196,7 @@ export interface RunningServer {
 }
 
 export async function startIdeServer(options: ServerOptions): Promise<RunningServer> {
+  loadUserEnvIntoProcess();
   const { engine, model: initialModel } = options;
   // Diffs are computed on a worker thread so a slow (O(N·M) worst-case) patch
   // never blocks the event loop for other requests. Disposed in close().
@@ -794,9 +797,109 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         return;
       }
       try {
+        const ext = path.extname(resolved).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp',
+          '.svg': 'image/svg+xml',
+          '.ico': 'image/x-icon',
+          '.bmp': 'image/bmp',
+          '.mp3': 'audio/mpeg',
+          '.wav': 'audio/wav',
+          '.ogg': 'audio/ogg',
+          '.mp4': 'video/mp4',
+          '.webm': 'video/webm',
+          '.pdf': 'application/pdf',
+          '.json': 'application/json; charset=utf-8',
+          '.html': 'text/html; charset=utf-8',
+          '.css': 'text/css; charset=utf-8',
+          '.js': 'text/javascript; charset=utf-8',
+          '.ts': 'text/plain; charset=utf-8',
+          '.txt': 'text/plain; charset=utf-8',
+          '.md': 'text/markdown; charset=utf-8',
+        };
+        const mime = mimeTypes[ext];
+        if (mime && (mime.startsWith('image/') || mime.startsWith('audio/') || mime.startsWith('video/') || mime === 'application/pdf')) {
+          const buf = fs.readFileSync(resolved);
+          res.writeHead(200, { 'Content-Type': mime, 'Content-Length': buf.length });
+          res.end(buf);
+          return;
+        }
         const content = fs.readFileSync(resolved, 'utf8');
-        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.writeHead(200, { 'Content-Type': mime || 'text/plain; charset=utf-8' });
         res.end(content);
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/generate-image' && req.method === 'POST') {
+      try {
+        const payload = (await readJsonBody(req)) as {
+          prompt?: string;
+          path?: string;
+          size?: string;
+          style?: string;
+        };
+        if (!payload.prompt) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'prompt parameter is required' }));
+          return;
+        }
+        const defaultPath = `assets/generated-${Date.now()}.png`;
+        const targetPath = payload.path || defaultPath;
+        const root = path.resolve(process.cwd());
+        const { resolveInsideWorkspace, generateImage, captureFile, pushEdit } = await import('@mugil-ide/core');
+        const { target: resolved, error } = resolveInsideWorkspace(root, targetPath);
+        if (error) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: error.replace(/^Error: /, '') }));
+          return;
+        }
+
+        // The generator may adjust the extension to match the bytes it writes,
+        // so snapshot the pre-write state of every path it could land on.
+        const stem = resolved.slice(0, resolved.length - path.extname(resolved).length);
+        const beforeByPath = new Map<string, ReturnType<typeof captureFile>>();
+        for (const candidate of [resolved, `${stem}.png`, `${stem}.jpg`, `${stem}.jpeg`, `${stem}.webp`, `${stem}.gif`, `${stem}.svg`]) {
+          if (fs.existsSync(candidate)) beforeByPath.set(candidate, captureFile(root, candidate));
+        }
+
+        const result = await generateImage({
+          prompt: payload.prompt,
+          outputPath: resolved,
+          size: payload.size,
+          style: payload.style,
+          workspaceRoot: root,
+        });
+
+        const written = path.resolve(root, result.path);
+        const isSvg = result.format === 'svg';
+        const afterBuf = fs.existsSync(written) ? fs.readFileSync(written) : Buffer.alloc(0);
+        const undoNote = pushEdit(root, {
+          path: written,
+          before: beforeByPath.get(written) ?? { content: '', existed: false },
+          after: {
+            content: isSvg ? afterBuf.toString('utf-8') : afterBuf.toString('base64'),
+            existed: true,
+            isBinary: !isSvg,
+          },
+        });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            result,
+            undoNote: undoNote || undefined,
+            fileUrl: `/api/file?path=${encodeURIComponent(result.path)}`,
+          }),
+        );
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -826,7 +929,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           edits.map(async (e) => {
             const beforeText = e.before.existed ? e.before.content : '';
             const afterText = e.after.existed ? e.after.content : '';
+            const isBinary = Boolean(e.before.isBinary || e.after.isBinary);
             const tooLarge =
+              isBinary ||
               beforeText.split('\n').length > MAX_DIFF_LINES ||
               afterText.split('\n').length > MAX_DIFF_LINES ||
               beforeText.length > MAX_DIFF_CHARS ||
@@ -850,6 +955,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
               rel: e.rel,
               action: !e.before.existed ? 'created' : !e.after.existed ? 'deleted' : 'modified',
               skipped: tooLarge,
+              binary: isBinary,
               before: tooLarge ? beforeText.slice(0, MAX_PREVIEW_CHARS) : beforeText,
               after: tooLarge ? afterText.slice(0, MAX_PREVIEW_CHARS) : afterText,
               patch,
@@ -1450,6 +1556,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             stats: {
               ...repl.stats,
               filesModified: Array.from(repl.stats.filesModified),
+              savingsBreakdown: { ...repl.stats.savingsBreakdown },
+              optimisticTokensSaved: repl.stats.optimisticTokensSaved,
+              optimisticSavingsPct: optimisticSavingsPercent(
+                repl.stats.optimisticTokensSaved,
+                repl.stats.compressibleTokens,
+              ),
               // Computed server-side so the terminal (/stats) and the web pill
               // can never disagree on the denominator.
               savingsPct: inputSavingsPercent(

@@ -40,6 +40,7 @@ describe('Mugil IDE MCP server', () => {
         'codegraph_relevant',
         'compress_command_output',
         'count_tokens',
+        'generate_image',
         'list_models',
         'refine_prompt',
         'rtk',

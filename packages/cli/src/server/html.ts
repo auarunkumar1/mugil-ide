@@ -700,7 +700,36 @@ export function getWebUiHtml(): string {
 
     <div class="controls">
       <!-- Direct ribbon metrics -->
-      <span class="metric-pill" id="token-savings">Savings: 0%</span>
+      <div style="position:relative; display:inline-block;">
+        <span class="metric-pill" id="token-savings" onclick="toggleSavingsPopover(event)" style="cursor:pointer;" title="Click for token savings breakdown">Savings: ~0%</span>
+        <div id="savings-popover" style="display:none; position:absolute; top:calc(100% + 6px); right:0; width:280px; background:var(--card-bg, #161b22); border:1px solid var(--border, #30363d); border-radius:6px; padding:10px 12px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:1000; font-size:11px; line-height:1.5;">
+          <div style="font-weight:600; color:var(--text, #c9d1d9); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+            <span>Token Savings Breakdown</span>
+            <span id="savings-popover-total" style="color:var(--green, #3fb950); font-weight:bold;">0 tok</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:5px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>🦴 <b>Caveman</b> (Prompt & History):</span>
+              <span id="sp-caveman" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>⚡ <b>YAGNI</b> (AST Skeletons & Code):</span>
+              <span id="sp-yagni" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>💾 <b>Smart Cache</b> (Exact & Semantic):</span>
+              <span id="sp-cache" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>🔌 <b>MCP & Tools</b> (RTK & Truncation):</span>
+              <span id="sp-mcp" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
+            </div>
+          </div>
+          <div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--border, #30363d); color:var(--text-dim, #8b949e); font-size:10px;">
+            Real compressed: <span id="sp-real" style="color:var(--text, #c9d1d9);">0 tok</span> · Overall efficiency: <span id="sp-rate" style="color:var(--green, #3fb950); font-weight:bold;">~0%</span>
+          </div>
+        </div>
+      </div>
       <span class="metric-pill" id="session-spent" style="color:var(--green); border-color:#23863644;">Est. Spent: $0.0000</span>
 
       <!-- Zoom controls directly on ribbon -->
@@ -709,6 +738,11 @@ export function getWebUiHtml(): string {
         <span id="zoom-label" style="font-size:11px; color:var(--text-dim); padding:0 4px; min-width:36px; text-align:center; user-select:none;">100%</span>
         <button class="btn" style="border:none; border-radius:0; padding:3px 7px; font-weight:bold; font-size:11px;" onclick="changeZoom(0.1)" title="Zoom In (Ctrl +)">A+</button>
       </div>
+
+      <!-- Image & Media Generator -->
+      <button class="btn" onclick="openImageGenModal()" title="Generate AI images & visual assets">
+        <span>🖼️ Generate Image</span>
+      </button>
 
       <!-- Main Action: Session Setup -->
       <button class="btn btn-primary" onclick="openSessionSetupModal()" title="Configure session budgets, limits & turbo mode">
@@ -736,6 +770,9 @@ export function getWebUiHtml(): string {
             <span id="mode-icon">⚡</span> <span>Agent Mode: <b id="mode-label">Act</b></span>
           </button>
           <div class="menu-divider"></div>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openImageGenModal();">
+            <span>🖼️ Generate Image</span>
+          </button>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openAccountModal();">
             <span>🔑 Accounts & API Keys</span>
           </button>
@@ -1363,7 +1400,158 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- Image Generation Modal -->
+  <div class="modal-overlay" id="image-gen-modal">
+    <div class="modal-dialog" style="max-width:580px;">
+      <div class="modal-title-bar">
+        <span>🖼️ Generate Image & Visual Asset</span>
+        <button class="btn" onclick="closeImageGenModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
+        <div style="font-size:12px; color:var(--text-dim); line-height:1.5;">
+          Generate images with multi-tier dispatch across <b>Vercel AI Gateway</b>, <b>OpenRouter</b>, <b>OpenAI DALL-E</b>, <b>Together Flux</b>, and free <b>Pollinations AI</b>. Saved assets can be reverted with <code>/undo</code>.
+        </div>
+        <div>
+          <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Prompt Description *</label>
+          <textarea id="imagegen-prompt" rows="3" class="search-input" style="width:100%; resize:vertical; padding:8px 10px; font-family:inherit; font-size:13px;" placeholder="e.g. Modern geometric logo for a fast AI terminal, gradient neon blue and purple"></textarea>
+        </div>
+        <div style="display:flex; gap:12px;">
+          <div style="flex:1;">
+            <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Output Path (workspace relative)</label>
+            <input type="text" id="imagegen-path" class="search-input" style="width:100%; padding:6px 10px; font-family:monospace; font-size:12px;" value="assets/generated.png" placeholder="e.g. assets/hero.png or icons/logo.svg" />
+          </div>
+          <div style="width:160px;">
+            <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Dimensions</label>
+            <select id="imagegen-size" class="search-input" style="width:100%; padding:6px 8px; font-size:12px;">
+              <option value="1024x1024">1024x1024 (Square)</option>
+              <option value="1792x1024">1792x1024 (Landscape)</option>
+              <option value="1024x1792">1024x1792 (Portrait)</option>
+              <option value="512x512">512x512 (Compact)</option>
+              <option value="1280x720">1280x720 (HD)</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Visual Style Guide</label>
+          <select id="imagegen-style" class="search-input" style="width:100%; padding:6px 8px; font-size:12px;">
+            <option value="">None / Custom from prompt</option>
+            <option value="vector icon, clean SVG style">Vector Icon</option>
+            <option value="photorealistic, 8k resolution, cinematic lighting">Photorealistic</option>
+            <option value="flat illustration, modern minimal design">Flat Illustration</option>
+            <option value="pixel art, 16-bit retro style">Pixel Art</option>
+            <option value="cyberpunk, futuristic neon lighting">Cyberpunk</option>
+            <option value="minimalist line art">Minimalist Line Art</option>
+          </select>
+        </div>
+        <div id="imagegen-status" style="display:none; padding:10px 12px; border-radius:6px; font-size:12px;"></div>
+        <div id="imagegen-preview" style="display:none; text-align:center; padding:12px; border:1px solid var(--border); border-radius:6px; background:var(--bg-card);">
+          <img id="imagegen-preview-img" src="" alt="Generated Preview" style="max-width:100%; max-height:220px; object-fit:contain; border-radius:4px; display:block; margin:0 auto 10px;" />
+          <div style="display:flex; justify-content:center; gap:12px; font-size:12px;">
+            <button class="btn" id="imagegen-open-viewer-btn" onclick="openGeneratedInViewer()">📂 Open in File Viewer</button>
+            <a id="imagegen-download-link" href="#" download class="btn" style="text-decoration:none;">⬇ Download Asset</a>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:6px;">
+          <button class="btn" onclick="closeImageGenModal()">Close</button>
+          <button class="btn btn-primary" id="imagegen-submit-btn" onclick="triggerImageGeneration()">✨ Generate Image</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    let lastGeneratedFileUrl = "";
+    let lastGeneratedFilePath = "";
+
+    function openImageGenModal() {
+      document.getElementById("image-gen-modal").classList.add("open");
+      const input = document.getElementById("imagegen-prompt");
+      if (input) setTimeout(() => input.focus(), 50);
+    }
+
+    function closeImageGenModal() {
+      document.getElementById("image-gen-modal").classList.remove("open");
+    }
+
+    async function triggerImageGeneration() {
+      const prompt = document.getElementById("imagegen-prompt").value.trim();
+      const pathVal = document.getElementById("imagegen-path").value.trim();
+      const sizeVal = document.getElementById("imagegen-size").value;
+      const styleVal = document.getElementById("imagegen-style").value;
+      const statusEl = document.getElementById("imagegen-status");
+      const submitBtn = document.getElementById("imagegen-submit-btn");
+      const previewEl = document.getElementById("imagegen-preview");
+      const previewImg = document.getElementById("imagegen-preview-img");
+
+      if (!prompt) {
+        statusEl.style.display = "block";
+        statusEl.style.background = "rgba(248, 81, 73, 0.15)";
+        statusEl.style.color = "var(--red, #f85149)";
+        statusEl.textContent = "Please enter a prompt description.";
+        return;
+      }
+
+      statusEl.style.display = "block";
+      statusEl.style.background = "rgba(88, 166, 255, 0.15)";
+      statusEl.style.color = "var(--accent, #58a6ff)";
+      statusEl.textContent = "⏳ Generating image asset across dispatch chain...";
+      submitBtn.disabled = true;
+      previewEl.style.display = "none";
+
+      try {
+        const res = await fetch("/api/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            path: pathVal || undefined,
+            size: sizeVal,
+            style: styleVal || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "Failed to generate image");
+        }
+
+        const result = data.result;
+        lastGeneratedFileUrl = data.fileUrl;
+        lastGeneratedFilePath = result.path;
+
+        if (result.placeholder) {
+          statusEl.style.background = "rgba(210, 153, 34, 0.15)";
+          statusEl.style.color = "var(--yellow, #d29922)";
+          statusEl.textContent = "⚠ No image provider succeeded — saved a vector placeholder (" + result.width + "x" + result.height + ", " + result.sizeBytes + " bytes)" + (result.fallbackReasons && result.fallbackReasons.length ? "\\n" + result.fallbackReasons.join("; ") : "");
+        } else {
+          statusEl.style.background = "rgba(46, 160, 67, 0.15)";
+          statusEl.style.color = "var(--green, #3fb950)";
+          statusEl.textContent = "✓ Generated successfully via " + result.provider + " (" + result.width + "x" + result.height + ", " + result.format + ", " + result.sizeBytes + " bytes)";
+        }
+        statusEl.style.whiteSpace = "pre-wrap";
+        if (data.undoNote) statusEl.textContent += "\\n(" + data.undoNote + ")";
+
+        previewImg.src = data.fileUrl + "&t=" + Date.now();
+        document.getElementById("imagegen-download-link").href = data.fileUrl;
+        document.getElementById("imagegen-download-link").download = result.path.split("/").pop();
+        previewEl.style.display = "block";
+
+        if (typeof loadFiles === "function") loadFiles();
+      } catch (err) {
+        statusEl.style.background = "rgba(248, 81, 73, 0.15)";
+        statusEl.style.color = "var(--red, #f85149)";
+        statusEl.textContent = "Error: " + err.message;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function openGeneratedInViewer() {
+      if (lastGeneratedFilePath) {
+        closeImageGenModal();
+        openFile(lastGeneratedFilePath);
+      }
+    }
+
     let currentThinkingLevel = "medium";
 
     function highlightThinkingButtons(lvl) {
@@ -1774,18 +1962,39 @@ export function getWebUiHtml(): string {
               const statusSpent = document.getElementById('status-spent');
               if (statusSpent) statusSpent.textContent = costText;
 
-              // Percent is precomputed by the server (same helper as the
-              // terminal's /stats). Fall back to the compressible-input ratio
-              // for older frames that predate the field.
               const saved = Number(msg.stats.tokensSaved) || 0;
               const kept = Number(msg.stats.compressibleTokens) || 0;
+              const optSaved = Number(msg.stats.optimisticTokensSaved) || saved;
+              const optPct = typeof msg.stats.optimisticSavingsPct === 'number'
+                ? msg.stats.optimisticSavingsPct
+                : (optSaved + kept > 0 ? Math.round((optSaved / (optSaved + kept)) * 100) : 0);
               const pct = typeof msg.stats.savingsPct === 'number'
                 ? msg.stats.savingsPct
                 : (saved + kept > 0 ? Math.round((saved / (saved + kept)) * 100) : 0);
+
+              const bd = msg.stats.savingsBreakdown || { caveman: 0, yagni: 0, cache: 0, mcp: 0 };
+              const formatK = (n) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+
               const savingsPill = document.getElementById('token-savings');
-              savingsPill.textContent = 'Savings: ' + pct + '% (' + saved + ' tok)';
-              savingsPill.title = saved + ' input tokens removed by Caveman / RTK / history compaction / cache' +
-                (saved + kept > 0 ? ' out of ' + (saved + kept) + ' compressible tokens' : '');
+              if (savingsPill) {
+                savingsPill.textContent = 'Savings: ~' + optPct + '% (~' + formatK(optSaved) + ' tok)';
+                savingsPill.title = 'Optimistic savings: ~' + optSaved.toLocaleString() + ' tok (~' + optPct + '% reduction) across Caveman, YAGNI, Cache, and MCP. Click for breakdown.';
+              }
+
+              const popTotal = document.getElementById('savings-popover-total');
+              if (popTotal) popTotal.textContent = '~' + optSaved.toLocaleString() + ' tok';
+              const spCaveman = document.getElementById('sp-caveman');
+              if (spCaveman) spCaveman.textContent = (bd.caveman || 0).toLocaleString() + ' tok';
+              const spYagni = document.getElementById('sp-yagni');
+              if (spYagni) spYagni.textContent = (bd.yagni || 0).toLocaleString() + ' tok';
+              const spCache = document.getElementById('sp-cache');
+              if (spCache) spCache.textContent = (bd.cache || 0).toLocaleString() + ' tok';
+              const spMcp = document.getElementById('sp-mcp');
+              if (spMcp) spMcp.textContent = (bd.mcp || 0).toLocaleString() + ' tok';
+              const spReal = document.getElementById('sp-real');
+              if (spReal) spReal.textContent = saved.toLocaleString() + ' tok';
+              const spRate = document.getElementById('sp-rate');
+              if (spRate) spRate.textContent = '~' + optPct + '%';
               if (msg.stats.filesModified) {
                 modifiedFiles = msg.stats.filesModified;
                 document.getElementById('diff-count').textContent = modifiedFiles.length;
@@ -1811,12 +2020,25 @@ export function getWebUiHtml(): string {
       if (dd) dd.classList.remove('show');
     }
 
+    function toggleSavingsPopover(e) {
+      if (e) e.stopPropagation();
+      const pop = document.getElementById('savings-popover');
+      if (pop) pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
+    }
+
     document.addEventListener('click', (e) => {
       const dd = document.getElementById('header-menu-dropdown');
       const btn = document.getElementById('header-menu-btn');
       if (dd && dd.classList.contains('show')) {
         if (!dd.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
           dd.classList.remove('show');
+        }
+      }
+      const spPop = document.getElementById('savings-popover');
+      const spPill = document.getElementById('token-savings');
+      if (spPop && spPop.style.display === 'block') {
+        if (!spPop.contains(e.target) && e.target !== spPill && !spPill.contains(e.target)) {
+          spPop.style.display = 'none';
         }
       }
     });
@@ -2245,7 +2467,11 @@ export function getWebUiHtml(): string {
         const item = document.createElement('div');
         item.className = 'tree-node' + (currentSelectedPath === f.path ? ' selected' : '');
         const isModified = modifiedFiles.includes(f.path);
-        const icon = f.isDir ? '📁' : isModified ? '📝' : '📄';
+        const ext = f.path.split('.').pop().toLowerCase();
+        const isImg = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext);
+        const isAud = ['mp3', 'wav', 'ogg'].includes(ext);
+        const isVid = ['mp4', 'webm'].includes(ext);
+        const icon = f.isDir ? '📁' : isImg ? '🖼️' : isAud ? '🎵' : isVid ? '🎬' : isModified ? '📝' : '📄';
         const modBadge = isModified ? ' <span style="color:var(--green); font-size:10px;">[modified]</span>' : '';
         item.innerHTML = \`<span>\${icon} \${escapeHtml(f.path)}\${modBadge}</span>\`;
         if (!f.isDir) {
@@ -2271,16 +2497,51 @@ export function getWebUiHtml(): string {
       switchRightTab('viewer');
       document.getElementById('current-view-file').textContent = filePath;
       const contentEl = document.getElementById('viewer-content');
-      contentEl.textContent = 'Loading file...';
+      contentEl.style.whiteSpace = 'normal';
+      contentEl.innerHTML = '<div style="color:var(--text-dim); padding:16px;">Loading file...</div>';
       try {
-        const res = await fetch('/api/file?path=' + encodeURIComponent(filePath));
+        const ext = filePath.split('.').pop().toLowerCase();
+        const fileUrl = '/api/file?path=' + encodeURIComponent(filePath);
+        if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext)) {
+          contentEl.innerHTML = \`
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; min-height:300px; text-align:center;">
+              <div style="margin-bottom:16px; border:1px solid var(--border); border-radius:8px; padding:12px; background:var(--bg-card); box-shadow:0 8px 24px rgba(0,0,0,0.3); max-width:100%; max-height:75vh; overflow:auto;">
+                <img src="\${fileUrl}" alt="\${escapeHtml(filePath)}" style="max-width:100%; max-height:70vh; object-fit:contain; border-radius:4px; display:block;" />
+              </div>
+              <div style="display:flex; gap:16px; font-size:12px;">
+                <a href="\${fileUrl}" target="_blank" style="color:var(--accent); text-decoration:none;">↗ Open in New Tab</a>
+                <a href="\${fileUrl}" download="\${escapeHtml(filePath.split('/').pop())}" style="color:var(--accent); text-decoration:none;">⬇ Download Asset</a>
+              </div>
+            </div>\`;
+          return;
+        }
+        if (['mp3', 'wav', 'ogg'].includes(ext)) {
+          contentEl.innerHTML = \`
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:32px; text-align:center;">
+              <audio controls src="\${fileUrl}" style="width:100%; max-width:400px; margin-bottom:16px;"></audio>
+              <a href="\${fileUrl}" download style="color:var(--accent); font-size:12px; text-decoration:none;">⬇ Download Audio</a>
+            </div>\`;
+          return;
+        }
+        if (['mp4', 'webm'].includes(ext)) {
+          contentEl.innerHTML = \`
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center;">
+              <video controls src="\${fileUrl}" style="max-width:100%; max-height:70vh; border-radius:8px; margin-bottom:16px;"></video>
+              <a href="\${fileUrl}" download style="color:var(--accent); font-size:12px; text-decoration:none;">⬇ Download Video</a>
+            </div>\`;
+          return;
+        }
+
+        contentEl.style.whiteSpace = 'pre';
+        const res = await fetch(fileUrl);
         if (res.ok) {
           const text = await res.text();
           contentEl.textContent = text;
         } else {
-          contentEl.textContent = 'Error loading file.';
+          contentEl.textContent = 'Error loading file: ' + res.statusText;
         }
       } catch (err) {
+        contentEl.style.whiteSpace = 'pre';
         contentEl.textContent = 'Error loading file: ' + err.message;
       }
     }
@@ -2324,7 +2585,12 @@ export function getWebUiHtml(): string {
           const pre = document.createElement('pre');
           pre.style.cssText = 'margin:0; padding:8px 0; font-family:Consolas, monospace; font-size:11.5px; line-height:1.45; overflow-x:auto; background:#0d1117;';
 
-          if (d.skipped) {
+          if (d.binary) {
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:8px 12px; color:var(--text-dim);';
+            row.textContent = 'Binary file changed — use the File Viewer to review it.';
+            pre.appendChild(row);
+          } else if (d.skipped) {
             // Oversized edit — the server skips the O(N·M) patch computation so
             // the request can't block. Point the user at the file viewer instead.
             const row = document.createElement('div');

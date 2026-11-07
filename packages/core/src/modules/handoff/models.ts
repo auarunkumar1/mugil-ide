@@ -52,7 +52,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             id: string;
             name?: string;
             context_length?: number;
-            pricing?: { prompt?: string; completion?: string };
+            pricing?: { prompt?: string; completion?: string; input_cache_read?: string };
             supported_parameters?: string[];
           }>;
         };
@@ -60,12 +60,15 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
           const list: ModelSpec[] = json.data.map((m) => {
             const costIn = m.pricing?.prompt ? Number(m.pricing.prompt) * 1_000_000 : 0;
             const costOut = m.pricing?.completion ? Number(m.pricing.completion) * 1_000_000 : 0;
+            const cacheIn = m.pricing?.input_cache_read ? Number(m.pricing.input_cache_read) * 1_000_000 : undefined;
             const tier: ModelSpec['tier'] = costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
+            const costPerMTokCacheRead = (cacheIn !== undefined && !isNaN(cacheIn)) ? cacheIn : (costIn > 0 ? costIn * 0.1 : 0);
             return {
               id: m.id,
               tier,
               costPerMTokIn: isNaN(costIn) ? 0 : costIn,
               costPerMTokOut: isNaN(costOut) ? 0 : costOut,
+              costPerMTokCacheRead,
               contextWindow: m.context_length || 128000,
               supportsThinking: modelSupportsThinking(m.id),
               supportsTools: Array.isArray(m.supported_parameters)

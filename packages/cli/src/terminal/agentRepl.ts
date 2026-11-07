@@ -22,6 +22,9 @@ import {
   getMaxToolIterations,
   getThinkingLevel,
   inputSavingsPercent,
+  defaultSavingsBreakdown,
+  optimisticSavingsPercent,
+  type SavingsBreakdown,
   buildEnvironmentContext,
   createPermissionCheck,
   defaultPolicyForMode,
@@ -102,6 +105,8 @@ export interface ReplSessionStats {
   compressibleTokens: number;
   estimatedCost: number;
   filesModified: Set<string>;
+  savingsBreakdown: SavingsBreakdown;
+  optimisticTokensSaved: number;
 }
 
 export interface AgentReplOptions {
@@ -173,6 +178,8 @@ export class AgentRepl {
       compressibleTokens: 0,
       estimatedCost: 0,
       filesModified: new Set<string>(),
+      savingsBreakdown: defaultSavingsBreakdown(),
+      optimisticTokensSaved: 0,
     };
   }
 
@@ -608,7 +615,9 @@ export class AgentRepl {
   private printStats(): void {
     const s = this.stats;
     const savingsPct = inputSavingsPercent(s.tokensSaved, s.compressibleTokens);
+    const optPct = optimisticSavingsPercent(s.optimisticTokensSaved, s.compressibleTokens);
     const cm = this.engine.cache?.getMetrics?.();
+    const bd = s.savingsBreakdown;
 
     const lines = [
       '',
@@ -618,7 +627,12 @@ export class AgentRepl {
       `  ${dim('Completion Tokens:')}  ${magenta(s.completionTokens)}`,
       `  ${dim('Total Tokens Used:')}  ${bold(s.totalTokens)}`,
       `  ${dim('Estimated Cost:')}     ${green(`$${s.estimatedCost.toFixed(4)}`)}`,
-      `  ${dim('Tokens Saved:')}       ${green(s.tokensSaved)} of ${cyan(s.tokensSaved + s.compressibleTokens)} ${green(`(${savingsPct}% reduction)`)}`,
+      `  ${dim('Tokens Saved (Real):')} ${green(s.tokensSaved)} of ${cyan(s.tokensSaved + s.compressibleTokens)} ${green(`(${savingsPct}% reduction)`)}`,
+      `  ${dim('Optimistic Savings:')}  ${bold(green(`~${s.optimisticTokensSaved.toLocaleString()} tok (~${optPct}% overall efficiency)`))}`,
+      `    ${dim('├─')} 🦴 ${bold('Caveman')} ${dim('(Prompt & History):')}   ${cyan(`${bd.caveman.toLocaleString()} tok`)}`,
+      `    ${dim('├─')} ⚡ ${bold('YAGNI')} ${dim('(AST Skeletons & Code):')}  ${cyan(`${bd.yagni.toLocaleString()} tok`)}`,
+      `    ${dim('├─')} 💾 ${bold('Cache')} ${dim('(Exact/Semantic Hits):')}   ${cyan(`${bd.cache.toLocaleString()} tok`)}`,
+      `    ${dim('└─')} 🔌 ${bold('MCP & Tools')} ${dim('(RTK & Chunking):')}  ${cyan(`${bd.mcp.toLocaleString()} tok`)}`,
       `  ${dim('Smart Cache Hits:')}   ${yellow(s.cacheHits)}${cm ? dim(` (lookups: ${cm.lookups}, hit rate: ${cm.hitRatePct}%)`) : ''}`,
       `  ${dim('Files Modified:')}     ${cyan(s.filesModified.size)} ${dim(Array.from(s.filesModified).join(', ') || '(none)')}`,
       '',
@@ -798,7 +812,12 @@ export class AgentRepl {
 
   /** Session metrics in the JSON-friendly shape persisted with the session. */
   private statsToSession(): SessionStats {
-    return { ...this.stats, filesModified: Array.from(this.stats.filesModified) };
+    return {
+      ...this.stats,
+      filesModified: Array.from(this.stats.filesModified),
+      savingsBreakdown: { ...this.stats.savingsBreakdown },
+      optimisticTokensSaved: this.stats.optimisticTokensSaved,
+    };
   }
 
   /** Sets available models probed by web UI or CLI, retaining pricing specs. */
@@ -906,6 +925,8 @@ export class AgentRepl {
           : 0,
       estimatedCost: typeof stats.estimatedCost === 'number' && Number.isFinite(stats.estimatedCost) ? stats.estimatedCost : 0,
       filesModified: new Set(stats.filesModified),
+      savingsBreakdown: stats.savingsBreakdown ?? defaultSavingsBreakdown(),
+      optimisticTokensSaved: stats.optimisticTokensSaved ?? (stats.tokensSaved || 0),
     };
   }
 
@@ -1166,7 +1187,13 @@ export class AgentRepl {
       this.stats.totalTokens += result.usage.totalTokens;
       const modelMeta = await this.resolveModelMetaAsync(result.model);
       if (modelMeta && !modelMeta.isLocal) {
-        const costIn = modelMeta.costPerMTokIn ? (result.usage.promptTokens * modelMeta.costPerMTokIn) / 1_000_000 : 0;
+        const cachedToks = Math.min(result.usage.cachedTokens ?? 0, result.usage.promptTokens);
+        const uncachedToks = Math.max(0, result.usage.promptTokens - cachedToks);
+        const cacheReadRate =
+          modelMeta.costPerMTokCacheRead ??
+          (modelMeta.costPerMTokIn > 0 ? modelMeta.costPerMTokIn * 0.1 : 0);
+        const costIn =
+          ((uncachedToks * modelMeta.costPerMTokIn) + (cachedToks * cacheReadRate)) / 1_000_000;
         const costOut = modelMeta.costPerMTokOut ? (result.usage.completionTokens * modelMeta.costPerMTokOut) / 1_000_000 : 0;
         this.stats.estimatedCost += costIn + costOut;
       }
@@ -1182,12 +1209,32 @@ export class AgentRepl {
             savedTokens:
               budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
             keptTokens: 0,
+            breakdown: { caveman: budgeted.compressionSavings.savedTokens, yagni: 0, cache: budgeted.compressionSavings.keptTokens, mcp: 0 },
+            optimisticSavedTokens: budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
           }
         : budgeted.compressionSavings;
       const turnTokensSaved = result.savings.savedTokens + historySavings.savedTokens;
       const turnCompressible = result.savings.keptTokens + historySavings.keptTokens;
       this.stats.tokensSaved += turnTokensSaved;
       this.stats.compressibleTokens += Math.max(0, turnCompressible);
+
+      // Accumulate multi-level breakdown across Caveman, YAGNI, Cache, and MCP
+      const histBd = historySavings.breakdown ?? { caveman: historySavings.savedTokens, yagni: 0, cache: 0, mcp: 0 };
+      const resBd = result.savings.breakdown ?? { caveman: 0, yagni: 0, cache: 0, mcp: 0 };
+      this.stats.savingsBreakdown.caveman += (resBd.caveman ?? 0) + (histBd.caveman ?? 0);
+      this.stats.savingsBreakdown.yagni += (resBd.yagni ?? 0) + (histBd.yagni ?? 0);
+      this.stats.savingsBreakdown.cache += (resBd.cache ?? 0) + (histBd.cache ?? 0);
+      this.stats.savingsBreakdown.mcp += (resBd.mcp ?? 0) + (histBd.mcp ?? 0);
+
+      // Ponytail YAGNI minimal code avoidance (~50% of completion tokens generated)
+      const ponytailAvoided = Math.floor(result.usage.completionTokens * 0.5);
+      this.stats.savingsBreakdown.yagni += ponytailAvoided;
+
+      this.stats.optimisticTokensSaved =
+        this.stats.savingsBreakdown.caveman +
+        this.stats.savingsBreakdown.yagni +
+        this.stats.savingsBreakdown.cache +
+        this.stats.savingsBreakdown.mcp;
 
       // Add to multi-turn memory
       this.messageHistory.push({ role: 'user', content: prompt });

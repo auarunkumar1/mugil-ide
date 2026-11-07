@@ -408,6 +408,48 @@ describe('ToolLoop', () => {
     expect(out.savings!.savedTokens).toBeGreaterThan(0);
     expect(out.savings!.keptTokens).toBeGreaterThan(0);
   });
+  it('sums usage and preserves cachedTokens across iterations', async () => {
+    const client = scriptedClient([
+      result({
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+        usage: { promptTokens: 200, completionTokens: 10, totalTokens: 210, cachedTokens: 150 },
+      }),
+      result({
+        content: '5',
+        finishReason: 'stop',
+        usage: { promptTokens: 250, completionTokens: 5, totalTokens: 255, cachedTokens: 220 },
+      }),
+    ]);
+    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], { tools: [ADD], registry });
+    expect(out.usage).toEqual({ promptTokens: 450, completionTokens: 15, totalTokens: 465, cachedTokens: 370 });
+  });
+
+  it('records read_skeleton avoided tokens in yagni breakdown and optimistic savings', async () => {
+    const skelRegistry = {
+      read_skeleton: async () => 'export class Foo {}\n\n/* [read_skeleton: saved ~850 tokens vs reading full file (1000 -> 150 tok)] */',
+    };
+    const SKELETON_TOOL: import('../src/types.js').ToolDefinition = {
+      name: 'read_skeleton',
+      description: 'read skeleton',
+      parameters: { type: 'object', properties: { path: { type: 'string' } } },
+    };
+    const client = scriptedClient([
+      result({
+        content: '',
+        finishReason: 'tool_calls',
+        toolCalls: [{ id: 'call_skel', name: 'read_skeleton', arguments: '{"path":"foo.ts"}' }],
+      }),
+      result({ content: 'understood', finishReason: 'stop' }),
+    ]);
+    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
+    const out = await loop.run([...system, { role: 'user', content: 'inspect' }], { tools: [SKELETON_TOOL], registry: skelRegistry });
+    expect(out.savings?.breakdown?.yagni).toBe(850);
+    expect(out.savings?.optimisticSavedTokens).toBeGreaterThanOrEqual(850);
+  });
+
   it('sums usage across iterations', async () => {
     const client = scriptedClient([
       result({

@@ -212,9 +212,12 @@ export class Pipeline {
     // diluted every real saving to 0%.
     const signatureSaved = options.noRefine ? 0 : Math.max(0, countTokens(prompt) - refine.originalTokens);
     const refineSaved = options.noRefine ? 0 : Math.max(0, refine.originalTokens - refine.refinedTokens);
+    const cavemanSaved = signatureSaved + refineSaved;
     const savings: InputSavings = {
-      savedTokens: signatureSaved + refineSaved,
+      savedTokens: cavemanSaved,
       keptTokens: options.noRefine ? 0 : refine.refinedTokens,
+      breakdown: { caveman: cavemanSaved, yagni: 0, cache: 0, mcp: 0 },
+      optimisticSavedTokens: cavemanSaved,
     };
 
     // 2. Cache lookup
@@ -262,7 +265,17 @@ export class Pipeline {
         // A cache hit sends no prompt at all: the entire compressible input
         // was saved. Measured against the refined prompt (the part the modules
         // own), never the provider's whole-prompt count.
-        savings: { savedTokens: refine.refinedTokens, keptTokens: 0 },
+        savings: {
+          savedTokens: refine.refinedTokens,
+          keptTokens: 0,
+          breakdown: {
+            caveman: cavemanSaved,
+            yagni: 0,
+            cache: refine.refinedTokens + countTokens(cacheLookup.entry.response),
+            mcp: 0,
+          },
+          optimisticSavedTokens: refine.refinedTokens + countTokens(cacheLookup.entry.response) + cavemanSaved,
+        },
         cache: { hit: true, kind: cacheLookup.kind },
         toolCalls: 0,
         truncated: false,
@@ -409,6 +422,15 @@ export class Pipeline {
       if (toolSavings) {
         savings.savedTokens += toolSavings.savedTokens;
         savings.keptTokens += toolSavings.keptTokens;
+        if (toolSavings.breakdown && savings.breakdown) {
+          savings.breakdown.yagni += toolSavings.breakdown.yagni;
+          savings.breakdown.mcp += toolSavings.breakdown.mcp;
+          savings.breakdown.cache += toolSavings.breakdown.cache;
+          savings.breakdown.caveman += toolSavings.breakdown.caveman;
+        }
+        savings.optimisticSavedTokens =
+          (savings.optimisticSavedTokens ?? savings.savedTokens) +
+          (toolSavings.optimisticSavedTokens ?? toolSavings.savedTokens);
       }
     }
 

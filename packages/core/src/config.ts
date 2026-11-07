@@ -1,7 +1,7 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { ModelSpec } from './types.js';
-import { readUserEnv } from './env.js';
+import { readUserEnv, loadUserEnvIntoProcess } from './env.js';
 
 /** Checks whether a model ID supports extended thinking/reasoning. */
 export function modelSupportsThinking(id: string): boolean {
@@ -151,17 +151,17 @@ export const DEFAULT_OPENROUTER_MODELS: ModelSpec[] = [
 
 /** Default OpenAI ladder used when OPENAI_MODELS is not set. */
 export const DEFAULT_OPENAI_MODELS: ModelSpec[] = [
-  { id: 'gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000 },
-  { id: 'gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, contextWindow: 128000 },
-  { id: 'o3-mini', tier: 'smart', costPerMTokIn: 1.1, costPerMTokOut: 4.4, contextWindow: 200000, supportsThinking: true },
-  { id: 'o1', tier: 'smart', costPerMTokIn: 15, costPerMTokOut: 60, contextWindow: 200000, supportsThinking: true },
+  { id: 'gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, costPerMTokCacheRead: 0.075, contextWindow: 128000 },
+  { id: 'gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, costPerMTokCacheRead: 1.25, contextWindow: 128000 },
+  { id: 'o3-mini', tier: 'smart', costPerMTokIn: 1.1, costPerMTokOut: 4.4, costPerMTokCacheRead: 0.55, contextWindow: 200000, supportsThinking: true },
+  { id: 'o1', tier: 'smart', costPerMTokIn: 15, costPerMTokOut: 60, costPerMTokCacheRead: 7.5, contextWindow: 200000, supportsThinking: true },
 ];
 
 /** Default Anthropic ladder used when ANTHROPIC_MODELS is not set. */
 export const DEFAULT_ANTHROPIC_MODELS: ModelSpec[] = [
-  { id: 'claude-3-5-haiku', tier: 'cheap', costPerMTokIn: 0.8, costPerMTokOut: 4, contextWindow: 200000 },
-  { id: 'claude-3-5-sonnet', tier: 'standard', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000 },
-  { id: 'claude-3-7-sonnet', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000, supportsThinking: true },
+  { id: 'claude-3-5-haiku', tier: 'cheap', costPerMTokIn: 0.8, costPerMTokOut: 4, costPerMTokCacheRead: 0.08, contextWindow: 200000 },
+  { id: 'claude-3-5-sonnet', tier: 'standard', costPerMTokIn: 3, costPerMTokOut: 15, costPerMTokCacheRead: 0.3, contextWindow: 200000 },
+  { id: 'claude-3-7-sonnet', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, costPerMTokCacheRead: 0.3, contextWindow: 200000, supportsThinking: true },
 ];
 
 /** Default Ollama ladder used when OLLAMA_MODELS is not set. */
@@ -241,19 +241,22 @@ export async function fetchRemoteModels(
             id: string;
             name?: string;
             context_length?: number;
-            pricing?: { prompt?: string; completion?: string };
+            pricing?: { prompt?: string; completion?: string; input_cache_read?: string };
           }>;
         };
         if (json.data && Array.isArray(json.data) && json.data.length > 0) {
           const list: ModelSpec[] = json.data.map((m) => {
             const costIn = m.pricing?.prompt ? Number(m.pricing.prompt) * 1_000_000 : 0;
             const costOut = m.pricing?.completion ? Number(m.pricing.completion) * 1_000_000 : 0;
+            const cacheIn = m.pricing?.input_cache_read ? Number(m.pricing.input_cache_read) * 1_000_000 : undefined;
             const tier: ModelSpec['tier'] = costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
+            const costPerMTokCacheRead = (cacheIn !== undefined && !isNaN(cacheIn)) ? cacheIn : (costIn > 0 ? costIn * 0.1 : 0);
             return {
               id: m.id,
               tier,
               costPerMTokIn: isNaN(costIn) ? 0 : costIn,
               costPerMTokOut: isNaN(costOut) ? 0 : costOut,
+              costPerMTokCacheRead,
               contextWindow: m.context_length || 128000,
               supportsThinking: modelSupportsThinking(m.id),
             };
@@ -357,6 +360,9 @@ function parseModels(value: string | undefined, fallback: ModelSpec[]): ModelSpe
  * is only consulted outside tests (NODE_ENV=test stays hermetic).
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  if (env.NODE_ENV !== 'test') {
+    loadUserEnvIntoProcess(env);
+  }
   const userFile = env.NODE_ENV === 'test' ? {} : readUserEnv(env);
   const cleanEnv: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(env)) {

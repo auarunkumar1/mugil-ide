@@ -32,6 +32,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import type { SavingsBreakdown } from '../types.js';
 
 export interface SessionEntry {
   id: number;
@@ -64,6 +65,8 @@ export interface SessionStats {
   compressibleTokens?: number;
   estimatedCost?: number;
   filesModified: string[];
+  savingsBreakdown?: SavingsBreakdown;
+  optimisticTokensSaved?: number;
 }
 
 export interface SessionFile {
@@ -216,6 +219,13 @@ function sanitizeStats(stats: unknown): SessionStats | null {
     compressibleTokens: num(s.compressibleTokens),
     estimatedCost: typeof s.estimatedCost === 'number' && Number.isFinite(s.estimatedCost) ? s.estimatedCost : 0,
     filesModified: Array.isArray(s.filesModified) ? s.filesModified.filter((f): f is string => typeof f === 'string') : [],
+    savingsBreakdown: s.savingsBreakdown && typeof s.savingsBreakdown === 'object' ? {
+      caveman: num((s.savingsBreakdown as Record<string, unknown>).caveman),
+      yagni: num((s.savingsBreakdown as Record<string, unknown>).yagni),
+      cache: num((s.savingsBreakdown as Record<string, unknown>).cache),
+      mcp: num((s.savingsBreakdown as Record<string, unknown>).mcp),
+    } : undefined,
+    optimisticTokensSaved: typeof s.optimisticTokensSaved === 'number' && Number.isFinite(s.optimisticTokensSaved) ? s.optimisticTokensSaved : undefined,
   };
 }
 

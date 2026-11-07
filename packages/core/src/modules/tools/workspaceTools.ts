@@ -31,6 +31,9 @@ import { captureFile, pushEdit } from '../undo.js';
 import { connectMcpServers, type McpConnector, type McpServerConfig, type McpToolsBundle } from '../mcp-client/index.js';
 import { getLspClient, type LspClient } from '../lsp/index.js';
 import { globalBlobStore } from './blobStore.js';
+import { countTokens } from '../../token/tokenizer.js';
+import { generateImage } from './mediaTools.js';
+import { resolveInsideWorkspace } from './paths.js';
 
 export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -295,6 +298,21 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['description'],
     },
   },
+  {
+    name: 'generate_image',
+    description:
+      'Generate an image or visual asset from a prompt and save it to the workspace. Dispatches across configured providers (Vercel AI Gateway, OpenRouter, OpenAI, Together, then the keyless Pollinations generator). The returned path may differ from the requested one when the provider returns a different format (the extension always matches the bytes). If no provider succeeds, a vector placeholder is written and the result is flagged with a warning — treat that as a failure, not an image.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'Detailed visual description of the image to generate.' },
+        path: { type: 'string', description: 'Destination file path relative to workspace root (e.g. "assets/hero.png", "icons/badge.svg").' },
+        size: { type: 'string', description: 'Dimensions in WxH format (e.g. "1024x1024", "512x512", "1280x720"). Defaults to 1024x1024.' },
+        style: { type: 'string', description: 'Optional visual style guide (e.g. "vector icon", "photorealistic", "flat illustration", "pixel art").' },
+      },
+      required: ['prompt', 'path'],
+    },
+  },
 ];
 
 /** Read-only policy for explore subagents (mirrors plan mode). */
@@ -305,6 +323,7 @@ const EXPLORE_POLICY = {
     apply_patch: 'deny' as const,
     run_command: 'deny' as const,
     todowrite: 'deny' as const,
+    generate_image: 'deny' as const,
   },
   bash: { defaultAction: 'deny' as const, rules: [] },
 };
@@ -700,36 +719,7 @@ export function createWorkspaceTools(
   }
 
   /** Resolves a tool-supplied path and enforces containment inside the root. */
-  function resolveInWorkspace(rawPath: string): { target: string; error?: string } {
-    const normalizedRoot = path.resolve(root);
-    const target = path.resolve(normalizedRoot, rawPath);
-    const rel = path.relative(normalizedRoot, target);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-      return { target, error: `Error: path "${rawPath}" is outside the workspace root (${normalizedRoot}). Paths must stay inside the workspace.` };
-    }
-    // Realpath containment check: prevents symlink/junction escapes.
-    // If target does not exist yet (e.g. creating a new file in a symlinked folder),
-    // probe the closest existing ancestor directory.
-    try {
-      const realRoot = fs.existsSync(normalizedRoot) ? fs.realpathSync(normalizedRoot) : normalizedRoot;
-      let probe = target;
-      while (!fs.existsSync(probe)) {
-        const parent = path.dirname(probe);
-        if (parent === probe) break;
-        probe = parent;
-      }
-      if (fs.existsSync(probe)) {
-        const realProbe = fs.realpathSync(probe);
-        const realRel = path.relative(realRoot, realProbe);
-        if (realRel.startsWith('..') || path.isAbsolute(realRel)) {
-          return { target, error: `Error: path "${rawPath}" resolves outside workspace via symlink (${realProbe}). Paths must stay inside the workspace.` };
-        }
-      }
-    } catch {
-      // If realpath resolution fails, lexical check above remains enforced
-    }
-    return { target };
-  }
+  const resolveInWorkspace = (rawPath: string) => resolveInsideWorkspace(root, rawPath);
 
   function isBinaryFile(target: string): boolean {
     try {
@@ -820,8 +810,12 @@ export function createWorkspaceTools(
       const content = fs.readFileSync(target, 'utf-8');
       const skeleton = extractCodeSkeleton(content, target);
       const compressed = compressCommandOutput(skeleton, { maxLineLength: 300 }).text;
-      toolCache.set(cacheKey, { result: compressed, mtimeMs: stat.mtimeMs, rev: workspaceRev });
-      return compressed;
+      const fullTokens = countTokens(content);
+      const skelTokens = countTokens(compressed);
+      const savedTokens = Math.max(0, fullTokens - skelTokens);
+      const resultWithMeta = `${compressed}\n\n/* [read_skeleton: saved ~${savedTokens} tokens vs reading full file (${fullTokens} -> ${skelTokens} tok)] */`;
+      toolCache.set(cacheKey, { result: resultWithMeta, mtimeMs: stat.mtimeMs, rev: workspaceRev });
+      return resultWithMeta;
     },
 
     list_files: async (call: ToolCall): Promise<string> => {
@@ -1077,6 +1071,52 @@ export function createWorkspaceTools(
         }
       }
       return withDiagnostics(results.join('\n'));
+    },
+
+    generate_image: async (call: ToolCall): Promise<string> => {
+      const args = parseToolArguments(call) as { prompt: string; path: string; size?: string; style?: string };
+      if (!args.prompt || !args.path) return 'Error: prompt and path parameters are required.';
+      const { target, error } = resolveInWorkspace(args.path);
+      if (error) return error;
+
+      // The generator may rewrite the extension to match the bytes it wrote, so
+      // snapshot the pre-write state of every path it could land on.
+      const ext = path.extname(target);
+      const stem = ext ? target.slice(0, target.length - ext.length) : target;
+      const beforeByPath = new Map<string, ReturnType<typeof captureFile>>();
+      for (const candidate of [stem + ext, stem + '.png', stem + '.jpg', stem + '.jpeg', stem + '.webp', stem + '.gif', stem + '.svg']) {
+        if (fs.existsSync(candidate)) beforeByPath.set(candidate, captureFile(root, candidate));
+      }
+      try {
+        const result = await generateImage({
+          prompt: args.prompt,
+          outputPath: target,
+          size: args.size,
+          style: args.style,
+          workspaceRoot: root,
+        });
+        invalidateCache();
+        const written = path.resolve(root, result.path);
+        const before = beforeByPath.get(written) ?? { content: '', existed: false };
+        const isSvg = result.format === 'svg';
+        const afterBuf = fs.existsSync(written) ? fs.readFileSync(written) : Buffer.alloc(0);
+        const undoNote = pushEdit(root, {
+          path: written,
+          before,
+          after: {
+            content: isSvg ? afterBuf.toString('utf-8') : afterBuf.toString('base64'),
+            existed: true,
+            isBinary: !isSvg,
+          },
+        });
+        const rel = result.path;
+        const warning = result.placeholder
+          ? `\n⚠ No image provider produced an image — wrote a vector placeholder instead.${result.fallbackReasons?.length ? ` Tried: ${result.fallbackReasons.join('; ')}` : ''}`
+          : '';
+        return `✓ Generated image asset saved to ${rel} (${result.width}x${result.height}, ${result.format}, ${result.sizeBytes} bytes, provider: ${result.provider})${undoNote ? ` (${undoNote})` : ''}${warning}\nPreview available in file viewer: /api/file?path=${encodeURIComponent(rel)}`;
+      } catch (err) {
+        return `Error: failed to generate image: ${err instanceof Error ? err.message : String(err)}`;
+      }
     },
 
     run_command: async (call: ToolCall): Promise<string> => {

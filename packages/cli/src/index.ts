@@ -8,6 +8,7 @@ import {
   createEngine,
   deleteUserEnvKeys,
   loadConfig,
+  loadUserEnvIntoProcess,
   readUserEnv,
   userEnvPath,
 } from '@mugil-ide/core';
@@ -15,6 +16,8 @@ import { runOnce } from './run.js';
 import { startIdeServer } from './server/server.js';
 import { PROVIDERS, maskKey } from './providers.js';
 import { bold, cyan, green, dim } from './terminal/ansi.js';
+
+loadUserEnvIntoProcess();
 
 const program = new Command();
 

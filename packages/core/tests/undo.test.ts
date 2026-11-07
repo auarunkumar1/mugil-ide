@@ -89,6 +89,34 @@ describe('undo/redo store', () => {
     expect(fs.readFileSync(dst, 'utf-8')).toBe('hello'); // not lost
   });
 
+  it('safely snapshots and restores binary assets without corruption or zero-byte truncation', () => {
+    const root = tempRoot();
+    const file = path.join(root, 'image.png');
+    const originalBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x0a, 0x1a, 0x0a, 0xff, 0xd8]);
+    fs.writeFileSync(file, originalBytes);
+
+    const before = captureFile(root, file);
+    expect(before.isBinary).toBe(true);
+
+    const newBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x99, 0x88, 0x77]);
+    fs.writeFileSync(file, newBytes);
+    pushEdit(root, {
+      path: file,
+      before,
+      after: { content: newBytes.toString('base64'), existed: true, isBinary: true },
+    });
+
+    // Undo should restore exact original binary bytes
+    const undone = undoLast(root)!;
+    expect(undone.action).toBe('restored');
+    expect(fs.readFileSync(file).equals(originalBytes)).toBe(true);
+
+    // Redo should re-apply exact new binary bytes (not 0 bytes)
+    const redone = redoLast(root)!;
+    expect(redone.action).toBe('re-applied');
+    expect(fs.readFileSync(file).equals(newBytes)).toBe(true);
+  });
+
   it('undoes multiple edits LIFO', () => {
     const root = tempRoot();
     const file = path.join(root, 'a.txt');

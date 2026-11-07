@@ -13,7 +13,7 @@ import {
 } from '@mugil-ide/core';
 import type { Engine, ProviderClient } from '@mugil-ide/core';
 import { startIdeServer } from '../src/server/server.js';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, unlinkSync, symlinkSync } from 'node:fs';
 import * as net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -257,6 +257,103 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('serves files and binary media assets via /api/file with appropriate Content-Type', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    const testFile = join(process.cwd(), 'test-asset.png');
+    const fakePng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    writeFileSync(testFile, fakePng);
+    try {
+      const res = await fetch(`${server.url}/api/file?path=test-asset.png`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toBe('image/png');
+      const buf = Buffer.from(await res.arrayBuffer());
+      expect(buf.equals(fakePng)).toBe(true);
+    } finally {
+      if (existsSync(testFile)) unlinkSync(testFile);
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
+  it('generates image assets via POST /api/generate-image and tracks undo', async () => {
+    const origMock = process.env.MUGIL_IDE_MOCK;
+    process.env.MUGIL_IDE_MOCK = '1';
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    const targetRel = 'test-generated-logo.svg';
+    const targetAbs = join(process.cwd(), targetRel);
+    try {
+      const res = await fetch(`${server.url}/api/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Geometric hexagonal icon',
+          path: targetRel,
+          size: '512x512',
+          style: 'vector icon',
+        }),
+      });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        ok: boolean;
+        result: { width: number; height: number; provider: string };
+        fileUrl: string;
+      };
+      expect(json.ok).toBe(true);
+      expect(json.result.width).toBe(512);
+      expect(json.fileUrl).toContain('test-generated-logo.svg');
+      expect(existsSync(targetAbs)).toBe(true);
+    } finally {
+      if (origMock === undefined) delete process.env.MUGIL_IDE_MOCK;
+      else process.env.MUGIL_IDE_MOCK = origMock;
+      if (existsSync(targetAbs)) unlinkSync(targetAbs);
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
+  it('rejects /api/generate-image paths that escape the workspace via symlink', async () => {
+    const origMock = process.env.MUGIL_IDE_MOCK;
+    process.env.MUGIL_IDE_MOCK = '1';
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    const linkName = '.symlink-escape-test';
+    const linkPath = join(process.cwd(), linkName);
+    const outsideDir = mkdtempSync(join(tmpdir(), 'mugil-outside-'));
+    try {
+      symlinkSync(outsideDir, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+      const res = await fetch(`${server.url}/api/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'escape', path: `${linkName}/evil.png` }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error: string };
+      expect(json.error).toContain('resolves outside workspace');
+      expect(existsSync(join(outsideDir, 'evil.png'))).toBe(false);
+    } finally {
+      if (existsSync(linkPath)) unlinkSync(linkPath);
+      rmSync(outsideDir, { recursive: true, force: true });
+      if (origMock === undefined) delete process.env.MUGIL_IDE_MOCK;
+      else process.env.MUGIL_IDE_MOCK = origMock;
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
+  it('serves Web UI inline scripts that parse', async () => {
+    const { getWebUiHtml } = await import('../src/server/html.js');
+    const html = getWebUiHtml();
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const src of scripts) {
+      // `new Function` throws on any syntax error — a truncated string literal
+      // in the template once shipped a UI with dead event handlers.
+      expect(() => new Function(src)).not.toThrow();
+    }
+  });
+
   it('prints clean banner without ASCII logo on connection even after session resume', async () => {
     // Simulate a returning user: the repl constructor auto-resumes the saved
     // last-session, so turns.length > 0 at connect time.
@@ -359,6 +456,45 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('applies prompt caching discounts to accurately calculate estimated spend', async () => {
+    // With 20,000 prompt tokens where 18,000 are cached on gpt-4o:
+    // Uncached: 2,000 * $2.50 / 1M = $0.0050
+    // Cached: 18,000 * $1.25 / 1M = $0.0225
+    // Completion: 100 * $10.00 / 1M = $0.0010
+    // Total = $0.0285 (instead of $0.0510 uncached)
+    const client: ProviderClient = {
+      mock: false,
+      complete: async () =>
+        scriptedResult({
+          model: 'openai/gpt-4o',
+          content: 'done',
+          usage: { promptTokens: 20000, completionTokens: 100, totalTokens: 20100, cachedTokens: 18000 },
+        }),
+    };
+    const engine = scriptedEngine(client);
+    const server = await startIdeServer({ engine, port: 0, model: 'gpt-4o' });
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+    const statuses: Array<{ estimatedCost: number }> = [];
+    ws.on('message', (data: WebSocket.RawData) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'status' && msg.stats) statuses.push(msg.stats);
+      } catch {
+        // ignore malformed frame
+      }
+    });
+    try {
+      ws.on('open', () => ws.send(JSON.stringify({ type: 'agent_input', data: 'test prompt\r' })));
+      await waitForMessage(ws, (m) => m.type === 'turn_complete');
+      const last = statuses.at(-1);
+      expect(last).toBeDefined();
+      expect(last!.estimatedCost).toBeCloseTo(0.0105, 4);
+    } finally {
+      ws.terminate();
+      await server.close();
+    }
+  });
+
   it('round-trips a mid-task question over WebSocket (question tool)', async () => {
     let calls = 0;
     const fedBack: string[] = [];
@@ -433,7 +569,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
     // Status frames are coalesced and can land before a listener is attached,
     // so collect every snapshot from the moment the socket opens.
-    const statuses: Array<{ tokensSaved: number; compressibleTokens: number; savingsPct: number }> =
+    const statuses: Array<{ tokensSaved: number; compressibleTokens: number; savingsPct: number; savingsBreakdown?: any; optimisticTokensSaved?: number; optimisticSavingsPct?: number }> =
       [];
     ws.on('message', (data: WebSocket.RawData) => {
       try {
@@ -458,6 +594,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(last!.tokensSaved).toBeGreaterThan(0);
       expect(last!.compressibleTokens).toBeGreaterThan(0);
       expect(last!.savingsPct).toBeGreaterThan(0);
+      expect(last!.savingsBreakdown).toBeDefined();
+      expect(last!.savingsBreakdown.caveman).toBeGreaterThan(0);
+      expect(last!.optimisticTokensSaved).toBeGreaterThan(0);
+      expect(last!.optimisticSavingsPct).toBeGreaterThan(0);
     } finally {
       ws.terminate();
       await server.close();
@@ -910,6 +1050,12 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       before: { content: bigBefore, existed: true },
       after: { content: bigAfter, existed: true },
     });
+    // Binary edit → flagged, never rendered as base64 text.
+    pushEdit(root, {
+      path: join(root, 'diff-smoke-binary.png'),
+      before: { content: '', existed: false },
+      after: { content: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).toString('base64'), existed: true, isBinary: true },
+    });
 
     try {
       // Async diffing: the medium diff is computed on a worker thread, so a
@@ -933,11 +1079,12 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(res).toBeLessThan(2000);
 
       const data = (await (await fetch(`${server.url}/api/diffs`)).json()) as {
-        diffs: Array<{ rel: string; patch: string; skipped?: boolean; before: string }>;
+        diffs: Array<{ rel: string; patch: string; skipped?: boolean; binary?: boolean; before: string }>;
       };
       const small = data.diffs.find((d) => d.rel.includes('diff-smoke-small'));
       const medium = data.diffs.find((d) => d.rel.includes('diff-smoke-medium'));
       const big = data.diffs.find((d) => d.rel.includes('diff-smoke-big'));
+      const binary = data.diffs.find((d) => d.rel.includes('diff-smoke-binary'));
       expect(small?.patch).toContain('mugil');
       expect(small?.skipped).toBe(false);
       // The medium diff went through the worker and produced a real patch.
@@ -945,6 +1092,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(medium?.patch).toContain('beta line');
       expect(big?.skipped).toBe(true);
       expect(big?.patch).toBe('');
+      // Binary edits are flagged so the viewer never prints base64 as text.
+      expect(binary?.binary).toBe(true);
+      expect(binary?.patch).toBe('');
       // Payload stays bounded for oversized edits (preview only).
       expect(big?.before.length).toBeLessThan(bigBefore.length);
     } finally {

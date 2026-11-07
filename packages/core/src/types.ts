@@ -39,6 +39,7 @@ export interface ModelSpec {
   tier: ModelTier;
   costPerMTokIn: number;
   costPerMTokOut: number;
+  costPerMTokCacheRead?: number;
   contextWindow: number;
   supportsThinking?: boolean;
   /** Whether the model can call tools. Populated from catalog data when available. */
@@ -96,9 +97,18 @@ export interface StrategyResult {
  * removed, `keptTokens` are the compressed tokens that were still sent — so
  * `saved / (saved + kept)` is the real compression ratio for that input.
  */
+export interface SavingsBreakdown {
+  caveman: number;
+  yagni: number;
+  cache: number;
+  mcp: number;
+}
+
 export interface InputSavings {
   savedTokens: number;
   keptTokens: number;
+  breakdown?: SavingsBreakdown;
+  optimisticSavedTokens?: number;
 }
 
 export interface RefineResult {

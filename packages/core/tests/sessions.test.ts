@@ -197,6 +197,26 @@ describe('sessions', () => {
     expect(loadSession(statsFile)).toHaveLength(1);
   });
 
+  it('persists and restores multi-level savings breakdown and optimistic savings', () => {
+    const statsFile = path.join(dir, 'stats-breakdown-test.json');
+    const stats: SessionStats = {
+      promptTokens: 500,
+      completionTokens: 200,
+      totalTokens: 700,
+      cacheHits: 1,
+      requests: 2,
+      tokensSaved: 100,
+      compressibleTokens: 150,
+      estimatedCost: 0.005,
+      filesModified: ['src/index.ts'],
+      savingsBreakdown: { caveman: 50, yagni: 800, cache: 300, mcp: 120 },
+      optimisticTokensSaved: 1270,
+    };
+    saveSession([entry(1)], statsFile, stats);
+    const loaded = loadSessionFile(statsFile);
+    expect(loaded.stats).toEqual(stats);
+  });
+
   it('loads version-1 files (entries, no stats) and sanitizes garbage stats', () => {
     const statsFile = path.join(dir, 'stats-test.json');
     // Pre-stats (version 1) files still load — stats are null.

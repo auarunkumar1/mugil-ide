@@ -26,6 +26,7 @@ import {
   compressCommandOutput,
   countTokens,
   createEngine,
+  generateImage,
   getTokenizer,
   loadConfig,
   queryCodeGraph,
@@ -252,6 +253,36 @@ export function createMcpServer(engine: Engine = createEngine(loadConfig())): Mc
     },
     async ({ prompt }) => {
       return text(JSON.stringify(rtkStrategy(prompt), null, 2));
+    },
+  );
+
+  server.registerTool(
+    'generate_image',
+    {
+      title: 'Generate image',
+      description:
+        'Generate an image or visual asset from a prompt and save it to the workspace. Dispatches across Vercel AI Gateway, OpenRouter, OpenAI, Together and the keyless Pollinations generator. The returned path may differ from the requested one when the provider returns a different format; a "placeholder" result means no provider succeeded.',
+      inputSchema: {
+        prompt: z.string().describe('Detailed visual description of the image to generate'),
+        path: z.string().describe('Destination file path relative to workspace root'),
+        size: z.string().optional().describe('Dimensions in WxH format, e.g. "1024x1024" or "512x512"'),
+        style: z.string().optional().describe('Visual style guide, e.g. "vector icon", "photorealistic"'),
+      },
+    },
+    async ({ prompt, path: outPath, size, style }) => {
+      try {
+        const result = await generateImage({
+          prompt,
+          outputPath: outPath,
+          size,
+          style,
+        });
+        return text(JSON.stringify(result, null, 2));
+      } catch (err) {
+        return text(
+          JSON.stringify({ error: err instanceof Error ? err.message : String(err) }, null, 2),
+        );
+      }
     },
   );
 

@@ -92,7 +92,12 @@ export function budgetConversationHistory(
 ): HistoryBudgetResult {
   const kept: ConversationTurn[] = [];
   const evicted: ConversationTurn[] = [];
-  const compressionSavings: InputSavings = { savedTokens: 0, keptTokens: 0 };
+  const compressionSavings: InputSavings = {
+    savedTokens: 0,
+    keptTokens: 0,
+    breakdown: { caveman: 0, yagni: 0, cache: 0, mcp: 0 },
+    optimisticSavedTokens: 0,
+  };
   let tokens = 0;
   let dropped = 0;
   let evictedTokens = 0;
@@ -125,6 +130,10 @@ export function budgetConversationHistory(
   // saved tokens to a denominator that never saw them.
   compressionSavings.savedTokens += evictedTokens;
   compressionSavings.keptTokens += tokens + (compactedSummary ? countTokens(compactedSummary) : 0);
+  if (compressionSavings.breakdown) {
+    compressionSavings.breakdown.caveman = compressionSavings.savedTokens;
+  }
+  compressionSavings.optimisticSavedTokens = compressionSavings.savedTokens;
   return {
     turns: kept,
     droppedCount: dropped,

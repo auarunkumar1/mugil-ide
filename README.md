@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 481 Passing](https://img.shields.io/badge/tests-506%20passing-3fb950.svg?style=flat-square)](https://github.com)
+[![Tests: 539 Passing](https://img.shields.io/badge/tests-539%20passing-3fb950.svg?style=flat-square)](https://github.com)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
 
 </div>
@@ -71,7 +71,7 @@ flowchart LR
     
     %% Execution loop
     Router --> LLM["🧠 LLM Engine"]
-    LLM <--> Tools["🧰 17 Workspace Tools\n(AST · Blobs · CodeGraph)"]
+    LLM <--> Tools["🧰 18 Workspace Tools\n(AST · Blobs · CodeGraph · Media)"]
     
     %% Post-generation cleaning
     LLM --> DeAI["✂️ De-AI & Watermark Stripper\n(Purges AI Disclaimers & Signatures)"]
@@ -141,10 +141,10 @@ flowchart LR
 
 ---
 
-### 6. 🛠️ 17 Autonomous Workspace Tools & Subagent Swarms
+### 6. 🛠️ 18 Autonomous Workspace Tools & Subagent Swarms
 
 - **💡 Def:**  
-  Mugil IDE comes out of the box with tools to search, read, write, test, explore, and refactor code. It can even spin up helper "subagents" to perform broad background research without cluttering your main conversation!
+  Mugil IDE comes out of the box with tools to search, read, write, test, explore, generate visual media, and refactor code. It can even spin up helper "subagents" to perform broad background research without cluttering your main conversation!
 - **⚙️ Under the Hood:**  
   Built-in tools include:
   - `read_file` & `read_skeleton`: AST-aware code reader that extracts types, signatures, and interfaces while omitting internal function bodies — saving 70–80% of tokens during exploratory research.
@@ -153,6 +153,7 @@ flowchart LR
   - `codegraph`: Full AST symbol and dependency graph (functions, classes, imports) mapped across TypeScript, JavaScript, Python, Go, and Rust.
   - `read_blob` (Content-Compressed Retrieval): Oversized tool returns (>48k chars) are automatically saved to an LRU `BlobStore`, returning a lightweight pointer `[Blob #id]` so the AI can page specific slices without inflating prompt history.
   - `task`: Spawns scoped subagents (`explore` or `general`) that run independent tool loops and report distilled summaries back to the parent.
+  - `generate_image`: Multi-provider autonomous image & asset generation across Vercel AI Gateway, OpenRouter, OpenAI, Together, and Pollinations AI with truthful format sniffing, extension matching, and offline vector fallback.
 
 ---
 
@@ -183,9 +184,13 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.25**, versus what is on the roadmap for **v0.2.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.26**, versus what is on the roadmap for **v0.2.0**:
 
-### ✅ Shipped & Ready in v0.1.25 (Current Release)
+### ✅ Shipped & Ready in v0.1.26 (Current Release)
+- [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal dispatching across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged.
+- [x] **Unified Workspace Path Containment:** Shared `resolveInsideWorkspace` helper in `@mugil-ide/core` prevents lexical directory traversal and symlink/junction escapes across tools and HTTP routes (`/api/generate-image`, `/api/file`).
+- [x] **Binary Diffing & Byte-Exact Undo:** `/api/diffs` flags binary files and skips raw patch calculations, displaying clean binary notifications in the diff viewer instead of walls of base64 text. The session journal captures binary states in base64 for byte-exact `/undo` restoration.
+- [x] **Token Savings Breakdown Popover:** Granular 4-tier savings breakdown (Caveman prompt & history compression, YAGNI AST skeletons, Smart Cache hits, and MCP & RTK truncation) visible by clicking the ribbon's Savings metric pill.
 - [x] **Kill Server Button:** A red `⚠ Kill Server` header control opens a warning modal and stops the backend via the authorized `POST /api/shutdown` route, then shows a "Server stopped" screen instead of endlessly reconnecting.
 - [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
 - [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
@@ -193,7 +198,6 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Honest Savings Indicator:** The status-bar pill reports real input-token savings instead of always reading `0%` — measured against compressible input (Caveman/RTK refinement, signature stripping, history compaction, tool-output compression, cache hits) rather than the provider's whole-prompt count, which is dominated by system prompt and tool schemas no module touches.
 - [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn — streaming completion, tool loop, or running subagent — without closing the session. Pending permission/question prompts are dismissed instantly and any partial answer is marked "incomplete, not saved".
 - [x] **Working Vercel AI Gateway:** The Vercel provider now targets `https://ai-gateway.vercel.sh/v1` (the previously configured host did not resolve), uses the gateway's namespaced `creator/model` ids, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing and context windows from the live catalog.
-
 - [x] **First-Run AI Setup & Zero-Key Onboarding:** Automatically detects fresh launches without configured API keys. Presents a streamlined welcome modal offering 1-click cloud provider configuration (OpenRouter, OpenAI, Anthropic, OpenCode) and free 100% offline local AI (Ollama `:11434`, LM Studio `:1234`).
 - [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
 - [x] **Deterministic CI & Test Suite Reliability:** Hard 15-minute execution timeouts and explicit server connection teardown hooks (`closeAllConnections`, `closeIdleConnections`) in the HTTP/WebSocket runtime, resolving keep-alive runner hangs on Node 20 & 22 GitHub Actions.
@@ -214,10 +218,10 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Content-Compressed Retrieval (CCR):** LRU `BlobStore` for oversized tool outputs with on-demand `read_blob` chunking.
 - [x] **AST Skeleton Code Reading:** `read_skeleton` tool extracts code signatures and types without bloated function bodies.
 - [x] **Smart Caching & Prefix Breakpoints:** Exact match, $O(L)$ `PrefixTrie` partial matching, and Anthropic ephemeral cache headers.
-- [x] **17 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, and web exploration.
+- [x] **18 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, media generation, and web exploration.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
-- [x] **Comprehensive Test Suite:** 506 unit and integration tests passing across all packages.
+- [x] **Comprehensive Test Suite:** 539 unit and integration tests passing across all packages.
 
 ### 🎯 Planned for Next Release Push (v0.2.0 Roadmap)
 

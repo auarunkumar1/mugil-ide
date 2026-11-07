@@ -58,6 +58,16 @@ export function readUserEnv(env: NodeJS.ProcessEnv = process.env): Record<string
   }
 }
 
+/** Loads user env keys into process.env if they are not already set (process.env wins). */
+export function loadUserEnvIntoProcess(env: NodeJS.ProcessEnv = process.env): void {
+  const userEnv = readUserEnv(env);
+  for (const [key, value] of Object.entries(userEnv)) {
+    if (!env[key]) {
+      env[key] = value;
+    }
+  }
+}
+
 /** Helper to quote env value when needed */
 function formatEnvValue(value: string): string {
   if (value.includes('\n') || value.includes('"') || value.includes("'") || value.includes(' ') || value.includes('#')) {

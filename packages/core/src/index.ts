@@ -90,6 +90,18 @@ export {
   extractCodeSkeleton,
 } from './modules/tools/workspaceTools.js';
 export type { WorkspaceToolsOptions } from './modules/tools/workspaceTools.js';
+export {
+  generateImage,
+  parseDimensions,
+  dalle3Dimensions,
+  wrapRasterInSvg,
+  generateMockSvg,
+} from './modules/tools/mediaTools.js';
+export type {
+  GenerateImageOptions,
+  GenerateImageResult,
+} from './modules/tools/mediaTools.js';
+export { resolveInsideWorkspace } from './modules/tools/paths.js';
 export { BlobStore, globalBlobStore } from './modules/tools/blobStore.js';
 export type { BlobEntry } from './modules/tools/blobStore.js';
 
@@ -212,7 +224,7 @@ export { BRAND, BRAND_SLUG, VERSION, BANNER_ART, LOGO_GRID, getBanner, getColore
 
 export { refinePrompt, truncateToBudget } from './refine.js';
 export type { RefineOptions } from './refine.js';
-export { inputSavingsPercent } from './savings.js';
+export { inputSavingsPercent, defaultSavingsBreakdown, sumSavingsBreakdowns, optimisticSavingsTotal, optimisticSavingsPercent } from './savings.js';
 export { getTokenizer, countTokens } from './token/tokenizer.js';
 export type { Tokenizer } from './token/tokenizer.js';
 
@@ -252,6 +264,7 @@ export {
   userEnvPath,
   parseEnvFile,
   readUserEnv,
+  loadUserEnvIntoProcess,
   serializeEnvFile,
   writeUserEnv,
   deleteUserEnvKeys,
@@ -292,6 +305,7 @@ export type {
   HandoffOptions,
   RefineResult,
   InputSavings,
+  SavingsBreakdown,
   StrategyResult,
   CacheHitKind,
   CacheLookupResult,

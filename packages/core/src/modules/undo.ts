@@ -19,10 +19,12 @@ import * as path from 'node:path';
 
 /** File state at a point in time (before or after a mutation). */
 export interface FileState {
-  /** File content at this point ('' when the file did not exist). */
+  /** File content at this point (text or base64 when isBinary=true; '' when the file did not exist). */
   content: string;
   /** Whether the file existed at this point. */
   existed: boolean;
+  /** Whether content is base64-encoded binary. */
+  isBinary?: boolean;
 }
 
 /** One recorded tool edit: before/after states + display info. */
@@ -74,9 +76,16 @@ function stackFor(map: Map<string, UndoEdit[]>, root: string): UndoEdit[] {
 export function captureFile(root: string, target: string): FileState {
   const abs = path.resolve(target);
   const existed = fs.existsSync(abs);
+  if (!existed) {
+    return { content: '', existed: false };
+  }
+  const buf = fs.readFileSync(abs);
+  const probe = buf.subarray(0, Math.min(buf.length, 4096));
+  const isBinary = probe.includes(0);
   return {
-    content: existed ? fs.readFileSync(abs, 'utf-8') : '',
-    existed,
+    content: isBinary ? buf.toString('base64') : buf.toString('utf-8'),
+    existed: true,
+    isBinary,
   };
 }
 
@@ -104,7 +113,11 @@ export function pushEdit(root: string, edit: Omit<UndoEdit, 'rel'>): string {
 function applyState(edit: UndoEdit, state: FileState): void {
   if (state.existed) {
     fs.mkdirSync(path.dirname(edit.path), { recursive: true });
-    fs.writeFileSync(edit.path, state.content, 'utf-8');
+    if (state.isBinary) {
+      fs.writeFileSync(edit.path, Buffer.from(state.content, 'base64'));
+    } else {
+      fs.writeFileSync(edit.path, state.content, 'utf-8');
+    }
   } else if (fs.existsSync(edit.path)) {
     fs.rmSync(edit.path, { force: true });
   }
@@ -127,13 +140,21 @@ function applyMoveState(edit: UndoEdit, undoing: boolean): void {
   if (undoing) {
     if (edit.before.existed) {
       fs.mkdirSync(path.dirname(edit.path), { recursive: true });
-      fs.writeFileSync(edit.path, edit.before.content, 'utf-8');
+      if (edit.before.isBinary) {
+        fs.writeFileSync(edit.path, Buffer.from(edit.before.content, 'base64'));
+      } else {
+        fs.writeFileSync(edit.path, edit.before.content, 'utf-8');
+      }
     }
     if (fs.existsSync(dest)) fs.rmSync(dest, { force: true });
   } else {
     if (edit.before.existed) {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.writeFileSync(dest, edit.before.content, 'utf-8');
+      if (edit.before.isBinary) {
+        fs.writeFileSync(dest, Buffer.from(edit.before.content, 'base64'));
+      } else {
+        fs.writeFileSync(dest, edit.before.content, 'utf-8');
+      }
     }
     if (fs.existsSync(edit.path)) fs.rmSync(edit.path, { force: true });
   }

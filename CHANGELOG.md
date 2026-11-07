@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.1.26] - 2026-11-07
+
+### Added
+- **Autonomous Image Generation Tool (`generate_image`)**: Dispatches across configured providers (Vercel AI Gateway, OpenRouter, OpenAI, Together, and keyless Pollinations AI) with responsive vector SVG fallback. Supports prompt, path, size, and style parameters.
+- **Image Generation UI Modal**: Accessible via the header ribbon button and dropdown menu, allowing users to configure prompts, target paths, dimensions, and visual styles directly from the web interface.
+- **Truth in Asset Format & Extension Matching**: `sniffImageFormat()` detects PNG, JPEG, WebP, GIF, and SVG from magic bytes. `writeAsset()` ensures file extensions always match written byte format rather than arbitrary input filenames. Vector wrappers for raster formats in `.svg` files preserve genuine MIME types.
+- **Provider Status & Honest Error Boundaries**: `generate_image` clearly warns if fallback vector placeholders are produced instead of actual models. The Web UI highlights fallbacks with visual warnings and detailed provider failure diagnostics.
+- **Token Savings Breakdown Popover**: Clicking the ribbon's Savings pill now reveals a granular breakdown across Caveman, YAGNI AST Skeletons, Smart Cache, and MCP/RTK compression.
+- **Regression Test for Web UI Inline Scripts**: Automated test asserting all inline `<script>` tags in `html.ts` compile without syntax errors via `new Function()`.
+
+### Changed
+- **Unified Workspace Path Containment (`resolveInsideWorkspace`)**: Centralized path resolution in `packages/core/src/modules/tools/paths.ts` enforcing both lexical containment and symlink/junction escape detection, shared across workspace tools and server endpoints (`/api/generate-image`, `/api/file`).
+- **Binary File Diffing**: `/api/diffs` flags binary modifications with `binary: true` and skips diff patch computation, displaying "Binary file changed" in the diff viewer instead of base64 text dumps.
+- **Full Binary Undo Support**: Binary file edits (images, audio, video, pdf) are captured in base64 within the session journal and accurately restored byte-for-byte upon `/undo`.
+- **Vercel AI Gateway Model**: Updated default model to `bfl/flux-2-klein-4b` (overridable via `MUGIL_IDE_IMAGE_MODEL`).
+- **OpenAI Image Generation**: Defaulted to `gpt-image-1` with automatic dimension clamping and omitted `response_format` for `gpt-image-*` models.
+- **Pollinations AI Retry**: Automatic retry on 402/429/503 status codes.
+- **Safe `/api/generate-image` Endpoint**: Body capped at 2 MB via `readJsonBody`, strict symlink traversal prevention, pre-write snapshotting of all plausible format extensions, and undo journal integration.
+
 ## [0.1.25] - 2026-10-29
 ### Changed
 - **Big-Codebase Token Presets**: Default limits raised across the board so large repositories no longer truncate prompts or cut replies off mid-file. `DEFAULT_HISTORY_BUDGET` 16,000 → 64,000, `DEFAULT_MAX_OUTPUT_TOKENS` 8,192 → 32,768, prompt-trimming `TOKEN_BUDGET` 32,000 → 128,000, `DEFAULT_MAX_HISTORY_TURNS` 50 → 100 and `DEFAULT_MAX_TOOL_ITERATIONS` 20 → 40.
@@ -402,3 +422,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.23]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.23
 [0.1.25]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.25
 [0.1.24]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.24
+
+[0.1.26]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.26
