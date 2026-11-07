@@ -96,10 +96,13 @@ export {
   dalle3Dimensions,
   wrapRasterInSvg,
   generateMockSvg,
+  IMAGE_PROVIDERS,
 } from './modules/tools/mediaTools.js';
 export type {
   GenerateImageOptions,
   GenerateImageResult,
+  ImageProviderOption,
+  ImageModelOption,
 } from './modules/tools/mediaTools.js';
 export { resolveInsideWorkspace } from './modules/tools/paths.js';
 export { BlobStore, globalBlobStore } from './modules/tools/blobStore.js';

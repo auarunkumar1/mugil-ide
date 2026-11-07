@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.26] - 2026-11-07
 
 ### Added
+- **Image Generation Provider & Model Selectors**: Interactive dropdown selectors for Provider (`Auto`, `Pollinations AI`, `OpenAI`, `Together AI`, `OpenRouter`, `Vercel AI Gateway`, `Offline Mock`) and Model directly in the Image Generation UI modal (`packages/cli/src/server/html.ts`), complete with dynamic provider-specific recommended presets and custom model ID entry.
+- **Targeted Provider Dispatch & Credential Diagnostics**: Core `generateImage()` supports explicit `provider` targeting and `model` overrides. Explicit selections validate provider API keys (flagging missing credentials in the placeholder diagnostic instead of silently cascading to another live provider), while `auto` retains the zero-friction multi-tier fallback cascade.
+- **Workspace Tool & MCP Parameters**: Exposed `provider` and `model` parameters on the agent's `generate_image` workspace tool and MCP server tool schemas.
+- **Exported Provider Metadata**: Added `IMAGE_PROVIDERS`, `ImageProviderOption`, and `ImageModelOption` in `@mugil-ide/core` defining standard model catalogs and UI dropdown options.
 - **Autonomous Image Generation Tool (`generate_image`)**: Dispatches across configured providers (Vercel AI Gateway, OpenRouter, OpenAI, Together, and keyless Pollinations AI) with responsive vector SVG fallback. Supports prompt, path, size, and style parameters.
 - **Image Generation UI Modal**: Accessible via the header ribbon button and dropdown menu, allowing users to configure prompts, target paths, dimensions, and visual styles directly from the web interface.
 - **Truth in Asset Format & Extension Matching**: `sniffImageFormat()` detects PNG, JPEG, WebP, GIF, and SVG from magic bytes. `writeAsset()` ensures file extensions always match written byte format rather than arbitrary input filenames. Vector wrappers for raster formats in `.svg` files preserve genuine MIME types.

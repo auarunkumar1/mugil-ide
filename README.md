@@ -153,7 +153,7 @@ flowchart LR
   - `codegraph`: Full AST symbol and dependency graph (functions, classes, imports) mapped across TypeScript, JavaScript, Python, Go, and Rust.
   - `read_blob` (Content-Compressed Retrieval): Oversized tool returns (>48k chars) are automatically saved to an LRU `BlobStore`, returning a lightweight pointer `[Blob #id]` so the AI can page specific slices without inflating prompt history.
   - `task`: Spawns scoped subagents (`explore` or `general`) that run independent tool loops and report distilled summaries back to the parent.
-  - `generate_image`: Multi-provider autonomous image & asset generation across Vercel AI Gateway, OpenRouter, OpenAI, Together, and Pollinations AI with truthful format sniffing, extension matching, and offline vector fallback.
+  - `generate_image`: Multi-provider autonomous image & asset generation across Vercel AI Gateway, OpenRouter, OpenAI, Together, and Pollinations AI with interactive provider and model selector options, truthful format sniffing, extension matching, and offline vector fallback.
 
 ---
 
@@ -187,7 +187,7 @@ flowchart LR
 We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.26**, versus what is on the roadmap for **v0.2.0**:
 
 ### ✅ Shipped & Ready in v0.1.26 (Current Release)
-- [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal dispatching across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged.
+- [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal with interactive Provider and Model selectors (Auto waterfall cascade or direct provider targeting with provider-specific model presets and custom model input). Dispatches across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged with diagnostic causes.
 - [x] **Unified Workspace Path Containment:** Shared `resolveInsideWorkspace` helper in `@mugil-ide/core` prevents lexical directory traversal and symlink/junction escapes across tools and HTTP routes (`/api/generate-image`, `/api/file`).
 - [x] **Binary Diffing & Byte-Exact Undo:** `/api/diffs` flags binary files and skips raw patch calculations, displaying clean binary notifications in the diff viewer instead of walls of base64 text. The session journal captures binary states in base64 for byte-exact `/undo` restoration.
 - [x] **Token Savings Breakdown Popover:** Granular 4-tier savings breakdown (Caveman prompt & history compression, YAGNI AST skeletons, Smart Cache hits, and MCP & RTK truncation) visible by clicking the ribbon's Savings metric pill.

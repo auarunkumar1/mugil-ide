@@ -1417,6 +1417,27 @@ export function getWebUiHtml(): string {
         </div>
         <div style="display:flex; gap:12px;">
           <div style="flex:1;">
+            <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Provider</label>
+            <select id="imagegen-provider" class="search-input" style="width:100%; padding:6px 8px; font-size:12px;" onchange="onImageGenProviderChange()">
+              <option value="auto">Auto (Cascade across configured providers)</option>
+              <option value="pollinations">Pollinations AI (Free, No API key)</option>
+              <option value="openai">OpenAI (DALL-E & GPT Image)</option>
+              <option value="together">Together AI (FLUX & SDXL)</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="vercel">Vercel AI Gateway</option>
+              <option value="mock">Offline Mock (SVG)</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Model</label>
+            <select id="imagegen-model" class="search-input" style="width:100%; padding:6px 8px; font-size:12px;" onchange="onImageGenModelChange()">
+              <option value="">Default (Provider cascade default)</option>
+            </select>
+            <input type="text" id="imagegen-custom-model" class="search-input" style="display:none; width:100%; margin-top:6px; padding:6px 10px; font-family:monospace; font-size:12px;" placeholder="Custom model ID (e.g. dall-e-3)" />
+          </div>
+        </div>
+        <div style="display:flex; gap:12px;">
+          <div style="flex:1;">
             <label style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Output Path (workspace relative)</label>
             <input type="text" id="imagegen-path" class="search-input" style="width:100%; padding:6px 10px; font-family:monospace; font-size:12px;" value="assets/generated.png" placeholder="e.g. assets/hero.png or icons/logo.svg" />
           </div>
@@ -1463,6 +1484,81 @@ export function getWebUiHtml(): string {
     let lastGeneratedFileUrl = "";
     let lastGeneratedFilePath = "";
 
+    const IMAGE_PROVIDER_MODELS = {
+      auto: [
+        { value: "", label: "Default (Provider cascade default)" },
+      ],
+      pollinations: [
+        { value: "", label: "Default (Flux)" },
+        { value: "flux", label: "Flux" },
+        { value: "flux-realism", label: "Flux Realism" },
+        { value: "turbo", label: "Turbo" },
+        { value: "__custom__", label: "Custom model..." },
+      ],
+      openai: [
+        { value: "", label: "Default (gpt-image-1)" },
+        { value: "gpt-image-1", label: "GPT Image 1" },
+        { value: "dall-e-3", label: "DALL-E 3" },
+        { value: "dall-e-2", label: "DALL-E 2" },
+        { value: "__custom__", label: "Custom model..." },
+      ],
+      together: [
+        { value: "", label: "Default (FLUX.1-schnell)" },
+        { value: "black-forest-labs/FLUX.1-schnell", label: "FLUX.1 Schnell" },
+        { value: "black-forest-labs/FLUX.1-dev", label: "FLUX.1 Dev" },
+        { value: "stabilityai/stable-diffusion-xl-base-1.0", label: "SDXL 1.0" },
+        { value: "__custom__", label: "Custom model..." },
+      ],
+      openrouter: [
+        { value: "", label: "Default (flux-3-image-klein)" },
+        { value: "black-forest-labs/flux-3-image-klein", label: "Flux 3 Image Klein" },
+        { value: "google/imagen-3", label: "Google Imagen 3" },
+        { value: "stabilityai/stable-diffusion-3-medium", label: "SD 3 Medium" },
+        { value: "__custom__", label: "Custom model..." },
+      ],
+      vercel: [
+        { value: "", label: "Default (flux-2-klein-4b)" },
+        { value: "bfl/flux-2-klein-4b", label: "Flux 2 Klein 4B" },
+        { value: "__custom__", label: "Custom model..." },
+      ],
+      mock: [
+        { value: "", label: "Default (Vector SVG)" },
+      ],
+    };
+
+    function onImageGenProviderChange() {
+      const provSelect = document.getElementById("imagegen-provider");
+      const modelSelect = document.getElementById("imagegen-model");
+      const customInput = document.getElementById("imagegen-custom-model");
+      if (!provSelect || !modelSelect) return;
+      const prov = provSelect.value || "auto";
+      const models = IMAGE_PROVIDER_MODELS[prov] || [{ value: "", label: "Default (Provider default)" }];
+      modelSelect.innerHTML = "";
+      models.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m.value;
+        opt.textContent = m.label;
+        modelSelect.appendChild(opt);
+      });
+      modelSelect.value = models[0] ? models[0].value : "";
+      if (customInput) {
+        customInput.value = "";
+        customInput.style.display = "none";
+      }
+    }
+
+    function onImageGenModelChange() {
+      const modelSelect = document.getElementById("imagegen-model");
+      const customInput = document.getElementById("imagegen-custom-model");
+      if (!modelSelect || !customInput) return;
+      if (modelSelect.value === "__custom__") {
+        customInput.style.display = "block";
+        customInput.focus();
+      } else {
+        customInput.style.display = "none";
+      }
+    }
+
     function openImageGenModal() {
       document.getElementById("image-gen-modal").classList.add("open");
       const input = document.getElementById("imagegen-prompt");
@@ -1478,6 +1574,12 @@ export function getWebUiHtml(): string {
       const pathVal = document.getElementById("imagegen-path").value.trim();
       const sizeVal = document.getElementById("imagegen-size").value;
       const styleVal = document.getElementById("imagegen-style").value;
+      const providerVal = (document.getElementById("imagegen-provider")?.value || "auto").trim();
+      const modelSelectVal = document.getElementById("imagegen-model")?.value || "";
+      let modelVal = modelSelectVal;
+      if (modelSelectVal === "__custom__") {
+        modelVal = (document.getElementById("imagegen-custom-model")?.value || "").trim();
+      }
       const statusEl = document.getElementById("imagegen-status");
       const submitBtn = document.getElementById("imagegen-submit-btn");
       const previewEl = document.getElementById("imagegen-preview");
@@ -1507,6 +1609,8 @@ export function getWebUiHtml(): string {
             path: pathVal || undefined,
             size: sizeVal,
             style: styleVal || undefined,
+            provider: providerVal !== "auto" ? providerVal : undefined,
+            model: modelVal || undefined,
           }),
         });
         const data = await res.json();

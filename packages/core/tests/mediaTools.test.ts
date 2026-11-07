@@ -7,6 +7,7 @@ import {
   wrapRasterInSvg,
   generateMockSvg,
   generateImage,
+  IMAGE_PROVIDERS,
 } from '../src/modules/tools/mediaTools.js';
 import { createWorkspaceTools } from '../src/modules/tools/workspaceTools.js';
 import { defaultPolicyForMode } from '../src/modules/tools/permissions.js';
@@ -348,6 +349,106 @@ describe('Media Tools (generateImage, dimensions & providers)', () => {
       } finally {
         if (orig === undefined) delete process.env.OPENAI_API_KEY;
         else process.env.OPENAI_API_KEY = orig;
+      }
+    });
+
+    it('exports IMAGE_PROVIDERS metadata list with models', () => {
+      expect(Array.isArray(IMAGE_PROVIDERS)).toBe(true);
+      const providerIds = IMAGE_PROVIDERS.map((p) => p.id);
+      expect(providerIds).toContain('auto');
+      expect(providerIds).toContain('pollinations');
+      expect(providerIds).toContain('openai');
+      expect(providerIds).toContain('together');
+      expect(providerIds).toContain('openrouter');
+      expect(providerIds).toContain('vercel');
+      expect(providerIds).toContain('mock');
+    });
+
+    it('dispatches directly to mock when provider="mock"', async () => {
+      const res = await generateImage({
+        prompt: 'Mock icon',
+        outputPath: 'assets/mock.svg',
+        provider: 'mock',
+        workspaceRoot: tempDir,
+      });
+      expect(res.success).toBe(true);
+      expect(res.provider).toBe('mock-offline');
+      expect(fs.existsSync(path.join(tempDir, 'assets/mock.svg'))).toBe(true);
+    });
+
+    it('passes model parameter to Pollinations when model is specified', async () => {
+      let requestedUrl = '';
+      const fakeFetch = async (url: string | URL | Request) => {
+        requestedUrl = url.toString();
+        return {
+          ok: true,
+          arrayBuffer: async () => Buffer.alloc(600, 1),
+        } as unknown as Response;
+      };
+
+      const res = await generateImage({
+        prompt: 'Turbo spaceship',
+        outputPath: 'assets/ship.png',
+        provider: 'pollinations',
+        model: 'turbo',
+        workspaceRoot: tempDir,
+        fetchFn: fakeFetch as unknown as typeof fetch,
+      });
+
+      expect(res.success).toBe(true);
+      expect(res.provider).toBe('pollinations-flux');
+      expect(requestedUrl).toContain('model=turbo');
+    });
+
+    it('dispatches to OpenAI with custom model and handles body correctly', async () => {
+      const orig = process.env.OPENAI_API_KEY;
+      process.env.OPENAI_API_KEY = 'test-key';
+      let sentBody: any = null;
+      const fakeBase64 = Buffer.from('fake-dalle-bytes').toString('base64');
+      const fakeFetch = async (_url: string | URL | Request, init?: RequestInit) => {
+        sentBody = JSON.parse(init?.body as string);
+        return {
+          ok: true,
+          json: async () => ({ data: [{ b64_json: fakeBase64 }] }),
+        } as unknown as Response;
+      };
+
+      try {
+        const res = await generateImage({
+          prompt: 'Futuristic cityscape',
+          outputPath: 'assets/city.png',
+          provider: 'openai',
+          model: 'dall-e-3',
+          workspaceRoot: tempDir,
+          fetchFn: fakeFetch as unknown as typeof fetch,
+        });
+
+        expect(res.success).toBe(true);
+        expect(res.provider).toBe('openai-dalle3');
+        expect(sentBody.model).toBe('dall-e-3');
+        expect(sentBody.response_format).toBe('b64_json');
+      } finally {
+        if (orig === undefined) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = orig;
+      }
+    });
+
+    it('reports missing key when explicit provider lacks API key', async () => {
+      const orig = process.env.OPENAI_API_KEY;
+      delete process.env.OPENAI_API_KEY;
+
+      try {
+        const res = await generateImage({
+          prompt: 'Must be openai',
+          outputPath: 'assets/target.png',
+          provider: 'openai',
+          workspaceRoot: tempDir,
+        });
+
+        expect(res.placeholder).toBe(true);
+        expect(res.fallbackReasons).toContain('openai: OPENAI_API_KEY is not set');
+      } finally {
+        if (orig !== undefined) process.env.OPENAI_API_KEY = orig;
       }
     });
   });

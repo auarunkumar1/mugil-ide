@@ -845,6 +845,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           path?: string;
           size?: string;
           style?: string;
+          provider?: string;
+          model?: string;
         };
         if (!payload.prompt) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -875,6 +877,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           outputPath: resolved,
           size: payload.size,
           style: payload.style,
+          provider: payload.provider,
+          model: payload.model,
           workspaceRoot: root,
         });
 

@@ -276,6 +276,41 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('generates image assets via POST /api/generate-image with provider and model options', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    const targetRel = 'test-provider-model.svg';
+    const targetAbs = join(process.cwd(), targetRel);
+    try {
+      const res = await fetch(`${server.url}/api/generate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Provider and model selector icon',
+          path: targetRel,
+          size: '256x256',
+          provider: 'mock',
+          model: 'svg-vector',
+        }),
+      });
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        ok: boolean;
+        result: { width: number; height: number; provider: string };
+        fileUrl: string;
+      };
+      expect(json.ok).toBe(true);
+      expect(json.result.width).toBe(256);
+      expect(json.result.provider).toBe('mock-offline');
+      expect(json.fileUrl).toContain('test-provider-model.svg');
+      expect(existsSync(targetAbs)).toBe(true);
+    } finally {
+      if (existsSync(targetAbs)) unlinkSync(targetAbs);
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
   it('generates image assets via POST /api/generate-image and tracks undo', async () => {
     const origMock = process.env.MUGIL_IDE_MOCK;
     process.env.MUGIL_IDE_MOCK = '1';

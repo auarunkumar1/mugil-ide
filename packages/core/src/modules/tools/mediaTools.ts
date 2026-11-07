@@ -29,9 +29,96 @@ export interface GenerateImageOptions {
   workspaceRoot?: string;
   /** Force offline mock mode (generates responsive SVG). */
   mock?: boolean;
+  /** Explicit provider ('auto' | 'pollinations' | 'openai' | 'together' | 'openrouter' | 'vercel' | 'mock'). Default 'auto'. */
+  provider?: string;
+  /** Explicit model override for the chosen provider (e.g. 'dall-e-3', 'flux', 'turbo'). */
+  model?: string;
   /** Custom fetch implementation (for testing). */
   fetchFn?: typeof fetch;
 }
+
+export interface ImageModelOption {
+  id: string;
+  name: string;
+}
+
+export interface ImageProviderOption {
+  id: string;
+  name: string;
+  requiresKey?: string;
+  defaultModel?: string;
+  models: ImageModelOption[];
+}
+
+export const IMAGE_PROVIDERS: readonly ImageProviderOption[] = [
+  {
+    id: 'auto',
+    name: 'Auto (Cascade across configured providers)',
+    models: [{ id: '', name: 'Provider default' }],
+  },
+  {
+    id: 'pollinations',
+    name: 'Pollinations AI (Free, No API key)',
+    defaultModel: 'flux',
+    models: [
+      { id: '', name: 'Default (Flux)' },
+      { id: 'flux', name: 'Flux' },
+      { id: 'flux-realism', name: 'Flux Realism' },
+      { id: 'turbo', name: 'Turbo' },
+    ],
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI (DALL-E & GPT Image)',
+    requiresKey: 'OPENAI_API_KEY',
+    defaultModel: 'gpt-image-1',
+    models: [
+      { id: '', name: 'Default (gpt-image-1)' },
+      { id: 'gpt-image-1', name: 'GPT Image 1' },
+      { id: 'dall-e-3', name: 'DALL-E 3' },
+      { id: 'dall-e-2', name: 'DALL-E 2' },
+    ],
+  },
+  {
+    id: 'together',
+    name: 'Together AI (FLUX & SDXL)',
+    requiresKey: 'TOGETHER_API_KEY',
+    defaultModel: 'black-forest-labs/FLUX.1-schnell',
+    models: [
+      { id: '', name: 'Default (FLUX.1-schnell)' },
+      { id: 'black-forest-labs/FLUX.1-schnell', name: 'FLUX.1 Schnell' },
+      { id: 'black-forest-labs/FLUX.1-dev', name: 'FLUX.1 Dev' },
+      { id: 'stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL 1.0' },
+    ],
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    requiresKey: 'OPENROUTER_API_KEY',
+    defaultModel: 'black-forest-labs/flux-3-image-klein',
+    models: [
+      { id: '', name: 'Default (flux-3-image-klein)' },
+      { id: 'black-forest-labs/flux-3-image-klein', name: 'Flux 3 Image Klein' },
+      { id: 'google/imagen-3', name: 'Google Imagen 3' },
+      { id: 'stabilityai/stable-diffusion-3-medium', name: 'SD 3 Medium' },
+    ],
+  },
+  {
+    id: 'vercel',
+    name: 'Vercel AI Gateway',
+    requiresKey: 'VERCEL_API_KEY',
+    defaultModel: 'bfl/flux-2-klein-4b',
+    models: [
+      { id: '', name: 'Default (flux-2-klein-4b)' },
+      { id: 'bfl/flux-2-klein-4b', name: 'Flux 2 Klein 4B' },
+    ],
+  },
+  {
+    id: 'mock',
+    name: 'Offline Mock (SVG)',
+    models: [{ id: '', name: 'Vector SVG Generator' }],
+  },
+];
 
 export interface GenerateImageResult {
   success: boolean;
@@ -271,18 +358,37 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     };
   };
 
+  const rawProvider = (options.provider || 'auto').trim().toLowerCase();
+  const provider =
+    rawProvider === 'vercel-ai-gateway'
+      ? 'vercel'
+      : rawProvider === 'pollinations-flux'
+        ? 'pollinations'
+        : rawProvider === 'together-flux'
+          ? 'together'
+          : rawProvider === 'openrouter-flux'
+            ? 'openrouter'
+            : rawProvider === 'mock-offline'
+              ? 'mock'
+              : rawProvider === 'openai-gpt-image' || rawProvider === 'openai-dalle3'
+                ? 'openai'
+                : rawProvider;
+
   // 1. Explicit mock or offline requested
-  if (options.mock || process.env.MUGIL_IDE_MOCK === '1') {
+  if (provider === 'mock' || options.mock || process.env.MUGIL_IDE_MOCK === '1') {
     return succeed('mock-offline', generateMockSvg(options.prompt, width, height, options.style));
   }
 
-  // 2. Vercel AI Gateway (if VERCEL_API_KEY / AI_GATEWAY_API_KEY present)
-  const vercelKey = process.env.VERCEL_API_KEY || process.env.AI_GATEWAY_API_KEY;
-  if (vercelKey) {
+  const tryVercel = async (modelOverride?: string): Promise<GenerateImageResult | null> => {
+    const vercelKey = process.env.VERCEL_API_KEY || process.env.AI_GATEWAY_API_KEY;
+    if (!vercelKey) {
+      fallbackReasons.push('vercel: VERCEL_API_KEY or AI_GATEWAY_API_KEY is not set');
+      return null;
+    }
     try {
       const gatewayUrl =
         process.env.VERCEL_AI_GATEWAY_URL || 'https://ai-gateway.vercel.sh/v1/images/generations';
-      const model = process.env.MUGIL_IDE_IMAGE_MODEL || 'bfl/flux-2-klein-4b';
+      const model = modelOverride || process.env.MUGIL_IDE_IMAGE_MODEL || 'bfl/flux-2-klein-4b';
       const res = await fetchImpl(gatewayUrl, {
         method: 'POST',
         headers: {
@@ -307,12 +413,20 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     } catch (err) {
       fallbackReasons.push(`vercel: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
+    return null;
+  };
 
-  // 3. OpenRouter (if OPENROUTER_API_KEY present)
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  if (openRouterKey) {
+  const tryOpenRouter = async (modelOverride?: string): Promise<GenerateImageResult | null> => {
+    const openRouterKey = process.env.OPENROUTER_API_KEY;
+    if (!openRouterKey) {
+      fallbackReasons.push('openrouter: OPENROUTER_API_KEY is not set');
+      return null;
+    }
     try {
+      const model =
+        modelOverride ||
+        process.env.MUGIL_IDE_OPENROUTER_IMAGE_MODEL ||
+        'black-forest-labs/flux-3-image-klein';
       const res = await fetchImpl('https://openrouter.ai/api/v1/images', {
         method: 'POST',
         headers: {
@@ -321,8 +435,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
         },
         body: JSON.stringify({
           prompt: fullPrompt,
-          model:
-            process.env.MUGIL_IDE_OPENROUTER_IMAGE_MODEL || 'black-forest-labs/flux-3-image-klein',
+          model,
           width,
           height,
         }),
@@ -338,13 +451,17 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     } catch (err) {
       fallbackReasons.push(`openrouter: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
+    return null;
+  };
 
-  // 4. OpenAI images (if OPENAI_API_KEY present)
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
+  const tryOpenAI = async (modelOverride?: string): Promise<GenerateImageResult | null> => {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      fallbackReasons.push('openai: OPENAI_API_KEY is not set');
+      return null;
+    }
     try {
-      const model = process.env.MUGIL_IDE_OPENAI_IMAGE_MODEL || 'gpt-image-1';
+      const model = modelOverride || process.env.MUGIL_IDE_OPENAI_IMAGE_MODEL || 'gpt-image-1';
       const isDalle = model.startsWith('dall-e');
       const body: Record<string, unknown> = {
         prompt: fullPrompt,
@@ -352,7 +469,6 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
         n: 1,
         size: isDalle ? dalle3Dimensions(width, height) : gptImageDimensions(width, height),
       };
-      // gpt-image-* rejects response_format; dall-e-* needs it for inline bytes.
       if (isDalle) body.response_format = 'b64_json';
       const res = await fetchImpl('https://api.openai.com/v1/images/generations', {
         method: 'POST',
@@ -373,12 +489,18 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     } catch (err) {
       fallbackReasons.push(`openai: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
+    return null;
+  };
 
-  // 5. Together AI (FLUX / SDXL)
-  const togetherKey = process.env.TOGETHER_API_KEY;
-  if (togetherKey) {
+  const tryTogether = async (modelOverride?: string): Promise<GenerateImageResult | null> => {
+    const togetherKey = process.env.TOGETHER_API_KEY;
+    if (!togetherKey) {
+      fallbackReasons.push('together: TOGETHER_API_KEY is not set');
+      return null;
+    }
     try {
+      const model =
+        modelOverride || process.env.MUGIL_IDE_TOGETHER_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
       const res = await fetchImpl('https://api.together.xyz/v1/images/generations', {
         method: 'POST',
         headers: {
@@ -387,7 +509,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
         },
         body: JSON.stringify({
           prompt: fullPrompt,
-          model: process.env.MUGIL_IDE_TOGETHER_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell',
+          model,
           width,
           height,
           response_format: 'b64_json',
@@ -404,29 +526,88 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     } catch (err) {
       fallbackReasons.push(`together: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
+    return null;
+  };
 
-  // 6. Free Zero-Configuration Fallback: Pollinations AI (one retry on transient limits)
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&nologo=true`;
-      const res = await fetchImpl(url, { signal: AbortSignal.timeout(30000) });
-      if (res.ok) {
-        const buf = Buffer.from(await res.arrayBuffer());
-        if (buf.length > 500) return succeed('pollinations-flux', buf);
-        fallbackReasons.push('pollinations: response too small');
+  const tryPollinations = async (modelOverride?: string): Promise<GenerateImageResult | null> => {
+    const modelParam = modelOverride ? `&model=${encodeURIComponent(modelOverride)}` : '';
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&nologo=true${modelParam}`;
+        const res = await fetchImpl(url, { signal: AbortSignal.timeout(30000) });
+        if (res.ok) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          if (buf.length > 500) return succeed('pollinations-flux', buf);
+          fallbackReasons.push('pollinations: response too small');
+          break;
+        }
+        fallbackReasons.push(`pollinations: ${res.status} ${res.statusText}`.trim());
+        if (![402, 429, 503].includes(res.status)) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      } catch (err) {
+        fallbackReasons.push(`pollinations: ${err instanceof Error ? err.message : String(err)}`);
         break;
       }
-      fallbackReasons.push(`pollinations: ${res.status} ${res.statusText}`.trim());
-      if (![402, 429, 503].includes(res.status)) break;
-      await new Promise((r) => setTimeout(r, 1000));
-    } catch (err) {
-      fallbackReasons.push(`pollinations: ${err instanceof Error ? err.message : String(err)}`);
-      break;
     }
+    return null;
+  };
+
+  // Explicit provider selected (not auto)
+  if (provider !== 'auto') {
+    let specificRes: GenerateImageResult | null = null;
+    if (provider === 'vercel') {
+      specificRes = await tryVercel(options.model);
+    } else if (provider === 'openrouter') {
+      specificRes = await tryOpenRouter(options.model);
+    } else if (provider === 'openai') {
+      specificRes = await tryOpenAI(options.model);
+    } else if (provider === 'together') {
+      specificRes = await tryTogether(options.model);
+    } else if (provider === 'pollinations') {
+      specificRes = await tryPollinations(options.model);
+    } else {
+      fallbackReasons.push(`unknown provider "${options.provider}"`);
+    }
+
+    if (specificRes) return specificRes;
+
+    const result = succeed(
+      'offline-svg-fallback',
+      generateMockSvg(options.prompt, width, height, options.style),
+    );
+    return { ...result, placeholder: true };
   }
 
-  // 7. Final Fallback: offline vector placeholder — reported as a placeholder.
+  // Auto multi-tier waterfall dispatch:
+  // Vercel -> OpenRouter -> OpenAI -> Together -> Pollinations -> Offline SVG fallback
+  const vercelKey = process.env.VERCEL_API_KEY || process.env.AI_GATEWAY_API_KEY;
+  if (vercelKey) {
+    const res = await tryVercel(options.model);
+    if (res) return res;
+  }
+
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    const res = await tryOpenRouter(options.model);
+    if (res) return res;
+  }
+
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    const res = await tryOpenAI(options.model);
+    if (res) return res;
+  }
+
+  const togetherKey = process.env.TOGETHER_API_KEY;
+  if (togetherKey) {
+    const res = await tryTogether(options.model);
+    if (res) return res;
+  }
+
+  const pollRes = await tryPollinations(options.model);
+  if (pollRes) return pollRes;
+
+  // Final Fallback: offline vector placeholder — reported as a placeholder.
   const result = succeed(
     'offline-svg-fallback',
     generateMockSvg(options.prompt, width, height, options.style),

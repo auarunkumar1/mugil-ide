@@ -309,6 +309,8 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
         path: { type: 'string', description: 'Destination file path relative to workspace root (e.g. "assets/hero.png", "icons/badge.svg").' },
         size: { type: 'string', description: 'Dimensions in WxH format (e.g. "1024x1024", "512x512", "1280x720"). Defaults to 1024x1024.' },
         style: { type: 'string', description: 'Optional visual style guide (e.g. "vector icon", "photorealistic", "flat illustration", "pixel art").' },
+        provider: { type: 'string', description: 'Optional explicit provider ("auto", "pollinations", "openai", "together", "openrouter", "vercel", "mock"). Defaults to "auto".' },
+        model: { type: 'string', description: 'Optional specific model identifier for the chosen provider (e.g. "dall-e-3", "flux", "turbo").' },
       },
       required: ['prompt', 'path'],
     },
@@ -1074,7 +1076,14 @@ export function createWorkspaceTools(
     },
 
     generate_image: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { prompt: string; path: string; size?: string; style?: string };
+      const args = parseToolArguments(call) as {
+        prompt: string;
+        path: string;
+        size?: string;
+        style?: string;
+        provider?: string;
+        model?: string;
+      };
       if (!args.prompt || !args.path) return 'Error: prompt and path parameters are required.';
       const { target, error } = resolveInWorkspace(args.path);
       if (error) return error;
@@ -1093,6 +1102,8 @@ export function createWorkspaceTools(
           outputPath: target,
           size: args.size,
           style: args.style,
+          provider: args.provider,
+          model: args.model,
           workspaceRoot: root,
         });
         invalidateCache();

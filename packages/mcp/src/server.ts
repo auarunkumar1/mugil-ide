@@ -267,15 +267,19 @@ export function createMcpServer(engine: Engine = createEngine(loadConfig())): Mc
         path: z.string().describe('Destination file path relative to workspace root'),
         size: z.string().optional().describe('Dimensions in WxH format, e.g. "1024x1024" or "512x512"'),
         style: z.string().optional().describe('Visual style guide, e.g. "vector icon", "photorealistic"'),
+        provider: z.string().optional().describe('Explicit provider ("auto", "pollinations", "openai", "together", "openrouter", "vercel", "mock"). Defaults to "auto"'),
+        model: z.string().optional().describe('Specific model identifier for the provider (e.g. "dall-e-3", "flux", "turbo")'),
       },
     },
-    async ({ prompt, path: outPath, size, style }) => {
+    async ({ prompt, path: outPath, size, style, provider, model }) => {
       try {
         const result = await generateImage({
           prompt,
           outputPath: outPath,
           size,
           style,
+          provider,
+          model,
         });
         return text(JSON.stringify(result, null, 2));
       } catch (err) {
