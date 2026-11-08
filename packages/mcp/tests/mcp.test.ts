@@ -42,6 +42,7 @@ describe('Mugil IDE MCP server', () => {
         'count_tokens',
         'generate_image',
         'list_models',
+        'read_symbol',
         'refine_prompt',
         'rtk',
         'strip_code_signatures',
@@ -51,6 +52,30 @@ describe('Mugil IDE MCP server', () => {
     );
   });
 
+  it('extracts a single symbol without returning the whole file', async () => {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-mcp-symbol-'));
+    const file = path.join(dir, 'sample.ts');
+    fs.writeFileSync(
+      file,
+      ['export function wanted() {', '  return 1;', '}', '', 'export function other() {', '  return 2;', '}', ''].join('\n'),
+      'utf-8',
+    );
+    try {
+      const res = (await client.callTool({
+        name: 'read_symbol',
+        arguments: { file, symbol: 'wanted' },
+      })) as ToolResult;
+      const out = await toolResultText(res);
+      expect(out).toContain('wanted');
+      expect(out).toContain('1: export function wanted');
+      expect(out).not.toContain('other()');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it('counts tokens', async () => {
     const res = (await client.callTool({
       name: 'count_tokens',

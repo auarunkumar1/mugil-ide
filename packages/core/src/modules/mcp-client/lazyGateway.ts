@@ -66,13 +66,14 @@ export async function createLazyMcpGateway(
   const closers: (() => Promise<void>)[] = [];
   const serverMap = new Map<string, McpConnection>();
 
+  if (!connect) {
+    // No injected connector: connect eagerly and expose the full schema
+    // bundle. Doing this per-server inside the loop below returned after the
+    // first config and silently dropped every other server.
+    return connectMcpServers(configs);
+  }
   for (const cfg of configs) {
     try {
-      if (!connect) {
-        // Fallback eager connector if none provided
-        const bundle = await connectMcpServers([cfg]);
-        return bundle;
-      }
       const conn = await connect(cfg);
       closers.push(() => conn.close());
       serverMap.set(cfg.name, conn);

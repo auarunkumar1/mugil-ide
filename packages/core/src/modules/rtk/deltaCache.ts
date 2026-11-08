@@ -28,9 +28,30 @@ export interface DeltaDiffResult {
 export class DeltaCache {
   private cache = new Map<string, { timestamp: number; failures: Map<string, FailureItem> }>();
 
+  /**
+   * Workspace scope. Two projects running `npm test` must not see each other's
+   * failures as "resolved" after a folder switch.
+   */
+  constructor(private readonly scope: string = '') {}
+
   /** Normalize command to group minor flag variations (e.g. `npm test` vs `npm test -- --runInBand`). */
   normalizeCommand(command: string): string {
-    return command.trim().replace(/\s+--\s+.*$/, '').replace(/\s+/g, ' ');
+    const normalized = command.trim().replace(/\s+--\s+.*$/, '').replace(/\s+/g, ' ');
+    return this.scope ? `${this.scope}\u0000${normalized}` : normalized;
+  }
+
+  /**
+   * True when the output visibly failed in a way `extractFailures` could not
+   * parse (toolchain crash, missing config, unresolved import...). Such a run
+   * must never be read as "every previous failure is fixed".
+   */
+  private looksBroken(output: string): boolean {
+    // A green run may still mention "errors" ("0 errors", "Tests: 5 passed"),
+    // so an explicit success marker wins.
+    if (/(?:^|\n)\s*\d+\s+(?:errors?\b)?.*\b0 errors?\b|Tests:\s+\d+ passed|Test Suites:\s+\d+ passed/.test(output)) {
+      return false;
+    }
+    return /(?:^|\n)\s*(?:error|ERR!|fatal|FAIL\b|✕|×)|\berror\s+TS\d+|EACCES|ENOENT/.test(output);
   }
 
   /** Clears all cached failure signatures. */
@@ -180,6 +201,11 @@ export class DeltaCache {
     if (failures.length === 0) {
       const key = this.normalizeCommand(command);
       const prev = this.cache.get(key);
+      // A red run whose errors we could not parse is not a green run. Keep the
+      // previous signatures so a later real pass still reports them resolved.
+      if (prev && prev.failures.size > 0 && this.looksBroken(output)) {
+        return { text: output, changed: false };
+      }
       if (prev && prev.failures.size > 0) {
         // All failures resolved!
         const resolvedList = Array.from(prev.failures.values()).map((f) => f.summary);
@@ -257,11 +283,25 @@ export class DeltaCache {
 /** Global singleton delta cache instance. */
 export const globalDeltaCache = new DeltaCache();
 
+/**
+ * Per-workspace caches. The tool layer is single-process but multi-workspace
+ * (the web UI can switch folders mid-session), so the default cache is scoped
+ * by the current working directory.
+ */
+const scopedCaches = new Map<string, DeltaCache>();
+
 /** Convenience helper for delta mode. */
-export function applyDeltaMode(command: string, output: string, cache: DeltaCache = globalDeltaCache): {
+export function applyDeltaMode(command: string, output: string, cache?: DeltaCache): {
   text: string;
   changed: boolean;
   deltaStats?: DeltaStats;
 } {
-  return cache.apply(command, output);
+  if (cache) return cache.apply(command, output);
+  const root = process.cwd();
+  let scoped = scopedCaches.get(root);
+  if (!scoped) {
+    scoped = new DeltaCache(root);
+    scopedCaches.set(root, scoped);
+  }
+  return scoped.apply(command, output);
 }

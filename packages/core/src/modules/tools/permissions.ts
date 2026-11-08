@@ -37,9 +37,15 @@ export interface PermissionPolicy {
 }
 
 /** Reads tools — safe to expose to every agent without approval. */
-export const READ_TOOLS = ['read_file', 'read_skeleton', 'read_blob', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+export const READ_TOOLS = ['read_file', 'read_symbol', 'read_skeleton', 'read_blob', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
 /** Write tools — mutate the workspace. */
 export const WRITE_TOOLS = ['write_file', 'edit_file', 'apply_patch', 'todowrite', 'generate_image'];
+/**
+ * Lazy MCP gateway tools. They reach third-party servers, but their names do
+ * not carry the `mcp_` prefix the prefix rule keys on, so plan mode silently
+ * permitted arbitrary remote tool calls until they were listed explicitly.
+ */
+export const MCP_GATEWAY_TOOLS = ['call_mcp', 'list_mcp_tools'];
 
 /**
  * Tools that record the agent's own plan rather than mutate the workspace.
@@ -76,6 +82,7 @@ export function defaultPolicyForMode(mode: 'plan' | 'act'): PermissionPolicy {
       if (!PLAN_TOOLS.includes(name)) tools[name] = 'deny';
     }
     for (const name of PLAN_TOOLS) tools[name] = 'allow';
+    for (const name of MCP_GATEWAY_TOOLS) tools[name] = 'deny';
     return {
       tools,
       bash: { defaultAction: 'deny', rules: [] },
@@ -84,6 +91,9 @@ export function defaultPolicyForMode(mode: 'plan' | 'act'): PermissionPolicy {
     };
   }
   for (const name of WRITE_TOOLS) tools[name] = 'ask';
+  // `list_mcp_tools` only reads server metadata; `call_mcp` executes.
+  tools.list_mcp_tools = 'allow';
+  tools.call_mcp = 'ask';
   return {
     tools,
     bash: { defaultAction: 'ask', rules: [] },

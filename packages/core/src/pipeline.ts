@@ -21,6 +21,7 @@ import { refinePrompt, type RefineOptions } from './refine.js';
 import { countTokens } from './token/tokenizer.js';
 import type { HandoffManager } from './modules/handoff/index.js';
 import { ToolLoop, type ToolLoopResult, type ToolRegistry } from './modules/tool-loop/index.js';
+import { globalStepDebugger, type StepDebugger } from './modules/tool-loop/stepDebugger.js';
 import { fireWebhooks, parseWebhookConfigs, type WebhookConfig } from './modules/webhooks.js';
 
 export interface PipelineOptions {
@@ -33,6 +34,12 @@ export interface PipelineOptions {
   ponytail?: boolean;
   /** Store cache entries in the background asynchronously without blocking the return path. */
   asyncStore?: boolean;
+  /**
+   * Interactive step debugger handed to every tool loop this pipeline builds.
+   * Without it the debugger is unreachable: the UI could toggle it but no tool
+   * call was ever intercepted.
+   */
+  stepDebugger?: StepDebugger;
 }
 
 export interface AskOptions extends HandoffOptions {
@@ -143,6 +150,7 @@ export class Pipeline {
   private readonly refineOptions: RefineOptions;
   private readonly ponytailEnabled: boolean;
   private readonly asyncStore: boolean;
+  public stepDebugger?: StepDebugger;
 
   constructor(options: PipelineOptions) {
     this.cache = options.cache;
@@ -151,6 +159,9 @@ export class Pipeline {
     this.refineOptions = options.refine ?? {};
     this.ponytailEnabled = options.ponytail ?? true;
     this.asyncStore = options.asyncStore ?? false;
+    // Default to the process-wide debugger the Web UI toggles; it is disabled
+    // by default, in which case intercept() is a no-op.
+    this.stepDebugger = options.stepDebugger ?? globalStepDebugger;
   }
 
   async ask(prompt: string, options: AskOptions = {}): Promise<AskResult> {
@@ -360,6 +371,7 @@ export class Pipeline {
     const completion = hasTools
       ? await new ToolLoop({
           handoff: this.handoff,
+          stepDebugger: this.stepDebugger,
           maxIterations: options.maxToolIterations ?? getMaxToolIterations(),
           onLimitReached: options.onLimitReached,
           // Tool results grow the context every iteration; re-size the output

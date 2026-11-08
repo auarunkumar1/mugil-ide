@@ -53,7 +53,9 @@ export class StepDebugger {
    * Otherwise halts and awaits user decision from UI or API.
    */
   async intercept(call: ToolCall): Promise<StepDecision> {
-    if (!this.enabled) {
+    // Pausing with no observer would hang the turn forever (e.g. the debugger
+    // is on but no UI is attached), so only pause when someone can answer.
+    if (!this.enabled || !this.onBreakpointCallback) {
       return { action: 'approve' };
     }
 
@@ -81,7 +83,7 @@ export class StepDebugger {
 
   /** Cancels or auto-resolves all pending breakpoints. */
   cancelAll(fallbackAction: StepAction = 'abort'): void {
-    for (const [id, resolver] of this.pendingResolvers.entries()) {
+    for (const resolver of this.pendingResolvers.values()) {
       resolver({ action: fallbackAction });
     }
     this.pendingResolvers.clear();

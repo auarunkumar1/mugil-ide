@@ -7,6 +7,7 @@ Thumbs.db
 .ipynb_checkpoints/
 node_modules/
 dist/
+.mugil/
 dist-packages/
 .vite/
 .next/

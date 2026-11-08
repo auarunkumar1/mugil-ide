@@ -389,22 +389,6 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
-    if (url.pathname === '/assets/bundle.css' || url.pathname === '/assets/bundle.js') {
-      const isCss = url.pathname.endsWith('.css');
-      const filename = isCss ? 'bundle.css' : 'bundle.js';
-      const contentType = isCss ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
-      const clientDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'client');
-      const assetFile = path.join(clientDir, filename);
-
-      res.writeHead(200, { 'Content-Type': contentType });
-      if (fs.existsSync(assetFile)) {
-        fs.createReadStream(assetFile).pipe(res);
-      } else {
-        res.end('');
-      }
-      return;
-    }
-
     if (url.pathname === '/api/models' && req.method === 'GET') {
       try {
         const localModels: Array<any> = [];
@@ -1006,42 +990,49 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           res.end(JSON.stringify({ error: 'path parameter required' }));
           return;
         }
-        const fullPath = path.resolve(process.cwd(), relPath);
+        const root = process.cwd();
+        // Same containment contract as the agent tools: no lexical or symlink
+        // escapes out of the workspace.
+        const { resolveInsideWorkspace, captureFile, pushEdit } = await import('@mugil-ide/core');
+        const { target: fullPath, error: pathError } = resolveInsideWorkspace(root, relPath);
+        if (pathError) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: pathError }));
+          return;
+        }
         if (!fs.existsSync(fullPath)) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'File not found' }));
           return;
         }
-        const original = fs.readFileSync(fullPath, 'utf-8');
-        const { captureFile, pushEdit } = await import('@mugil-ide/core');
-        const beforeState = captureFile(process.cwd(), fullPath);
-
         if (hunk && typeof hunk === 'string') {
-          const hunkLines = hunk.split(/\r?\n/);
-          const removals: string[] = [];
-          const additions: string[] = [];
-          for (const l of hunkLines) {
-            if (l.startsWith('-') && !l.startsWith('---')) removals.push(l.slice(1));
-            else if (l.startsWith('+') && !l.startsWith('+++')) additions.push(l.slice(1));
+          // Apply with the same engine that produced the hunk: position-aware
+          // (not a first-substring match), and immune to dollar-pattern
+          // expansion in added lines (String.replace treats those as refs).
+          const { parsePatch, applyPatch, reversePatch } = await import('diff');
+          const at = hunk.indexOf('@@');
+          const hunkText = hunk.slice(at < 0 ? 0 : at);
+          let updated: string | false = false;
+          try {
+            const parsed = parsePatch(hunkText)[0];
+            if (!parsed) throw new Error('empty patch');
+            const patch = revert ? reversePatch(parsed) : parsed;
+            updated = applyPatch(fs.readFileSync(fullPath, 'utf-8'), patch, { fuzzFactor: 0 });
+          } catch {
+            updated = false;
           }
-          const targetBlock = (revert ? additions : removals).join('\n');
-          const replaceBlock = (revert ? removals : additions).join('\n');
-          if (targetBlock && original.includes(targetBlock)) {
-            const updated = original.replace(targetBlock, replaceBlock);
+          if (typeof updated === 'string') {
+            const beforeState = captureFile(root, fullPath);
             fs.writeFileSync(fullPath, updated, 'utf-8');
-            const afterState = captureFile(process.cwd(), fullPath);
-            pushEdit(process.cwd(), {
-              path: fullPath,
-              before: beforeState,
-              after: afterState,
-            });
+            const afterState = captureFile(root, fullPath);
+            const undoNote = pushEdit(root, { path: fullPath, before: beforeState, after: afterState });
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ ok: true, applied: true }));
+            res.end(JSON.stringify({ ok: true, applied: true, undoNote: undoNote || undefined }));
             return;
           }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, applied: false, note: 'Hunk did not match file content directly' }));
+        res.end(JSON.stringify({ ok: true, applied: false, note: 'Hunk did not match file content' }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));

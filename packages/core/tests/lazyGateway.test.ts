@@ -1,4 +1,4 @@
-import { createLazyMcpGateway, LAZY_MCP_TOOL_DEFINITIONS } from '../src/modules/mcp-client/lazyGateway.js';
+import { createLazyMcpGateway } from '../src/modules/mcp-client/lazyGateway.js';
 import type { McpConnection, McpServerConfig } from '../src/modules/mcp-client/index.js';
 
 describe('Lazy MCP Gateway', () => {
@@ -35,7 +35,7 @@ describe('Lazy MCP Gateway', () => {
     close: async () => {},
   };
 
-  const fakeConnector = async (cfg: McpServerConfig) => fakeConnection;
+  const fakeConnector = async () => fakeConnection;
 
   it('exposes only 2 compact tools instead of dumping all server schemas', async () => {
     const bundle = await createLazyMcpGateway([fakeServer], fakeConnector, { lazy: true });
@@ -44,6 +44,23 @@ describe('Lazy MCP Gateway', () => {
     expect(bundle.servers).toEqual(['filesystem']);
   });
 
+  it('keeps every connectable server when no connector is injected', async () => {
+    // Regression: the eager fallback used to `return` inside the config loop,
+    // so only the first server of a multi-server config ever appeared.
+    const many: McpServerConfig[] = [
+      { name: 'one', command: 'a' },
+      { name: 'two', command: 'b' },
+      { name: 'three', command: 'c' },
+    ];
+    const seen: string[] = [];
+    const bundle = await createLazyMcpGateway(many, async (cfg) => {
+      seen.push(cfg.name);
+      return fakeConnection;
+    });
+    expect(seen).toEqual(['one', 'two', 'three']);
+    expect(bundle.servers).toEqual(['one', 'two', 'three']);
+    expect(bundle.registry.call_mcp).toBeDefined();
+  });
   it('lists available tools across servers on demand', async () => {
     const bundle = await createLazyMcpGateway([fakeServer], fakeConnector, { lazy: true });
     const listRes = await bundle.registry.list_mcp_tools({

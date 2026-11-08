@@ -7,6 +7,7 @@ import {
   READ_TOOLS,
   WRITE_TOOLS,
   EXEC_TOOLS,
+  MCP_GATEWAY_TOOLS,
   type PermissionPolicy,
 } from '../src/modules/tools/permissions.js';
 import type { ToolCall } from '../src/types.js';
@@ -194,11 +195,22 @@ describe('plan/act mode semantics', () => {
       for (const tool of [...READ_TOOLS, ...WRITE_TOOLS, ...EXEC_TOOLS]) {
         expect(resolveToolPermission(policy, call(tool))).not.toBeUndefined();
       }
-      // The lists above and the policy must not drift apart.
+      // The lists above and the policy must not drift apart. The MCP gateway
+      // tools are classified explicitly because their names carry no `mcp_`
+      // prefix for the prefix rule to match.
       expect(Object.keys(policy.tools ?? {}).sort()).toEqual(
-        [...new Set([...WRITE_TOOLS])].sort(),
+        [...new Set([...WRITE_TOOLS, ...MCP_GATEWAY_TOOLS])].sort(),
       );
     }
+  });
+  it('denies the lazy MCP gateway in plan mode and asks for call_mcp in act mode', () => {
+    const plan = defaultPolicyForMode('plan');
+    expect(resolveToolPermission(plan, call('call_mcp', { server: 's', tool: 't' }))).toBe('deny');
+    expect(resolveToolPermission(plan, call('list_mcp_tools'))).toBe('deny');
+    const act = defaultPolicyForMode('act');
+    expect(resolveToolPermission(act, call('call_mcp', { server: 's', tool: 't' }))).toBe('ask');
+    // Discovery-only, no side effects.
+    expect(resolveToolPermission(act, call('list_mcp_tools'))).toBe('allow');
   });
 
   it('applies prefix rules to run_command as well', () => {

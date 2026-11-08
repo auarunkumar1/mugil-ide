@@ -2791,7 +2791,7 @@ export function getWebUiHtml(): string {
             pre.appendChild(row);
           } else {
             const lines = (d.patch || '').split(String.fromCharCode(10)).map(l => l.replace(String.fromCharCode(13), ''));
-            lines.forEach((line) => {
+            lines.forEach((line, lineIdx) => {
               const row = document.createElement('div');
               row.style.cssText = 'padding:1px 12px; white-space:pre;';
               if (line.startsWith('+++') || line.startsWith('---')) {
@@ -2804,6 +2804,11 @@ export function getWebUiHtml(): string {
                 row.style.background = 'var(--diff-del)';
                 row.style.color = 'var(--diff-del-text)';
               } else if (line.startsWith('@@')) {
+                // A hunk payload is the header PLUS its body lines — the server
+                // parses it back into a patch, so the header alone is useless.
+                const hunkLines = [line];
+                for (let k = lineIdx + 1; k < lines.length && !lines[k].startsWith('@@'); k++) hunkLines.push(lines[k]);
+                const hunkPayload = hunkLines.join(String.fromCharCode(10));
                 const hunkBar = document.createElement('div');
                 hunkBar.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:3px 12px; background:#1f6feb15; border-top:1px solid #1f6feb33; border-bottom:1px solid #1f6feb33;';
                 const headerText = document.createElement('span');
@@ -2817,13 +2822,13 @@ export function getWebUiHtml(): string {
                 acceptBtn.className = 'btn';
                 acceptBtn.style.cssText = 'padding:1px 6px; font-size:10px; color:var(--green);';
                 acceptBtn.textContent = '✓ Accept Hunk';
-                acceptBtn.onclick = (e) => { e.stopPropagation(); applyHunk(d.rel, line, false); };
+                acceptBtn.onclick = (e) => { e.stopPropagation(); applyHunk(d.rel, hunkPayload, false); };
 
                 const revertBtn = document.createElement('button');
                 revertBtn.className = 'btn';
                 revertBtn.style.cssText = 'padding:1px 6px; font-size:10px; color:var(--red);';
                 revertBtn.textContent = '↺ Revert Hunk';
-                revertBtn.onclick = (e) => { e.stopPropagation(); applyHunk(d.rel, line, true); };
+                revertBtn.onclick = (e) => { e.stopPropagation(); applyHunk(d.rel, hunkPayload, true); };
 
                 actions.appendChild(acceptBtn);
                 actions.appendChild(revertBtn);
@@ -3758,17 +3763,21 @@ export function getWebUiHtml(): string {
     let currentStepDebugger = false;
     let activeBreakpointId = null;
 
-    async function applyHunk(relPath, hunkHeader, revert) {
+    async function applyHunk(relPath, hunkPayload, revert) {
       try {
         const res = await fetch('/api/diff/hunk-apply', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: relPath, hunk: hunkHeader, revert }),
+          body: JSON.stringify({ path: relPath, hunk: hunkPayload, revert }),
         });
         const data = await res.json();
-        if (data.ok) {
-          loadDiffs();
+        if (!res.ok || data.applied === false) {
+          // Say so instead of silently doing nothing: a stale hunk no longer
+          // matching the file is the common case here.
+          console.warn('Hunk not applied:', data.error || data.note || 'no match');
+          return;
         }
+        loadDiffs();
       } catch (err) {
         console.error('Failed to apply hunk:', err);
       }

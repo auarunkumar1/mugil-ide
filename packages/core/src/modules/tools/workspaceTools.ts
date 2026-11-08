@@ -20,6 +20,7 @@ import * as dns from 'node:dns/promises';
 import { spawn } from 'node:child_process';
 import type { ToolCall, ToolDefinition } from '../../types.js';
 import { ToolLoop, parseToolArguments, type ToolRegistry } from '../tool-loop/index.js';
+import { globalStepDebugger, type StepDebugger } from '../tool-loop/stepDebugger.js';
 import type { HandoffManager } from '../handoff/index.js';
 import { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } from '../codegraph/index.js';
 import { cavemanStrategy } from '../caveman/index.js';
@@ -543,8 +544,34 @@ export interface WorkspaceToolsOptions {
    * language server on PATH (`typescript-language-server`).
    */
   lspEnabled?: boolean;
+  /** Step debugger handed to subagent loops so the UI can pause their tools. */
+  stepDebugger?: StepDebugger;
   /** Injectable LSP client factory (tests). Defaults to the stdio client. */
   lspConnect?: (root: string) => Promise<LspClient>;
+}
+
+/** Extensions whose structure `extractCodeSkeleton` can actually recognise. */
+export const SKELETON_EXTENSIONS = [
+  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py',
+  '.rs', '.go', '.java', '.c', '.h', '.cc', '.cpp', '.hpp', '.cs', '.rb', '.php', '.kt', '.swift',
+];
+
+/** True when a skeleton would be meaningful for this path (i.e. it is code). */
+export function isSkeletonizable(filePath: string): boolean {
+  return SKELETON_EXTENSIONS.includes(path.extname(filePath).toLowerCase());
+}
+
+/**
+ * Last-resort skeleton: the first 50 lines. Only reachable for a code file
+ * whose structure the patterns missed, so say so instead of silently dropping
+ * the rest of the file behind a "saved tokens" banner.
+ */
+function headFallback(lines: string[]): string {
+  const head = lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`);
+  if (lines.length > head.length) {
+    head.push(`/* … ${lines.length - head.length} of ${lines.length} lines omitted (no structural symbols found) */`);
+  }
+  return head.join('\n');
 }
 
 export function extractCodeSkeleton(content: string, filePath: string): string {
@@ -623,7 +650,7 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
 
       braceDepth = Math.max(0, braceDepth + opens - closes);
     }
-    return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
+    return out.join('\n') || headFallback(lines);
   }
 
   if (['.py'].includes(ext)) {
@@ -641,7 +668,7 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
         out.push(`${i + 1}: ${line}`);
       }
     }
-    return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
+    return out.join('\n') || headFallback(lines);
   }
 
   // Fallback for general languages
@@ -656,7 +683,7 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
       out.push(`${i + 1}: ${line}`);
     }
   }
-  return out.join('\n') || lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`).join('\n');
+  return out.join('\n') || headFallback(lines);
 }
 
 /** Check if an IP address belongs to private, loopback, link-local, cloud metadata, or ULA ranges. */
@@ -797,14 +824,26 @@ export function createWorkspaceTools(
       const lines = content.split(/\r?\n/);
 
       // Auto-Tiering: files > 300 lines read without line ranges automatically return outline skeleton
-      if (!args.startLine && !args.endLine && !args.skeleton && !args.raw && lines.length > 300) {
+      if (
+        !args.startLine &&
+        !args.endLine &&
+        !args.skeleton &&
+        !args.raw &&
+        lines.length > 300 &&
+        isSkeletonizable(target)
+      ) {
         const skeleton = extractCodeSkeleton(content, target);
         const fullTokens = countTokens(content);
         const skelTokens = countTokens(skeleton);
         const savedTokens = Math.max(0, fullTokens - skelTokens);
-        const autoTierMsg =
-          `/* [Auto-Tiered: ${path.basename(args.path)} has ${lines.length} lines (>300). Showing structural skeleton with line anchors to save ~${savedTokens} tokens (${fullTokens} -> ${skelTokens} tok). Use read_symbol(path, symbol) or startLine/endLine for full implementation, or set raw: true to force full read.] */\n\n` +
-          skeleton;
+        // If the skeleton fell back to the first 50 lines (no recognisable
+        // structure), do not call it a structural outline — say what it is.
+        const structural = !skeleton.includes('lines omitted (no structural symbols found)');
+        const autoTierMsg = structural
+          ? `/* [Auto-Tiered: ${path.basename(args.path)} has ${lines.length} lines (>300). Showing structural skeleton with line anchors to save ~${savedTokens} tokens (${fullTokens} -> ${skelTokens} tok). Use read_symbol(path, symbol) or startLine/endLine for full implementation, or set raw: true to force full read.] */\n\n` +
+            skeleton
+          : `/* [Auto-Tiered: ${path.basename(args.path)} has ${lines.length} lines (>300) and no recognisable structure, so only a preview is shown. Use startLine/endLine or raw: true to read the rest.] */\n\n` +
+            skeleton;
         toolCache.set(cacheKey, { result: autoTierMsg, mtimeMs: stat.mtimeMs, rev: workspaceRev });
         return autoTierMsg;
       }
@@ -1544,6 +1583,9 @@ export function createWorkspaceTools(
           : (options.subagentPermission ?? createPermissionCheck(defaultPolicyForMode('act')));
       const loop = new ToolLoop({
         handoff: options.handoff,
+        // Defaults to the process-wide debugger the Web UI toggles: subagent
+        // tool calls pause there too, not just the parent loop's.
+        stepDebugger: options.stepDebugger ?? globalStepDebugger,
         maxIterations: subagentMaxIterations,
         // Stream the subagent's internal tool calls to the caller (live status).
         onTool: (call) => options.onSubagentTool?.(mode, call),

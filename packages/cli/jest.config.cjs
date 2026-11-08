@@ -2,7 +2,7 @@
 module.exports = {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
-  setupFiles: ['<rootDir>/tests/setupEnv.js'],
+  setupFiles: ['<rootDir>/tests/setupEnv.cjs'],
   testMatch: ['<rootDir>/tests/**/*.test.ts', '<rootDir>/tests/**/*.test.tsx'],
   testTimeout: 30000,
   // NodeNext emits .js specifiers in imports; resolve them back to .ts sources.

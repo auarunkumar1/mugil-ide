@@ -38,7 +38,7 @@
     "prepack": "npm run clean && npm run build",
     "prebuild": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
     "pretypecheck": "npm run build -w @mugil-ide/core && npm run build -w @mugil-ide/docs",
-    "build": "tsc -p tsconfig.json && node scripts/vendor-xterm.mjs && node ../../scripts/build-ui-assets.mjs",
+    "build": "tsc -p tsconfig.json && node scripts/vendor-xterm.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",

@@ -13,6 +13,7 @@ import { HandoffManager } from '../src/modules/handoff/index.js';
 import { OpenRouterClient } from '../src/modules/handoff/openRouter.js';
 import { LexicalEmbedding } from '../src/modules/smart-cache/embeddings.js';
 import type { ProviderClient } from '../src/modules/handoff/provider.js';
+import { StepDebugger } from '../src/modules/tool-loop/stepDebugger.js';
 import type { ChatMessage, ModelSpec, ToolCall } from '../src/types.js';
 
 const MODELS: ModelSpec[] = [
@@ -252,6 +253,61 @@ describe('Pipeline', () => {
     expect(second.cache.hit).toBe(false);
   });
 
+  it('routes tool calls through the injected step debugger', async () => {
+    const client = {
+      mock: false,
+      complete: jest
+        .fn()
+        .mockResolvedValueOnce({
+          provider: 'openai',
+          model: 'tool-model',
+          content: '',
+          usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+          finishReason: 'tool_calls',
+          toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+        })
+        .mockResolvedValueOnce({
+          provider: 'openai',
+          model: 'tool-model',
+          content: 'skipped',
+          usage: { promptTokens: 10, completionTokens: 2, totalTokens: 12 },
+          finishReason: 'stop',
+        }),
+    };
+    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const debuggerInstance = new StepDebugger({ enabled: true });
+    const intercepted: string[] = [];
+    debuggerInstance.setOnBreakpoint((bp) => {
+      intercepted.push(bp.call.name);
+      // Deny the actual execution: proves the decision reaches the loop.
+      debuggerInstance.resolveBreakpoint(bp.id, { action: 'skip', skipOutput: 'not run' });
+    });
+    const pipeline = new Pipeline({
+      cache: new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() }),
+      handoff,
+      tokenBudget: 10000,
+      stepDebugger: debuggerInstance,
+    });
+    let executed = false;
+    const toolRegistry = {
+      add: async (): Promise<string> => {
+        executed = true;
+        return '5';
+      },
+    };
+    const tools = [{ name: 'add', description: 'add two numbers', parameters: {} }];
+    const events: string[] = [];
+    await pipeline.ask('2 + 3', {
+      tools,
+      toolRegistry,
+      onEvent: (ev) => {
+        if (ev.type === 'tool-result') events.push(ev.result);
+      },
+    });
+    expect(intercepted).toEqual(['add']);
+    expect(executed).toBe(false);
+    expect(events).toEqual(['not run']);
+  });
   it('forwards the permission gate and feeds denials back to the model', async () => {
     const client = {
       mock: false,

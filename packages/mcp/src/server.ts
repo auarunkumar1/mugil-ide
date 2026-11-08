@@ -20,12 +20,15 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   buildCodeGraph,
   cavemanStrategy,
   compressCommandOutput,
   countTokens,
   createEngine,
+  findSymbolInContent,
   generateImage,
   getTokenizer,
   loadConfig,
@@ -161,6 +164,31 @@ export function createMcpServer(engine: Engine = createEngine(loadConfig())): Mc
     },
   );
 
+  server.registerTool(
+    'read_symbol',
+    {
+      title: 'Read a single symbol',
+      description:
+        'Locate one function, class, interface, type or method by name and return only its source lines (1-indexed anchors). Avoids reading the whole file into context.',
+      inputSchema: {
+        file: z.string().describe('Path to the source file (relative to the process cwd or absolute).'),
+        symbol: z.string().describe('Exact symbol name to extract.'),
+      },
+    },
+    async ({ file, symbol }) => {
+      const target = path.resolve(file);
+      if (!fs.existsSync(target)) {
+        return text(JSON.stringify({ error: `file not found: ${file}` }, null, 2));
+      }
+      const found = findSymbolInContent(fs.readFileSync(target, 'utf-8'), symbol, target);
+      if (!found) {
+        return text(JSON.stringify({ error: `symbol "${symbol}" not found in ${file}` }, null, 2));
+      }
+      return text(
+        `// ${found.name} in ${file} (lines ${found.startLine}-${found.endLine})\n${found.snippet}`,
+      );
+    },
+  );
   server.registerTool(
     'compress_command_output',
     {

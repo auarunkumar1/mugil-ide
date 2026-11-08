@@ -88,4 +88,32 @@ Test Suites: 1 passed, 1 total
     expect(res2.deltaStats?.resolvedCount).toBe(1);
     expect(res2.text).toContain('All 1 previous failure(s) successfully resolved!');
   });
+
+  it('does not report resolved failures when the new run is red but unparsed', () => {
+    const run1 = `
+FAIL packages/core/tests/foo.test.ts
+  ● FooSuite › test 1
+    Error: fail 1
+`;
+    cache.apply('npm run build', run1);
+    // Toolchain blow-up: nothing for extractFailures to match, but the build
+    // is clearly not green.
+    const run2 = `error TS5083: Cannot read file 'tsconfig.json'.`;
+    const res = cache.apply('npm run build', run2);
+    expect(res.changed).toBe(false);
+    expect(res.text).not.toContain('successfully resolved');
+    // The signature is retained, so a genuinely green run still reports it.
+    const res3 = cache.apply('npm run build', 'Build succeeded. 0 errors.');
+    expect(res3.changed).toBe(true);
+    expect(res3.text).toContain('All 1 previous failure(s) successfully resolved!');
+  });
+  it('scopes caches per workspace so a folder switch cannot fake a fix', () => {
+    const a = new DeltaCache('/project-a');
+    const b = new DeltaCache('/project-b');
+    a.apply('npm test', 'FAIL x.test.ts\n  ● suite › a\n    Error: boom');
+    const crossed = b.apply('npm test', 'Suite passed');
+    expect(crossed.changed).toBe(false);
+    expect(crossed.text).not.toContain('successfully resolved');
+    // add keywords
+  });
 });

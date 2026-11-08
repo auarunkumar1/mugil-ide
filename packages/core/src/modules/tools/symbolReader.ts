@@ -14,6 +14,116 @@ export interface LocatedSymbol {
 }
 
 /**
+ * Removes comments and string/template/regex literal contents from a source
+ * line, carrying `state` across lines. Brace counting over raw text is wrong
+ * the moment a `{` appears inside a string, a comment or a regex — that is how
+ * `read_symbol` used to return 10x too many lines.
+ */
+interface ScanState {
+  blockComment: boolean;
+  /** True while inside a multi-line template literal. */
+  template: boolean;
+}
+
+const REGEX_PRECEDERS = new Set(['', '(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '<', '>', '~', '^']);
+
+function stripNonCode(line: string, state: ScanState): string {
+  let out = '';
+  let prev = '';
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    const next = line[i + 1];
+    if (state.blockComment) {
+      if (ch === '*' && next === '/') {
+        state.blockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (state.template) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '`') {
+        state.template = false;
+        continue;
+      }
+      if (ch === '$' && next === '{') {
+        const close = line.indexOf('}', i + 2);
+        out += ' ' + (close < 0 ? line.slice(i + 2) : line.slice(i + 2, close)) + ' ';
+        i = close < 0 ? line.length : close;
+        if (close < 0) state.template = false;
+        continue;
+      }
+      continue;
+    }
+    if (ch === '/' && next === '/') break;
+    if (ch === '/' && next === '*') {
+      state.blockComment = true;
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      while (j < line.length && line[j] !== ch) {
+        if (line[j] === '\\') j++;
+        j++;
+      }
+      i = j;
+      prev = ch;
+      out += ' ';
+      continue;
+    }
+    if (ch === '`') {
+      let j = i + 1;
+      let interpolations = 0;
+      while (j < line.length) {
+        if (line[j] === '\\') {
+          j += 2;
+          continue;
+        }
+        if (line[j] === '$' && line[j + 1] === '{') interpolations++;
+        else if (line[j] === '}' && interpolations > 0) interpolations--;
+        else if (line[j] === '`' && interpolations === 0) break;
+        j++;
+      }
+      if (j >= line.length) state.template = true;
+      i = j;
+      prev = '`';
+      out += ' ';
+      continue;
+    }
+    if (ch === '/') {
+      // Regex literal vs division: only when the preceding token cannot end an
+      // expression. A braces-in-regex would otherwise unbalance the count.
+      if (REGEX_PRECEDERS.has(prev.trim())) {
+        let j = i + 1;
+        let inClass = false;
+        while (j < line.length) {
+          const r = line[j]!;
+          if (r === '\\') {
+            j += 2;
+            continue;
+          }
+          if (r === '[') inClass = true;
+          else if (r === ']') inClass = false;
+          else if (r === '/' && !inClass) break;
+          j++;
+        }
+        i = j;
+        prev = '/';
+        out += ' ';
+        continue;
+      }
+    }
+    out += ch;
+    if (ch.trim().length > 0) prev = ch;
+  }
+  return out;
+}
+
+/**
  * Parses and locates a symbol in code content by name.
  * Returns the exact line span and source lines.
  */
@@ -85,31 +195,32 @@ export function findSymbolInContent(
       endLine = i + 1;
     }
   } else {
-    // Brace counting for JS/TS/etc
+    // Brace counting for JS/TS/etc.
+    // Braces are only counted once the parameter list has closed and never
+    // inside comments, strings, templates or regexes — otherwise a signature
+    // like `f(opts: { a: string } = {})` ended the span at the parameter type,
+    // and any `{` in a string ran it to EOF.
+    const state: ScanState = { blockComment: false, template: false };
     let braceCount = 0;
     let foundFirstOpen = false;
-
+    let parenDepth = 0;
+    let sawArrow = false;
     for (let i = startLine - 1; i < lines.length; i++) {
-      const line = lines[i]!;
-      const opens = (line.match(/\{/g) || []).length;
-      const closes = (line.match(/\}/g) || []).length;
-
-      if (opens > 0) foundFirstOpen = true;
-      braceCount += opens - closes;
-
-      if (foundFirstOpen && braceCount <= 0) {
-        endLine = i + 1;
-        break;
-      }
-      // If single-line arrow function without braces
-      if (!foundFirstOpen && line.includes('=>') && (line.endsWith(';') || i > startLine + 1)) {
-        endLine = i + 1;
-        break;
-      }
+      const code = stripNonCode(lines[i]!, state);
+      const opens = (code.match(/\{/g) || []).length;
+      const closes = (code.match(/\}/g) || []).length;
+      parenDepth += (code.match(/\(/g) || []).length - (code.match(/\)/g) || []).length;
+      if (code.includes('=>')) sawArrow = true;
+      if (parenDepth <= 0 && opens > 0) foundFirstOpen = true;
+      if (foundFirstOpen) braceCount += opens - closes;
       endLine = i + 1;
+      if (foundFirstOpen && braceCount <= 0) break;
+      // Expression-bodied arrow (`const f = (x) => x + 1;`) — no braces at all.
+      if (!foundFirstOpen && sawArrow && parenDepth <= 0 && code.trimEnd().endsWith(';')) break;
+      // A declaration with no body at all (`declare function f(): void;`).
+      if (!foundFirstOpen && parenDepth <= 0 && code.trimEnd().endsWith(';')) break;
     }
   }
-
   const slice = lines.slice(startLine - 1, endLine);
   const numbered = slice.map((line, idx) => `${startLine + idx}: ${line}`).join('\n');
 

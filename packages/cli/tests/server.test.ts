@@ -380,6 +380,90 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('applies a diff hunk positionally, reversibly, and without dollar expansion', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    const root = process.cwd();
+    const rel = 'hunk-apply-test.ts';
+    const abs = join(root, rel);
+    // Two identical `return 1;` bodies: a substring replace would hit the
+    // FIRST one (wrong function). The hunk targets the second.
+    const before = [
+      'export function a() {',
+      '  return 1;',
+      '}',
+      '',
+      'export function b() {',
+      '  return 1;',
+      '}',
+      '',
+    ].join('\n');
+    writeFileSync(abs, before, 'utf-8');
+    // Exactly what `createTwoFilesPatch` produces for this edit (context
+    // lines included), i.e. the payload the diff viewer now forwards.
+    const hunk = [
+      '@@ -2,6 +2,6 @@',
+      '   return 1;',
+      ' }',
+      ' ',
+      ' export function b() {',
+      '-  return 1;',
+      '+  const re = /x$&y/;',
+      ' }',
+      '',
+    ].join('\n');
+    try {
+      const res = await fetch(`${server.url}/api/diff/hunk-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: rel, hunk, revert: false }),
+      });
+      const json = (await res.json()) as { ok: boolean; applied: boolean };
+      expect(json.applied).toBe(true);
+      const applied = readFileSync(abs, 'utf-8');
+      // a() untouched, b() rewritten, and `$&` written literally.
+      expect(applied).toContain('export function a() {\n  return 1;\n}');
+      expect(applied).toContain('const re = /x$&y/;');
+      expect(applied).not.toContain('x  return 1;y');
+      // Revert restores the original bytes.
+      const back = await fetch(`${server.url}/api/diff/hunk-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: rel, hunk, revert: true }),
+      });
+      expect(((await back.json()) as { applied: boolean }).applied).toBe(true);
+      expect(readFileSync(abs, 'utf-8')).toBe(before);
+    } finally {
+      if (existsSync(abs)) unlinkSync(abs);
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+  it('rejects /api/diff/hunk-apply paths that escape the workspace', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    const outside = mkdtempSync(join(tmpdir(), 'mugil-hunk-outside-'));
+    const victim = join(outside, 'victim.ts');
+    writeFileSync(victim, 'export const a = 1;\n', 'utf-8');
+    try {
+      const res = await fetch(`${server.url}/api/diff/hunk-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: join(outside, 'victim.ts'),
+          hunk: '@@ -1 +1 @@\n-export const a = 1;\n+export const a = 2;',
+        }),
+      });
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as { error: string };
+      expect(json.error).toContain('outside the workspace');
+      expect(readFileSync(victim, 'utf-8')).toContain('a = 1');
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+      await server.close();
+      await engine.backend.close();
+    }
+  });
   it('serves Web UI inline scripts that parse', async () => {
     const { getWebUiHtml } = await import('../src/server/html.js');
     const html = getWebUiHtml();

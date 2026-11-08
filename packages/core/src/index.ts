@@ -162,6 +162,7 @@ export {
   READ_TOOLS,
   WRITE_TOOLS,
   EXEC_TOOLS,
+  MCP_GATEWAY_TOOLS,
 } from './modules/tools/permissions.js';
 export type {
   ToolPermissionAction,

@@ -397,6 +397,47 @@ export class AccountService {
     }
   });
 
+  it('does not skeletonize non-code files (csv/json/log keep every line)', async () => {
+    const dataFile = path.join(root, 'auto-tier-data.csv');
+    const content = Array.from({ length: 501 }, (_, i) => `row${i},value${i}`).join('\n');
+    fs.writeFileSync(dataFile, content, 'utf-8');
+    try {
+      const out = await toolRegistry.read_file({
+        id: 'r-csv',
+        name: 'read_file',
+        arguments: JSON.stringify({ path: 'auto-tier-data.csv' }),
+      });
+      expect(out).not.toContain('Auto-Tiered');
+      // The last row is present, not silently dropped behind a token banner.
+      expect(out).toContain('row500,value500');
+    } finally {
+      if (fs.existsSync(dataFile)) fs.unlinkSync(dataFile);
+    }
+  });
+  it('does not claim a structural skeleton when the fallback only shows a preview', async () => {
+    // Lines the stub-matcher recognises nothing in: the reader must say
+    // "preview", not "Showing structural skeleton with line anchors".
+    const flat = path.join(root, 'flat-generated.ts');
+    const content = Array.from({ length: 700 }, (_, i) => `const v${i} = ${i};`).join('\n');
+    fs.writeFileSync(flat, content, 'utf-8');
+    try {
+      const out = await toolRegistry.read_file({
+        id: 'r-flat',
+        name: 'read_file',
+        arguments: JSON.stringify({ path: 'flat-generated.ts' }),
+      });
+      expect(out).toContain('no recognisable structure');
+      expect(out).not.toContain('Showing structural skeleton');
+      expect(out).toContain('lines omitted');
+    } finally {
+      if (fs.existsSync(flat)) fs.unlinkSync(flat);
+    }
+  });
+  it('reports omitted lines when a code fallback truncates without symbols', () => {
+    const content = Array.from({ length: 200 }, (_, i) => `const v${i} = ${i};`).join('\n');
+    const skeleton = extractCodeSkeleton(content, 'flat.ts');
+    expect(skeleton).toContain('of 200 lines omitted');
+  });
   it('read_symbol surgically locates and extracts a single symbol', async () => {
     const testFile = path.join(root, 'symbols-test.ts');
     const code = `

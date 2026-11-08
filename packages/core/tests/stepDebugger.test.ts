@@ -67,11 +67,22 @@ describe('StepDebugger', () => {
 
   it('cancels all pending breakpoints on cancelAll', async () => {
     dbg.setEnabled(true);
+    // An observer must be attached, otherwise intercept() approves immediately
+    // (a paused call with nobody to answer would hang the turn).
+    dbg.setOnBreakpoint(() => {});
     const call: ToolCall = { id: 'c5', name: 'write_file', arguments: '{}' };
     const interceptPromise = dbg.intercept(call);
 
     dbg.cancelAll('abort');
     const decision = await interceptPromise;
     expect(decision.action).toBe('abort');
+  });
+
+  it('never blocks when no breakpoint observer is attached', async () => {
+    // Enabling the debugger without a UI must not hang the tool loop.
+    const dbg = new StepDebugger({ enabled: true });
+    await expect(
+      dbg.intercept({ id: 'c1', name: 'read_file', arguments: '{}' }),
+    ).resolves.toEqual({ action: 'approve' });
   });
 });

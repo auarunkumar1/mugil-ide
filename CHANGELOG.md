@@ -10,18 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-11-08
 
 ### Added
-- **Delta Mode Error Diagnostics (RTK DeltaCache)**: In-memory error signature cache across test/build runs (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures, collapsing unchanged stack traces into a single concise count line (`[Delta Mode: X unchanged failure(s) collapsed to save tokens]`), saving 70%–85% of exploratory tokens during iterative debug loops.
-- **Auto-Tiered File Reader & Surgical `read_symbol` Tool**: Automatically skeletonizes files >300 lines with line-number anchors when read without line ranges, avoiding accidental full-file token dumps while preserving `raw: true` override. Introduces `read_symbol(path, symbol)` for precise AST/indentation-based extraction of specific functions, classes, interfaces, or types.
+- **Delta Mode Error Diagnostics (RTK DeltaCache)**: In-memory error signature cache across test/build runs (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new and unchanged failures and collapses repeated stack traces. A red run with no parsable failures no longer reports "all resolved", and caches are scoped per workspace.
+- **Auto-Tiered File Reader & Surgical `read_symbol` Tool**: Code files >300 lines read without line ranges return an outline skeleton with line anchors; non-code formats are read in full, and a fallback preview reports omitted lines. Adds `read_symbol(path, symbol)` for surgical extraction of one function, class or method.
 - **Lazy MCP Schema Pruning**: Deferred tool discovery via `list_mcp_tools` and `call_mcp`, eliminating 2,000–5,000 static tokens of schema overhead per turn.
-- **Local Offline ONNX Vector Semantic Cache**: 100% offline, cross-platform neural vector embeddings (384 dimensions) running in ~5–8ms on AMD, Intel, and Apple Silicon CPUs with seamless fallback.
+- **Offline Vector Semantic Cache**: Optional 384-dimensional hashed subword projection (`MUGIL_IDE_EMBEDDING_PROVIDER=onnx`), ~5-8ms per embed, zero network calls. Real ONNX inference requires `onnxruntime-node` plus `MUGIL_IDE_ONNX_MODEL_PATH`; the default path is deterministic lexical hashing, not a learned model.
 - **Interactive Step Debugger**: Full step-through interface to pause, inspect, edit tool call arguments, skip, or abort operations before execution via the Web UI modal and WebSocket breakpoint protocol.
-- **Multi-File Split Diff Review & Hunk-by-Hunk Staging**: Side-by-side git staging and surgical hunk-by-hunk acceptance or reversion via `POST /api/diff/hunk-apply`.
+- **Multi-File Split Diff Review & Hunk-by-Hunk Staging**: Per-hunk acceptance or reversion via `POST /api/diff/hunk-apply`. Hunks are applied positionally with the `diff` package and reverted with `reversePatch`; every apply is journaled for undo. Working-tree only (no `git add`).
 - **Multi-Workspace Folder Management UI**: Added "Open Project Folder" and "Create New Project" modal and directory switcher without restarting the Node server (`/api/workspace/switch`, `/api/workspace/create`).
-- **Multi-Agent Worktree Squad Orchestration**: Concurrent subagent swarms executing on isolated Git worktrees (`.mugil/worktrees/subagent-<id>`) to eliminate file collision race conditions.
+- **Worktree Squad Library**: `WorktreeSquadManager` creates/removes isolated Git worktrees under `.mugil/worktrees/<id>` (gitignored). Not wired into the `task` tool yet, which still runs subagents in-process.
 - **Pluggable Extension & Skill Registry Drawer**: Visual modal to inspect, enable, and configure agent skills, custom tools, and external MCP servers.
-- **Modular Web UI Asset Extraction**: Built-in asset pipeline (`scripts/build-ui-assets.mjs`) extracting inline stylesheets and scripts into static bundles (`bundle.css`, `bundle.js`), hardening Content Security Policy.
-- **Unified OpenAI Wire Client Consolidation**: Consolidated repetitive OpenAI-compatible provider wire implementations into a single configurable client architecture (`UnifiedWireClient`).
-- **Comprehensive Test Suite Expansion**: Reached 575 passing tests across 43 suites (503 core, 54 cli, 10 docs, 8 mcp).
+- **Web UI Hardening & Lint Cleanup**: Fixed the four lint errors that made CI red on the release commit, and removed the unused `bundle.css`/`bundle.js` build step (`/assets/bundle.*` was served but never referenced).
+- **Provider Wire Clients**: `OpenAiWireClient` remains the shared base for OpenAI-compatible providers; `UnifiedWireClient` is an additional name-based factory for callers that want it.
+- **Comprehensive Test Suite Expansion**: 590 passing tests across all packages (515 core, 56 cli, 10 docs, 9 mcp), hermetic by default (ambient provider API keys and the user env file are cleared in `setupEnv`).
+
+### Fixed
+- **`/api/diff/hunk-apply` containment**: the route now resolves paths through the shared `resolveInsideWorkspace` helper, so lexical and symlink escapes out of the workspace are rejected with 400 (previously it was the only write route without the check).
+- **Hunk application correctness**: hunks are applied with the `diff` package (`parsePatch`/`applyPatch`, `fuzzFactor: 0`) instead of a first-substring `String.replace`. This fixes both wrong-function edits when a block appears twice and corruption from `$&`/`$1` expansion in added lines. Revert uses `reversePatch`.
+- **Staging UI was a no-op**: the viewer passed the bare `@@` header as the hunk payload; it now forwards the header plus its body lines, and surfaces a console warning when a hunk no longer matches.
+- **Plan mode could call arbitrary MCP tools**: the lazy gateway's `call_mcp`/`list_mcp_tools` carry no `mcp_` prefix for the plan-mode prefix rule, so they are now classified explicitly (denied in plan, `call_mcp` asks in act). `read_symbol` joined `READ_TOOLS`.
+- **Step Debugger was unreachable**: `PipelineOptions.stepDebugger` is now plumbed into every `ToolLoop` (parent turn and `task` subagents), defaulting to the process-wide instance the Web UI toggles. With the debugger enabled and no observer attached, `intercept()` approves instead of hanging the turn.
+- **Auto-tier destroyed data in non-code files**: skeletonization is limited to code extensions, and the head fallback now reports `… N of M lines omitted` and no longer claims to be a "structural skeleton".
+- **`read_symbol` over-ran symbols ~10x**: brace counting now ignores comments, strings, template literals and regex literals, only starts once the parameter list closes, and stops at expression-bodied arrows.
+- **Delta Mode reported success on a broken build**: a run whose output looks failed but yields no parsed failures no longer clears the cache ("All N resolved"), and the default cache is scoped per workspace so a folder switch cannot fake a fix.
+- **Lazy MCP gateway dropped all but the first server** when no connector was injected; it now connects the whole config list eagerly.
+- **CI lint was red** on the release commit (4 unused-variable errors).
+- **Non-hermetic tests**: `setupEnv` also clears ambient provider API keys and points `MUGIL_IDE_ENV_FILE` at a non-existent path, so a developer's real keys can no longer turn "mock mode" tests into live calls.
+- **`read_symbol` is now exposed over MCP**, matching the agent tool.
+- **Docs corrected**: worktree squads are a library not yet wired into `task`, the embedding fallback is a hashed lexical projection (not a learned model), and the tool count is 20.
+- **Removed dead assets**: the `bundle.css`/`bundle.js` build step and `/assets/bundle.*` route produced files nothing referenced. `.mugil/` is now gitignored.
 
 ## [0.1.26] - 2026-11-07
 

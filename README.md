@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 575 Passing](https://img.shields.io/badge/tests-575%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
+[![Tests: 590 Passing](https://img.shields.io/badge/tests-590%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![MCP: Supported](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![TypeScript: 5.x](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
@@ -195,7 +195,7 @@ flowchart LR
 
 ---
 
-### 6. 🛠️ 19 Autonomous Workspace Tools & Subagent Swarms
+### 6. 🛠️ 20 Autonomous Workspace Tools & Subagent Swarms
 
 - **💡 Def:**  
   Mugil IDE comes out of the box with tools to search, read, write, test, explore, generate visual media, and refactor code. It can even spin up helper "subagents" to perform broad background research without cluttering your main conversation!
@@ -207,7 +207,7 @@ flowchart LR
   | **Inspection & AST** | `read_file`, `read_symbol`, `read_skeleton`, `search_code`, `list_files`, `codegraph`, `read_blob` | AST code signatures, surgical single-function/class reader, regex pattern search, multi-language symbol graphs, and LRU blob chunking. |
   | **Surgical Editing** | `edit_file`, `apply_patch`, `write_file` | Precise 1-line unified diff replacements, multi-hunk patch application, atomic writes. |
   | **Shell & Execution** | `run_command` | Sandboxed command execution with process group timeouts, Delta Mode diffing, and RTK build noise filtering. |
-  | **Swarm Orchestration**| `task` | Spawns scoped subagents (`explore` or `general`) executing on isolated Git worktrees. |
+  | **Swarm Orchestration**| `task` | Spawns scoped subagents (`explore` or `general`) in-process, with their own tool registry and permission policy. |
   | **Media & External** | `generate_image`, `webfetch`, `mcp` | Multi-tier visual asset generation, live URL retrieval, and Lazy Model Context Protocol gateway. |
 
 ---
@@ -244,10 +244,10 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 ### ✅ Shipped & Ready in v0.2.0 (Current Release)
 
 #### 🧠 Token Economy & Context Architecture
-- [x] **Delta Mode Diagnostics (RTK Error Cache):** Session error signature cache for recurring test/build commands (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures, collapsing repetitive stack traces into a single concise count line (`[Delta Mode: X unchanged failure(s) collapsed]`), saving 70%–85% of tokens during debug loops.
-- [x] **Auto-Tiered File Reader & Surgical `read_symbol` Tool:** Automatically skeletonizes files >300 lines with line-number anchors to avoid exploratory token dumps; provides `read_symbol(path, symbol)` for precise AST/indentation-based extraction of specific functions, classes, interfaces, or types.
+- [x] **Delta Mode Diagnostics (RTK Error Cache):** Session error signature cache for recurring test/build commands (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures and collapses repeated stack traces. A run that visibly failed but produced no parsable failures never counts as "all resolved", and the cache is scoped per workspace.
+- [x] **Auto-Tiered File Reader & Surgical `read_symbol` Tool:** Code files >300 lines read without line ranges return an outline skeleton with line anchors; non-code formats (json/csv/log/markdown) are read in full, and a fallback preview states how many lines were omitted. `read_symbol(path, symbol)` extracts one function/class/method with exact line spans, ignoring braces inside strings, comments and regexes.
 - [x] **Lazy MCP Schema Pruning:** Eliminates 2,000–5,000 static tokens of schema overhead on every turn via deferred discovery (`list_mcp_tools`, `call_mcp`).
-- [x] **Local Offline ONNX Vector Semantic Cache:** 100% offline, cross-platform neural vector embeddings (384 dimensions) running in ~5–8ms on AMD, Intel, and Apple Silicon CPUs for zero-cost, offline semantic cache matching.
+- [x] **Offline Vector Semantic Cache (`MUGIL_IDE_EMBEDDING_PROVIDER=onnx`):** 384-dimensional hashed subword projection, ~5–8ms per embed on AMD/Intel/Apple Silicon CPUs, zero network calls. Real ONNX inference is used only when `onnxruntime-node` is installed and `MUGIL_IDE_ONNX_MODEL_PATH` points at a model; otherwise the deterministic hashed projection runs (lexical similarity, not a learned embedding).
 - [x] **Token Compression Suite:** Integrated Caveman prompt compression, RTK noise filters, Ponytail output minimization, and signature/watermark removers.
 - [x] **AST Skeleton Code Reading:** `read_skeleton` tool extracts code signatures and types without bloated function bodies, saving 70–80% of exploratory tokens.
 - [x] **Content-Compressed Retrieval (CCR):** LRU `BlobStore` for oversized tool outputs (>48k chars) with on-demand `read_blob` chunking.
@@ -259,9 +259,9 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 
 #### 🛠️ Autonomous Tools & Execution Control
 - [x] **Interactive Step Debugger:** Visual step-through interface to pause, inspect, edit tool call arguments, skip, or abort subagent operations before execution via the Web UI modal and WebSocket breakpoint protocol.
-- [x] **Multi-File Split Diff Review & Hunk-by-Hunk Staging:** Side-by-side git staging and surgical hunk-by-hunk acceptance or reversion directly in the web UI via `POST /api/diff/hunk-apply`.
-- [x] **Multi-Agent Worktree Squad Orchestration:** Concurrent subagent squads collaborating on isolated Git worktrees (`.mugil/worktrees/subagent-<id>`) to eliminate file collision race conditions.
-- [x] **19 Autonomous Workspace Tools:** Full suite for reading, searching, symbols, editing, patching, running commands, media generation, and web exploration.
+- [x] **Multi-File Split Diff Review & Hunk-by-Hunk Staging:** Per-hunk acceptance or reversion directly in the web UI via `POST /api/diff/hunk-apply` (position-verified, `reversePatch` for revert, undo-journaled). It edits the working tree; it does not run `git add`.
+- [x] **Worktree Squad Library (not wired into `task` yet):** `WorktreeSquadManager` can create/remove isolated Git worktrees under `.mugil/worktrees/<id>` (gitignored). The `task` tool still runs subagents in-process — worktree isolation is opt-in API surface, not automatic.
+- [x] **20 Autonomous Workspace Tools:** Full suite for reading, searching, symbols, editing, patching, running commands, media generation, and web exploration.
 - [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal with interactive Provider and Model selectors (Auto waterfall cascade or direct provider targeting with provider-specific model presets and custom model input). Dispatches across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged with diagnostic causes.
 - [x] **Binary Diffing & Byte-Exact Undo:** `/api/diffs` flags binary files and skips raw patch calculations, displaying clean binary notifications in the diff viewer. The session journal captures binary states in base64 for byte-exact `/undo` restoration.
 - [x] **Safe File Writing & Non-Code Diagnostics Filter:** `write_file` append mode and diagnostics bypass on documentation/logs/data files (`.md`, `.log`, `.txt`, `.json`), preventing infinite repair loops.
@@ -270,7 +270,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 #### 💻 Browser Web IDE & Developer Control
 - [x] **Multi-Workspace Folder Management:** "Open Project Folder" and "Create New Project" modal and directory switcher without restarting the Node server (`/api/workspace/switch`, `/api/workspace/create`).
 - [x] **Pluggable Extension & Skill Registry Drawer:** Visual UI modal to inspect, enable, and configure agent skills, custom tools, and external MCP servers.
-- [x] **Modular Web UI Asset Extraction:** Built-in asset pipeline (`scripts/build-ui-assets.mjs`) extracting inline stylesheets and scripts into static bundles (`bundle.css`, `bundle.js`), hardening Content Security Policy.
+- [x] **Self-Contained Web UI:** The IDE page ships as a single response with inline styles/scripts and vendored xterm.js assets, so it works fully offline with no external CDN.
 - [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
 - [x] **Turbo Mode Autonomous Execution:** Instant execution of writes, edits, and terminal commands without confirmation prompts, plus Act/Plan safety modes.
 - [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn without closing the session.
@@ -282,7 +282,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
 
 #### 🌐 Multi-Provider Handoff & Protocols
-- [x] **Unified OpenAI Wire Client Consolidation:** Consolidated repetitive OpenAI-compatible provider wire implementations into a single configurable client architecture (`UnifiedWireClient`).
+- [x] **Provider Wire Clients:** `OpenAiWireClient` is the shared base for the OpenAI-compatible providers (OpenAI, OpenRouter, Together, Vercel, Cloudflare, OpenCode). An additional configurable `UnifiedWireClient` exists for callers that want provider selection by name.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Working Vercel AI Gateway:** Targets `https://ai-gateway.vercel.sh/v1`, uses namespaced `creator/model` IDs, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing.
 - [x] **Verified Provider API Paths:** Cloudflare workers AI Gateway now uses `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` and its model catalog actually loads; OpenCode supports documented `https://opencode.ai/inference` base alongside legacy `zen/v1`.
@@ -297,7 +297,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Clean Session Token URL Routing:** Separated pristine base server URLs from authenticated browser launch tokens (`server.tokenUrl`), eliminating query parameter duplication.
 - [x] **Deterministic CI & Test Suite Reliability:** Hard 15-minute execution timeouts and explicit server connection teardown hooks in the HTTP/WebSocket runtime, resolving keep-alive runner hangs on GitHub Actions.
 - [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
-- [x] **Comprehensive Test Suite:** 575 unit and integration tests passing across all packages (43 test suites: 503 core, 54 cli, 10 docs, 8 mcp).
+- [x] **Comprehensive Test Suite:** 590 unit and integration tests passing across all packages (43 suites: 515 core, 56 cli, 10 docs, 9 mcp), hermetic by default.
 
 ### 🎯 Planned for Next Release Push (v0.3.0 Roadmap)
 
@@ -437,7 +437,7 @@ cd mugil-ide
 npm install
 npm run build
 
-# Run the full test suite (575 tests across 43 suites)
+# Run the full test suite (590 tests across 43 suites)
 npm test
 
 # Launch local development server

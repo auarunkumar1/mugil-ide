@@ -1,14 +1,14 @@
 /**
- * Offline Local ONNX Vector Semantic Cache Provider
- * ==================================================
- * Provides 100% offline, cross-platform neural vector embeddings (384 dimensions)
- * without external API calls or cloud token spend. Operates in ~5–8ms on AMD, Intel,
- * and Apple Silicon CPUs.
+ * Offline Embedding Provider (ONNX when available, hashed projection otherwise)
+ * =============================================================================
+ * 384-dimensional vectors with no external API calls and no token spend.
  *
- * If `onnxruntime-node` is installed and a model path is provided (or configured via
- * `MUGIL_IDE_ONNX_MODEL_PATH`), it uses hardware-accelerated ONNX inference.
- * Otherwise, it uses high-efficiency offline subword n-gram neural projection with
- * deterministic token pooling, falling back safely without throwing errors.
+ * - If `onnxruntime-node` is installed (it is NOT a dependency of this package)
+ *   and `MUGIL_IDE_ONNX_MODEL_PATH` points at a model, real ONNX inference runs.
+ * - Otherwise the fallback is a deterministic hashed subword/bigram projection:
+ *   lexical similarity, fast (~5-8ms), and NOT a learned embedding. It matches
+ *   shared tokens, not meaning — "login bug" and "authentication failure" score
+ *   low, exactly as a bag-of-words would.
  */
 
 import { createHash } from 'node:crypto';
@@ -99,7 +99,6 @@ export class OnnxEmbeddingProvider implements EmbeddingProvider {
 
     // Mean pool over tokens
     const vector = new Float64Array(ONNX_EMBEDDING_DIM);
-    const seqLen = 128;
     for (let i = 0; i < tokens.length; i++) {
       for (let d = 0; d < ONNX_EMBEDDING_DIM; d++) {
         vector[d] = (vector[d] ?? 0) + (data[i * ONNX_EMBEDDING_DIM + d] || 0);
