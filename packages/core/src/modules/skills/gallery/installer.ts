@@ -8,9 +8,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveInsideWorkspace } from '../../tools/paths.js';
+import { guardedFetch } from '../../security/restrictedNet.js';
 import { globalSkillsDir, parseSkillFrontmatter } from '../index.js';
 import { CURATED_GALLERY_SKILLS } from './catalog.js';
 import type { InstallResult, InstallSkillOptions, SkillTarget } from './types.js';
+
+/** Directory names never copied out of a local skill folder. */
+const COPY_DENYLIST = new Set(['.git', 'node_modules', '.env', '.env.local', '.env.production']);
+/** Files larger than this are skipped when importing a local skill folder. */
+const MAX_COPY_FILE_BYTES = 1024 * 1024;
 
 export function validateSkillName(name: string): string {
   const trimmed = name.trim().toLowerCase();
@@ -32,15 +38,14 @@ export function resolveSkillTargetDir(
 ): string {
   const validName = validateSkillName(name);
   if (target === 'workspace') {
-    const parentDir = path.join(cwd, '.mugil', 'skills');
-    fs.mkdirSync(parentDir, { recursive: true });
-    // resolveInsideWorkspace verifies physical boundary containment
+    // resolveInsideWorkspace verifies physical boundary containment. It runs
+    // before any mkdir so a rejected path cannot create directories first (and
+    // so uninstalling a missing skill has no side effects).
     const res = resolveInsideWorkspace(cwd, path.join('.mugil', 'skills', validName));
     if (res.error) throw new Error(res.error);
     return res.target;
   } else {
     const parentDir = globalSkillsDir();
-    fs.mkdirSync(parentDir, { recursive: true });
     const targetDir = path.resolve(parentDir, validName);
     const resolvedParent = path.resolve(parentDir);
     if (!targetDir.startsWith(resolvedParent)) {
@@ -127,18 +132,28 @@ export function installFromRawContent(
   };
 }
 
-/** Parses a GitHub tree or raw URL into a fetchable raw SKILL.md URL. */
+/** Parses a GitHub tree/blob or raw URL into a fetchable raw SKILL.md URL. */
 export function resolveGitHubRawUrl(urlStr: string): { rawUrl: string; inferredName: string } {
   const parsed = new URL(urlStr);
   const pathParts = parsed.pathname.split('/').filter(Boolean);
 
   // Example: github.com/owner/repo/tree/branch/path/to/skill
-  if (parsed.hostname === 'github.com' && pathParts.length >= 4 && pathParts[2] === 'tree') {
+  //          github.com/owner/repo/blob/branch/path/to/SKILL.md
+  if (
+    parsed.hostname === 'github.com' &&
+    pathParts.length >= 4 &&
+    (pathParts[2] === 'tree' || pathParts[2] === 'blob')
+  ) {
     const owner = pathParts[0]!;
     const repo = pathParts[1]!;
     const branch = pathParts[3]!;
     const subpath = pathParts.slice(4).join('/');
-    const inferredName = pathParts[pathParts.length - 1] || repo;
+    const last = pathParts[pathParts.length - 1]!;
+    // A blob URL ends in SKILL.md, so the skill name is the parent directory.
+    const inferredName =
+      last.toLowerCase() === 'skill.md'
+        ? (pathParts[pathParts.length - 2] ?? repo)
+        : last.replace(/\.md$/i, '') || repo;
     const skillPath = subpath.endsWith('SKILL.md')
       ? subpath
       : `${subpath}/SKILL.md`.replace(/^\//, '');
@@ -169,8 +184,13 @@ export async function installFromUrl(
   const { rawUrl, inferredName } = resolveGitHubRawUrl(urlStr);
   const fetcher = options.fetchFn ?? fetch;
 
-  const res = await fetcher(rawUrl, {
-    headers: { 'User-Agent': 'Mugil-IDE-Skill-Installer/0.3.1' },
+  // guardedFetch blocks loopback/link-local/metadata hosts and re-checks every
+  // redirect hop, so a pasted URL cannot reach the instance metadata service.
+  const res = await guardedFetch(rawUrl, {
+    fetchFn: fetcher,
+    ...(options.dnsLookupFn ? { dnsLookupFn: options.dnsLookupFn } : {}),
+    headers: { 'User-Agent': 'Mugil-IDE-Skill-Installer/0.3.2' },
+    timeoutMs: 15_000,
   });
 
   if (!res.ok) {
@@ -178,10 +198,54 @@ export async function installFromUrl(
   }
 
   const content = await res.text();
+  assertSkillMarkdown(content, rawUrl);
   const front = parseSkillFrontmatter(content);
   const chosenName = options.name ?? front.name ?? inferredName;
 
   return installFromRawContent(cwd, chosenName, content, options);
+}
+
+/**
+ * Rejects bodies that are not a SKILL.md — most often GitHub's HTML page for a
+ * `/blob/` or `/tree/` URL that could not be rewritten to raw.githubusercontent.
+ */
+function assertSkillMarkdown(content: string, source: string): void {
+  const head = content.trimStart();
+  if (!head.startsWith('---') && !head.startsWith('#')) {
+    throw new Error(
+      `fetched content from ${source} does not look like a SKILL.md (expected frontmatter or a markdown heading).`,
+    );
+  }
+}
+
+/** Must be a file that can safely be copied into a skill directory. */
+function copyableEntry(entry: fs.Dirent): boolean {
+  if (COPY_DENYLIST.has(entry.name)) return false;
+  return entry.isDirectory() || entry.isFile() || entry.isSymbolicLink();
+}
+
+/**
+ * Copies a local skill folder without dragging in VCS data, dependency trees,
+ * dotenv files or oversized blobs. Symlinks are skipped: following them would
+ * let a source folder exfiltrate arbitrary files into a git-tracked path.
+ */
+function copySkillDir(source: string, target: string): void {
+  fs.mkdirSync(target, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    if (!copyableEntry(entry) || entry.isSymbolicLink()) continue;
+    const from = path.join(source, entry.name);
+    const to = path.join(target, entry.name);
+    if (entry.isDirectory()) {
+      copySkillDir(from, to);
+      continue;
+    }
+    try {
+      if (fs.statSync(from).size > MAX_COPY_FILE_BYTES) continue;
+      fs.copyFileSync(from, to);
+    } catch {
+      // Unreadable file: skip rather than fail the whole install.
+    }
+  }
 }
 
 /** Installs a skill by copying from an existing local folder. */
@@ -201,6 +265,7 @@ export function installFromPath(
   }
 
   const content = fs.readFileSync(skillFile, 'utf-8');
+  assertSkillMarkdown(content, skillFile);
   const front = parseSkillFrontmatter(content);
   const name = options.name ?? front.name ?? path.basename(absSource);
   const validName = validateSkillName(name);
@@ -213,8 +278,8 @@ export function installFromPath(
     );
   }
 
-  // Copy directory recursively
-  fs.cpSync(absSource, targetDir, { recursive: true });
+  // Filtered recursive copy (no VCS metadata, dependency trees, dotenv files).
+  copySkillDir(absSource, targetDir);
 
   return {
     ok: true,

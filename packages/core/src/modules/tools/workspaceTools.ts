@@ -26,6 +26,7 @@ import { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } from '../cod
 import { cavemanStrategy } from '../caveman/index.js';
 import { compressCommandOutput, applyDeltaMode } from '../rtk/index.js';
 import { discoverSkills, loadSkill } from '../skills/index.js';
+import { isRestrictedIp } from '../security/restrictedNet.js';
 import {
   createPermissionCheck,
   defaultPolicyForMode,
@@ -834,44 +835,6 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
     }
   }
   return out.join('\n') || headFallback(lines);
-}
-
-/** Check if an IP address belongs to private, loopback, link-local, cloud metadata, or ULA ranges. */
-function isRestrictedIp(rawIp: string): boolean {
-  let ip = rawIp.trim();
-  if (ip === 'localhost' || ip === '::1' || ip === '::' || ip === '0.0.0.0') return true;
-  // Strip IPv6 brackets if present (e.g. [fd00::1])
-  if (ip.startsWith('[') && ip.endsWith(']')) {
-    ip = ip.slice(1, -1);
-  }
-  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
-  if (ip.toLowerCase().startsWith('::ffff:')) {
-    const rest = ip.slice(7);
-    if (rest.includes('.')) {
-      ip = rest;
-    }
-  }
-  const lower = ip.toLowerCase();
-  // IPv6 ULA (fc00::/7 -> fc00 to fdff)
-  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;
-  // IPv6 Link-Local (fe80::/10 -> fe80 to febf)
-  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true;
-  // IPv6 loopback variants
-  if (lower === '::1' || lower === '0:0:0:0:0:0:0:1' || lower === '0:0:0:0:0:0:0:0') return true;
-
-  const parts = ip.split('.').map(Number);
-  if (parts.length === 4 && parts.every((p) => !isNaN(p) && p >= 0 && p <= 255)) {
-    const [a, b] = parts;
-    if (a === 127) return true; // 127.0.0.0/8 Loopback
-    if (a === 10) return true; // 10.0.0.0/8 Private
-    if (a === 172 && b! >= 16 && b! <= 31) return true; // 172.16.0.0/12 Private
-    if (a === 192 && b === 168) return true; // 192.168.0.0/16 Private
-    if (a === 169 && b === 254) return true; // 169.254.0.0/16 Link-local / Cloud metadata
-    if (a === 100 && b! >= 64 && b! <= 127) return true; // 100.64.0.0/10 Carrier-grade NAT
-    if (a === 0) return true; // 0.0.0.0/8 Broadcast / Current network
-    return false;
-  }
-  return false;
 }
 
 export function createWorkspaceTools(

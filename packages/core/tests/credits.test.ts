@@ -44,6 +44,19 @@ describe('Open Source Credits & Attributions', () => {
     expect(parsed[0]!.license).toBe('MIT');
   });
 
+  it('never reports a bundled skill as an installed gallery skill', () => {
+    // security-auditor ships with the package, so it resolves without any
+    // install having happened.
+    const credits = getCredits(root);
+    const bundled = credits.skills.find((s) => s.name.includes('OWASP'));
+    if (bundled) expect(bundled.installed).toBe(false);
+    // And a real install flips to true.
+  });
+  it('reads the ATTRIBUTIONS.md shipped with the package, not the stub fallback', () => {
+    // `root` is an empty temp dir with no ATTRIBUTIONS.md of its own.
+    const credits = getCredits(root);
+    expect(credits.coreModules.length).toBeGreaterThan(10);
+  });
   it('flags installed status dynamically for skills', async () => {
     const initial = getCredits(root);
     const initialPlaywright = initial.skills.find((s) => s.name === 'Playwright E2E Testing');

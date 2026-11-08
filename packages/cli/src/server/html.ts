@@ -4085,6 +4085,8 @@ export function getWebUiHtml(): string {
           + '<div style="display:flex; gap:6px; margin-top:8px;">'
           + '<button class="btn" style="font-size:10.5px; padding:2px 8px;" data-skill="' + escHtml(skill.name) + '" onclick="viewSkill(this.dataset.skill)">View Instructions</button>'
           + '<button class="btn" style="font-size:10.5px; padding:2px 8px;" data-skill="' + escHtml(skill.name) + '" onclick="toggleSkill(this.dataset.skill)">' + (skill.enabled ? 'Disable' : 'Enable') + '</button>'
+          + (skill.source === 'builtin' ? ''
+            : '<button class="btn" style="font-size:10.5px; padding:2px 8px; color:var(--red);" data-skill="' + escHtml(skill.name) + '" data-source="' + escHtml(skill.source) + '" onclick="uninstallSkillFromUi(this.dataset.skill, this.dataset.source)">🗑 Uninstall</button>')
           + '</div></div>';
       }).join('')
         + '<div style="font-size:10.5px; color:var(--text-dim); text-align:center;">' + enabled + ' of ' + skillsCache.length + ' skills active for this workspace.</div>';
@@ -4101,6 +4103,19 @@ export function getWebUiHtml(): string {
         await loadSkills();
       } catch (err) {
         alert('Could not toggle skill: ' + err.message);
+      }
+    }
+    async function uninstallSkillFromUi(name, source) {
+      const tier = source === 'global' ? 'global' : 'workspace';
+      if (!confirm('Uninstall "' + name + '" from the ' + tier + ' tier?\\n\\nIts directory and files will be deleted.')) return;
+      try {
+        const res = await fetch('/api/skills/' + encodeURIComponent(name) + '?target=' + tier, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        await loadSkills();
+        await loadGallery();
+      } catch (err) {
+        alert('Could not uninstall skill: ' + err.message);
       }
     }
     async function viewSkill(name) {
@@ -4266,21 +4281,38 @@ export function getWebUiHtml(): string {
       }).join('');
     }
 
-    function previewGallerySkill(id) {
+    async function previewGallerySkill(id) {
       const item = galleryCache.find((s) => s.id === id);
       if (!item) return;
       document.getElementById('skill-viewer-title').textContent = item.name + ' (' + item.id + ') — Gallery Preview';
-      document.getElementById('skill-viewer-body').textContent = item.content;
+      document.getElementById('skill-viewer-body').textContent = 'Loading…';
       document.getElementById('skill-viewer').style.display = 'block';
       document.getElementById('skill-viewer').scrollIntoView({ behavior: 'smooth' });
+      try {
+        // Bodies are not in the list payload (that would ship every SKILL.md
+        // on every gallery open) — fetch the one being previewed.
+        const res = await fetch('/api/skills/gallery/' + encodeURIComponent(id));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        document.getElementById('skill-viewer-body').textContent = data.skill.content;
+        item.content = data.skill.content;
+      } catch (err) {
+        document.getElementById('skill-viewer-body').textContent = 'Could not load preview: ' + err.message;
+      }
     }
 
     async function installGallerySkill(id, target) {
+      const existing = galleryCache.find((s) => s.id === id);
+      // Re-installing replaces the SKILL.md (and any local edits) — ask first.
+      const overwrite = existing && existing.installed
+        ? confirm('"' + id + '" is already installed (' + (existing.installedTarget || 'workspace') + ').\\n\\nReinstall and replace its SKILL.md? Local edits will be lost.')
+        : false;
+      if (existing && existing.installed && !overwrite) return;
       try {
         const res = await fetch('/api/skills/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'gallery', source: id, target, overwrite: true }),
+          body: JSON.stringify({ type: 'gallery', source: id, target, overwrite }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));

@@ -8,6 +8,7 @@ import {
   installFromPath,
   installFromRawContent,
   installFromUrl,
+  resolveGitHubRawUrl,
   uninstallSkill,
   validateSkillName,
 } from '../src/index.js';
@@ -160,6 +161,92 @@ license: Apache-2.0
     expect(fs.existsSync(path.join(res.dir, 'scripts', 'test.sh'))).toBe(true);
   });
 
+  it('refuses to fetch a skill from a private/metadata address', async () => {
+    const mockFetch = jest.fn();
+    await expect(
+      installFromUrl(root, 'http://169.254.169.254/latest/meta-data/iam/SKILL.md', {
+        fetchFn: mockFetch as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/private|local/i);
+    expect(mockFetch).not.toHaveBeenCalled();
+
+    // A public hostname that resolves to loopback is refused too.
+    await expect(
+      installFromUrl(root, 'https://evil.example.com/skills/x/SKILL.md', {
+        fetchFn: mockFetch as unknown as typeof fetch,
+        dnsLookupFn: async () => ({ address: '127.0.0.1', family: 4 }),
+      }),
+    ).rejects.toThrow(/private address/i);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+  it('re-checks redirect hops for private addresses', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 302,
+      statusText: 'Found',
+      headers: new Headers({ location: 'http://169.254.169.254/latest/meta-data/' }),
+      text: async () => '',
+    });
+    await expect(
+      installFromUrl(root, 'https://example.com/skills/x/SKILL.md', {
+        fetchFn: mockFetch as unknown as typeof fetch,
+        dnsLookupFn: async () => ({ address: '93.184.216.34', family: 4 }),
+      }),
+    ).rejects.toThrow(/refusing to fetch local or private/i);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+  it('rejects non-markdown bodies such as a GitHub HTML page', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '<!doctype html><html><body>GitHub repo page</body></html>',
+    });
+    await expect(
+      installFromUrl(root, 'https://example.com/skills/foo/SKILL.md', {
+        fetchFn: mockFetch as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/does not look like a SKILL.md/);
+  });
+  it('rewrites github blob URLs to raw and infers the parent dir as the name', () => {
+    const { rawUrl, inferredName } = resolveGitHubRawUrl(
+      'https://github.com/org/repo/blob/main/skills/my-skill/SKILL.md',
+    );
+    expect(rawUrl).toBe(
+      'https://raw.githubusercontent.com/org/repo/main/skills/my-skill/SKILL.md',
+    );
+    expect(inferredName).toBe('my-skill');
+  });
+  it('does not copy VCS data, dotenv files or symlinks when importing a folder', () => {
+    const srcDir = path.join(root, 'leaky-skill');
+    fs.mkdirSync(path.join(srcDir, 'scripts'), { recursive: true });
+    fs.mkdirSync(path.join(srcDir, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(srcDir, 'node_modules', 'dep'), { recursive: true });
+    fs.writeFileSync(
+      path.join(srcDir, 'SKILL.md'),
+      '---\nname: leaky\ndescription: Leaky\n---\n# Content',
+    );
+    fs.writeFileSync(path.join(srcDir, '.env'), 'API_KEY=sk-live-123');
+    fs.writeFileSync(path.join(srcDir, '.git', 'config'), 'secret');
+    fs.writeFileSync(path.join(srcDir, 'node_modules', 'dep', 'index.js'), 'module.exports = 1');
+    fs.writeFileSync(path.join(srcDir, 'scripts', 'run.sh'), '#!/bin/bash');
+    const secret = path.join(root, 'outside.txt');
+    fs.writeFileSync(secret, 'SECRET');
+    fs.symlinkSync(secret, path.join(srcDir, 'linked.txt'));
+    const res = installFromPath(root, srcDir, { overwrite: true });
+    expect(fs.existsSync(path.join(res.dir, 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(res.dir, 'scripts', 'run.sh'))).toBe(true);
+    expect(fs.existsSync(path.join(res.dir, '.env'))).toBe(false);
+    expect(fs.existsSync(path.join(res.dir, '.git'))).toBe(false);
+    expect(fs.existsSync(path.join(res.dir, 'node_modules'))).toBe(false);
+    expect(fs.existsSync(path.join(res.dir, 'linked.txt'))).toBe(false);
+  });
+  it('uninstalling a missing skill creates nothing on disk', () => {
+    const ws = path.join(root, 'empty-ws');
+    fs.mkdirSync(ws);
+    expect(uninstallSkill(ws, 'ghost')).toBe(false);
+    expect(fs.existsSync(path.join(ws, '.mugil'))).toBe(false);
+  });
   it('uninstalls skills cleanly', async () => {
     await installFromGallery(root, 'system-architect');
     expect(discoverSkills(root).some((s) => s.name === 'system-architect')).toBe(true);

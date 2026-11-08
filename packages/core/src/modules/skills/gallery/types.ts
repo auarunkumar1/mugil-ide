@@ -58,6 +58,8 @@ export interface InstallSkillOptions {
   name?: string;
   /** Optional HTTP/fetch function for testing. */
   fetchFn?: typeof fetch;
+  /** Optional DNS resolver for testing the SSRF guard. */
+  dnsLookupFn?: (hostname: string) => Promise<{ address: string; family?: number }>;
 }
 
 export interface InstallResult {

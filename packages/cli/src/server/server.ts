@@ -1276,9 +1276,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
         let list = CURATED_GALLERY_SKILLS.map((item) => {
           const match = installedMap.get(item.id);
+          const meta = { ...item };
+          delete (meta as { content?: string }).content; // fetched on demand
           return {
-            ...item,
-            installed: Boolean(match),
+            ...meta,
+            // Built-in skills always exist; only a real workspace/global
+            // install counts as "installed" in the gallery.
+            installed: Boolean(match && match.source !== 'builtin'),
             installedTarget: match?.source,
           };
         });
@@ -1312,7 +1316,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           JSON.stringify({
             skill: {
               ...item,
-              installed: Boolean(installed),
+              installed: Boolean(installed && installed.source !== 'builtin'),
               installedTarget: installed?.source,
             },
           }),

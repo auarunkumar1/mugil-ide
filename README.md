@@ -244,9 +244,9 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.3.0**, versus what is on the roadmap for **v0.4.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.3.2**, versus what is on the roadmap for **v0.4.0**:
 
-### ✅ Shipped & Ready in v0.3.0 (Current Release)
+### ✅ Shipped & Ready in v0.3.2 (Current Release)
 
 #### 🧠 Token Economy & Context Architecture
 

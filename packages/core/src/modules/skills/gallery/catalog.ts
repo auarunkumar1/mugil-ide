@@ -15,9 +15,9 @@ export const CURATED_GALLERY_SKILLS: GallerySkill[] = [
     description:
       'High-level distributed architecture design, RFC drafting, data flow diagrams, and trade-off analysis.',
     category: 'Architecture',
-    author: 'Anthropic Claude Code Standards & Community',
-    upstreamUrl: 'https://github.com/anthropics/anthropic-tools',
-    license: 'MIT',
+    author: 'Mugil IDE contributors (concept: Anthropic skills)',
+    upstreamUrl: 'https://github.com/anthropics/skills',
+    license: 'MIT (original content)',
     version: '1.0.0',
     tags: ['architecture', 'design', 'distributed', 'rfc', 'diagrams'],
     triggers: ['system design', 'architecture', 'rfc', 'high level design', 'scale architecture'],
@@ -26,9 +26,9 @@ export const CURATED_GALLERY_SKILLS: GallerySkill[] = [
 name: system-architect
 description: High-level distributed architecture design, RFC drafting, data flow diagrams, and trade-off analysis.
 version: 1.0.0
-author: Anthropic Claude Code Standards & Community
-upstream: https://github.com/anthropics/anthropic-tools
-license: MIT
+author: Mugil IDE contributors (concept: Anthropic skills)
+upstream: https://github.com/anthropics/skills
+license: MIT (original content)
 tags: [architecture, design, distributed, rfc, diagrams]
 triggers: [system design, architecture, rfc, high level design, scale architecture]
 tools: [read_file, write_file, search_code, codegraph]
@@ -107,9 +107,9 @@ Use when creating, standardizing, or refactoring HTTP REST, GraphQL, or RPC inte
     description:
       'Relational (PostgreSQL) and NoSQL schema design, indexing strategies, and non-blocking migration scripts.',
     category: 'Architecture',
-    author: 'PostgreSQL Community & Open Source Contributors',
+    author: 'PostgreSQL Global Development Group',
     upstreamUrl: 'https://github.com/postgres/postgres',
-    license: 'MIT',
+    license: 'PostgreSQL',
     version: '1.0.0',
     tags: ['database', 'postgres', 'sql', 'migrations', 'indexing'],
     triggers: ['database schema', 'sql migration', 'add index', 'table design', 'postgres'],
@@ -118,9 +118,9 @@ Use when creating, standardizing, or refactoring HTTP REST, GraphQL, or RPC inte
 name: database-schema
 description: Relational (PostgreSQL) and NoSQL schema design, indexing strategies, and non-blocking migration scripts.
 version: 1.0.0
-author: PostgreSQL Community & Open Source Contributors
+author: PostgreSQL Global Development Group
 upstream: https://github.com/postgres/postgres
-license: MIT
+license: PostgreSQL
 tags: [database, postgres, sql, migrations, indexing]
 triggers: [database schema, sql migration, add index, table design, postgres]
 tools: [read_file, write_file, run_command]
@@ -235,9 +235,9 @@ Use when standard code coverage is high (80%+) but you suspect tests lack real a
     description:
       'Enforces strict Red-Green-Refactor cycles: write the failing test first before implementation.',
     category: 'Testing',
-    author: 'Kent Beck & Agile Community',
-    upstreamUrl: 'https://github.com/clean-code-craftsmanship',
-    license: 'MIT',
+    author: 'Mugil IDE contributors (concept: Kent Beck)',
+    upstreamUrl: 'https://en.wikipedia.org/wiki/Test-driven_development',
+    license: 'MIT (original content)',
     version: '1.0.0',
     tags: ['tdd', 'testing', 'unit-tests', 'red-green-refactor'],
     triggers: ['tdd', 'test driven', 'write tests first', 'red green refactor'],
@@ -246,9 +246,9 @@ Use when standard code coverage is high (80%+) but you suspect tests lack real a
 name: test-driven-development
 description: Enforces strict Red-Green-Refactor cycles: write the failing test first before implementation.
 version: 1.0.0
-author: Kent Beck & Agile Community
-upstream: https://github.com/clean-code-craftsmanship
-license: MIT
+author: Mugil IDE contributors (concept: Kent Beck)
+upstream: https://en.wikipedia.org/wiki/Test-driven_development
+license: MIT (original content)
 tags: [tdd, testing, unit-tests, red-green-refactor]
 triggers: [tdd, test driven, write tests first, red green refactor]
 tools: [read_file, write_file, edit_file, run_command]
@@ -274,7 +274,7 @@ Use for all non-trivial logic: bugfixes, new modules, parsers, algorithms, and s
     category: 'Security',
     author: 'OWASP Foundation & Contributors',
     upstreamUrl: 'https://github.com/OWASP/CheatSheetSeries',
-    license: 'Apache-2.0',
+    license: 'CC-BY-SA-4.0',
     version: '1.0.0',
     tags: ['security', 'owasp', 'audit', 'xss', 'sql-injection', 'csp'],
     triggers: ['owasp', 'security vulnerability', 'xss check', 'injection check', 'threat model'],
@@ -285,7 +285,7 @@ description: Automated threat modeling, OWASP Top 10 prevention, sanitization, a
 version: 1.0.0
 author: OWASP Foundation & Contributors
 upstream: https://github.com/OWASP/CheatSheetSeries
-license: Apache-2.0
+license: CC-BY-SA-4.0
 tags: [security, owasp, audit, xss, sql-injection, csp]
 triggers: [owasp, security vulnerability, xss check, injection check, threat model]
 tools: [read_file, search_code, run_command]
@@ -314,7 +314,7 @@ Use when auditing code for vulnerabilities, validating user input sanitizers, ve
       'Audit supply chain dependencies, CVE checking, lockfile inspection, and open-source license compliance.',
     category: 'Security',
     author: 'Open Source Security Foundation (OpenSSF)',
-    upstreamUrl: 'https://github.com/ossf',
+    upstreamUrl: 'https://github.com/ossf/scorecard',
     license: 'Apache-2.0',
     version: '1.0.0',
     tags: ['security', 'dependencies', 'cve', 'npm-audit', 'licenses'],
@@ -325,7 +325,7 @@ name: dependency-auditor
 description: Audit supply chain dependencies, CVE checking, lockfile inspection, and open-source license compliance.
 version: 1.0.0
 author: Open Source Security Foundation (OpenSSF)
-upstream: https://github.com/ossf
+upstream: https://github.com/ossf/scorecard
 license: Apache-2.0
 tags: [security, dependencies, cve, npm-audit, licenses]
 triggers: [dependency audit, npm audit, vulnerable package, cve check, license audit]
@@ -354,9 +354,9 @@ Use during release prep or dependency upgrades to detect known CVEs, malicious p
     description:
       'Strict, objective peer-review checklist assessing race conditions, edge cases, algorithmic complexity, and idiomatic style.',
     category: 'Refactoring',
-    author: 'Anthropic Claude Code Standards & Community',
-    upstreamUrl: 'https://github.com/anthropics/anthropic-tools',
-    license: 'MIT',
+    author: 'Mugil IDE contributors (concept: Google eng-practices)',
+    upstreamUrl: 'https://github.com/google/eng-practices',
+    license: 'MIT (original content)',
     version: '1.0.0',
     tags: ['review', 'code-review', 'critique', 'quality', 'best-practices'],
     triggers: ['code review', 'review this pr', 'critique code', 'check my diff'],
@@ -365,9 +365,9 @@ Use during release prep or dependency upgrades to detect known CVEs, malicious p
 name: code-review-critic
 description: Strict, objective peer-review checklist assessing race conditions, edge cases, algorithmic complexity, and idiomatic style.
 version: 1.0.0
-author: Anthropic Claude Code Standards & Community
-upstream: https://github.com/anthropics/anthropic-tools
-license: MIT
+author: Mugil IDE contributors (concept: Google eng-practices)
+upstream: https://github.com/google/eng-practices
+license: MIT (original content)
 tags: [review, code-review, critique, quality, best-practices]
 triggers: [code review, review this pr, critique code, check my diff]
 tools: [read_file, search_code, run_command]
@@ -398,9 +398,9 @@ Use to perform a thorough, constructive code review before merging changes or co
     description:
       'Safe incremental modernization using characterization tests and strangler-fig migration patterns.',
     category: 'Refactoring',
-    author: 'Martin Fowler & Clean Architecture Community',
-    upstreamUrl: 'https://martinfowler.com',
-    license: 'MIT',
+    author: 'Mugil IDE contributors (concept: Martin Fowler)',
+    upstreamUrl: 'https://martinfowler.com/bliki/StranglerFigApplication.html',
+    license: 'MIT (original content)',
     version: '1.0.0',
     tags: ['refactoring', 'legacy', 'strangler-fig', 'characterization-tests'],
     triggers: ['refactor legacy', 'modernize code', 'characterization test', 'clean up legacy'],
@@ -409,9 +409,9 @@ Use to perform a thorough, constructive code review before merging changes or co
 name: legacy-refactorer
 description: Safe incremental modernization using characterization tests and strangler-fig migration patterns.
 version: 1.0.0
-author: Martin Fowler & Clean Architecture Community
-upstream: https://martinfowler.com
-license: MIT
+author: Mugil IDE contributors (concept: Martin Fowler)
+upstream: https://martinfowler.com/bliki/StranglerFigApplication.html
+license: MIT (original content)
 tags: [refactoring, legacy, strangler-fig, characterization-tests]
 triggers: [refactor legacy, modernize code, characterization test, clean up legacy]
 tools: [read_file, write_file, edit_file, run_command]
@@ -439,7 +439,7 @@ Use when updating, decoupling, or modernizing untested, tightly coupled legacy c
       'Production multi-stage Dockerfiles, minimal distroless runtimes, layer caching, and non-root users.',
     category: 'DevOps',
     author: 'Docker Community & CNCF',
-    upstreamUrl: 'https://github.com/docker/docker-ce',
+    upstreamUrl: 'https://github.com/moby/moby',
     license: 'Apache-2.0',
     version: '1.0.0',
     tags: ['docker', 'container', 'devops', 'distroless', 'multi-stage'],
@@ -450,7 +450,7 @@ name: docker-packager
 description: Production multi-stage Dockerfiles, minimal distroless runtimes, layer caching, and non-root users.
 version: 1.0.0
 author: Docker Community & CNCF
-upstream: https://github.com/docker/docker-ce
+upstream: https://github.com/moby/moby
 license: Apache-2.0
 tags: [docker, container, devops, distroless, multi-stage]
 triggers: [dockerfile, docker build, containerize, optimize docker image]
@@ -483,7 +483,7 @@ Use when authoring or optimizing Dockerfiles, minimizing image size, improving b
       'Matrix CI/CD workflows, automated testing, releases, dependency caching, and environment secret handling.',
     category: 'DevOps',
     author: 'GitHub Actions Community',
-    upstreamUrl: 'https://github.com/actions',
+    upstreamUrl: 'https://github.com/actions/runner',
     license: 'MIT',
     version: '1.0.0',
     tags: ['github-actions', 'ci', 'cd', 'workflows', 'automation'],
@@ -494,7 +494,7 @@ name: github-actions-ci
 description: Matrix CI/CD workflows, automated testing, releases, dependency caching, and environment secret handling.
 version: 1.0.0
 author: GitHub Actions Community
-upstream: https://github.com/actions
+upstream: https://github.com/actions/runner
 license: MIT
 tags: [github-actions, ci, cd, workflows, automation]
 triggers: [github actions, ci cd workflow, pipeline setup, action yaml]

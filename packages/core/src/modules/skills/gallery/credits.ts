@@ -160,19 +160,28 @@ export function parseAttributionsMarkdown(content: string): CreditRecord[] {
 
 /** Aggregates full credits manifest for the current workspace. */
 export function getCredits(cwd: string = process.cwd()): CreditsManifest {
-  // 1. Core modules from ATTRIBUTIONS.md if found, otherwise built-in list
+  // 1. Core modules from ATTRIBUTIONS.md if found, otherwise built-in list.
+  //    The package ships its own copy, so installed users get the full table
+  //    rather than the 10-entry fallback.
   let coreModules = DEFAULT_CORE_MODULE_CREDITS;
-  const attributionsPath = path.resolve(cwd, 'ATTRIBUTIONS.md');
-  if (fs.existsSync(attributionsPath)) {
+  for (const candidate of [
+    path.resolve(cwd, 'ATTRIBUTIONS.md'),
+    path.resolve(__dirname, '../../../../ATTRIBUTIONS.md'),
+  ]) {
+    if (!fs.existsSync(candidate)) continue;
     try {
-      const text = fs.readFileSync(attributionsPath, 'utf-8');
-      coreModules = parseAttributionsMarkdown(text);
+      const parsed = parseAttributionsMarkdown(fs.readFileSync(candidate, 'utf-8'));
+      if (parsed !== DEFAULT_CORE_MODULE_CREDITS) {
+        coreModules = parsed;
+        break;
+      }
     } catch {
       // Fallback to default
     }
   }
 
-  // 2. Discover installed skills
+  // 2. Discover installed skills. Built-in skills are always present, so they
+  //    must not report as "installed" in the gallery/credits UI.
   const installed = discoverSkills(cwd);
   const installedMap = new Map(installed.map((s) => [s.name, s]));
 
@@ -183,7 +192,7 @@ export function getCredits(cwd: string = process.cwd()): CreditsManifest {
   // Add gallery skills
   for (const item of CURATED_GALLERY_SKILLS) {
     seenSkillNames.add(item.id);
-    const isInstalled = installedMap.has(item.id);
+    const match = installedMap.get(item.id);
     skillCredits.push({
       name: item.name,
       category: 'skill',
@@ -191,7 +200,7 @@ export function getCredits(cwd: string = process.cwd()): CreditsManifest {
       upstreamUrl: item.upstreamUrl,
       license: item.license,
       concept: item.description,
-      installed: isInstalled,
+      installed: Boolean(match && match.source !== 'builtin'),
     });
   }
 

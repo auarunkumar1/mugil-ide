@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-08
+### Security
+- **A symlinked `SKILL.md` can no longer exfiltrate files**: `discoverSkills` rejects symlinked skill directories and symlinked `SKILL.md` files and verifies the real path stays inside its tier, so a cloned repo pointing `SKILL.md` at `~/.ssh/id_rsa` is skipped entirely.
+- **Trigger-injected skills are budgeted**: `triggeredSkillsBlock` caps the *total* injected instructions at 12k chars across all matched skills, so a prompt hitting several broad triggers degrades gracefully instead of throwing `Context overflow` and killing the turn.
+- **URL skill installs are SSRF-guarded**: `installFromUrl` goes through the new shared `guardedFetch` (`modules/security/restrictedNet.ts`), refusing loopback/private/link-local/cloud-metadata hosts and re-checking every redirect hop. `isRestrictedIp` was extracted from `webfetch` so both use one implementation.
+- **Non-markdown bodies are rejected**: a GitHub URL that resolves to an HTML page now fails with a clear error instead of installing HTML as a skill, and `github.com/.../blob/.../SKILL.md` URLs are rewritten to `raw.githubusercontent.com`.
+- **Local skill imports are filtered**: `installFromPath` copies entries itself instead of `fs.cpSync` — `.git`, `node_modules`, `.env*`, symlinks and files over 1 MB are skipped, so credentials and VCS data cannot be dragged into a git-tracked path.
+### Changed
+- Project- and user-supplied skills are marked `[workspace skill]` / `[global skill]` in `skillsContextBlock`, and the block warns that their instructions are untrusted content. Built-in skills stay unmarked.
+- `matchSkillTriggers` matches on word boundaries, so `tdd` no longer fires on `stddev`.
+- Frontmatter parsing handles YAML block scalars (`description: >` / `|`) and block lists (`- item`), covering the standard Claude SKILL.md shape.
+- Gallery list responses omit `content` (25 KB → 8 KB); the Web UI fetches a single body when previewing.
+- Uninstalling a skill that doesn't exist no longer creates `.mugil/skills` as a side effect.
+- `hasScripts` / `hasReferences` are true only when the directory actually holds files.
+### Fixed
+- An unparseable `.mugil/config.json` is no longer silently rewritten (dropping every other key); toggling a skill refuses with an actionable error instead.
+- Built-in skills no longer report `installed: true` in the gallery and credits UI, which made a fresh workspace look pre-populated.
+- Reinstalling a gallery skill in the Web UI asks for confirmation instead of unconditionally overwriting local edits.
+- The Web UI Skills tab gained a 🗑 Uninstall button for workspace and global skills.
+- `@mugil-ide/core` now ships `ATTRIBUTIONS.md`, so installed users get the full credits table instead of the 10-entry fallback.
+- Corrected gallery attribution metadata: `owasp-guard` is CC-BY-SA-4.0 (was Apache-2.0), `database-schema` uses the PostgreSQL license (was MIT), TDD / code-review-critic / legacy-refactorer now credit their concept sources instead of a dead or unrelated repo, and `dependency-auditor`, `docker-packager`, `github-actions-ci` point at repositories that exist.
+
 ## [0.3.1] - 2026-11-08
 
 ### Added
@@ -492,3 +514,4 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.3.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.0
 
 [0.3.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.1
+[0.3.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.2

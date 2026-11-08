@@ -2283,8 +2283,16 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         gallery: Array<{ id: string; name: string; installed: boolean }>;
       };
       expect(galleryJson.gallery.length).toBeGreaterThanOrEqual(14);
+      // The list payload must not ship every SKILL.md body.
+      expect(
+        (galleryJson.gallery as unknown as Array<{ content?: string }>).every(
+          (g) => g.content === undefined,
+        ),
+      ).toBe(true);
       const playwright = galleryJson.gallery.find((g) => g.id === 'playwright-e2e');
       expect(playwright).toBeDefined();
+      // A fresh workspace: nothing is "installed" from the gallery.
+      expect(playwright!.installed).toBe(false);
 
       const galleryDetailRes = await fetch(`${server.url}/api/skills/gallery/playwright-e2e`);
       expect(galleryDetailRes.status).toBe(200);

@@ -197,6 +197,7 @@ export {
   installFromRawContent,
   installFromUrl,
   installFromPath,
+  resolveGitHubRawUrl,
   uninstallSkill,
   resolveSkillTargetDir,
   validateSkillName,
