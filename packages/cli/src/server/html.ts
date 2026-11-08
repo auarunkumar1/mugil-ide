@@ -1400,6 +1400,7 @@ export function getWebUiHtml(): string {
             <button class="btn" id="cat-devops" onclick="switchGalleryCategory('DevOps')" style="font-size:10px; padding:2px 8px; border-radius:12px;">DevOps</button>
             <button class="btn" id="cat-git" onclick="switchGalleryCategory('Git & Workflow')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Git & Workflow</button>
             <button class="btn" id="cat-performance" onclick="switchGalleryCategory('Performance')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Performance</button>
+            <button class="btn" id="cat-business" onclick="switchGalleryCategory('Business Logic')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Business Logic</button>
           </div>
           <div id="gallery-list" style="display:flex; flex-direction:column; gap:10px; max-height:50vh; overflow-y:auto;">
             <div style="color:var(--text-dim); font-size:11.5px; padding:12px;">Loading gallery…</div>
@@ -4223,7 +4224,7 @@ export function getWebUiHtml(): string {
       activeGalleryCategory = cat;
       const chips = document.querySelectorAll('#gallery-categories button');
       chips.forEach((btn) => {
-        btn.classList.toggle('btn-primary', btn.id === ('cat-' + (cat === 'Git & Workflow' ? 'git' : cat.toLowerCase())));
+        btn.classList.toggle('btn-primary', btn.id === ('cat-' + (cat === 'Git & Workflow' ? 'git' : cat === 'Business Logic' ? 'business' : cat.toLowerCase())));
       });
       renderGallery();
     }

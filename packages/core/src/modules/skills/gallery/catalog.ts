@@ -657,4 +657,75 @@ Use when auditing web applications for loading speed, responsiveness, Core Web V
    - Always set explicit \`width\` and \`height\` on images and video embeds.
 `,
   },
+  {
+    id: 'process-auditor',
+    name: 'Process Auditor',
+    description:
+      'Universal business process, state machine, and tax-audit integrity validator across ERP, Banking, HMS, Retail, and 6 other verticals.',
+    category: 'Business Logic',
+    author: 'Mugil IDE contributors',
+    upstreamUrl: 'https://github.com/auarunkumar1/mugil-ide',
+    license: 'MIT (original content)',
+    version: '1.0.0',
+    tags: [
+      'business-logic',
+      'erp',
+      'banking',
+      'hms',
+      'hospitality',
+      'logistics',
+      'manufacturing',
+      'retail',
+      'construction',
+      'catering',
+      'audit',
+      'tax-invoice',
+    ],
+    triggers: [
+      'business logic',
+      'audit process',
+      'erp workflow',
+      'banking transaction',
+      'hospital workflow',
+      'hotel pms',
+      'freight dispatch',
+      'tax invoice',
+      'state machine audit',
+    ],
+    tools: ['read_file', 'write_file', 'search_code', 'run_command'],
+    content: `---
+name: process-auditor
+description: Audits and verifies business logic workflows, state machine integrity, and audit-ready document formats in ERP, Hospital Management (HMS), Banking & FinTech, Hospitality & Hotels, Logistics & Transport, Manufacturing & Engineering, Retail POS & Grocery, Construction & Contracting, and Events & Catering.
+version: 1.0.0
+author: Mugil IDE contributors
+upstream: https://github.com/auarunkumar1/mugil-ide
+license: MIT (original content)
+tags: [business-logic, erp, banking, hms, hospitality, logistics, manufacturing, retail, construction, catering, audit, tax-invoice]
+triggers: [business logic, audit process, erp workflow, banking transaction, hospital workflow, hotel pms, freight dispatch, tax invoice, state machine audit]
+tools: [read_file, write_file, search_code, run_command]
+---
+
+# Universal Business Logic & Process Integrity Auditor
+
+This skill guides the agent in rigorously evaluating operational workflows, state machines, accounting invariants, data integrity, and statutory tax/audit compliance across multiple business verticals.
+
+## Supported Verticals
+- **ERP & Supply Chain**: 3-way matching (PO vs GRN vs Bill), inventory depletion timing, and negative stock guards.
+- **Banking & FinTech**: Double-entry equilibrium (Debits == Credits), row-level locks against double spending, overdraft ceilings, and immutable WORM audit logs.
+- **Healthcare & HMS**: Doctor consultation attestation, drug-allergy interactions, prescription-only dispensing, and discharge gate locks.
+- **Hospitality & Hotel PMS**: Room cleanliness state machine (DIRTY -> INSPECTED -> OCCUPIED), overbooking guards, split folios, and daily Night Audit rollovers.
+- **Logistics & Fleet Transport**: Consignment Notes (LR / BL), GVWR gross vehicle weight limits, driver hours of service (HOS), and mandatory Proof of Delivery (POD) before billing.
+- **Manufacturing & Engineering**: Bill of Materials (BOM) locking on active Work Orders, WIP cost absorption accounting, and QA/QC quarantine gates.
+- **Retail POS & Grocery**: Blind cash counts, fiscal Z-reports, weigh scale barcodes, and FEFO expiry rotation.
+- **Construction & Contracting**: Bill of Quantities (BOQ) over-measurement guards, Retention Money trust accounting (5–10%), and Variation Orders.
+- **Events & Catering**: Guaranteed headcount locks (attrition defense), advance deposit escrow, and Banquet Event Order (BEO) revision broadcast.
+- **Tax Audit & Print Formats**: Gapless sequential numbering, statutory multi-tier tax splits (GST/VAT), currency in words, and print CSS layout standards (@media print, page-break protection).
+
+## Universal Invariants
+1. **Financial Precision**: Strict prohibition of floating-point types (FLOAT/DOUBLE) for monetary amounts. Use DECIMAL(18, 4) or integer minor units (cents).
+2. **Append-Only Immutability**: Zero hard deletions (DELETE FROM) on transactional/audit entities. Soft cancel or reversal via contra-entries only.
+3. **State Machine Guards**: Explicitly assert prerequisite statuses before advancing to terminal states (PAID, DISCHARGED, CHECKED_OUT, DELIVERED).
+4. **Print & Audit Formats**: Clean A4/Letter page setup, repeating table headers, and removal of interactive buttons on paper/PDF printouts.
+`,
+  },
 ];

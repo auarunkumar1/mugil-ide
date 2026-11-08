@@ -12,7 +12,8 @@ export type SkillCategory =
   | 'Refactoring'
   | 'DevOps'
   | 'Git & Workflow'
-  | 'Performance';
+  | 'Performance'
+  | 'Business Logic';
 
 export interface GallerySkill {
   /** Unique slug identifier (lowercase, e.g. `playwright-e2e`). */
