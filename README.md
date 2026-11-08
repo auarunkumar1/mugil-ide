@@ -8,6 +8,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![Tests: 545 Passing](https://img.shields.io/badge/tests-545%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
+[![MCP: Supported](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
+[![TypeScript: 5.x](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
 
 </div>
@@ -37,9 +39,52 @@
 
 Works seamlessly with **free local models** (Ollama, LM Studio) and **state-of-the-art cloud intelligence** (OpenRouter, Anthropic Claude 3.7 Sonnet, OpenAI, DeepSeek, and Vercel AI).
 
-[Downloads & Releases](#-downloads--installation) · [Feature Highlights](#-feature-highlights) · [Shipped vs Roadmap](#-whats-shipped-today-vs-next-release) · [Configuration](#-configuration--environment-variables) · [Attributions](#-open-source-attributions)
+<p align="center">
+  <a href="#-quick-start"><b>⚡ Quick Start</b></a> •
+  <a href="#-why-mugil-ide"><b>Why Mugil IDE</b></a> •
+  <a href="#-visual-tour--ui-highlights"><b>Visual Tour</b></a> •
+  <a href="#-feature-highlights"><b>Features</b></a> •
+  <a href="#-18-autonomous-workspace-tools--subagent-swarms"><b>Tools Matrix</b></a> •
+  <a href="#-whats-shipped-today-vs-next-release"><b>Shipped vs Roadmap</b></a> •
+  <a href="#-downloads--installation"><b>Downloads</b></a> •
+  <a href="#%EF%B8%8F-configuration--environment-variables"><b>Configuration</b></a>
+</p>
 
 </div>
+
+---
+
+## ⚡ Quick Start
+
+Get up and running in under 60 seconds:
+
+### Option 1: Standalone Binary (Zero dependencies, no Node/npm needed)
+Download the standalone executable for your OS from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
+```bash
+# Linux
+chmod +x mugil-ide-linux-x64 && ./mugil-ide-linux-x64
+
+# macOS
+chmod +x mugil-ide-darwin-arm64 && ./mugil-ide-darwin-arm64
+
+# Windows (PowerShell)
+.\mugil-ide-windows-x64.exe
+```
+
+### Option 2: Running from Source
+```bash
+git clone https://github.com/auarunkumar1/mugil-ide.git
+cd mugil-ide
+npm install
+npm start
+```
+
+### Option 3: 100% Free & Local AI (No API keys or cloud accounts needed)
+Mugil IDE includes 1-click auto-connect for local models. If you have [Ollama](https://ollama.com) installed:
+```bash
+ollama run qwen2.5-coder:7b
+# Launch Mugil IDE — it automatically detects Ollama at localhost:11434 with zero configuration!
+```
 
 ---
 
@@ -155,14 +200,15 @@ flowchart LR
 - **💡 Def:**  
   Mugil IDE comes out of the box with tools to search, read, write, test, explore, generate visual media, and refactor code. It can even spin up helper "subagents" to perform broad background research without cluttering your main conversation!
 - **⚙️ Under the Hood:**  
-  Built-in tools include:
-  - `read_file` & `read_skeleton`: AST-aware code reader that extracts types, signatures, and interfaces while omitting internal function bodies — saving 70–80% of tokens during exploratory research.
-  - `edit_file` & `apply_patch`: Surgical diff replacements with unified 1-line context reduction.
-  - `run_command`: Sandboxed shell execution with execution buffers and noise filters.
-  - `codegraph`: Full AST symbol and dependency graph (functions, classes, imports) mapped across TypeScript, JavaScript, Python, Go, and Rust.
-  - `read_blob` (Content-Compressed Retrieval): Oversized tool returns (>48k chars) are automatically saved to an LRU `BlobStore`, returning a lightweight pointer `[Blob #id]` so the AI can page specific slices without inflating prompt history.
-  - `task`: Spawns scoped subagents (`explore` or `general`) that run independent tool loops and report distilled summaries back to the parent.
-  - `generate_image`: Multi-provider autonomous image & asset generation across Vercel AI Gateway, OpenRouter, OpenAI, Together, and Pollinations AI with interactive provider and model selector options, truthful format sniffing, extension matching, and offline vector fallback.
+  Built-in tools are organized into five specialized operational categories:
+
+  | Category | Tools | Primary Capabilities |
+  | :--- | :--- | :--- |
+  | **Inspection & AST** | `read_file`, `read_skeleton`, `search_code`, `list_files`, `codegraph`, `read_blob` | AST code signatures, regex pattern search, multi-language symbol graphs, and LRU blob chunking. |
+  | **Surgical Editing** | `edit_file`, `apply_patch`, `write_file` | Precise 1-line unified diff replacements, multi-hunk patch application, atomic writes. |
+  | **Shell & Execution** | `run_command` | Sandboxed command execution with process group timeouts and RTK build noise filtering. |
+  | **Swarm Orchestration**| `task` | Spawns scoped subagents (`explore` or `general`) that execute isolated tool loops. |
+  | **Media & External** | `generate_image`, `webfetch`, `mcp` | Multi-tier visual asset generation, live URL retrieval, and Model Context Protocol tooling. |
 
 ---
 
@@ -196,40 +242,50 @@ flowchart LR
 We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.1.26**, versus what is on the roadmap for **v0.2.0**:
 
 ### ✅ Shipped & Ready in v0.1.26 (Current Release)
-- [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal with interactive Provider and Model selectors (Auto waterfall cascade or direct provider targeting with provider-specific model presets and custom model input). Dispatches across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged with diagnostic causes.
-- [x] **Unified Workspace Path Containment:** Shared `resolveInsideWorkspace` helper in `@mugil-ide/core` prevents lexical directory traversal and symlink/junction escapes across tools and HTTP routes (`/api/generate-image`, `/api/file`).
-- [x] **Binary Diffing & Byte-Exact Undo:** `/api/diffs` flags binary files and skips raw patch calculations, displaying clean binary notifications in the diff viewer instead of walls of base64 text. The session journal captures binary states in base64 for byte-exact `/undo` restoration.
-- [x] **Token Savings Breakdown Popover:** Granular 4-tier savings breakdown (Caveman prompt & history compression, YAGNI AST skeletons, Smart Cache hits, and MCP & RTK truncation) visible by clicking the ribbon's Savings metric pill.
-- [x] **Kill Server Button:** A red `⚠ Kill Server` header control opens a warning modal and stops the backend via the authorized `POST /api/shutdown` route, then shows a "Server stopped" screen instead of endlessly reconnecting.
-- [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
-- [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
-- [x] **Verified Provider API Paths:** Cloudflare workers AI Gateway now uses `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` and its model catalog actually loads; OpenCode supports the documented `https://opencode.ai/inference` base (`/openai/v1`, `/anthropic`, `/v1/models`) alongside legacy `zen/v1`; OpenRouter, OpenAI, Anthropic, Vercel, Together, Ollama and LM Studio were re-probed live with no 404s.
-- [x] **Honest Savings Indicator:** The status-bar pill reports real input-token savings instead of always reading `0%` — measured against compressible input (Caveman/RTK refinement, signature stripping, history compaction, tool-output compression, cache hits) rather than the provider's whole-prompt count, which is dominated by system prompt and tool schemas no module touches.
-- [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn — streaming completion, tool loop, or running subagent — without closing the session. Pending permission/question prompts are dismissed instantly and any partial answer is marked "incomplete, not saved".
-- [x] **Working Vercel AI Gateway:** The Vercel provider now targets `https://ai-gateway.vercel.sh/v1` (the previously configured host did not resolve), uses the gateway's namespaced `creator/model` ids, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing and context windows from the live catalog.
-- [x] **First-Run AI Setup & Zero-Key Onboarding:** Automatically detects fresh launches without configured API keys. Presents a streamlined welcome modal offering 1-click cloud provider configuration (OpenRouter, OpenAI, Anthropic, OpenCode) and free 100% offline local AI (Ollama `:11434`, LM Studio `:1234`).
-- [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
-- [x] **Deterministic CI & Test Suite Reliability:** Hard 15-minute execution timeouts and explicit server connection teardown hooks (`closeAllConnections`, `closeIdleConnections`) in the HTTP/WebSocket runtime, resolving keep-alive runner hangs on Node 20 & 22 GitHub Actions.
-- [x] **OpenRouter & Streaming Protocol Hardening:** Populated `stream_options = { include_usage: true }` on streaming LLM requests and implemented typed `OpenRouterError` handling for robust error reporting during streaming disconnects.
-- [x] **Clean Session Token URL Routing:** Separated pristine base server URLs from authenticated browser launch tokens (`server.tokenUrl`), eliminating query parameter duplication and CLI link corruption.
-- [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
-- [x] **Visual Folder Browser & First-Run Project Creator:** Interactive file system navigator with OS shortcuts, folder picker, and instant `mkdir -p` project creation for quick onboarding.
-- [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
+
+#### 🧠 Token Economy & Context Architecture
+- [x] **Token Compression Suite:** Integrated Caveman prompt compression, RTK noise filters, Ponytail output minimization, and signature/watermark removers.
+- [x] **AST Skeleton Code Reading:** `read_skeleton` tool extracts code signatures and types without bloated function bodies, saving 70–80% of exploratory tokens.
+- [x] **Content-Compressed Retrieval (CCR):** LRU `BlobStore` for oversized tool outputs (>48k chars) with on-demand `read_blob` chunking.
+- [x] **Smart Caching & Prefix Breakpoints:** Exact match, $O(L)$ `PrefixTrie` partial matching, and Anthropic ephemeral cache headers.
+- [x] **Honest Savings Indicator:** Reports real input-token savings against compressible input (Caveman/RTK, signature stripping, history compaction, cache hits).
+- [x] **Token Savings Breakdown Popover:** Granular 4-tier savings breakdown modal accessible by clicking the ribbon's Savings metric pill.
+- [x] **Dynamic Context & Output Token Sizing:** Eliminates mid-sentence token cutoff errors via `MUGIL_IDE_MAX_OUTPUT_TOKENS` and dynamic context room calculation.
 - [x] **Workload Presets & Interactive Sliders:** Presets (Light Convo, Deep Development, Big Codebase & Audit) with dual slider/number controls and real-time turn cost calculations.
+
+#### 🛠️ Autonomous Tools & Asset Truth
+- [x] **18 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, media generation, and web exploration.
+- [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal with interactive Provider and Model selectors (Auto waterfall cascade or direct provider targeting with provider-specific model presets and custom model input). Dispatches across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged with diagnostic causes.
+- [x] **Binary Diffing & Byte-Exact Undo:** `/api/diffs` flags binary files and skips raw patch calculations, displaying clean binary notifications in the diff viewer. The session journal captures binary states in base64 for byte-exact `/undo` restoration.
+- [x] **Safe File Writing & Non-Code Diagnostics Filter:** `write_file` append mode and diagnostics bypass on documentation/logs/data files (`.md`, `.log`, `.txt`, `.json`), preventing infinite repair loops.
 - [x] **Interactive Mid-Turn Limit Extension:** When the tool calling limit is reached, users can dynamically extend limits (+15/+30 iterations) or wrap up seamlessly mid-run.
+
+#### 💻 Browser Web IDE & Developer Control
+- [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
+- [x] **Turbo Mode Autonomous Execution:** Instant execution of writes, edits, and terminal commands without confirmation prompts, plus Act/Plan safety modes.
+- [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn without closing the session.
+- [x] **Kill Server Button:** A red `⚠ Kill Server` header control opens a warning modal and stops the backend via the authorized `POST /api/shutdown` route, then shows a "Server stopped" screen instead of endlessly reconnecting.
+- [x] **Visual Folder Browser & First-Run Project Creator:** Interactive file system navigator with OS shortcuts, folder picker, and instant `mkdir -p` project creation for quick onboarding.
+- [x] **First-Run AI Setup & Zero-Key Onboarding:** Automatically detects fresh launches without configured API keys. Presents a streamlined welcome modal offering 1-click cloud provider configuration and free 100% offline local AI (Ollama `:11434`, LM Studio `:1234`).
 - [x] **Live Session Spending & Improved Token Counter:** Real-time session spending tracker ($ USD) displayed continuously in the top navigation ribbon alongside token counts.
 - [x] **Streamlined Ribbon UI & Collapsible Menu:** Clean top ribbon with zoom controls (`A−`, reset, `A+`) and live metrics; secondary controls consolidated into a collapsible `☰ Menu ▾`.
-- [x] **Online Web Access (`webfetch`) Toggle:** Configurable in pre-session setup and environment settings, enabling live web fetching when required.
-- [x] **Safe File Writing & Non-Code Diagnostics Filter:** `write_file` append mode and diagnostics bypass on documentation/logs/data files (`.md`, `.log`, `.txt`, `.json`), preventing infinite repair loops.
-- [x] **Turbo Mode Autonomous Execution:** Instant execution of writes, edits, and terminal commands without confirmation prompts, plus Act/Plan safety modes.
-- [x] **Dynamic Context & Output Token Sizing:** Eliminates mid-sentence token cutoff errors via `MUGIL_IDE_MAX_OUTPUT_TOKENS` and dynamic context room calculation.
-- [x] **Token Compression Suite:** Integrated Caveman prompt compression, RTK noise filters, Ponytail output minimization, and signature/watermark removers.
-- [x] **Content-Compressed Retrieval (CCR):** LRU `BlobStore` for oversized tool outputs with on-demand `read_blob` chunking.
-- [x] **AST Skeleton Code Reading:** `read_skeleton` tool extracts code signatures and types without bloated function bodies.
-- [x] **Smart Caching & Prefix Breakpoints:** Exact match, $O(L)$ `PrefixTrie` partial matching, and Anthropic ephemeral cache headers.
-- [x] **18 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, media generation, and web exploration.
+- [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
+
+#### 🌐 Multi-Provider Handoff & Protocols
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
+- [x] **Working Vercel AI Gateway:** Targets `https://ai-gateway.vercel.sh/v1`, uses namespaced `creator/model` IDs, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing.
+- [x] **Verified Provider API Paths:** Cloudflare workers AI Gateway now uses `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` and its model catalog actually loads; OpenCode supports documented `https://opencode.ai/inference` base alongside legacy `zen/v1`.
+- [x] **OpenRouter & Streaming Protocol Hardening:** Populated `stream_options = { include_usage: true }` on streaming LLM requests and implemented typed `OpenRouterError` handling.
 - [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
+- [x] **Online Web Access (`webfetch`) Toggle:** Configurable in pre-session setup and environment settings, enabling live web fetching when required.
+
+#### 🛡️ Reliability, Security & Hardening
+- [x] **Unified Workspace Path Containment:** Shared `resolveInsideWorkspace` helper in `@mugil-ide/core` prevents lexical directory traversal and symlink/junction escapes across tools and HTTP routes (`/api/generate-image`, `/api/file`).
+- [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
+- [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
+- [x] **Clean Session Token URL Routing:** Separated pristine base server URLs from authenticated browser launch tokens (`server.tokenUrl`), eliminating query parameter duplication.
+- [x] **Deterministic CI & Test Suite Reliability:** Hard 15-minute execution timeouts and explicit server connection teardown hooks in the HTTP/WebSocket runtime, resolving keep-alive runner hangs on GitHub Actions.
+- [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
 - [x] **Comprehensive Test Suite:** 545 unit and integration tests passing across all packages (36 test suites: 476 core, 51 cli, 10 docs, 8 mcp).
 
 ### 🎯 Planned for Next Release Push (v0.2.0 Roadmap)
@@ -348,6 +404,10 @@ All settings can be configured via the Web UI modals or by editing `~/.config/mu
 | `ANTHROPIC_API_KEY` | — | API key for Anthropic |
 | `VERCEL_API_KEY` | — | API key for the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY` is accepted as an alias) |
 | `VERCEL_BASE_URL` | `https://ai-gateway.vercel.sh/v1` | AI Gateway endpoint — model ids are namespaced, e.g. `anthropic/claude-sonnet-4.5` |
+| `MUGIL_IDE_IMAGE_MODEL` | `bfl/flux-2-klein-4b` | Default image generation model for Vercel AI Gateway |
+| `MUGIL_IDE_OPENAI_IMAGE_MODEL` | `gpt-image-1` | Model override for OpenAI image generation (e.g. `dall-e-3`) |
+| `MUGIL_IDE_OPENROUTER_IMAGE_MODEL` | `black-forest-labs/flux-3-image-klein` | Model override for OpenRouter image generation |
+| `MUGIL_IDE_TOGETHER_IMAGE_MODEL` | `black-forest-labs/FLUX.1-schnell` | Model override for Together AI image generation |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | URL for local Ollama instances |
 | `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | URL for local LM Studio instances |
 | `MUGIL_IDE_COMMAND_TIMEOUT`| `60000` | Terminal command execution timeout in milliseconds |
