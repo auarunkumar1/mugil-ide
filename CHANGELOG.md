@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ## [0.3.2] - 2026-11-08
+### Added
+- **`process-auditor` Universal Business Logic & Multi-Industry Skill**: Added a comprehensive workspace business process verification skill (`.agents/skills/process-auditor`) covering 10 distinct industry verticals:
+  - **ERP & Supply Chain**: 3-way matching (PO vs. GRN vs. Bill), inventory depletion timing, and negative stock guards.
+  - **Banking & FinTech**: Double-entry equilibrium ($\sum \text{Dr} = \sum \text{Cr}$), concurrency locks against double spending, overdraft ceilings, and immutable WORM audit logs.
+  - **Healthcare & Hospital Management (HMS)**: Doctor consultation attestation, drug-allergy interaction checks, prescription-only dispensing, and discharge gate locks.
+  - **Hospitality & Hotel PMS**: Room cleanliness state machine (`DIRTY` $\to$ `INSPECTED` $\to$ `OCCUPIED`), overbooking guards, split folios, and daily Night Audit rollovers.
+  - **Logistics & Fleet Transport**: Consignment Notes (LR / Bill of Lading), GVWR gross vehicle weight limits, driver hours of service (HOS), and mandatory Proof of Delivery (POD) before billing.
+  - **Manufacturing & Engineering**: Bill of Materials (BOM) locking on active Work Orders, WIP cost absorption accounting, scrap variance tracking, and QA/QC quarantine gates.
+  - **Retail POS & Grocery**: Blind cash counts, fiscal Z-reports, weigh scale barcodes, and FEFO expiry rotation.
+  - **Construction & Contracting**: Bill of Quantities (BOQ) over-measurement guards, Retention Money trust accounting (5–10%), and Variation Orders.
+  - **Events & Catering**: Guaranteed headcount locks (attrition defense), advance deposit escrow, and Banquet Event Order (BEO) revision broadcast.
+  - **Tax Audit & Print Formats**: Gapless sequential numbering, statutory multi-tier tax splits (GST/VAT), currency in words, and print CSS layout standards (`@media print`, page-break protection).
+- **Automated Multi-Industry Auditor & Test Suite**: Included standalone scanner `scripts/verify-business-logic.mjs` with `--industry` filtering and a 10-vertical paired test suite `tests/test-industry-audits.mjs` verifying zero false positives on compliant code and 100% detection of business process violations.
+
 ### Security
 - **A symlinked `SKILL.md` can no longer exfiltrate files**: `discoverSkills` rejects symlinked skill directories and symlinked `SKILL.md` files and verifies the real path stays inside its tier, so a cloned repo pointing `SKILL.md` at `~/.ssh/id_rsa` is skipped entirely.
 - **Trigger-injected skills are budgeted**: `triggeredSkillsBlock` caps the *total* injected instructions at 12k chars across all matched skills, so a prompt hitting several broad triggers degrades gracefully instead of throwing `Context overflow` and killing the turn.

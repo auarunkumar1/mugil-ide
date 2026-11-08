@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TAX INVOICE - INV/2026-27/0101</title>
+  <style>
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 15mm 12mm;
+      }
+      .no-print {
+        display: none !important;
+      }
+      tr, .totals-table, .signature-block {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      thead {
+        display: table-header-group;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-container">
+    <h2>TAX INVOICE</h2>
+    <div>Invoice #: INV/2026-27/0101</div>
+    <div>GSTIN: 29AAAAA0000A1Z5</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>HSN</th>
+          <th>Taxable</th>
+          <th>Tax Rate</th>
+          <th>Tax Amount</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Consulting</td>
+          <td>998311</td>
+          <td>$1,000.00</td>
+          <td>18%</td>
+          <td>$180.00</td>
+          <td>$1,180.00</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="signature-block">
+      <div>Authorized Signatory</div>
+    </div>
+  </div>
+</body>
+</html>

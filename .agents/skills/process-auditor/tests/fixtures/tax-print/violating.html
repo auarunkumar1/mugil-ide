@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Receipt</title>
+</head>
+<body>
+  <!-- Violation 1: Random UUID generated invoice number -->
+  <script>
+    const invoice_number = crypto.randomUUID();
+    const amount: float = 99.95;
+  </script>
+  <div>Receipt for Customer</div>
+  <!-- Missing @media print, missing HSN/tax breakdown, direct float math -->
+</body>
+</html>

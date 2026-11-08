@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TAX INVOICE - INV/2026-27/0042</title>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --text: #1f2937;
+      --border: #e5e7eb;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      background: #f3f4f6;
+    }
+    .invoice-card {
+      max-width: 800px;
+      margin: auto;
+      background: #fff;
+      padding: 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+    .entity-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--primary);
+    }
+    .invoice-meta {
+      text-align: right;
+    }
+    .meta-badge {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--primary);
+    }
+    .party-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+    th {
+      background: #f8fafc;
+      color: #334155;
+      text-align: left;
+      padding: 8px;
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .text-right {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .totals-area {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 24px;
+    }
+    .totals-table {
+      width: 320px;
+      font-size: 13px;
+    }
+    .totals-table td {
+      padding: 4px 8px;
+    }
+    .grand-total {
+      font-size: 15px;
+      font-weight: bold;
+      color: var(--primary);
+      border-top: 2px solid var(--primary);
+    }
+    .footer-declaration {
+      font-size: 11px;
+      color: #6b7280;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    /* Professional Print Engine */
+    @media print {
+      body {
+        background: #fff !important;
+        padding: 0 !important;
+      }
+      .invoice-card {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      @page {
+        size: A4 portrait;
+        margin: 12mm 15mm 12mm 15mm;
+      }
+      tr, .totals-area, .footer-declaration {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-card">
+    <div class="header-row">
+      <div>
+        <div class="entity-title">Acme Global Industrial Ltd.</div>
+        <div style="font-size: 12px; color: #4b5563;">
+          42 Industrial Parkway, Tech Corridor, CA 94016<br>
+          GSTIN/Tax ID: 29AAACA1234F1Z5 | CIN: U72200CA2020PLC123456<br>
+          Email: accounts@acmeglobal.com | Tel: +1 (555) 019-2834
+        </div>
+      </div>
+      <div class="invoice-meta">
+        <div class="meta-badge">TAX INVOICE</div>
+        <div style="font-size: 13px; margin-top: 6px;">
+          <strong>Invoice #:</strong> INV/2026-27/0042<br>
+          <strong>Issue Date:</strong> 08-Nov-2026<br>
+          <strong>Due Date:</strong> 23-Nov-2026<br>
+          <strong>PO Ref #:</strong> PO-88912-VND
+        </div>
+      </div>
+    </div>
+
+    <div class="party-grid">
+      <div>
+        <strong>Billed To:</strong><br>
+        Zenith Manufacturing Corp.<br>
+        800 Enterprise Way, Suite 400<br>
+        Tax ID: 06BBACB5678G2Z1<br>
+        Place of Supply: California (06)
+      </div>
+      <div>
+        <strong>Shipped To:</strong><br>
+        Zenith Central Warehouse #3<br>
+        12 Logistics Blvd, Dock 4<br>
+        Dispatch Note #: DN-2026-0318<br>
+        E-Way Bill #: 541098234102
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Description of Goods / Services</th>
+          <th>HSN/SAC</th>
+          <th class="text-right">Qty</th>
+          <th class="text-right">Unit Price</th>
+          <th class="text-right">Disc %</th>
+          <th class="text-right">Taxable Val</th>
+          <th class="text-right">Tax Rate</th>
+          <th class="text-right">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Hydraulic Pressure Valve - Model X5</td>
+          <td>8481.80</td>
+          <td class="text-right">10 pcs</td>
+          <td class="text-right">$120.00</td>
+          <td class="text-right">5.0%</td>
+          <td class="text-right">$1,140.00</td>
+          <td class="text-right">18%</td>
+          <td class="text-right">$1,345.20</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Industrial Synthetic Lubricant (20L Drum)</td>
+          <td>2710.19</td>
+          <td class="text-right">4 drums</td>
+          <td class="text-right">$85.00</td>
+          <td class="text-right">0.0%</td>
+          <td class="text-right">$340.00</td>
+          <td class="text-right">18%</td>
+          <td class="text-right">$401.20</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="totals-area">
+      <table class="totals-table">
+        <tr>
+          <td>Taxable Subtotal:</td>
+          <td class="text-right">$1,480.00</td>
+        </tr>
+        <tr>
+          <td>State Tax / SGST (9%):</td>
+          <td class="text-right">$133.20</td>
+        </tr>
+        <tr>
+          <td>Central Tax / CGST (9%):</td>
+          <td class="text-right">$133.20</td>
+        </tr>
+        <tr>
+          <td>Round-off Adjustment:</td>
+          <td class="text-right">$0.00</td>
+        </tr>
+        <tr class="grand-total">
+          <td>Grand Total:</td>
+          <td class="text-right">$1,746.40</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="font-size: 12px; margin-bottom: 20px;">
+      <strong>Amount in Words:</strong> US Dollars One Thousand Seven Hundred Forty-Six and Cents Forty Only
+    </div>
+
+    <div class="footer-declaration">
+      <div>
+        <strong>Bank Details:</strong> Bank of Enterprise | A/C: 98127391823 | IFSC/Routing: BOFAUS33<br>
+        <em>Declaration: Goods once sold are subject to standard warranty terms. This is a system-verified tax invoice.</em>
+      </div>
+      <div style="text-align: right;">
+        <div style="margin-bottom: 28px;">For Acme Global Industrial Ltd.</div>
+        <strong>Authorized Signatory</strong>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
