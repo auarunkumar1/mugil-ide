@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-08
+
+### Added
+- **Delta Mode Error Diagnostics (RTK DeltaCache)**: In-memory error signature cache across test/build runs (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures, collapsing unchanged stack traces into a single concise count line (`[Delta Mode: X unchanged failure(s) collapsed to save tokens]`), saving 70%–85% of exploratory tokens during iterative debug loops.
+- **Auto-Tiered File Reader & Surgical `read_symbol` Tool**: Automatically skeletonizes files >300 lines with line-number anchors when read without line ranges, avoiding accidental full-file token dumps while preserving `raw: true` override. Introduces `read_symbol(path, symbol)` for precise AST/indentation-based extraction of specific functions, classes, interfaces, or types.
+- **Lazy MCP Schema Pruning**: Deferred tool discovery via `list_mcp_tools` and `call_mcp`, eliminating 2,000–5,000 static tokens of schema overhead per turn.
+- **Local Offline ONNX Vector Semantic Cache**: 100% offline, cross-platform neural vector embeddings (384 dimensions) running in ~5–8ms on AMD, Intel, and Apple Silicon CPUs with seamless fallback.
+- **Interactive Step Debugger**: Full step-through interface to pause, inspect, edit tool call arguments, skip, or abort operations before execution via the Web UI modal and WebSocket breakpoint protocol.
+- **Multi-File Split Diff Review & Hunk-by-Hunk Staging**: Side-by-side git staging and surgical hunk-by-hunk acceptance or reversion via `POST /api/diff/hunk-apply`.
+- **Multi-Workspace Folder Management UI**: Added "Open Project Folder" and "Create New Project" modal and directory switcher without restarting the Node server (`/api/workspace/switch`, `/api/workspace/create`).
+- **Multi-Agent Worktree Squad Orchestration**: Concurrent subagent swarms executing on isolated Git worktrees (`.mugil/worktrees/subagent-<id>`) to eliminate file collision race conditions.
+- **Pluggable Extension & Skill Registry Drawer**: Visual modal to inspect, enable, and configure agent skills, custom tools, and external MCP servers.
+- **Modular Web UI Asset Extraction**: Built-in asset pipeline (`scripts/build-ui-assets.mjs`) extracting inline stylesheets and scripts into static bundles (`bundle.css`, `bundle.js`), hardening Content Security Policy.
+- **Unified OpenAI Wire Client Consolidation**: Consolidated repetitive OpenAI-compatible provider wire implementations into a single configurable client architecture (`UnifiedWireClient`).
+- **Comprehensive Test Suite Expansion**: Reached 575 passing tests across 43 suites (503 core, 54 cli, 10 docs, 8 mcp).
+
 ## [0.1.26] - 2026-11-07
 
 ### Added

@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { OnnxEmbeddingProvider } from './onnxEmbedding.js';
+
+export { OnnxEmbeddingProvider };
 
 /**
  * Embedding providers power the semantic cache layer. The default
@@ -85,8 +88,16 @@ export function createEmbeddingProvider(opts: {
   apiKey?: string;
   model?: string;
   baseUrl?: string;
+  provider?: 'lexical' | 'remote' | 'onnx';
+  modelPath?: string;
 }): EmbeddingProvider {
+  const onnxProvider = new OnnxEmbeddingProvider({ modelPath: opts.modelPath });
   const lexical = new LexicalEmbedding();
+
+  if (opts.provider === 'onnx' || process.env.MUGIL_IDE_EMBEDDING_PROVIDER === 'onnx') {
+    return onnxProvider;
+  }
+
   if (!opts.apiKey) return lexical;
   const remote = new RemoteEmbedding({
     apiKey: opts.apiKey,

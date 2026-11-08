@@ -20,8 +20,17 @@ import { installOverrideReader } from './modules/overridesNode.js';
 export { cavemanStrategy } from './modules/caveman/index.js';
 
 // RTK — Reduced Token Kernel (inspired by rtk-ai/rtk)
-export { rtkStrategy, compressCommandOutput, compressGitDiff, filterTestBuildNoise, compressJson } from './modules/rtk/index.js';
-export type { CompressOutputOptions } from './modules/rtk/index.js';
+export {
+  rtkStrategy,
+  compressCommandOutput,
+  compressGitDiff,
+  filterTestBuildNoise,
+  compressJson,
+  DeltaCache,
+  globalDeltaCache,
+  applyDeltaMode,
+} from './modules/rtk/index.js';
+export type { CompressOutputOptions, DeltaStats, FailureItem } from './modules/rtk/index.js';
 
 // Ponytail (inspired by DietrichGebert/ponytail)
 export { ponytailInstruction, ponytailOutputBudget } from './modules/ponytail/index.js';
@@ -70,25 +79,52 @@ export type { CacheBackend } from './modules/smart-cache/backends.js';
 export {
   LexicalEmbedding,
   RemoteEmbedding,
+  OnnxEmbeddingProvider,
   createEmbeddingProvider,
   cosineSimilarity,
 } from './modules/smart-cache/embeddings.js';
+export { ONNX_EMBEDDING_DIM } from './modules/smart-cache/onnxEmbedding.js';
 export type { EmbeddingProvider } from './modules/smart-cache/embeddings.js';
 
 // Tool Loop (agentic function calling)
-export { ToolLoop, ToolError, parseToolArguments } from './modules/tool-loop/index.js';
+export {
+  ToolLoop,
+  ToolError,
+  parseToolArguments,
+  StepDebugger,
+  globalStepDebugger,
+} from './modules/tool-loop/index.js';
 export type {
   ToolRegistry,
   ToolExecutor,
   ToolLoopOptions,
   ToolLoopRunOptions,
   ToolLoopResult,
+  StepAction,
+  StepDecision,
+  ToolBreakpoint,
 } from './modules/tool-loop/index.js';
 export {
   createWorkspaceTools,
   WORKSPACE_TOOL_DEFINITIONS,
   extractCodeSkeleton,
 } from './modules/tools/workspaceTools.js';
+export { findSymbolInContent, type LocatedSymbol } from './modules/tools/symbolReader.js';
+export {
+  createLazyMcpGateway,
+  LAZY_MCP_TOOL_DEFINITIONS,
+  type LazyMcpOptions,
+} from './modules/mcp-client/lazyGateway.js';
+export {
+  WorktreeSquadManager,
+  type WorktreeInfo,
+} from './modules/squads/worktreeSquad.js';
+export {
+  UnifiedWireClient,
+  createUnifiedWireClient,
+  type UnifiedProviderKind,
+  type UnifiedWireClientOptions,
+} from './modules/handoff/unifiedWireClient.js';
 export type { WorkspaceToolsOptions } from './modules/tools/workspaceTools.js';
 export {
   generateImage,

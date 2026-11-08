@@ -18,6 +18,7 @@
 
 import localRegistry from '../rules/registry.json';
 import { readOverrideSync, writeOverrideSync } from '../modules/overridesNode.js';
+import { VERSION } from '../branding.js';
 
 export interface ModuleSource {
   project: string;
@@ -190,7 +191,7 @@ export class UpdateManager {
       });
       const data = (await res.json()) as { version?: string };
       if (!data.version) return null;
-      const current = LOCAL_REGISTRY.package.version;
+      const current = VERSION || LOCAL_REGISTRY.package?.version || '0.2.0';
       return { current, latest: data.version };
     } catch (err) {
       this.onError?.(err);

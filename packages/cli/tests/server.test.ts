@@ -13,6 +13,9 @@ import {
 } from '@mugil-ide/core';
 import type { Engine, ProviderClient } from '@mugil-ide/core';
 import { startIdeServer } from '../src/server/server.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, unlinkSync, symlinkSync } from 'node:fs';
 import * as net from 'node:net';
 import { tmpdir } from 'node:os';
@@ -1745,6 +1748,105 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       const json = (await res.json()) as any;
       expect(json.error).toContain('cannot select system directory');
     } finally {
+      await server.close();
+    }
+  });
+
+  it('supports switching and creating workspaces via /api/workspace/switch and /api/workspace/create', async () => {
+    const origCwd = process.cwd();
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-ws-api-test-'));
+    const newWs = path.join(tmpBase, 'new-project');
+
+    try {
+      // 1. Create workspace
+      const createRes = await fetch(`${server.url}/api/workspace/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: newWs }),
+      });
+      expect(createRes.status).toBe(200);
+      const createJson = (await createRes.json()) as any;
+      expect(createJson.ok).toBe(true);
+      expect(createJson.created).toBe(true);
+      expect(fs.existsSync(newWs)).toBe(true);
+
+      // 2. Switch workspace
+      const switchRes = await fetch(`${server.url}/api/workspace/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: tmpBase }),
+      });
+      expect(switchRes.status).toBe(200);
+      const switchJson = (await switchRes.json()) as any;
+      expect(switchJson.ok).toBe(true);
+    } finally {
+      process.chdir(origCwd);
+      if (fs.existsSync(tmpBase)) fs.rmSync(tmpBase, { recursive: true, force: true });
+      await server.close();
+    }
+  });
+
+  it('handles GET and POST /api/debugger', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    try {
+      const getRes = await fetch(`${server.url}/api/debugger`);
+      expect(getRes.status).toBe(200);
+      const getJson = (await getRes.json()) as any;
+      expect(typeof getJson.enabled).toBe('boolean');
+
+      const postRes = await fetch(`${server.url}/api/debugger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      });
+      expect(postRes.status).toBe(200);
+      const postJson = (await postRes.json()) as any;
+      expect(postJson.ok).toBe(true);
+      expect(postJson.enabled).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('applies and reverts diff hunks via POST /api/diff/hunk-apply', async () => {
+    const origCwd = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-hunk-test-'));
+    process.chdir(tmpDir);
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    const testFile = path.join(tmpDir, 'hunk-test.txt');
+    fs.writeFileSync(testFile, 'line 1\nline to change\nline 3\n', 'utf-8');
+
+    try {
+      const hunk = `@@ -1,3 +1,3 @@\n line 1\n-line to change\n+line changed\n line 3`;
+      const applyRes = await fetch(`${server.url}/api/diff/hunk-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'hunk-test.txt', hunk }),
+      });
+      expect(applyRes.status).toBe(200);
+      const applyJson = (await applyRes.json()) as any;
+      expect(applyJson.ok).toBe(true);
+      expect(applyJson.applied).toBe(true);
+      expect(fs.readFileSync(testFile, 'utf-8')).toContain('line changed');
+
+      // Revert hunk
+      const revertRes = await fetch(`${server.url}/api/diff/hunk-apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: 'hunk-test.txt', hunk, revert: true }),
+      });
+      expect(revertRes.status).toBe(200);
+      const revertJson = (await revertRes.json()) as any;
+      expect(revertJson.ok).toBe(true);
+      expect(revertJson.applied).toBe(true);
+      expect(fs.readFileSync(testFile, 'utf-8')).toContain('line to change');
+    } finally {
+      process.chdir(origCwd);
+      if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
       await server.close();
     }
   });

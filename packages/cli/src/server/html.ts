@@ -766,12 +766,18 @@ export function getWebUiHtml(): string {
           <button class="menu-item-btn" id="turbo-toggle" onclick="closeMenuDropdown(); toggleTurboMode();">
             <span id="turbo-icon">⚡</span> <span id="turbo-label">Turbo Mode: Off</span>
           </button>
+          <button class="menu-item-btn" id="debugger-toggle" onclick="closeMenuDropdown(); toggleStepDebugger();">
+            <span id="debugger-icon">🐛</span> <span id="debugger-label">Step Debugger: Off</span>
+          </button>
           <button class="menu-item-btn" id="mode-toggle" onclick="closeMenuDropdown(); toggleMode();">
             <span id="mode-icon">⚡</span> <span>Agent Mode: <b id="mode-label">Act</b></span>
           </button>
           <div class="menu-divider"></div>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openImageGenModal();">
             <span>🖼️ Generate Image</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openExtensionsModal();">
+            <span>🧩 Pluggable Extensions & Skills</span>
           </button>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openAccountModal();">
             <span>🔑 Accounts & API Keys</span>
@@ -1086,6 +1092,38 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- Interactive Step Debugger Modal -->
+  <div class="modal-overlay" id="step-debugger-modal" style="z-index:10005;">
+    <div class="modal-dialog" style="max-width:620px;">
+      <div class="modal-title-bar">
+        <span>🐛 Interactive Step Debugger</span>
+        <button class="btn" onclick="sendStepDebuggerAction('abort')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:12px; color:var(--text-dim);">
+          Execution paused at tool breakpoint. Inspect arguments, modify parameters, skip, or continue.
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; background:#161b22; padding:8px 12px; border-radius:6px; border:1px solid var(--border);">
+          <div>
+            <span style="font-size:11px; color:var(--text-dim); text-transform:uppercase;">Tool:</span>
+            <code id="debugger-tool-name" style="font-weight:bold; color:var(--accent); font-size:13px; margin-left:6px;">tool_name</code>
+          </div>
+          <span id="debugger-timestamp" style="font-size:11px; color:var(--text-dim);">just now</span>
+        </div>
+        <div>
+          <label style="font-size:11.5px; font-weight:600; color:var(--text-dim); margin-bottom:4px; display:block;">Arguments (JSON — editable):</label>
+          <textarea id="debugger-args-textarea" style="width:100%; height:160px; font-family:Consolas, monospace; font-size:12px; background:#0d1117; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px; box-sizing:border-box; resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+          <button type="button" class="btn btn-kill" onclick="sendStepDebuggerAction('abort')">⏹ Abort Turn</button>
+          <button type="button" class="btn" onclick="sendStepDebuggerAction('skip')">⏭ Skip Tool</button>
+          <button type="button" class="btn" onclick="sendStepDebuggerAction('edit')">✏ Edit & Run</button>
+          <button type="button" class="btn btn-primary" onclick="sendStepDebuggerAction('approve')">▶ Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Pre-Session Configuration & Economics Modal -->
   <div class="modal-overlay" id="session-setup-modal">
     <div class="modal-dialog" style="max-width:680px; max-height:90vh; display:flex; flex-direction:column;">
@@ -1305,6 +1343,47 @@ export function getWebUiHtml(): string {
       </div>
       <div class="modal-body" id="modules-list-container" style="max-height:480px; overflow-y:auto;">
         <div style="color:var(--text-dim); text-align:center; padding:20px;">Loading modules...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pluggable Extensions & Skills Registry Modal -->
+  <div class="modal-overlay" id="extensions-modal">
+    <div class="modal-dialog" style="max-width:680px; max-height:85vh; display:flex; flex-direction:column;">
+      <div class="modal-title-bar">
+        <span>🧩 Pluggable Extensions & Skill Registry</span>
+        <button class="btn" onclick="closeExtensionsModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto;">
+        <div style="font-size:12px; color:var(--text-dim); line-height:1.4;">
+          Visual registry for agent skills, Model Context Protocol (MCP) servers, and custom tool extensions.
+        </div>
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" id="exttab-skills" onclick="switchExtTab('skills')">Agent Skills (2)</button>
+          <button class="modal-tab-btn" id="exttab-mcp" onclick="switchExtTab('mcp')">Connected MCP Servers (0)</button>
+        </div>
+        <div id="ext-skills-pane" style="display:flex; flex-direction:column; gap:10px;">
+          <div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>🧠 Subagent-Driven Development</strong>
+              <span style="font-size:10px; background:#23863633; color:var(--green); padding:2px 8px; border-radius:10px; font-weight:bold;">Active</span>
+            </div>
+            <p style="font-size:11.5px; color:var(--text-dim); margin:6px 0 0 0;">Autonomous subagent plan execution with clean verification and worktree isolation.</p>
+          </div>
+          <div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>⚡ Token Optimization & RTK Refinement</strong>
+              <span style="font-size:10px; background:#23863633; color:var(--green); padding:2px 8px; border-radius:10px; font-weight:bold;">Active</span>
+            </div>
+            <p style="font-size:11.5px; color:var(--text-dim); margin:6px 0 0 0;">Delta Mode error diffing, AST skeleton reading, and Lazy MCP schema pruning.</p>
+          </div>
+        </div>
+        <div id="ext-mcp-pane" style="display:none; flex-direction:column; gap:10px;">
+          <div style="font-size:11.5px; color:var(--text-dim); padding:16px; text-align:center; border:1px dashed var(--border); border-radius:6px;">
+            Configure external MCP servers in <code>MUGIL_IDE_MCP_SERVERS</code> or <code>MUGIL_IDE_MCP_CONFIG</code>.<br>
+            Lazy schema gateway pruning is active, saving 2,000–5,000 tokens per turn.
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -2039,6 +2118,12 @@ export function getWebUiHtml(): string {
               pendingApprovalId = null;
               document.getElementById('approval-modal').classList.remove('open');
             }
+            if (activeBreakpointId != null) {
+              activeBreakpointId = null;
+              document.getElementById('step-debugger-modal').classList.remove('open');
+            }
+          } else if (msg.type === 'tool_breakpoint') {
+            showStepDebugger(msg);
           } else if (msg.type === 'question') {
             showQuestion(msg);
           } else if (msg.type === 'approval') {
@@ -2047,6 +2132,9 @@ export function getWebUiHtml(): string {
             if (msg.busy !== undefined) setAgentBusy(msg.busy);
             if (msg.turboMode !== undefined) {
               updateTurboUI(msg.turboMode);
+            }
+            if (msg.stepDebuggerEnabled !== undefined) {
+              updateDebuggerUI(msg.stepDebuggerEnabled);
             }
             if (msg.activeModel) {
               activeModelId = msg.activeModel;
@@ -2716,9 +2804,32 @@ export function getWebUiHtml(): string {
                 row.style.background = 'var(--diff-del)';
                 row.style.color = 'var(--diff-del-text)';
               } else if (line.startsWith('@@')) {
-                row.style.color = 'var(--accent)';
-                row.style.background = '#1f6feb15';
-                row.style.fontWeight = '600';
+                const hunkBar = document.createElement('div');
+                hunkBar.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:3px 12px; background:#1f6feb15; border-top:1px solid #1f6feb33; border-bottom:1px solid #1f6feb33;';
+                const headerText = document.createElement('span');
+                headerText.style.cssText = 'color:var(--accent); font-weight:600; font-size:11px;';
+                headerText.textContent = line;
+                hunkBar.appendChild(headerText);
+
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex; gap:6px;';
+                const acceptBtn = document.createElement('button');
+                acceptBtn.className = 'btn';
+                acceptBtn.style.cssText = 'padding:1px 6px; font-size:10px; color:var(--green);';
+                acceptBtn.textContent = '✓ Accept Hunk';
+                acceptBtn.onclick = (e) => { e.stopPropagation(); applyHunk(d.rel, line, false); };
+
+                const revertBtn = document.createElement('button');
+                revertBtn.className = 'btn';
+                revertBtn.style.cssText = 'padding:1px 6px; font-size:10px; color:var(--red);';
+                revertBtn.textContent = '↺ Revert Hunk';
+                revertBtn.onclick = (e) => { e.stopPropagation(); applyHunk(d.rel, line, true); };
+
+                actions.appendChild(acceptBtn);
+                actions.appendChild(revertBtn);
+                hunkBar.appendChild(actions);
+                pre.appendChild(hunkBar);
+                return;
               } else {
                 row.style.color = 'var(--text-dim)';
               }
@@ -3641,6 +3752,131 @@ export function getWebUiHtml(): string {
         badge.style.display = 'inline-flex';
       } catch {
         // Offline or registry unreachable — no badge.
+      }
+    }
+
+    let currentStepDebugger = false;
+    let activeBreakpointId = null;
+
+    async function applyHunk(relPath, hunkHeader, revert) {
+      try {
+        const res = await fetch('/api/diff/hunk-apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: relPath, hunk: hunkHeader, revert }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          loadDiffs();
+        }
+      } catch (err) {
+        console.error('Failed to apply hunk:', err);
+      }
+    }
+
+    function updateDebuggerUI(enabled) {
+      currentStepDebugger = Boolean(enabled);
+      const btn = document.getElementById('debugger-toggle');
+      const label = document.getElementById('debugger-label');
+      if (btn && label) {
+        if (currentStepDebugger) {
+          btn.style.borderColor = 'var(--cyan)';
+          btn.style.color = 'var(--cyan)';
+          label.textContent = 'Debugger: ON';
+        } else {
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          label.textContent = 'Debugger: Off';
+        }
+      }
+    }
+
+    function toggleStepDebugger() {
+      const next = !currentStepDebugger;
+      updateDebuggerUI(next);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_step_debugger', enabled: next }));
+      }
+      fetch('/api/debugger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      }).catch(() => {});
+    }
+
+    function showStepDebugger(msg) {
+      activeBreakpointId = msg.id;
+      const toolName = msg.call ? msg.call.name : (msg.name || 'tool');
+      const argsText = msg.call
+        ? (typeof msg.call.arguments === 'string'
+            ? msg.call.arguments
+            : JSON.stringify(msg.call.arguments, null, 2))
+        : '{}';
+
+      document.getElementById('debugger-tool-name').textContent = toolName;
+      document.getElementById('debugger-timestamp').textContent = new Date(msg.timestamp || Date.now()).toLocaleTimeString();
+      document.getElementById('debugger-args-textarea').value = argsText;
+
+      document.getElementById('step-debugger-modal').classList.add('open');
+    }
+
+    function sendStepDebuggerAction(action) {
+      if (!activeBreakpointId) {
+        document.getElementById('step-debugger-modal').classList.remove('open');
+        return;
+      }
+      const bpId = activeBreakpointId;
+      activeBreakpointId = null;
+      document.getElementById('step-debugger-modal').classList.remove('open');
+
+      const modifiedArgs = document.getElementById('debugger-args-textarea').value;
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'step_debugger_action',
+          id: bpId,
+          action,
+          modifiedArguments: action === 'edit' ? modifiedArgs : undefined,
+          skipOutput: action === 'skip' ? 'Skipped by developer in Step Debugger' : undefined,
+        }));
+      }
+
+      fetch('/api/debugger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: bpId,
+          action,
+          modifiedArguments: action === 'edit' ? modifiedArgs : undefined,
+          skipOutput: action === 'skip' ? 'Skipped by developer in Step Debugger' : undefined,
+        }),
+      }).catch(() => {});
+    }
+
+    function openExtensionsModal() {
+      document.getElementById('extensions-modal').classList.add('open');
+    }
+
+    function closeExtensionsModal() {
+      document.getElementById('extensions-modal').classList.remove('open');
+    }
+
+    function switchExtTab(tab) {
+      const skillsPane = document.getElementById('ext-skills-pane');
+      const mcpPane = document.getElementById('ext-mcp-pane');
+      const btnSkills = document.getElementById('exttab-skills');
+      const btnMcp = document.getElementById('exttab-mcp');
+
+      if (tab === 'skills') {
+        skillsPane.style.display = 'flex';
+        mcpPane.style.display = 'none';
+        btnSkills.classList.add('active');
+        btnMcp.classList.remove('active');
+      } else {
+        skillsPane.style.display = 'none';
+        mcpPane.style.display = 'flex';
+        btnSkills.classList.remove('active');
+        btnMcp.classList.add('active');
       }
     }
 

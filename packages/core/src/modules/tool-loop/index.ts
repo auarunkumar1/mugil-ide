@@ -28,12 +28,18 @@ import { streamCompletion, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
 import { globalBlobStore } from '../tools/blobStore.js';
 import { countTokens } from '../../token/tokenizer.js';
+import { StepDebugger, globalStepDebugger, type StepAction, type StepDecision, type ToolBreakpoint } from './stepDebugger.js';
+
+export { StepDebugger, globalStepDebugger };
+export type { StepAction, StepDecision, ToolBreakpoint };
 
 export type ToolExecutor = (call: ToolCall) => Promise<string>;
 export type ToolRegistry = Record<string, ToolExecutor>;
 
 export interface ToolLoopOptions {
   handoff: HandoffManager;
+  /** Optional interactive step debugger to inspect/edit/pause tool calls. */
+  stepDebugger?: StepDebugger;
   /** Bounded iterations; a forced no-tools completion follows when exhausted. Default 15. */
   maxIterations?: number;
   /** Called with each executed tool call (for live progress events). */
@@ -127,6 +133,7 @@ export function parseToolArguments(call: ToolCall): unknown {
 export class ToolLoop {
   private readonly handoff: HandoffManager;
   private readonly maxIterations: number;
+  private readonly stepDebugger?: StepDebugger;
   private readonly onTool?: (call: ToolCall, index: number) => void;
   private readonly onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
   private readonly sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
@@ -138,6 +145,7 @@ export class ToolLoop {
     this.handoff = options.handoff;
     const envLimit = process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS ? Number(process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS) : NaN;
     this.maxIterations = options.maxIterations ?? (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 20);
+    this.stepDebugger = options.stepDebugger;
     this.onTool = options.onTool;
     this.onToolResult = options.onToolResult;
     this.sizeMaxTokens = options.sizeMaxTokens;
@@ -323,14 +331,33 @@ export class ToolLoop {
     permission?: (call: ToolCall) => boolean | Promise<boolean>,
   ): Promise<{ content: string; ok: boolean; savedTokens: number; keptTokens: number; yagniSaved: number; mcpSaved: number }> {
     const none = { savedTokens: 0, keptTokens: 0, yagniSaved: 0, mcpSaved: 0 };
-    const executor = registry[call.name];
+    let activeCall = call;
+
+    if (this.stepDebugger && this.stepDebugger.isEnabled()) {
+      const decision = await this.stepDebugger.intercept(activeCall);
+      if (decision.action === 'abort') {
+        throw new Error(`Tool execution aborted by developer in Step Debugger: ${activeCall.name}`);
+      }
+      if (decision.action === 'skip') {
+        return {
+          content: decision.skipOutput ?? `[Skipped by developer in Step Debugger: ${activeCall.name}]`,
+          ok: true,
+          ...none,
+        };
+      }
+      if (decision.action === 'edit' && decision.modifiedArguments !== undefined) {
+        activeCall = { ...activeCall, arguments: decision.modifiedArguments };
+      }
+    }
+
+    const executor = registry[activeCall.name];
     if (!executor) {
-      return { content: `Error: unknown tool "${call.name}"`, ok: false, ...none };
+      return { content: `Error: unknown tool "${activeCall.name}"`, ok: false, ...none };
     }
     if (permission) {
       let allowed = true;
       try {
-        allowed = await permission(call);
+        allowed = await permission(activeCall);
       } catch {
         allowed = false;
       }
@@ -338,14 +365,14 @@ export class ToolLoop {
         return {
           content:
             'Permission denied: the user did not approve the "' +
-            `${call.name}" tool call. Explain what you wanted to do and ask for approval, or find another approach that does not need this tool.`,
+            `${activeCall.name}" tool call. Explain what you wanted to do and ask for approval, or find another approach that does not need this tool.`,
           ok: false,
           ...none,
         };
       }
     }
     try {
-      const raw = await executor(call);
+      const raw = await executor(activeCall);
       let content = typeof raw === 'string' ? raw : String(raw ?? '');
       let savedTokens = 0;
       let yagniSaved = 0;

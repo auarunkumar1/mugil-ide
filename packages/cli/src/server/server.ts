@@ -16,6 +16,7 @@ import {
   optimisticSavingsPercent,
   VERSION,
   writeUserEnv,
+  globalStepDebugger,
 } from '@mugil-ide/core';
 import { getWebUiHtml } from './html.js';
 import { EMBEDDED_VENDOR_ASSETS } from './embeddedVendor.js';
@@ -388,6 +389,22 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
+    if (url.pathname === '/assets/bundle.css' || url.pathname === '/assets/bundle.js') {
+      const isCss = url.pathname.endsWith('.css');
+      const filename = isCss ? 'bundle.css' : 'bundle.js';
+      const contentType = isCss ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8';
+      const clientDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'client');
+      const assetFile = path.join(clientDir, filename);
+
+      res.writeHead(200, { 'Content-Type': contentType });
+      if (fs.existsSync(assetFile)) {
+        fs.createReadStream(assetFile).pipe(res);
+      } else {
+        res.end('');
+      }
+      return;
+    }
+
     if (url.pathname === '/api/models' && req.method === 'GET') {
       try {
         const localModels: Array<any> = [];
@@ -716,7 +733,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
-    if (url.pathname === '/api/workspace' && req.method === 'POST') {
+    if (
+      (url.pathname === '/api/workspace' ||
+        url.pathname === '/api/workspace/switch' ||
+        url.pathname === '/api/workspace/create') &&
+      req.method === 'POST'
+    ) {
       try {
         const json = await readJsonBody(req);
         if (json.path && typeof json.path === 'string') {
@@ -731,7 +753,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             return;
           }
           let created = false;
-          if (!fs.existsSync(target) && json.create) {
+          if ((!fs.existsSync(target) && json.create) || url.pathname === '/api/workspace/create') {
             fs.mkdirSync(target, { recursive: true });
             created = true;
           }
@@ -968,6 +990,91 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         );
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, diffs }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/diff/hunk-apply' && req.method === 'POST') {
+      try {
+        const json = await readJsonBody(req);
+        const { path: relPath, hunk, revert } = json;
+        if (!relPath || typeof relPath !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'path parameter required' }));
+          return;
+        }
+        const fullPath = path.resolve(process.cwd(), relPath);
+        if (!fs.existsSync(fullPath)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'File not found' }));
+          return;
+        }
+        const original = fs.readFileSync(fullPath, 'utf-8');
+        const { captureFile, pushEdit } = await import('@mugil-ide/core');
+        const beforeState = captureFile(process.cwd(), fullPath);
+
+        if (hunk && typeof hunk === 'string') {
+          const hunkLines = hunk.split(/\r?\n/);
+          const removals: string[] = [];
+          const additions: string[] = [];
+          for (const l of hunkLines) {
+            if (l.startsWith('-') && !l.startsWith('---')) removals.push(l.slice(1));
+            else if (l.startsWith('+') && !l.startsWith('+++')) additions.push(l.slice(1));
+          }
+          const targetBlock = (revert ? additions : removals).join('\n');
+          const replaceBlock = (revert ? removals : additions).join('\n');
+          if (targetBlock && original.includes(targetBlock)) {
+            const updated = original.replace(targetBlock, replaceBlock);
+            fs.writeFileSync(fullPath, updated, 'utf-8');
+            const afterState = captureFile(process.cwd(), fullPath);
+            pushEdit(process.cwd(), {
+              path: fullPath,
+              before: beforeState,
+              after: afterState,
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, applied: true }));
+            return;
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, applied: false, note: 'Hunk did not match file content directly' }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/debugger' && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          enabled: globalStepDebugger.isEnabled(),
+          pending: globalStepDebugger.getPendingBreakpoints(),
+        }),
+      );
+      return;
+    }
+
+    if (url.pathname === '/api/debugger' && req.method === 'POST') {
+      try {
+        const json = await readJsonBody(req);
+        if (typeof json.enabled === 'boolean') {
+          globalStepDebugger.setEnabled(json.enabled);
+        }
+        if (json.action && json.id) {
+          globalStepDebugger.resolveBreakpoint(json.id, {
+            action: json.action,
+            modifiedArguments: json.modifiedArguments,
+            skipOutput: json.skipOutput,
+          });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, enabled: globalStepDebugger.isEnabled() }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -1556,6 +1663,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             activeModel: repl.getActiveModel(),
             mode: repl.getMode(),
             turboMode,
+            stepDebuggerEnabled: globalStepDebugger.isEnabled(),
             busy: repl.isBusy,
             stats: {
               ...repl.stats,
@@ -1727,6 +1835,18 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     // Print welcome banner in Agent terminal
     repl.printBanner();
+
+    globalStepDebugger.setOnBreakpoint((bp) => {
+      safeSend(
+        JSON.stringify({
+          type: 'tool_breakpoint',
+          id: bp.id,
+          call: bp.call,
+          timestamp: bp.timestamp,
+        }),
+      );
+    });
+
     sendStatusNow();
 
     ws.on('message', async (messageRaw) => {
@@ -1775,6 +1895,19 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             approvalResolvers.delete(Number(msg.id));
             entry.resolve(msg.granted !== false);
           }
+        } else if (msg.type === 'set_step_debugger') {
+          globalStepDebugger.setEnabled(Boolean(msg.enabled));
+          sendAgentData(
+            `\r\n\x1b[36m🐛 Step Debugger: ${globalStepDebugger.isEnabled() ? '\x1b[32mON (Tool calls pause for inspection/edit)\x1b[0m' : '\x1b[31mOFF\x1b[0m'}\x1b[0m\r\n\r\n`,
+          );
+          repl.printPrompt();
+          sendStatusNow();
+        } else if (msg.type === 'step_debugger_action') {
+          globalStepDebugger.resolveBreakpoint(msg.id, {
+            action: msg.action,
+            modifiedArguments: msg.modifiedArguments,
+            skipOutput: msg.skipOutput,
+          });
         } else if (msg.type === 'agent_input') {
           const rawData: string = msg.data || '';
 

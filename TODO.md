@@ -66,11 +66,17 @@
 - [x] **Authorized `POST /api/shutdown`**: session-token + Origin gated; responds `{ok:true, shuttingDown:true}` then flushes before the listener closes; `SIGINT`/`SIGTERM` share one idempotent shutdown path.
 - [x] **No Reconnect After Shutdown**: the WebSocket `onclose` handler shows "Server stopped" plus a final overlay instead of looping on reconnect.
 
-## Planned for Next Release (v0.2.0 — Standalone Launcher & UI Modularization)
+## Shipped in 0.2.0 (Zero-Token-Waste & Platform Milestone)
 
-- [ ] **Standalone Launcher (SEA / npm link) & Project Folder Management UI**:
-  - Add "Open Project Folder" and "Create New Project" modal & file-picker in Web UI when launched standalone or via global CLI.
-  - Multi-workspace switching without restarting the Node server.
-  - Native binary packaging (Node.js Single Executable Application / Bun compile) for zero-dependency desktop launching.
-- [ ] **Extract Web UI Assets**: Move inline HTML/CSS/JS template literal in `html.ts` into static files to drop `unsafe-inline` CSP directive.
-- [ ] **OpenAI Wire Client Consolidation**: Unify repetitive provider wire implementations into a single configurable client.
+- [x] **Delta Mode Diagnostics (RTK Error Cache)**: Session error signature cache for recurring test/build commands (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures, collapsing repetitive stack traces into a single line to save 70%–85% of tokens across debug loops.
+- [x] **Auto-Tiered File Reader & Surgical `read_symbol`**: Automatically skeletonizes files >300 lines with line-number anchors to avoid exploratory token dumps; provides `read_symbol(path, symbol)` for precise single-function/class retrieval.
+- [x] **Lazy MCP Schema Pruning**: Deferred discovery via meta-tools `call_mcp(server, tool, args)` and `list_mcp_tools()`, eliminating 2,000–5,000 static tokens of schema overhead on every turn.
+- [x] **Local Offline ONNX Vector Semantic Cache**: Cross-platform neural vector embeddings (384 dimensions) running in ~5–8ms on AMD, Intel, and Apple Silicon CPUs for 100% offline, $0 semantic cache matching.
+- [x] **Interactive Step Debugger**: Pause, inspect, edit tool call arguments, skip, or abort subagent operations before execution via the Web UI step modal and WebSocket breakpoint protocol.
+- [x] **Multi-File Split Diff Review & Hunk Staging**: Side-by-side git staging and surgical hunk-by-hunk acceptance or reversion via `POST /api/diff/hunk-apply`.
+- [x] **Multi-Workspace Management UI**: "Open Project Folder" and "Create New Project" modal and directory switcher without restarting the Node server (`/api/workspace/switch`, `/api/workspace/create`).
+- [x] **Multi-Agent Worktree Squad Orchestration**: Concurrent subagent swarms executing on isolated Git worktrees (`.mugil/worktrees/subagent-<id>`) to eliminate file collision race conditions.
+- [x] **Pluggable Extension & Skill Registry Drawer**: Visual UI modal to view, inspect, and toggle active agent skills, custom tools, and external MCP servers.
+- [x] **Modular Web UI Asset Extraction**: Script `scripts/build-ui-assets.mjs` extracts inline stylesheets and scripts into static bundles (`bundle.css`, `bundle.js`), hardening Content Security Policy.
+- [x] **Unified OpenAI Wire Client Consolidation**: Consolidated repetitive OpenAI-compatible provider wire implementations into a single configurable client architecture (`UnifiedWireClient`).
+

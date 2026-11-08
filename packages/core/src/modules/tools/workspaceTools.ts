@@ -23,7 +23,7 @@ import { ToolLoop, parseToolArguments, type ToolRegistry } from '../tool-loop/in
 import type { HandoffManager } from '../handoff/index.js';
 import { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } from '../codegraph/index.js';
 import { cavemanStrategy } from '../caveman/index.js';
-import { compressCommandOutput } from '../rtk/index.js';
+import { compressCommandOutput, applyDeltaMode } from '../rtk/index.js';
 import { discoverSkills, loadSkill } from '../skills/index.js';
 import { createPermissionCheck, defaultPolicyForMode, type PermissionCheck } from './permissions.js';
 import { runDiagnostics, type DiagnosticsResult } from './diagnostics.js';
@@ -34,12 +34,13 @@ import { globalBlobStore } from './blobStore.js';
 import { countTokens } from '../../token/tokenizer.js';
 import { generateImage } from './mediaTools.js';
 import { resolveInsideWorkspace } from './paths.js';
+import { findSymbolInContent } from './symbolReader.js';
 
 export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'read_file',
     description:
-      'Read a file from the workspace with optional 1-indexed line ranges. Paths may be relative to the workspace root; files must stay inside the workspace. Binary files are rejected. Lines longer than 2000 characters are truncated with "…". Batch independent reads in a single response — call this tool multiple times in parallel to avoid round-trips.',
+      'Read a file from the workspace with optional 1-indexed line ranges. Paths may be relative to the workspace root; files must stay inside the workspace. Files >300 lines are auto-tiered to a structural skeleton with symbol anchors to save tokens (pass raw: true or line ranges to read full code). Binary files are rejected. Lines longer than 2000 characters are truncated with "…". Batch independent reads in a single response.',
     parameters: {
       type: 'object',
       properties: {
@@ -47,8 +48,22 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
         startLine: { type: 'number', description: 'Optional 1-indexed start line (inclusive).' },
         endLine: { type: 'number', description: 'Optional 1-indexed end line (inclusive).' },
         skeleton: { type: 'boolean', description: 'When true, returns the AST skeleton/signatures omitting internal function bodies for token efficiency.' },
+        raw: { type: 'boolean', description: 'When true, forces full text reading even if the file exceeds 300 lines (disables auto-tiering).' },
       },
       required: ['path'],
+    },
+  },
+  {
+    name: 'read_symbol',
+    description:
+      'Extract the full implementation code of a specific function, class, interface, method, or type by name from a workspace file. Returns only the target symbol with line numbers, avoiding full-file token consumption.',
+    parameters: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
+        symbol: { type: 'string', description: 'Exact name of the symbol (function, class, interface, or type) to extract.' },
+      },
+      required: ['path', 'symbol'],
     },
   },
   {
@@ -147,11 +162,12 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'run_command',
     description:
-      'Execute a shell command in the workspace root and return its (compressed) output. Timeout is 60 seconds (configurable via MUGIL_IDE_COMMAND_TIMEOUT); output is capped at ~2 MB. Prefer non-interactive commands (e.g. "npm test -- --runInBand", "npm run typecheck", "git status"). Explain to the user what a state-changing command will do before running it. This tool may require user approval.',
+      'Execute a shell command in the workspace root and return its (compressed) output. Test/build commands support Delta Mode which diffs failures and collapses unchanged stack traces. Timeout is 60 seconds (configurable via MUGIL_IDE_COMMAND_TIMEOUT); output is capped at ~2 MB. Prefer non-interactive commands (e.g. "npm test -- --runInBand", "npm run typecheck", "git status"). Explain to the user what a state-changing command will do before running it. This tool may require user approval.',
     parameters: {
       type: 'object',
       properties: {
         command: { type: 'string', description: 'Shell command to execute (e.g. "npm test", "git status").' },
+        delta: { type: 'boolean', description: 'When true (default for tests/builds), enables Delta Mode to collapse unchanged failures and surface new/resolved errors.' },
       },
       required: ['command'],
     },
@@ -740,7 +756,13 @@ export function createWorkspaceTools(
 
   const registry: ToolRegistry = {
     read_file: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { path: string; startLine?: number; endLine?: number; skeleton?: boolean };
+      const args = parseToolArguments(call) as {
+        path: string;
+        startLine?: number;
+        endLine?: number;
+        skeleton?: boolean;
+        raw?: boolean;
+      };
       if (!args.path) return 'Error: path parameter is required.';
       const { target, error } = resolveInWorkspace(args.path);
       if (error) return error;
@@ -766,13 +788,27 @@ export function createWorkspaceTools(
         toolCache.set(cacheKey, { result: compressed, mtimeMs: stat.mtimeMs, rev: workspaceRev });
         return compressed;
       }
-      const cacheKey = `read_file:${target}:${args.startLine ?? 1}:${args.endLine ?? 'all'}`;
+      const cacheKey = `read_file:${target}:${args.startLine ?? 1}:${args.endLine ?? 'all'}:${args.raw ? 'raw' : 'norm'}`;
       const cached = toolCache.get(cacheKey);
       if (cached && cached.mtimeMs === stat.mtimeMs) {
         return cached.result;
       }
       const content = fs.readFileSync(target, 'utf-8');
       const lines = content.split(/\r?\n/);
+
+      // Auto-Tiering: files > 300 lines read without line ranges automatically return outline skeleton
+      if (!args.startLine && !args.endLine && !args.skeleton && !args.raw && lines.length > 300) {
+        const skeleton = extractCodeSkeleton(content, target);
+        const fullTokens = countTokens(content);
+        const skelTokens = countTokens(skeleton);
+        const savedTokens = Math.max(0, fullTokens - skelTokens);
+        const autoTierMsg =
+          `/* [Auto-Tiered: ${path.basename(args.path)} has ${lines.length} lines (>300). Showing structural skeleton with line anchors to save ~${savedTokens} tokens (${fullTokens} -> ${skelTokens} tok). Use read_symbol(path, symbol) or startLine/endLine for full implementation, or set raw: true to force full read.] */\n\n` +
+          skeleton;
+        toolCache.set(cacheKey, { result: autoTierMsg, mtimeMs: stat.mtimeMs, rev: workspaceRev });
+        return autoTierMsg;
+      }
+
       const start = Math.max(1, args.startLine ?? 1);
       const end = Math.min(lines.length, args.endLine ?? lines.length);
       const slice = lines.slice(start - 1, end).slice(0, MAX_READ_LINES);
@@ -787,6 +823,34 @@ export function createWorkspaceTools(
       }
       toolCache.set(cacheKey, { result: out, mtimeMs: stat.mtimeMs, rev: workspaceRev });
       return out;
+    },
+
+    read_symbol: async (call: ToolCall): Promise<string> => {
+      const args = parseToolArguments(call) as { path: string; symbol: string };
+      if (!args.path) return 'Error: path parameter is required.';
+      if (!args.symbol) return 'Error: symbol parameter is required.';
+      const { target, error } = resolveInWorkspace(args.path);
+      if (error) return error;
+      if (!fs.existsSync(target)) return `Error: file not found: ${args.path}`;
+      const stat = fs.statSync(target);
+      if (stat.isDirectory()) return `Error: ${args.path} is a directory.`;
+      if (isBinaryFile(target)) return `Error: ${args.path} is a binary file.`;
+
+      const cacheKey = `read_symbol:${target}:${args.symbol}`;
+      const cached = toolCache.get(cacheKey);
+      if (cached && cached.mtimeMs === stat.mtimeMs) {
+        return cached.result;
+      }
+
+      const content = fs.readFileSync(target, 'utf-8');
+      const found = findSymbolInContent(content, args.symbol, target);
+      if (!found) {
+        return `Symbol "${args.symbol}" not found in ${args.path}. Use read_file with skeleton: true or search_code to locate its declaration.`;
+      }
+
+      const result = `// [read_symbol: ${found.name} in ${args.path} (lines ${found.startLine}-${found.endLine})]\n${found.snippet}`;
+      toolCache.set(cacheKey, { result, mtimeMs: stat.mtimeMs, rev: workspaceRev });
+      return result;
     },
 
     read_skeleton: async (call: ToolCall): Promise<string> => {
@@ -1131,7 +1195,7 @@ export function createWorkspaceTools(
     },
 
     run_command: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { command: string; timeout?: number };
+      const args = parseToolArguments(call) as { command: string; timeout?: number; delta?: boolean };
       if (!args.command) return 'Error: command parameter is required.';
       const envTimeout = process.env.MUGIL_IDE_COMMAND_TIMEOUT ? Number(process.env.MUGIL_IDE_COMMAND_TIMEOUT) : NaN;
       const timeoutMs = typeof args.timeout === 'number' && args.timeout > 0
@@ -1195,7 +1259,11 @@ export function createWorkspaceTools(
           const stderr = Buffer.concat(stderrChunks).toString('utf-8');
           const failed = timedOut || killedForBuffer || code !== 0 || signal !== null;
           if (!failed) {
-            resolve(compressCommandOutput(stdout || stderr || '', { command: args.command }).text);
+            let out = compressCommandOutput(stdout || stderr || '', { command: args.command }).text;
+            if (args.delta !== false) {
+              out = applyDeltaMode(args.command, out).text;
+            }
+            resolve(out);
             return;
           }
           const combined = [
@@ -1207,7 +1275,11 @@ export function createWorkspaceTools(
           ]
             .filter(Boolean)
             .join('\n');
-          resolve(compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text);
+          let out = compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text;
+          if (args.delta !== false) {
+            out = applyDeltaMode(args.command, out).text;
+          }
+          resolve(out);
         };
         child.on('error', (err) => {
           if (settled) return;

@@ -27,8 +27,10 @@ import defaultRules from '../../rules/rtk.json';
 import { currentRevision, loadRulesSync } from '../overrides.js';
 import { isCodePlaceholder, maskCodeBlocks, restoreCodeBlocks } from '../codeMask.js';
 import { compressJson } from './jsonCrusher.js';
+import { DeltaCache, globalDeltaCache, applyDeltaMode, type DeltaStats, type FailureItem } from './deltaCache.js';
 
-export { compressJson };
+export { compressJson, DeltaCache, globalDeltaCache, applyDeltaMode };
+export type { DeltaStats, FailureItem };
 
 interface RtkRules {
   version: string;

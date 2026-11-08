@@ -359,6 +359,78 @@ export class AccountService {
     if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
   });
 
+  it('auto-tiers files > 300 lines to skeleton unless raw: true or line ranges are provided', async () => {
+    const largeFile = path.join(root, 'large-module.ts');
+    const content = Array.from({ length: 350 }, (_, i) => `// Line ${i + 1}\nexport function fn${i + 1}() { return ${i + 1}; }`).join('\n');
+    fs.writeFileSync(largeFile, content, 'utf-8');
+
+    try {
+      // 1. Unbounded read on >300 line file -> auto-tiers
+      const autoTiered = await toolRegistry.read_file({
+        id: 'r-auto',
+        name: 'read_file',
+        arguments: JSON.stringify({ path: 'large-module.ts' }),
+      });
+      expect(autoTiered).toContain('Auto-Tiered: large-module.ts has 700 lines');
+      expect(autoTiered).toContain('Showing structural skeleton');
+
+      // 2. Explicit raw: true -> returns full file
+      const rawRead = await toolRegistry.read_file({
+        id: 'r-raw',
+        name: 'read_file',
+        arguments: JSON.stringify({ path: 'large-module.ts', raw: true }),
+      });
+      expect(rawRead).not.toContain('Auto-Tiered');
+      expect(rawRead).toContain('1: // Line 1');
+
+      // 3. Line range -> returns specific range
+      const rangeRead = await toolRegistry.read_file({
+        id: 'r-range',
+        name: 'read_file',
+        arguments: JSON.stringify({ path: 'large-module.ts', startLine: 1, endLine: 5 }),
+      });
+      expect(rangeRead).not.toContain('Auto-Tiered');
+      expect(rangeRead).toContain('1: // Line 1');
+      expect(rangeRead).not.toContain('6: // Line 6');
+    } finally {
+      if (fs.existsSync(largeFile)) fs.unlinkSync(largeFile);
+    }
+  });
+
+  it('read_symbol surgically locates and extracts a single symbol', async () => {
+    const testFile = path.join(root, 'symbols-test.ts');
+    const code = `
+export interface Config {
+  host: string;
+  port: number;
+}
+
+export function startService(cfg: Config): boolean {
+  console.log('starting on ' + cfg.port);
+  return true;
+}
+
+export function stopService(): void {
+  console.log('stopping');
+}
+`;
+    fs.writeFileSync(testFile, code, 'utf-8');
+
+    try {
+      const res = await toolRegistry.read_symbol({
+        id: 's1',
+        name: 'read_symbol',
+        arguments: JSON.stringify({ path: 'symbols-test.ts', symbol: 'startService' }),
+      });
+      expect(res).toContain('[read_symbol: startService in symbols-test.ts');
+      expect(res).toContain('export function startService');
+      expect(res).toContain('return true;');
+      expect(res).not.toContain('stopService');
+    } finally {
+      if (fs.existsSync(testFile)) fs.unlinkSync(testFile);
+    }
+  });
+
   it('blocks writing a new file through a symlinked/junction folder outside workspace', async () => {
     const tmpBase = fs.mkdtempSync(path.join(root, '.symlink-test-'));
     const wsDir = path.join(tmpBase, 'ws');

@@ -24,6 +24,10 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { ToolCall, ToolDefinition } from '../../types.js';
 import type { ToolRegistry } from '../tool-loop/index.js';
+import { createLazyMcpGateway, LAZY_MCP_TOOL_DEFINITIONS, type LazyMcpOptions } from './lazyGateway.js';
+
+export { createLazyMcpGateway, LAZY_MCP_TOOL_DEFINITIONS };
+export type { LazyMcpOptions };
 
 export interface McpServerConfig {
   /** Unique name used in tool prefixes (`mcp__<name>__<tool>`). */
