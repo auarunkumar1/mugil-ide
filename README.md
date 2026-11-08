@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 539 Passing](https://img.shields.io/badge/tests-539%20passing-3fb950.svg?style=flat-square)](https://github.com)
+[![Tests: 545 Passing](https://img.shields.io/badge/tests-545%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
 
 </div>
@@ -230,7 +230,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **18 Autonomous Workspace Tools:** Full suite for reading, searching, editing, patching, running commands, media generation, and web exploration.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
-- [x] **Comprehensive Test Suite:** 539 unit and integration tests passing across all packages.
+- [x] **Comprehensive Test Suite:** 545 unit and integration tests passing across all packages (36 test suites: 476 core, 51 cli, 10 docs, 8 mcp).
 
 ### 🎯 Planned for Next Release Push (v0.2.0 Roadmap)
 
@@ -279,16 +279,22 @@ npm start
 
 ---
 
-### Monorepo Packages
+### Monorepo Architecture & Packages
 
-Mugil IDE is organized as an open-source monorepo published to npm:
+Mugil IDE is organized as a modular TypeScript monorepo across four packages:
 
-| Package | Purpose | Installation |
-| :--- | :--- | :--- |
-| **`mugil-ide`** | The complete web IDE, local HTTP/WebSocket server, and CLI tools | `npm i -g mugil-ide` |
-| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `npm i @mugil-ide/core` |
-| **`@mugil-ide/mcp`** | Model Context Protocol stdio server exposing the engine as tools | `npm i -g @mugil-ide/mcp` |
-| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code | `npm i @mugil-ide/docs` |
+| Package | Purpose | Workspace Directory | Release Tarball |
+| :--- | :--- | :--- | :--- |
+| **`mugil-ide`** | The complete web IDE, local HTTP/WebSocket server, and CLI tools | `packages/cli` | `mugil-ide-0.1.26.tgz` |
+| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core` | `mugil-ide-core-0.1.26.tgz` |
+| **`@mugil-ide/mcp`** | Model Context Protocol stdio server exposing the engine as tools | `packages/mcp` | `mugil-ide-mcp-0.1.26.tgz` |
+| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code | `packages/docs` | `mugil-ide-docs-0.1.26.tgz` |
+
+> [!NOTE]
+> **Installing Tarballs via npm:** While distribution via the public `npmjs.com` registry is sunset in favor of standalone releases, release tarballs (`.tgz`) are built via `npm run pack` and attached to each **[GitHub Release](https://github.com/auarunkumar1/mugil-ide/releases)**. To install globally using Node.js without compiling:
+> ```bash
+> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.1.26/mugil-ide-0.1.26.tgz
+> ```
 
 ---
 
@@ -355,14 +361,14 @@ We warmly welcome community contributions, issues, and pull requests! Before pre
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/IDE.git
-cd IDE
+git clone https://github.com/auarunkumar1/mugil-ide.git
+cd mugil-ide
 
 # Install dependencies and build all packages
 npm install
 npm run build
 
-# Run the full test suite (506 tests)
+# Run the full test suite (545 tests across 36 suites)
 npm test
 
 # Launch local development server
