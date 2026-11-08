@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 624 Passing](https://img.shields.io/badge/tests-624%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
+[![Tests: 651 Passing](https://img.shields.io/badge/tests-651%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![MCP: Supported](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![TypeScript: 5.x](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
@@ -310,8 +310,9 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Multi-Tier Skills Registry & REST API:** Skills are discovered from `.mugil/skills`, `.agents/skills`, `.claude/skills`, the global `~/.config/mugil-ide/skills`, and built-in skills shipped with `@mugil-ide/core`. Frontmatter carries `version`, `author`, `tags`, `triggers` and `tools`; bundled `scripts/` and `references/` are listed in the inspector. Served by `GET /api/skills`, `GET /api/skills/:name`, `POST /api/skills/toggle` (persisted in `.mugil/config.json`) and `POST /api/skills/create`, with `/skills`, `/skill` and `/skill-create` in the CLI and a live registry drawer (toggle, inspect, create) in the Web UI. Prompt-matching `triggers` inject a skill's instructions up front instead of costing a tool call.
 - [x] **Ephemeral Secret Vault & Zero-Leak Guard:** Credentials pasted into chat or emitted by a tool (`cat .env`, an auth header in a stack trace) are replaced with `[MUGIL_SECRET_<TYPE>_<N>]` tokens before reaching any message. Real values live only in process memory; `run_command` resolves them locally and tool output is re-tokenized. Enforced at three choke points (ingestion, tool loop, `HandoffManager` pre-flight) with a client-side confirmation in the Web UI. Detects 20+ formats: OpenAI/Anthropic/OpenRouter/Google/AWS/GitHub/Slack/Stripe/Hugging Face keys, bearer & basic auth, database connection-string passwords, PEM private keys, and CLI password flags.
 - [x] **Curated Open-Source Skills Gallery & Universal Installer:** Bundled catalog of 15 battle-tested open-source skills with full attribution, license badges, and 1-click picking to workspace (`.mugil/skills`) or global (`~/.config/mugil-ide/skills`). Supports custom installation from GitHub repositories (`/tree/` subfolders or raw URLs) and local paths with path traversal sandboxing. Accessible via Web UI "Skills Gallery" tab and CLI `/gallery`, `/skill-install`, `/skill-uninstall`.
-- [x] **Dedicated Open-Source Credits & Attributions Page:** Dedicated `📜 Open Source Credits & Attributions` UI modal in the main menu and CLI `/credits` command honoring original authors, canonical repositories, and licenses for agent skills, core modules (Caveman, RTK, Ponytail, OpenCode, CodeGraph, etc.), and libraries.
-- [x] **Comprehensive Test Suite:** 637 unit and integration tests passing across all packages (45 suites: 561 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
+- [x] **Dedicated Open-Source Credits & Attributions Page:** Dedicated `📜 Open Source Credits & Attributions` UI modal in the main menu and CLI `/credits` command honoring original authors, canonical repositories, and licenses for agent skills, core modules (Caveman, RTK, Ponytail, OpenCode, CodeGraph, etc.), and libraries. Shipped with complete 21-entry `ATTRIBUTIONS.md`.
+- [x] **Skills Security Hardening & Containment (v0.3.2):** Symlink escape prevention (`containedSkillFile`), non-builtin provenance tagging (`[workspace skill]` / `[global skill]`) with untrusted content warnings, prompt trigger character budget limit (12,000 chars across all matched skills), SSRF-guarded gallery/URL downloads (`guardedFetch` with private IP/metadata block and redirect re-checks), non-markdown body rejection, filtered local directory copying (`copySkillDir`), config-clobber guard, and re-install overwrite confirmation prompts.
+- [x] **Comprehensive Test Suite:** 651 unit and integration tests passing across all packages (47 suites: 575 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
 
 ### 🎯 Planned for Next Release Push (v0.4.0 Roadmap)
 
@@ -368,16 +369,16 @@ Mugil IDE is organized as a modular TypeScript monorepo across four packages:
 
 | Package               | Purpose                                                                      | Workspace Directory | Release Tarball             |
 | :-------------------- | :--------------------------------------------------------------------------- | :------------------ | :-------------------------- |
-| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.1.26.tgz`      |
-| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.1.26.tgz` |
-| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.1.26.tgz`  |
-| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.1.26.tgz` |
+| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.3.2.tgz`      |
+| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.3.2.tgz` |
+| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.3.2.tgz`  |
+| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.3.2.tgz` |
 
 > [!NOTE]
 > **Installing Tarballs via npm:** While distribution via the public `npmjs.com` registry is sunset in favor of standalone releases, release tarballs (`.tgz`) are built via `npm run pack` and attached to each **[GitHub Release](https://github.com/auarunkumar1/mugil-ide/releases)**. To install globally using Node.js without compiling:
 >
 > ```bash
-> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.1.26/mugil-ide-0.1.26.tgz
+> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.3.2/mugil-ide-0.3.2.tgz
 > ```
 
 ---
