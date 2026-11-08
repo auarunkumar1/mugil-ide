@@ -4,6 +4,8 @@ import { modelSupportsThinking } from '../../config.js';
 import type { ProviderClient, ProviderCompleteOptions } from './provider.js';
 import { estimateMessagesTokens, isAbortError } from './provider.js';
 import type { StreamHandlers } from './stream.js';
+import { globalSecretVault } from '../security/secretVault.js';
+import { scanSecrets } from '../security/secretScanner.js';
 
 export interface HandoffManagerOptions {
   client: ProviderClient;
@@ -13,6 +15,35 @@ export interface HandoffManagerOptions {
 export interface HandoffResult extends CompletionResult {
   /** Models tried, in order, before success. */
   attempts: string[];
+}
+
+/**
+ * Last-chance redaction applied to every message leaving the process.
+ *
+ * Ingestion and tool output are already sanitized, so this is normally a
+ * no-op pass (one substring check keeps the hot path cheap). It exists so a
+ * secret that arrives by any other route — a prompt the caller assembled
+ * itself, a session file written by an older version — cannot reach a remote
+ * model in cleartext.
+ */
+function redactForRemote(messages: ChatMessage[]): ChatMessage[] {
+  const dirty = messages.some(
+    (message) =>
+      message.content.includes('[MUGIL_SECRET_') ||
+      scanSecrets(message.content).length > 0 ||
+      Boolean(message.toolCalls?.some((call) => scanSecrets(call.arguments).length > 0)),
+  );
+  if (!dirty) return messages;
+  return messages.map((message) => {
+    const next: ChatMessage = { ...message, content: globalSecretVault.tokenize(message.content).text };
+    if (message.toolCalls) {
+      next.toolCalls = message.toolCalls.map((call) => ({
+        ...call,
+        arguments: globalSecretVault.tokenize(call.arguments).text,
+      }));
+    }
+    return next;
+  });
 }
 
 /**
@@ -179,8 +210,9 @@ export class HandoffManager {
     options: HandoffOptions = {},
   ): Promise<HandoffResult> {
     const attempts: string[] = [];
-    const result = await this.walk(this.buildChain(messages, options), attempts, (modelId) =>
-      this.client.complete(messages, this.attemptOptions(options, modelId)),
+    const safeMessages = redactForRemote(messages);
+    const result = await this.walk(this.buildChain(safeMessages, options), attempts, (modelId) =>
+      this.client.complete(safeMessages, this.attemptOptions(options, modelId)),
     );
     return { ...result, attempts };
   }
@@ -216,10 +248,11 @@ export class HandoffManager {
     }
     const attempts: string[] = [];
     const client = this.client;
-    const result = await this.walk(this.buildChain(messages, options), attempts, async (modelId) => {
+    const safeMessages = redactForRemote(messages);
+    const result = await this.walk(this.buildChain(safeMessages, options), attempts, async (modelId) => {
       const attempt = this.attemptOptions(options, modelId);
-      if (client.stream) return client.stream(messages, attempt, handlers);
-      const buffered = await client.complete(messages, attempt);
+      if (client.stream) return client.stream(safeMessages, attempt, handlers);
+      const buffered = await client.complete(safeMessages, attempt);
       if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
       if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking, false);
       return buffered;

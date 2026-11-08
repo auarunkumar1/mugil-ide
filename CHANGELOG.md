@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-08
+
+### Added
+- **Multi-tier skills discovery**: skills now resolve across four tiers — workspace (`.mugil/skills`, `.agents/skills`, `.claude/skills`), global (`~/.config/mugil-ide/skills`, override with `MUGIL_IDE_SKILLS_DIR`), and built-in skills shipped with `@mugil-ide/core` (`security-auditor`, `test-driven-development`). A higher tier shadows a lower one by name.
+- **Extended skill frontmatter**: `version`, `author`, `tags`, `triggers`, `tools` alongside `name`/`description`, plus `hasScripts`/`hasReferences` detection for bundled `scripts/` and `references/`.
+- **Skills REST suite**: `GET /api/skills`, `GET /api/skills/:name` (document body + asset listing), `POST /api/skills/toggle` (persisted in `.mugil/config.json`), `POST /api/skills/create` (scaffolds `.mugil/skills/<name>` or the global tier).
+- **CLI skill commands**: `/skills` (table with source, state and assets), `/skill <name> [on|off]`, `/skill-create <name> [description]`.
+- **Trigger-based auto-activation**: a prompt matching a skill's `triggers` gets that skill's instructions injected into the turn's context block, so the obvious case costs no `skill` tool call.
+- **Live skills registry drawer**: the Web UI modal now loads `/api/skills`, renders source badges (Workspace / Global / Built-in), toggles skills, opens an instruction viewer with the asset list, and creates new skills from a form.
+- **Ephemeral secret vault** (`SecretVault`): detected credentials are replaced with `[MUGIL_SECRET_<TYPE>_<N>]` tokens while the real value stays in process memory only — never written to history, the session file or the response cache.
+- **Secret scanner** (`scanSecrets` / `hasSecrets` / `shannonEntropy`): 20+ signatures covering OpenAI (incl. `sk-proj-`), Anthropic, OpenRouter, Google, AWS, GitHub, Slack, Stripe, Hugging Face, bearer/basic auth headers, database connection-string passwords, PEM private keys, and CLI password/`--api-key` flags. Placeholder values in docs and fixtures are rejected, and a cheap hint pre-filter keeps the scan off the per-token hot path.
+- **Three secret choke points**: user input is tokenized at ingestion (CLI REPL, and in the Web UI after a confirmation), tool output is tokenized in `ToolLoop.execute` before it is fed back, and `HandoffManager.complete()` / `stream()` re-scan every message and tool-call argument before any remote provider call.
+- **Local-only secret resolution**: `run_command` substitutes real values into the command line in-process; the output is re-tokenized before the model sees it.
+- **Web UI secret pre-flight linter**: the chat input warns about detected credentials before sending, naming each type found.
+### Changed
+- `skillsContextBlock` only advertises enabled skills, and the `skill` tool refuses to load a disabled one.
+- `@mugil-ide/core` now publishes its bundled `skills/` directory.
+
 ## [0.2.0] - 2026-11-08
 
 ### Added
@@ -460,3 +478,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.1.24]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.24
 
 [0.1.26]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.26
+
+[0.3.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.0

@@ -21,3 +21,9 @@ process.env.MUGIL_IDE_ENV_FILE = require('node:path').join(
   require('node:os').tmpdir(),
   'mugil-ide-test-env-does-not-exist',
 );
+// Same reasoning for the global skills tier: skill-listing assertions must not
+// depend on the developer's ~/.config/mugil-ide/skills.
+process.env.MUGIL_IDE_SKILLS_DIR = require('node:path').join(
+  require('node:os').tmpdir(),
+  'mugil-ide-test-skills-do-not-exist',
+);

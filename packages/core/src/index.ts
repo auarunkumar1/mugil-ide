@@ -184,8 +184,26 @@ export {
   skillsContextBlock,
   parseSkillFrontmatter,
   SKILL_DIRS,
+  globalSkillsDir,
+  builtinSkillsDir,
+  listSkillAssets,
+  setSkillEnabled,
+  createSkill,
+  matchSkillTriggers,
+  triggeredSkillsBlock,
 } from './modules/skills/index.js';
-export type { SkillInfo } from './modules/skills/index.js';
+export type { SkillInfo, SkillMetadata, SkillSource, SkillFrontmatter } from './modules/skills/index.js';
+// Secret protection (local vault + scanner)
+export { scanSecrets, hasSecrets, shannonEntropy } from './modules/security/secretScanner.js';
+export type { SecretMatch } from './modules/security/secretScanner.js';
+export {
+  SecretVault,
+  globalSecretVault,
+  secretToken,
+  tokenizeSecrets,
+  resolveSecrets,
+} from './modules/security/secretVault.js';
+export type { TokenizeResult } from './modules/security/secretVault.js';
 
 // Token-aware conversation history trimming
 export {

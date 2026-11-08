@@ -27,6 +27,7 @@ import type { HandoffManager, HandoffResult } from '../handoff/index.js';
 import { streamCompletion, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
 import { globalBlobStore } from '../tools/blobStore.js';
+import { globalSecretVault } from '../security/secretVault.js';
 import { countTokens } from '../../token/tokenizer.js';
 import { StepDebugger, globalStepDebugger, type StepAction, type StepDecision, type ToolBreakpoint } from './stepDebugger.js';
 
@@ -406,10 +407,14 @@ export class ToolLoop {
         savedTokens += truncSaved;
         mcpSaved += truncSaved;
       }
+      // Tool output is the most likely way a secret reaches the model (a `cat
+      // .env`, an auth header in a stack trace). Tokenize it here so the value
+      // stays in the local vault and only the placeholder crosses the wire.
+      content = globalSecretVault.tokenize(content).text;
       return { content, ok: true, savedTokens, keptTokens: countTokens(content), yagniSaved, mcpSaved };
     } catch (err) {
       return {
-        content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+        content: globalSecretVault.tokenize(`Error: ${err instanceof Error ? err.message : String(err)}`).text,
         ok: false,
         ...none,
       };

@@ -1233,6 +1233,92 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
+    if (url.pathname === '/api/skills' && req.method === 'GET') {
+      try {
+        const { discoverSkills } = await import('@mugil-ide/core');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ skills: discoverSkills(process.cwd()) }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/skills/') && req.method === 'GET') {
+      try {
+        const name = decodeURIComponent(url.pathname.slice('/api/skills/'.length));
+        const { discoverSkills, loadSkill, listSkillAssets } = await import('@mugil-ide/core');
+        const skill = discoverSkills(process.cwd()).find((s) => s.name === name);
+        if (!skill) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `unknown skill "${name}"` }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            skill,
+            content: loadSkill(process.cwd(), name) ?? '',
+            assets: listSkillAssets(process.cwd(), name),
+          }),
+        );
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/skills/toggle' && req.method === 'POST') {
+      try {
+        const json = await readJsonBody(req);
+        const name = typeof json.name === 'string' ? json.name : '';
+        if (!name) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'name is required' }));
+          return;
+        }
+        const { setSkillEnabled, discoverSkills } = await import('@mugil-ide/core');
+        // No explicit `enabled` means "flip the current state".
+        const current = discoverSkills(process.cwd()).find((s) => s.name === name);
+        if (!current) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `unknown skill "${name}"` }));
+          return;
+        }
+        const enabled = typeof json.enabled === 'boolean' ? json.enabled : !current.enabled;
+        setSkillEnabled(process.cwd(), name, enabled);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, name, enabled }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/skills/create' && req.method === 'POST') {
+      try {
+        const json = await readJsonBody(req);
+        const { createSkill } = await import('@mugil-ide/core');
+        const name = typeof json.name === 'string' ? json.name.trim() : '';
+        const file = createSkill(process.cwd(), name, typeof json.description === 'string' ? json.description : undefined, {
+          source: json.source === 'global' ? 'global' : 'workspace',
+          ...(typeof json.version === 'string' ? { version: json.version } : {}),
+          ...(typeof json.author === 'string' ? { author: json.author } : {}),
+          ...(Array.isArray(json.tags) ? { tags: json.tags.map(String) } : {}),
+          ...(Array.isArray(json.triggers) ? { triggers: json.triggers.map(String) } : {}),
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, file }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
     if (url.pathname === '/api/update-check' && req.method === 'GET') {
       try {
         const npm = await getPackageUpdate();

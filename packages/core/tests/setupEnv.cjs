@@ -21,3 +21,16 @@ process.env.MUGIL_IDE_ENV_FILE = require('node:path').join(
   require('node:os').tmpdir(),
   'mugil-ide-test-env-does-not-exist',
 );
+// Same for the global skills tier: a developer's ~/.config/mugil-ide/skills
+// must never show up in skill-discovery assertions.
+process.env.MUGIL_IDE_SKILLS_DIR = require('node:path').join(
+  require('node:os').tmpdir(),
+  'mugil-ide-test-skills-do-not-exist',
+);
+// And for the built-in tier, so no test accidentally depends on the bundled
+// skills. The built-in discovery test opts back in by pointing this at the
+// real directory.
+process.env.MUGIL_IDE_BUILTIN_SKILLS_DIR = require('node:path').join(
+  require('node:os').tmpdir(),
+  'mugil-ide-test-builtin-skills-do-not-exist',
+);

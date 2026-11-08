@@ -2160,4 +2160,91 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       await server.close();
     }
   }, 30000);
+
+  it('serves the skills registry REST suite and persists enable/disable state', async () => {
+    const origCwd = process.cwd();
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-skills-api-'));
+    process.chdir(tmpDir);
+    const engine = createEngine(loadConfig());
+    let server: Awaited<ReturnType<typeof startIdeServer>> | undefined;
+    try {
+      server = await startIdeServer({ engine, port: 0 });
+
+      // Empty registry: still a 200 with an array.
+      const emptyRes = await fetch(`${server.url}/api/skills`);
+      expect(emptyRes.status).toBe(200);
+      const emptyJson = (await emptyRes.json()) as { skills: unknown[] };
+      expect(Array.isArray(emptyJson.skills)).toBe(true);
+      const before = emptyJson.skills.length;
+
+      // Create a workspace skill.
+      const createRes = await fetch(`${server.url}/api/skills/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'api-test-skill',
+          description: 'Created through the REST API',
+          triggers: ['api test trigger'],
+        }),
+      });
+      expect(createRes.status).toBe(200);
+      const createJson = (await createRes.json()) as { ok: boolean; file: string };
+      expect(createJson.ok).toBe(true);
+      expect(fs.existsSync(createJson.file)).toBe(true);
+      expect(createJson.file).toContain(path.join('.mugil', 'skills', 'api-test-skill'));
+
+      // It shows up in the listing with its metadata.
+      const listRes = await fetch(`${server.url}/api/skills`);
+      const listJson = (await listRes.json()) as { skills: any[] };
+      expect(listJson.skills.length).toBe(before + 1);
+      const skill = listJson.skills.find((s) => s.name === 'api-test-skill');
+      expect(skill).toMatchObject({
+        source: 'workspace',
+        enabled: true,
+        description: 'Created through the REST API',
+        triggers: ['api test trigger'],
+      });
+
+      // Inspect returns the document body.
+      const detailRes = await fetch(`${server.url}/api/skills/api-test-skill`);
+      expect(detailRes.status).toBe(200);
+      const detailJson = (await detailRes.json()) as { content: string; assets: { scripts: string[] } };
+      expect(detailJson.content).toContain('api-test-skill');
+      expect(detailJson.assets.scripts).toEqual([]);
+      expect((await fetch(`${server.url}/api/skills/nope`)).status).toBe(404);
+
+      // Toggle off → persisted in .mugil/config.json → toggle flips back.
+      const offRes = await fetch(`${server.url}/api/skills/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'api-test-skill' }),
+      });
+      expect(offRes.status).toBe(200);
+      expect(((await offRes.json()) as { enabled: boolean }).enabled).toBe(false);
+      const config = JSON.parse(
+        fs.readFileSync(path.join(tmpDir, '.mugil', 'config.json'), 'utf-8'),
+      ) as { skills: { disabled: string[] } };
+      expect(config.skills.disabled).toContain('api-test-skill');
+
+      const onRes = await fetch(`${server.url}/api/skills/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'api-test-skill', enabled: true }),
+      });
+      expect(((await onRes.json()) as { enabled: boolean }).enabled).toBe(true);
+
+      // Invalid names are rejected, not silently written.
+      const badCreate = await fetch(`${server.url}/api/skills/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: '../escape' }),
+      });
+      expect(badCreate.status).toBe(400);
+      expect(fs.existsSync(path.join(tmpDir, 'escape'))).toBe(false);
+    } finally {
+      process.chdir(origCwd);
+      if (server) await server.close();
+      if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

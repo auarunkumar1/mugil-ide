@@ -1359,23 +1359,25 @@ export function getWebUiHtml(): string {
           Visual registry for agent skills, Model Context Protocol (MCP) servers, and custom tool extensions.
         </div>
         <div class="modal-tabs">
-          <button class="modal-tab-btn active" id="exttab-skills" onclick="switchExtTab('skills')">Agent Skills (2)</button>
+          <button class="modal-tab-btn active" id="exttab-skills" onclick="switchExtTab('skills')">Agent Skills</button>
           <button class="modal-tab-btn" id="exttab-mcp" onclick="switchExtTab('mcp')">Connected MCP Servers (0)</button>
         </div>
         <div id="ext-skills-pane" style="display:flex; flex-direction:column; gap:10px;">
-          <div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong>🧠 Subagent-Driven Development</strong>
-              <span style="font-size:10px; background:#23863633; color:var(--green); padding:2px 8px; border-radius:10px; font-weight:bold;">Active</span>
-            </div>
-            <p style="font-size:11.5px; color:var(--text-dim); margin:6px 0 0 0;">Autonomous subagent plan execution with clean verification and worktree isolation.</p>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; color:var(--text-dim);">
+              Skills are discovered from <code>.mugil/skills</code>, <code>.agents/skills</code>, <code>.claude/skills</code>, your global <code>~/.config/mugil-ide/skills</code>, and built-ins.
+            </span>
+            <button class="btn btn-primary" onclick="openSkillCreate()" style="font-size:11px; padding:4px 10px; white-space:nowrap;">✨ New Skill</button>
           </div>
-          <div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong>⚡ Token Optimization & RTK Refinement</strong>
-              <span style="font-size:10px; background:#23863633; color:var(--green); padding:2px 8px; border-radius:10px; font-weight:bold;">Active</span>
+          <div id="skill-list" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="color:var(--text-dim); font-size:11.5px; padding:12px;">Loading skills…</div>
+          </div>
+          <div id="skill-viewer" style="display:none; border:1px solid var(--border); border-radius:6px; background:#0d1117;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border);">
+              <strong id="skill-viewer-title" style="font-size:12px;">Skill</strong>
+              <button class="btn" onclick="closeSkillViewer()" style="padding:2px 8px;">✕</button>
             </div>
-            <p style="font-size:11.5px; color:var(--text-dim); margin:6px 0 0 0;">Delta Mode error diffing, AST skeleton reading, and Lazy MCP schema pruning.</p>
+            <pre id="skill-viewer-body" style="margin:0; padding:12px; font-size:11px; line-height:1.5; max-height:340px; overflow:auto; white-space:pre-wrap;"></pre>
           </div>
         </div>
         <div id="ext-mcp-pane" style="display:none; flex-direction:column; gap:10px;">
@@ -1388,6 +1390,42 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- Skill Creator Modal -->
+  <div class="modal-overlay" id="skill-create-modal">
+    <div class="modal-dialog" style="max-width:520px;">
+      <div class="modal-title-bar">
+        <span>✨ New Agent Skill</span>
+        <button class="btn" onclick="closeSkillCreate()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+        <div>
+          <label for="skill-create-name" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Skill Name</label>
+          <input type="text" id="skill-create-name" placeholder="e.g. security-auditor" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px;" />
+          <div style="font-size:10.5px; color:var(--text-dim); margin-top:4px;">Lowercase letters, digits, <code>.</code>, <code>_</code>, <code>-</code></div>
+        </div>
+        <div>
+          <label for="skill-create-desc" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Description</label>
+          <input type="text" id="skill-create-desc" placeholder="One line the model sees in its system prompt" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px;" />
+        </div>
+        <div>
+          <label for="skill-create-triggers" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Auto-trigger phrases</label>
+          <input type="text" id="skill-create-triggers" placeholder="security audit, pentest (comma separated)" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px;" />
+        </div>
+        <div>
+          <label for="skill-create-source" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Where to create it</label>
+          <select id="skill-create-source" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px;">
+            <option value="workspace">This workspace (.mugil/skills)</option>
+            <option value="global">Global — all projects (~/.config/mugil-ide/skills)</option>
+          </select>
+        </div>
+        <div id="skill-create-error" style="display:none; color:var(--red); font-size:11.5px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button class="btn" onclick="closeSkillCreate()">Cancel</button>
+          <button class="btn btn-primary" onclick="submitSkillCreate()">Create Skill</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- Workspace Project Selector Modal -->
   <div class="modal-overlay" id="workspace-modal">
     <div class="modal-dialog" style="max-width:560px;">
@@ -2057,6 +2095,34 @@ export function getWebUiHtml(): string {
       if (stopped) stopped.style.display = 'flex';
       if (ws) ws.close();
     }
+    // Client-side pre-flight linter: catch obvious credentials before they even
+    // leave the browser, and tell the user they will be masked. The server is
+    // still the enforcement point (loopback traffic is plaintext WebSocket), so
+    // this is a warning, not the guarantee.
+    // NOTE: this block lives inside a TS template literal, so every regex
+    // backslash must be doubled or the browser receives a broken pattern.
+    const CLIENT_SECRET_PATTERNS = [
+      ['OpenAI key', /\\bsk-proj-[A-Za-z0-9_-]{15,}|\\bsk-[A-Za-z0-9]{30,}/],
+      ['Anthropic key', /\\bsk-ant-[A-Za-z0-9_-]{15,}/],
+      ['OpenRouter key', /\\bsk-or-v1-[A-Za-z0-9_-]{15,}/],
+      ['Google key', /\\bAIza[0-9A-Za-z_-]{30,}/],
+      ['AWS access key', /\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b/],
+      ['GitHub token', /\\bgh[pousr]_[A-Za-z0-9]{20,}/],
+      ['Slack token', /\\bxox[baprs]-[A-Za-z0-9-]{20,}/],
+      ['Stripe key', /\\bsk_live_[A-Za-z0-9]{20,}/],
+      ['Hugging Face token', /\\bhf_[A-Za-z0-9]{20,}/],
+      ['Bearer token', /\\bBearer\\s+[A-Za-z0-9\\-._~+/]{16,}/],
+      ['Connection password', /\\b(?:postgres(?:ql)?|mysql|mongodb(?:\\+srv)?|redis|rediss|amqp|amqps):\\/\\/[^:\\s/@]+:[^@\\s/]+@/],
+      ['Private key', /-----BEGIN (?:RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/],
+      ['Password flag', /(?:--password|--passwd|--api[-_]?key|--token|--secret)[=\\s]+[^\\s]{6,}/i],
+    ];
+    function lintSecrets(text) {
+      const hits = [];
+      for (const [label, re] of CLIENT_SECRET_PATTERNS) {
+        if (re.test(text)) hits.push(label);
+      }
+      return hits;
+    }
     function submitQuickInput() {
       const input = document.getElementById('chat-input');
       const val = input.value.trim();
@@ -2067,6 +2133,18 @@ export function getWebUiHtml(): string {
         return;
       }
       const isSlash = val.startsWith('/');
+      if (!isSlash) {
+        const hits = lintSecrets(val);
+        if (hits.length > 0) {
+          const ok = confirm(
+            '🔒 Secret detected in your message: ' + hits.join(', ') + '\\n\\n' +
+            'It will be replaced by a [MUGIL_SECRET_...] token before the model or any provider sees it. ' +
+            'The real value stays in this process memory and is only used by local tools (run_command).\\n\\n' +
+            'Send anyway?'
+          );
+          if (!ok) return;
+        }
+      }
       sendAgentCmd(val);
       input.value = '';
       if (!isSlash) setAgentBusy(true);
@@ -3864,6 +3942,135 @@ export function getWebUiHtml(): string {
 
     function openExtensionsModal() {
       document.getElementById('extensions-modal').classList.add('open');
+      loadSkills();
+    }
+    let skillsCache = [];
+    function escHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+    }
+    async function loadSkills() {
+      const list = document.getElementById('skill-list');
+      if (!list) return;
+      try {
+        const res = await fetch('/api/skills');
+        const data = await res.json();
+        skillsCache = Array.isArray(data.skills) ? data.skills : [];
+        renderSkills();
+      } catch (err) {
+        list.innerHTML = '<div style="color:var(--red); font-size:11.5px; padding:12px;">Failed to load skills: ' + escHtml(err.message) + '</div>';
+      }
+    }
+    function renderSkills() {
+      const list = document.getElementById('skill-list');
+      const tab = document.getElementById('exttab-skills');
+      const enabled = skillsCache.filter((s) => s.enabled).length;
+      if (tab) tab.textContent = 'Agent Skills (' + skillsCache.length + ')';
+      if (!list) return;
+      if (skillsCache.length === 0) {
+        list.innerHTML = '<div style="color:var(--text-dim); font-size:11.5px; padding:12px; border:1px dashed var(--border); border-radius:6px; text-align:center;">No skills found. Create one with <b>✨ New Skill</b> or add <code>.mugil/skills/&lt;name&gt;/SKILL.md</code>.</div>';
+        return;
+      }
+      list.innerHTML = skillsCache.map((skill) => {
+        const badgeColor = skill.source === 'workspace' ? '#23863633' : skill.source === 'global' ? '#1f6feb33' : '#8957e533';
+        const badgeText = skill.source === 'workspace' ? 'Workspace' : skill.source === 'global' ? 'Global' : 'Built-in';
+        const stateStyle = skill.enabled
+          ? 'background:#23863633; color:var(--green);'
+          : 'background:#6e768133; color:var(--text-dim);';
+        const assets = [];
+        if (skill.hasScripts) assets.push('📜 scripts');
+        if (skill.hasReferences) assets.push('📚 references');
+        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22;">'
+          + '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
+          + '<strong style="font-size:12.5px;">' + escHtml(skill.name) + '</strong>'
+          + '<div style="display:flex; gap:6px; align-items:center;">'
+          + '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; ' + badgeColor + '; color:var(--text);">' + badgeText + '</span>'
+          + '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; ' + stateStyle + '">' + (skill.enabled ? 'Active' : 'Off') + '</span>'
+          + '</div></div>'
+          + '<p style="font-size:11.5px; color:var(--text-dim); margin:6px 0 0 0;">' + escHtml(skill.description) + '</p>'
+          + (assets.length ? '<div style="font-size:10.5px; color:var(--text-dim); margin-top:6px;">' + assets.join(' · ') + '</div>' : '')
+          + '<div style="display:flex; gap:6px; margin-top:8px;">'
+          + '<button class="btn" style="font-size:10.5px; padding:2px 8px;" data-skill="' + escHtml(skill.name) + '" onclick="viewSkill(this.dataset.skill)">View Instructions</button>'
+          + '<button class="btn" style="font-size:10.5px; padding:2px 8px;" data-skill="' + escHtml(skill.name) + '" onclick="toggleSkill(this.dataset.skill)">' + (skill.enabled ? 'Disable' : 'Enable') + '</button>'
+          + '</div></div>';
+      }).join('')
+        + '<div style="font-size:10.5px; color:var(--text-dim); text-align:center;">' + enabled + ' of ' + skillsCache.length + ' skills active for this workspace.</div>';
+    }
+    async function toggleSkill(name) {
+      try {
+        const res = await fetch('/api/skills/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        await loadSkills();
+      } catch (err) {
+        alert('Could not toggle skill: ' + err.message);
+      }
+    }
+    async function viewSkill(name) {
+      try {
+        const res = await fetch('/api/skills/' + encodeURIComponent(name));
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        document.getElementById('skill-viewer-title').textContent = name + ' — ' + data.skill.source;
+        const scripts = (data.assets && data.assets.scripts) || [];
+        const references = (data.assets && data.assets.references) || [];
+        const assets = scripts.map((f) => '  scripts/' + f).concat(references.map((f) => '  references/' + f));
+        document.getElementById('skill-viewer-body').textContent =
+          (assets.length ? 'Assets:\\n' + assets.join('\\n') + '\\n\\n' : '') + data.content;
+        document.getElementById('skill-viewer').style.display = 'block';
+      } catch (err) {
+        alert('Could not load skill: ' + err.message);
+      }
+    }
+    function closeSkillViewer() {
+      document.getElementById('skill-viewer').style.display = 'none';
+    }
+    function openSkillCreate() {
+      document.getElementById('skill-create-modal').classList.add('open');
+    }
+    function closeSkillCreate() {
+      document.getElementById('skill-create-modal').classList.remove('open');
+    }
+    async function submitSkillCreate() {
+      const name = document.getElementById('skill-create-name').value.trim();
+      const description = document.getElementById('skill-create-desc').value.trim();
+      const triggers = document.getElementById('skill-create-triggers').value.trim();
+      const source = document.getElementById('skill-create-source').value;
+      const errBox = document.getElementById('skill-create-error');
+      errBox.style.display = 'none';
+      if (!name) {
+        errBox.textContent = 'Skill name is required.';
+        errBox.style.display = 'block';
+        return;
+      }
+      try {
+        const res = await fetch('/api/skills/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name,
+            description: description || undefined,
+            source,
+            triggers: triggers ? triggers.split(',').map((t) => t.trim()).filter(Boolean) : [],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        closeSkillCreate();
+        document.getElementById('skill-create-name').value = '';
+        document.getElementById('skill-create-desc').value = '';
+        document.getElementById('skill-create-triggers').value = '';
+        await loadSkills();
+        await viewSkill(name);
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      }
     }
 
     function closeExtensionsModal() {

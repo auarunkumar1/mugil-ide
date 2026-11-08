@@ -34,6 +34,13 @@ readUserEnv,
 connectMcpServers,
   parseMcpServerConfigs,
   skillsContextBlock,
+  triggeredSkillsBlock,
+  loadSkill,
+  globalSecretVault,
+  discoverSkills,
+  setSkillEnabled,
+  createSkill,
+  listSkillAssets,
   renderConversationForSummary,
   saveSession,
   loadSessionFile,
@@ -311,7 +318,16 @@ export class AgentRepl {
       return;
     }
 
-    await this.executePrompt(line);
+    // Gate 1: redact credentials before the prompt becomes history. Only the
+    // token is stored, displayed back in the session files and sent remotely.
+    const tokenized = globalSecretVault.tokenize(line);
+    if (tokenized.count > 0) {
+      this.io.write(
+        `\r\n  ${yellow('🔒')} ${tokenized.count} secret${tokenized.count === 1 ? '' : 's'} masked ${dim(`(${tokenized.tokens.join(', ')}) — real values stay in memory and are only used by local tools.`)}\r\n`,
+      );
+    }
+
+    await this.executePrompt(tokenized.text);
     this.printPrompt();
   }
 
@@ -422,6 +438,18 @@ export class AgentRepl {
         await this.queryGraph(argStr);
         break;
 
+      case 'skills':
+        this.listSkills();
+        break;
+
+      case 'skill':
+        this.showSkill(argStr);
+        break;
+
+      case 'skill-create':
+        this.createSkillFromCli(argStr);
+        break;
+
       case 'session':
         if (!argStr) {
           this.io.write(`\r\n  ${yellow('Usage:')} ${cyan('/session <name>')} ${dim('— save the conversation under a name')}\r\n\r\n`);
@@ -504,6 +532,9 @@ export class AgentRepl {
       `  ${cyan('/clear-session')}        ${dim('Clear the auto-saved session')}`,
       `  ${cyan('/stats')}                ${dim('Display token savings and session metrics')}`,
       `  ${cyan('/graph <query>')}        ${dim('Search project code graph for relevant functions/symbols')}`,
+      `  ${cyan('/skills')}               ${dim('List agent skills (workspace, global and built-in)')}`,
+      `  ${cyan('/skill <name> [on|off]')} ${dim("Show a skill's instructions, or enable/disable it")}`,
+      `  ${cyan('/skill-create <name>')}   ${dim('Scaffold a new workspace skill under .mugil/skills')}`,
       `  ${cyan('/undo')}                 ${dim('Undo last file change made by tool execution')}`,
       `  ${cyan('/history')}              ${dim('View prompt history in current session')}`,
       `  ${cyan('/reset')}                ${dim('Clear conversation context history')}`,
@@ -721,6 +752,72 @@ export class AgentRepl {
       this.io.write('\r\n');
     } catch (err) {
       this.io.write(`\r\n  ${red('✗')} CodeGraph query failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+    }
+  }
+
+  /** `/skills` — table of every discovered skill with source and state. */
+  private listSkills(): void {
+    const skills = discoverSkills(process.cwd());
+    if (skills.length === 0) {
+      this.io.write(
+        `\r\n  ${dim('No skills found.')} Create one with ${cyan('/skill-create <name>')} or add ${cyan('.mugil/skills/<name>/SKILL.md')}.\r\n\r\n`,
+      );
+      return;
+    }
+    this.io.write(`\r\n  ${bold(`Available skills (${skills.length}):`)}\r\n`);
+    for (const skill of skills) {
+      const state = skill.enabled ? green('enabled') : dim('disabled');
+      const assets = [skill.hasScripts ? 'scripts' : '', skill.hasReferences ? 'references' : ''].filter(Boolean);
+      const suffix = assets.length > 0 ? dim(` · ${assets.join('+')}`) : '';
+      this.io.write(`  ${cyan(skill.name.padEnd(28))} ${dim(`[${skill.source}]`)} ${state}${suffix}\r\n`);
+      this.io.write(`  ${' '.repeat(28)} ${dim(skill.description)}\r\n`);
+    }
+    this.io.write(`\r\n  ${dim('Load one with')} ${cyan('/skill <name>')} ${dim('· toggle with')} ${cyan('/skill <name> on|off')}\r\n\r\n`);
+  }
+
+  /** `/skill <name> [on|off]` — print a skill's instructions or toggle it. */
+  private showSkill(argStr: string): void {
+    const [name, toggle] = argStr.split(/\s+/);
+    if (!name) {
+      this.io.write(`\r\n  ${yellow('Usage:')} ${cyan('/skill <name> [on|off]')}\r\n\r\n`);
+      return;
+    }
+    const skill = discoverSkills(process.cwd()).find((s) => s.name === name);
+    if (!skill) {
+      this.io.write(`\r\n  ${red('✗')} Unknown skill ${bold(name)}. Try ${cyan('/skills')}.\r\n\r\n`);
+      return;
+    }
+    if (toggle === 'on' || toggle === 'off') {
+      setSkillEnabled(process.cwd(), name, toggle === 'on');
+      this.io.write(`\r\n  ${green('✓')} ${bold(name)} ${toggle === 'on' ? 'enabled' : 'disabled'} for this workspace.\r\n\r\n`);
+      return;
+    }
+    const content = loadSkill(process.cwd(), name);
+    if (!content) {
+      this.io.write(`\r\n  ${red('✗')} Could not read ${skill.file}\r\n\r\n`);
+      return;
+    }
+    const assets = listSkillAssets(process.cwd(), name);
+    if (assets.scripts.length > 0) this.io.write(`\r\n  ${dim('scripts:')} ${assets.scripts.join(', ')}`);
+    if (assets.references.length > 0) this.io.write(`\r\n  ${dim('references:')} ${assets.references.join(', ')}`);
+    this.io.write(`\r\n\r\n${content}\r\n\r\n`);
+  }
+
+  /** `/skill-create <name> [description]` — scaffold a workspace skill. */
+  private createSkillFromCli(argStr: string): void {
+    const [name, ...rest] = argStr.split(/\s+/);
+    if (!name) {
+      this.io.write(`\r\n  ${yellow('Usage:')} ${cyan('/skill-create <name> [description]')}\r\n\r\n`);
+      return;
+    }
+    try {
+      const description = rest.join(' ').trim();
+      const file = description
+        ? createSkill(process.cwd(), name, description)
+        : createSkill(process.cwd(), name);
+      this.io.write(`\r\n  ${green('✓')} Created skill ${bold(name)} → ${dim(file)}\r\n\r\n`);
+    } catch (err) {
+      this.io.write(`\r\n  ${red('✗')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
     }
   }
 
@@ -1037,7 +1134,15 @@ export class AgentRepl {
         this.mode === 'plan'
           ? PLAN_MODE_INSTRUCTION
           : ACT_MODE_INSTRUCTION;
-      const contextBlocks = [agentInstruction, buildEnvironmentContext(process.cwd()), skillsContextBlock(process.cwd())]
+      const contextBlocks = [
+        agentInstruction,
+        buildEnvironmentContext(process.cwd()),
+        skillsContextBlock(process.cwd()),
+        // A prompt that matches a skill's declared triggers gets that skill's
+        // instructions up front, so the obviously-relevant case costs no tool
+        // call. Everything else still loads lazily through the skill tool.
+        triggeredSkillsBlock(process.cwd(), prompt),
+      ]
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
 

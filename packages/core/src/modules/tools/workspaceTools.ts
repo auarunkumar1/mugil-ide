@@ -36,6 +36,7 @@ import { countTokens } from '../../token/tokenizer.js';
 import { generateImage } from './mediaTools.js';
 import { resolveInsideWorkspace } from './paths.js';
 import { findSymbolInContent } from './symbolReader.js';
+import { globalSecretVault } from '../security/secretVault.js';
 
 export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -1236,6 +1237,10 @@ export function createWorkspaceTools(
     run_command: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { command: string; timeout?: number; delta?: boolean };
       if (!args.command) return 'Error: command parameter is required.';
+      // A token such as [MUGIL_SECRET_...] is only a placeholder for the model;
+      // the shell needs the real value. Resolution happens here, in-process, and
+      // the output is re-tokenized by the tool loop before it reaches the model.
+      const command = globalSecretVault.resolve(args.command);
       const envTimeout = process.env.MUGIL_IDE_COMMAND_TIMEOUT ? Number(process.env.MUGIL_IDE_COMMAND_TIMEOUT) : NaN;
       const timeoutMs = typeof args.timeout === 'number' && args.timeout > 0
         ? args.timeout
@@ -1248,7 +1253,7 @@ export function createWorkspaceTools(
         // put the command in its own process group. Without that, a timeout
         // signals only the direct child and `nohup … &` grandchildren survive
         // the turn. The group kill below reaps the whole tree.
-        const child = spawn(args.command, {
+        const child = spawn(command, {
           cwd: root,
           shell: true,
           detached: process.platform !== 'win32',
@@ -1298,9 +1303,9 @@ export function createWorkspaceTools(
           const stderr = Buffer.concat(stderrChunks).toString('utf-8');
           const failed = timedOut || killedForBuffer || code !== 0 || signal !== null;
           if (!failed) {
-            let out = compressCommandOutput(stdout || stderr || '', { command: args.command }).text;
+            let out = compressCommandOutput(stdout || stderr || '', { command }).text;
             if (args.delta !== false) {
-              out = applyDeltaMode(args.command, out).text;
+              out = applyDeltaMode(command, out).text;
             }
             resolve(out);
             return;
@@ -1314,9 +1319,9 @@ export function createWorkspaceTools(
           ]
             .filter(Boolean)
             .join('\n');
-          let out = compressCommandOutput(`Command failed:\n${combined}`, { command: args.command }).text;
+          let out = compressCommandOutput(`Command failed:\n${combined}`, { command }).text;
           if (args.delta !== false) {
-            out = applyDeltaMode(args.command, out).text;
+            out = applyDeltaMode(command, out).text;
           }
           resolve(out);
         };
@@ -1324,7 +1329,7 @@ export function createWorkspaceTools(
           if (settled) return;
           settled = true;
           clearTimeout(timer);
-          resolve(compressCommandOutput(`Command failed:\n${err.message}`, { command: args.command }).text);
+          resolve(compressCommandOutput(`Command failed:\n${err.message}`, { command: command }).text);
         });
         child.on('close', (code, signal) => finish(code, signal));
         if (options.signal) {
@@ -1375,9 +1380,14 @@ export function createWorkspaceTools(
     skill: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { name: string };
       if (!args.name) return 'Error: name parameter is required.';
+      const listed = discoverSkills(root);
+      if (listed.some((s) => s.name === args.name && !s.enabled)) {
+        return `Error: skill "${args.name}" is disabled in this workspace (.mugil/config.json).`;
+      }
       const content = loadSkill(root, args.name);
       if (content === null) {
-        const available = discoverSkills(root)
+        const available = listed
+          .filter((s) => s.enabled)
           .map((s) => s.name)
           .join(', ');
         return `Error: unknown skill "${args.name}". Available skills: ${available || '(none)'}`;

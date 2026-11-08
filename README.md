@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 590 Passing](https://img.shields.io/badge/tests-590%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
+[![Tests: 624 Passing](https://img.shields.io/badge/tests-624%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![MCP: Supported](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![TypeScript: 5.x](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
@@ -239,9 +239,9 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.2.0**, versus what is on the roadmap for **v0.3.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.3.0**, versus what is on the roadmap for **v0.4.0**:
 
-### ✅ Shipped & Ready in v0.2.0 (Current Release)
+### ✅ Shipped & Ready in v0.3.0 (Current Release)
 
 #### 🧠 Token Economy & Context Architecture
 - [x] **Delta Mode Diagnostics (RTK Error Cache):** Session error signature cache for recurring test/build commands (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures and collapses repeated stack traces. A run that visibly failed but produced no parsable failures never counts as "all resolved", and the cache is scoped per workspace.
@@ -297,9 +297,11 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Clean Session Token URL Routing:** Separated pristine base server URLs from authenticated browser launch tokens (`server.tokenUrl`), eliminating query parameter duplication.
 - [x] **Deterministic CI & Test Suite Reliability:** Hard 15-minute execution timeouts and explicit server connection teardown hooks in the HTTP/WebSocket runtime, resolving keep-alive runner hangs on GitHub Actions.
 - [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
-- [x] **Comprehensive Test Suite:** 590 unit and integration tests passing across all packages (43 suites: 515 core, 56 cli, 10 docs, 9 mcp), hermetic by default.
+- [x] **Multi-Tier Skills Registry & REST API:** Skills are discovered from `.mugil/skills`, `.agents/skills`, `.claude/skills`, the global `~/.config/mugil-ide/skills`, and built-in skills shipped with `@mugil-ide/core`. Frontmatter carries `version`, `author`, `tags`, `triggers` and `tools`; bundled `scripts/` and `references/` are listed in the inspector. Served by `GET /api/skills`, `GET /api/skills/:name`, `POST /api/skills/toggle` (persisted in `.mugil/config.json`) and `POST /api/skills/create`, with `/skills`, `/skill` and `/skill-create` in the CLI and a live registry drawer (toggle, inspect, create) in the Web UI. Prompt-matching `triggers` inject a skill's instructions up front instead of costing a tool call.
+- [x] **Ephemeral Secret Vault & Zero-Leak Guard:** Credentials pasted into chat or emitted by a tool (`cat .env`, an auth header in a stack trace) are replaced with `[MUGIL_SECRET_<TYPE>_<N>]` tokens before reaching any message. Real values live only in process memory; `run_command` resolves them locally and tool output is re-tokenized. Enforced at three choke points (ingestion, tool loop, `HandoffManager` pre-flight) with a client-side confirmation in the Web UI. Detects 20+ formats: OpenAI/Anthropic/OpenRouter/Google/AWS/GitHub/Slack/Stripe/Hugging Face keys, bearer & basic auth, database connection-string passwords, PEM private keys, and CLI password flags.
+- [x] **Comprehensive Test Suite:** 624 unit and integration tests passing across all packages (43 suites: 548 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
 
-### 🎯 Planned for Next Release Push (v0.3.0 Roadmap)
+### 🎯 Planned for Next Release Push (v0.4.0 Roadmap)
 
 - [ ] **Native Desktop Shell Packaging:** Optional Tauri/Electron lightweight shell wrapper alongside browser Web UI.
 - [ ] **Multi-Modal Audio & Voice Interaction:** Real-time voice input and speech streaming via local Whisper / Piper models.
@@ -421,6 +423,7 @@ All settings can be configured via the Web UI modals or by editing `~/.config/mu
 | `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | URL for local LM Studio instances |
 | `MUGIL_IDE_COMMAND_TIMEOUT`| `60000` | Terminal command execution timeout in milliseconds |
 | `MUGIL_IDE_MAX_TOOL_CHARS` | `48000` | Maximum character length for a tool return before CCR blob caching |
+| `MUGIL_IDE_SKILLS_DIR` | `~/.config/mugil-ide/skills` | Global (cross-project) skills tier; workspace tiers are `.mugil/skills`, `.agents/skills`, `.claude/skills` |
 
 ---
 
@@ -437,7 +440,7 @@ cd mugil-ide
 npm install
 npm run build
 
-# Run the full test suite (590 tests across 43 suites)
+# Run the full test suite (624 tests across 43 suites)
 npm test
 
 # Launch local development server

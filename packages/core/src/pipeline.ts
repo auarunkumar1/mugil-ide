@@ -23,6 +23,7 @@ import type { HandoffManager } from './modules/handoff/index.js';
 import { ToolLoop, type ToolLoopResult, type ToolRegistry } from './modules/tool-loop/index.js';
 import { globalStepDebugger, type StepDebugger } from './modules/tool-loop/stepDebugger.js';
 import { fireWebhooks, parseWebhookConfigs, type WebhookConfig } from './modules/webhooks.js';
+import { globalSecretVault } from './modules/security/secretVault.js';
 
 export interface PipelineOptions {
   cache: SmartCache;
@@ -196,7 +197,7 @@ export class Pipeline {
   }
 
   private async runAsk(
-    prompt: string,
+    rawPrompt: string,
     options: AskOptions,
     webhooks: WebhookConfig[],
   ): Promise<AskResult> {
@@ -206,6 +207,13 @@ export class Pipeline {
     // cache hit would skip tool execution, which is wrong for side-effectful
     // tools and stale for any tool whose result may have changed.
     const hasTools = Boolean(options.tools && options.tools.length > 0);
+
+    // Defense in depth: callers tokenize user input before it reaches us, tool
+    // output is tokenized by the tool loop, and the handoff layer re-checks
+    // every message. This covers the remaining routes — a resumed session file,
+    // a caller that assembles its own prompt — so no cleartext credential is
+    // refined into the cache or written into the outgoing request.
+    const prompt = globalSecretVault.tokenize(rawPrompt).text;
 
     // 1. Signature removal + refinement
     emit({ type: 'stage', stage: 'signature' });

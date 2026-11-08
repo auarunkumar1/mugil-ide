@@ -1,6 +1,6 @@
 {
   "name": "@mugil-ide/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Token Efficiency Manager, Smart Cache, Auto Handoff, Signature Stripper",
   "keywords": [
     "ai",
@@ -25,7 +25,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
