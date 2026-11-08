@@ -18,7 +18,8 @@ import type { ToolCall } from '../src/types.js';
 
 describe('parseSkillFrontmatter', () => {
   it('parses name and description from the frontmatter block', () => {
-    const text = '---\nname: my-skill\ndescription: Does a specialized thing\n---\n# Body\nDo the thing.\n';
+    const text =
+      '---\nname: my-skill\ndescription: Does a specialized thing\n---\n# Body\nDo the thing.\n';
     expect(parseSkillFrontmatter(text)).toEqual({
       name: 'my-skill',
       description: 'Does a specialized thing',
@@ -108,7 +109,10 @@ describe('skills harness', () => {
     const globalDir = globalSkillsDir();
     const created = path.join(globalDir, 'global-only');
     fs.mkdirSync(created, { recursive: true });
-    fs.writeFileSync(path.join(created, 'SKILL.md'), '---\nname: global-only\ndescription: from global\n---\nbody\n');
+    fs.writeFileSync(
+      path.join(created, 'SKILL.md'),
+      '---\nname: global-only\ndescription: from global\n---\nbody\n',
+    );
     try {
       const globalSkill = discoverSkills(ws).find((s) => s.name === 'global-only');
       expect(globalSkill?.source).toBe('global');
@@ -117,7 +121,10 @@ describe('skills harness', () => {
       // Workspace shadow: same name, different description.
       const shadow = path.join(ws, '.mugil', 'skills', 'global-only');
       fs.mkdirSync(shadow, { recursive: true });
-      fs.writeFileSync(path.join(shadow, 'SKILL.md'), '---\nname: global-only\ndescription: from workspace\n---\nbody\n');
+      fs.writeFileSync(
+        path.join(shadow, 'SKILL.md'),
+        '---\nname: global-only\ndescription: from workspace\n---\nbody\n',
+      );
       const shadowed = discoverSkills(ws).find((s) => s.name === 'global-only');
       expect(shadowed?.source).toBe('workspace');
       expect(shadowed?.description).toBe('from workspace');
@@ -175,7 +182,9 @@ describe('skills harness', () => {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-skills-trigger-'));
     try {
       createSkill(ws, 'audit-skill', 'Security review', { triggers: ['security audit'] });
-      expect(matchSkillTriggers(ws, 'please run a Security Audit on this').map((s) => s.name)).toContain('audit-skill');
+      expect(
+        matchSkillTriggers(ws, 'please run a Security Audit on this').map((s) => s.name),
+      ).toContain('audit-skill');
       expect(matchSkillTriggers(ws, 'unrelated refactor')).toHaveLength(0);
       const block = triggeredSkillsBlock(ws, 'run a security audit');
       expect(block).toContain('### Skill: audit-skill');
@@ -207,11 +216,19 @@ describe('skills harness', () => {
     const { tools, toolRegistry } = createWorkspaceTools(root);
     expect(tools.map((t) => t.name)).toContain('skill');
 
-    const call: ToolCall = { id: 's1', name: 'skill', arguments: JSON.stringify({ name: 'demo-skill' }) };
+    const call: ToolCall = {
+      id: 's1',
+      name: 'skill',
+      arguments: JSON.stringify({ name: 'demo-skill' }),
+    };
     const out = await toolRegistry.skill(call);
     expect(out).toContain('Step 1: do a.');
 
-    const missing: ToolCall = { id: 's2', name: 'skill', arguments: JSON.stringify({ name: 'nope' }) };
+    const missing: ToolCall = {
+      id: 's2',
+      name: 'skill',
+      arguments: JSON.stringify({ name: 'nope' }),
+    };
     const miss = await toolRegistry.skill(missing);
     expect(miss).toContain('unknown skill "nope"');
     expect(miss).toContain('demo-skill');
@@ -223,7 +240,11 @@ describe('skills harness', () => {
       createSkill(ws, 'off-skill', 'Disabled skill');
       setSkillEnabled(ws, 'off-skill', false);
       const { toolRegistry } = createWorkspaceTools(ws);
-      const out = await toolRegistry.skill({ id: 's3', name: 'skill', arguments: JSON.stringify({ name: 'off-skill' }) });
+      const out = await toolRegistry.skill({
+        id: 's3',
+        name: 'skill',
+        arguments: JSON.stringify({ name: 'off-skill' }),
+      });
       expect(out).toContain('disabled');
     } finally {
       fs.rmSync(ws, { recursive: true, force: true });

@@ -23,7 +23,9 @@ export function modelSupportsThinking(id: string): boolean {
 }
 
 /** Resolves the default thinking effort level ('off' | 'low' | 'medium' | 'high'). */
-export function getThinkingLevel(env: NodeJS.ProcessEnv = process.env): 'off' | 'low' | 'medium' | 'high' {
+export function getThinkingLevel(
+  env: NodeJS.ProcessEnv = process.env,
+): 'off' | 'low' | 'medium' | 'high' {
   const custom = (env.MUGIL_IDE_THINKING_LEVEL || '').toLowerCase().trim();
   if (custom === 'off' || custom === 'low' || custom === 'medium' || custom === 'high') {
     return custom;
@@ -42,7 +44,13 @@ export function modelSupportsTools(_id: string): boolean {
 
 /** Default OpenRouter model ladder used when OPENROUTER_MODELS is not set. */
 export const DEFAULT_OPENROUTER_MODELS: ModelSpec[] = [
-  { id: 'openrouter/auto', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
+  {
+    id: 'openrouter/auto',
+    tier: 'cheap',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+  },
   {
     id: 'anthropic/claude-3.7-sonnet',
     tier: 'smart',
@@ -151,38 +159,136 @@ export const DEFAULT_OPENROUTER_MODELS: ModelSpec[] = [
 
 /** Default OpenAI ladder used when OPENAI_MODELS is not set. */
 export const DEFAULT_OPENAI_MODELS: ModelSpec[] = [
-  { id: 'gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, costPerMTokCacheRead: 0.075, contextWindow: 128000 },
-  { id: 'gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, costPerMTokCacheRead: 1.25, contextWindow: 128000 },
-  { id: 'o3-mini', tier: 'smart', costPerMTokIn: 1.1, costPerMTokOut: 4.4, costPerMTokCacheRead: 0.55, contextWindow: 200000, supportsThinking: true },
-  { id: 'o1', tier: 'smart', costPerMTokIn: 15, costPerMTokOut: 60, costPerMTokCacheRead: 7.5, contextWindow: 200000, supportsThinking: true },
+  {
+    id: 'gpt-4o-mini',
+    tier: 'cheap',
+    costPerMTokIn: 0.15,
+    costPerMTokOut: 0.6,
+    costPerMTokCacheRead: 0.075,
+    contextWindow: 128000,
+  },
+  {
+    id: 'gpt-4o',
+    tier: 'standard',
+    costPerMTokIn: 2.5,
+    costPerMTokOut: 10,
+    costPerMTokCacheRead: 1.25,
+    contextWindow: 128000,
+  },
+  {
+    id: 'o3-mini',
+    tier: 'smart',
+    costPerMTokIn: 1.1,
+    costPerMTokOut: 4.4,
+    costPerMTokCacheRead: 0.55,
+    contextWindow: 200000,
+    supportsThinking: true,
+  },
+  {
+    id: 'o1',
+    tier: 'smart',
+    costPerMTokIn: 15,
+    costPerMTokOut: 60,
+    costPerMTokCacheRead: 7.5,
+    contextWindow: 200000,
+    supportsThinking: true,
+  },
 ];
 
 /** Default Anthropic ladder used when ANTHROPIC_MODELS is not set. */
 export const DEFAULT_ANTHROPIC_MODELS: ModelSpec[] = [
-  { id: 'claude-3-5-haiku', tier: 'cheap', costPerMTokIn: 0.8, costPerMTokOut: 4, costPerMTokCacheRead: 0.08, contextWindow: 200000 },
-  { id: 'claude-3-5-sonnet', tier: 'standard', costPerMTokIn: 3, costPerMTokOut: 15, costPerMTokCacheRead: 0.3, contextWindow: 200000 },
-  { id: 'claude-3-7-sonnet', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, costPerMTokCacheRead: 0.3, contextWindow: 200000, supportsThinking: true },
+  {
+    id: 'claude-3-5-haiku',
+    tier: 'cheap',
+    costPerMTokIn: 0.8,
+    costPerMTokOut: 4,
+    costPerMTokCacheRead: 0.08,
+    contextWindow: 200000,
+  },
+  {
+    id: 'claude-3-5-sonnet',
+    tier: 'standard',
+    costPerMTokIn: 3,
+    costPerMTokOut: 15,
+    costPerMTokCacheRead: 0.3,
+    contextWindow: 200000,
+  },
+  {
+    id: 'claude-3-7-sonnet',
+    tier: 'smart',
+    costPerMTokIn: 3,
+    costPerMTokOut: 15,
+    costPerMTokCacheRead: 0.3,
+    contextWindow: 200000,
+    supportsThinking: true,
+  },
 ];
 
 /** Default Ollama ladder used when OLLAMA_MODELS is not set. */
 export const DEFAULT_OLLAMA_MODELS: ModelSpec[] = [
   { id: 'llama3.2', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
-  { id: 'deepseek-r1:8b', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
-  { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
-  { id: 'qwen2.5-coder', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
+  {
+    id: 'deepseek-r1:8b',
+    tier: 'smart',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
+  {
+    id: 'deepseek-r1',
+    tier: 'smart',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
+  {
+    id: 'qwen2.5-coder',
+    tier: 'smart',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+  },
   { id: 'mistral', tier: 'standard', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 32000 },
 ];
 
 /** Default LM Studio ladder. */
 export const DEFAULT_LMSTUDIO_MODELS: ModelSpec[] = [
-  { id: 'local-model', tier: 'standard', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
-  { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
+  {
+    id: 'local-model',
+    tier: 'standard',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+  },
+  {
+    id: 'deepseek-r1',
+    tier: 'smart',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
 ];
 
 /** Default Local OpenAI endpoint ladder. */
 export const DEFAULT_LOCAL_MODELS: ModelSpec[] = [
-  { id: 'local-model', tier: 'standard', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 },
-  { id: 'deepseek-r1', tier: 'smart', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000, supportsThinking: true },
+  {
+    id: 'local-model',
+    tier: 'standard',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+  },
+  {
+    id: 'deepseek-r1',
+    tier: 'smart',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
 ];
 
 /**
@@ -190,36 +296,151 @@ export const DEFAULT_LOCAL_MODELS: ModelSpec[] = [
  * (`creator/model`); bare ids like `gpt-4o-mini` do not exist there.
  */
 export const DEFAULT_VERCEL_MODELS: ModelSpec[] = [
-  { id: 'openai/gpt-4o-mini', tier: 'cheap', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000 },
-  { id: 'anthropic/claude-haiku-4.5', tier: 'cheap', costPerMTokIn: 1, costPerMTokOut: 5, contextWindow: 200000, supportsThinking: true },
-  { id: 'openai/gpt-4o', tier: 'standard', costPerMTokIn: 2.5, costPerMTokOut: 10, contextWindow: 128000 },
-  { id: 'anthropic/claude-sonnet-4.5', tier: 'smart', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 1000000, supportsThinking: true },
-  { id: 'deepseek/deepseek-r1', tier: 'smart', costPerMTokIn: 1.35, costPerMTokOut: 5.4, contextWindow: 128000, supportsThinking: true },
+  {
+    id: 'openai/gpt-4o-mini',
+    tier: 'cheap',
+    costPerMTokIn: 0.15,
+    costPerMTokOut: 0.6,
+    contextWindow: 128000,
+  },
+  {
+    id: 'anthropic/claude-haiku-4.5',
+    tier: 'cheap',
+    costPerMTokIn: 1,
+    costPerMTokOut: 5,
+    contextWindow: 200000,
+    supportsThinking: true,
+  },
+  {
+    id: 'openai/gpt-4o',
+    tier: 'standard',
+    costPerMTokIn: 2.5,
+    costPerMTokOut: 10,
+    contextWindow: 128000,
+  },
+  {
+    id: 'anthropic/claude-sonnet-4.5',
+    tier: 'smart',
+    costPerMTokIn: 3,
+    costPerMTokOut: 15,
+    contextWindow: 1000000,
+    supportsThinking: true,
+  },
+  {
+    id: 'deepseek/deepseek-r1',
+    tier: 'smart',
+    costPerMTokIn: 1.35,
+    costPerMTokOut: 5.4,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
 ];
 
 /** Default Cloudflare Workers AI ladder. */
 export const DEFAULT_CLOUDFLARE_MODELS: ModelSpec[] = [
-  { id: '@cf/meta/llama-3.3-70b-instruct', tier: 'standard', costPerMTokIn: 0.12, costPerMTokOut: 0.3, contextWindow: 128000 },
-  { id: '@cf/meta/llama-3.1-8b-instruct', tier: 'cheap', costPerMTokIn: 0.05, costPerMTokOut: 0.15, contextWindow: 128000 },
-  { id: '@cf/meta/llama-3.2-3b-instruct', tier: 'cheap', costPerMTokIn: 0.02, costPerMTokOut: 0.08, contextWindow: 128000 },
-  { id: '@cf/qwen/qwq-32b', tier: 'smart', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000, supportsThinking: true },
-  { id: '@cf/deepseek/deepseek-r1-distill-qwen-32b', tier: 'smart', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000, supportsThinking: true },
+  {
+    id: '@cf/meta/llama-3.3-70b-instruct',
+    tier: 'standard',
+    costPerMTokIn: 0.12,
+    costPerMTokOut: 0.3,
+    contextWindow: 128000,
+  },
+  {
+    id: '@cf/meta/llama-3.1-8b-instruct',
+    tier: 'cheap',
+    costPerMTokIn: 0.05,
+    costPerMTokOut: 0.15,
+    contextWindow: 128000,
+  },
+  {
+    id: '@cf/meta/llama-3.2-3b-instruct',
+    tier: 'cheap',
+    costPerMTokIn: 0.02,
+    costPerMTokOut: 0.08,
+    contextWindow: 128000,
+  },
+  {
+    id: '@cf/qwen/qwq-32b',
+    tier: 'smart',
+    costPerMTokIn: 0.15,
+    costPerMTokOut: 0.6,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
+  {
+    id: '@cf/deepseek/deepseek-r1-distill-qwen-32b',
+    tier: 'smart',
+    costPerMTokIn: 0.15,
+    costPerMTokOut: 0.6,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
 ];
 
 /** Default Together AI ladder. */
 export const DEFAULT_TOGETHER_MODELS: ModelSpec[] = [
-  { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', tier: 'standard', costPerMTokIn: 0.12, costPerMTokOut: 0.3, contextWindow: 128000 },
-  { id: 'meta-llama/Llama-3.1-8B-Instruct-Turbo', tier: 'cheap', costPerMTokIn: 0.05, costPerMTokOut: 0.15, contextWindow: 128000 },
-  { id: 'deepseek-ai/DeepSeek-R1', tier: 'smart', costPerMTokIn: 0.55, costPerMTokOut: 2.19, contextWindow: 160000, supportsThinking: true },
-  { id: 'Qwen/Qwen3-30B-A3B-Turbo', tier: 'smart', costPerMTokIn: 0.15, costPerMTokOut: 0.6, contextWindow: 128000, supportsThinking: true },
-  { id: 'mistralai/Mistral-Small-24B-Instruct-2501', tier: 'cheap', costPerMTokIn: 0.1, costPerMTokOut: 0.3, contextWindow: 32000 },
+  {
+    id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    tier: 'standard',
+    costPerMTokIn: 0.12,
+    costPerMTokOut: 0.3,
+    contextWindow: 128000,
+  },
+  {
+    id: 'meta-llama/Llama-3.1-8B-Instruct-Turbo',
+    tier: 'cheap',
+    costPerMTokIn: 0.05,
+    costPerMTokOut: 0.15,
+    contextWindow: 128000,
+  },
+  {
+    id: 'deepseek-ai/DeepSeek-R1',
+    tier: 'smart',
+    costPerMTokIn: 0.55,
+    costPerMTokOut: 2.19,
+    contextWindow: 160000,
+    supportsThinking: true,
+  },
+  {
+    id: 'Qwen/Qwen3-30B-A3B-Turbo',
+    tier: 'smart',
+    costPerMTokIn: 0.15,
+    costPerMTokOut: 0.6,
+    contextWindow: 128000,
+    supportsThinking: true,
+  },
+  {
+    id: 'mistralai/Mistral-Small-24B-Instruct-2501',
+    tier: 'cheap',
+    costPerMTokIn: 0.1,
+    costPerMTokOut: 0.3,
+    contextWindow: 32000,
+  },
 ];
 
 /** Default OpenCode Zen ladder. */
 export const DEFAULT_OPENCODE_MODELS: ModelSpec[] = [
-  { id: 'claude-haiku-4-5', tier: 'cheap', costPerMTokIn: 1, costPerMTokOut: 5, contextWindow: 200000 },
-  { id: 'claude-sonnet-4-5', tier: 'standard', costPerMTokIn: 3, costPerMTokOut: 15, contextWindow: 200000 },
-  { id: 'claude-opus-4-5', tier: 'smart', costPerMTokIn: 5, costPerMTokOut: 25, contextWindow: 200000 },
+  {
+    id: 'claude-haiku-4-5',
+    tier: 'cheap',
+    costPerMTokIn: 1,
+    costPerMTokOut: 5,
+    contextWindow: 200000,
+  },
+  {
+    id: 'claude-sonnet-4-5',
+    tier: 'standard',
+    costPerMTokIn: 3,
+    costPerMTokOut: 15,
+    contextWindow: 200000,
+  },
+  {
+    id: 'claude-opus-4-5',
+    tier: 'smart',
+    costPerMTokIn: 5,
+    costPerMTokOut: 25,
+    contextWindow: 200000,
+  },
 ];
 
 /** Fetches available models from provider API with fallback to static catalog. */
@@ -248,9 +469,13 @@ export async function fetchRemoteModels(
           const list: ModelSpec[] = json.data.map((m) => {
             const costIn = m.pricing?.prompt ? Number(m.pricing.prompt) * 1_000_000 : 0;
             const costOut = m.pricing?.completion ? Number(m.pricing.completion) * 1_000_000 : 0;
-            const cacheIn = m.pricing?.input_cache_read ? Number(m.pricing.input_cache_read) * 1_000_000 : undefined;
-            const tier: ModelSpec['tier'] = costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
-            const costPerMTokCacheRead = (cacheIn !== undefined && !isNaN(cacheIn)) ? cacheIn : (costIn > 0 ? costIn * 0.1 : 0);
+            const cacheIn = m.pricing?.input_cache_read
+              ? Number(m.pricing.input_cache_read) * 1_000_000
+              : undefined;
+            const tier: ModelSpec['tier'] =
+              costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
+            const costPerMTokCacheRead =
+              cacheIn !== undefined && !isNaN(cacheIn) ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
             return {
               id: m.id,
               tier,
@@ -284,7 +509,17 @@ export function isLocalUrl(url?: string): boolean {
   );
 }
 
-export type CompletionProvider = 'openrouter' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'local' | 'vercel' | 'cloudflare' | 'together' | 'opencode';
+export type CompletionProvider =
+  | 'openrouter'
+  | 'openai'
+  | 'anthropic'
+  | 'ollama'
+  | 'lmstudio'
+  | 'local'
+  | 'vercel'
+  | 'cloudflare'
+  | 'together'
+  | 'opencode';
 
 export interface AppConfig {
   /** The provider the engine talks to (OpenRouter primary; else OpenAI/Anthropic/Ollama/LM Studio/Local/Vercel/Cloudflare/Together). */
@@ -339,7 +574,10 @@ function parseList(value: string | undefined): string[] {
 
 function parseModels(value: string | undefined, fallback: ModelSpec[]): ModelSpec[] {
   if (!value) return fallback;
-  const ids = value.split(',').map((s) => s.trim()).filter(Boolean);
+  const ids = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (ids.length === 0) return fallback;
   const tiers: ModelSpec['tier'][] = ['cheap', 'standard', 'smart'];
   return ids.map((id, i) => ({
@@ -417,23 +655,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                   ? 'cloudflare'
                   : requested === 'together'
                     ? 'together'
-                  : requested === 'opencode'
-                    ? 'opencode'
-                    : openRouterApiKey
-                      ? 'openrouter'
-                      : openaiApiKey
-                        ? 'openai'
-                        : anthropicApiKey
-                          ? 'anthropic'
-                          : vercelApiKey
-                            ? 'vercel'
-                            : cloudflareApiKey
-                              ? 'cloudflare'
-                              : togetherApiKey
-                                ? 'together'
-                              : opencodeApiKey
-                                ? 'opencode'
-                                : 'openrouter';
+                    : requested === 'opencode'
+                      ? 'opencode'
+                      : openRouterApiKey
+                        ? 'openrouter'
+                        : openaiApiKey
+                          ? 'openai'
+                          : anthropicApiKey
+                            ? 'anthropic'
+                            : vercelApiKey
+                              ? 'vercel'
+                              : cloudflareApiKey
+                                ? 'cloudflare'
+                                : togetherApiKey
+                                  ? 'together'
+                                  : opencodeApiKey
+                                    ? 'opencode'
+                                    : 'openrouter';
 
   const rawModels =
     provider === 'openai'
@@ -452,9 +690,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                   ? parseModels(merged.CLOUDFLARE_MODELS, DEFAULT_CLOUDFLARE_MODELS)
                   : provider === 'together'
                     ? parseModels(merged.TOGETHER_MODELS, DEFAULT_TOGETHER_MODELS)
-                  : provider === 'opencode'
-                    ? parseModels(merged.OPENCODE_MODELS, DEFAULT_OPENCODE_MODELS)
-                    : parseModels(merged.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS);
+                    : provider === 'opencode'
+                      ? parseModels(merged.OPENCODE_MODELS, DEFAULT_OPENCODE_MODELS)
+                      : parseModels(merged.OPENROUTER_MODELS, DEFAULT_OPENROUTER_MODELS);
 
   let models = rawModels;
   const preferredModelId = merged.MUGIL_IDE_MODEL || merged.AI_MODEL;

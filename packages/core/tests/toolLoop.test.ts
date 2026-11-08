@@ -45,7 +45,10 @@ describe('ToolLoop', () => {
   it('returns immediately when the model makes no tool calls', async () => {
     const client = scriptedClient([result({ content: '5', finishReason: 'stop' })]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toBe('5');
     expect(out.toolCalls).toBe(0);
     expect(out.usage.totalTokens).toBe(15);
@@ -62,7 +65,10 @@ describe('ToolLoop', () => {
       result({ content: 'The answer is 5.', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
 
     expect(out.content).toBe('The answer is 5.');
     expect(out.toolCalls).toBe(1);
@@ -97,7 +103,10 @@ describe('ToolLoop', () => {
         reported.push({ name: call.name, ok: outcome.ok, content: outcome.content, index });
       },
     });
-    const out = await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: 'go' }], {
+      tools: [ADD],
+      registry,
+    });
 
     expect(out.content).toBe('done');
     expect(reported).toEqual([
@@ -200,7 +209,10 @@ describe('ToolLoop', () => {
       result({ content: 'I cannot do that.', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: 'do it' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: 'do it' }], {
+      tools: [ADD],
+      registry,
+    });
     const messages = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
     expect(messages[messages.length - 1]).toMatchObject({
       role: 'tool',
@@ -225,7 +237,10 @@ describe('ToolLoop', () => {
       result({ content: 'failed', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    await loop.run([...system, { role: 'user', content: 'divide' }], { tools: [ADD], registry: boom });
+    await loop.run([...system, { role: 'user', content: 'divide' }], {
+      tools: [ADD],
+      registry: boom,
+    });
     const messages = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
     expect(messages[messages.length - 1]).toMatchObject({
       role: 'tool',
@@ -279,10 +294,12 @@ describe('ToolLoop', () => {
   });
 
   it('throws ToolError when a declared tool has no registry entry', async () => {
-    const loop = new ToolLoop({ handoff: new HandoffManager({ client: scriptedClient([]), models: [] }) });
-    await expect(loop.run([{ role: 'user', content: 'x' }], { tools: [ADD], registry: {} })).rejects.toBeInstanceOf(
-      ToolError,
-    );
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client: scriptedClient([]), models: [] }),
+    });
+    await expect(
+      loop.run([{ role: 'user', content: 'x' }], { tools: [ADD], registry: {} }),
+    ).rejects.toBeInstanceOf(ToolError);
   });
 
   it('forces a final answer without tools when iterations are exhausted', async () => {
@@ -291,9 +308,20 @@ describe('ToolLoop', () => {
       finishReason: 'tool_calls',
       toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":1,"b":2}' }],
     });
-    const client = scriptedClient([alwaysCall, alwaysCall, alwaysCall, result({ content: 'forced', finishReason: 'stop' })]);
-    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }), maxIterations: 3 });
-    const out = await loop.run([...system, { role: 'user', content: 'loop forever' }], { tools: [ADD], registry });
+    const client = scriptedClient([
+      alwaysCall,
+      alwaysCall,
+      alwaysCall,
+      result({ content: 'forced', finishReason: 'stop' }),
+    ]);
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      maxIterations: 3,
+    });
+    const out = await loop.run([...system, { role: 'user', content: 'loop forever' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toBe('forced');
     expect(out.toolCalls).toBe(3);
     // The final (forced) completion must NOT send tools.
@@ -320,7 +348,10 @@ describe('ToolLoop', () => {
       maxIterations: 2,
       onLimitReached: limitHandler,
     });
-    const out = await loop.run([...system, { role: 'user', content: 'extend please' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: 'extend please' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(limitHandler).toHaveBeenCalledTimes(1);
     expect(out.content).toBe('extended finish');
     expect(out.toolCalls).toBe(2);
@@ -332,7 +363,10 @@ describe('ToolLoop', () => {
       result({ content: 'apologies, here is the answer', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: 'hi' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: 'hi' }], {
+      tools: [ADD],
+      registry,
+    });
 
     expect(out.content).toBe('apologies, here is the answer');
     expect(out.toolCalls).toBe(0);
@@ -350,10 +384,17 @@ describe('ToolLoop', () => {
   it('falls back to thinking text when the retry is also empty', async () => {
     const client = scriptedClient([
       result({ content: '', finishReason: 'stop' }),
-      result({ content: '', thinking: 'chain of thought that ends in the answer', finishReason: 'stop' }),
+      result({
+        content: '',
+        thinking: 'chain of thought that ends in the answer',
+        finishReason: 'stop',
+      }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: 'hi' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: 'hi' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toBe('chain of thought that ends in the answer');
   });
 
@@ -363,7 +404,10 @@ describe('ToolLoop', () => {
       result({ content: '', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: 'hi' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: 'hi' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toContain('completed 0 tool operation(s)');
   });
 
@@ -380,14 +424,23 @@ describe('ToolLoop', () => {
       result({ content: '', finishReason: 'stop' }),
       result({ content: 'forced text', finishReason: 'stop' }),
     ]);
-    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }), maxIterations: 3 });
-    const out = await loop.run([...system, { role: 'user', content: 'loop forever' }], { tools: [ADD], registry });
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      maxIterations: 3,
+    });
+    const out = await loop.run([...system, { role: 'user', content: 'loop forever' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toBe('forced text');
     expect(out.toolCalls).toBe(3);
   });
 
   it('reports tool-output compression as input savings', async () => {
-    const noisy = Array.from({ length: 200 }, (_, i) => `same log line ${i % 3}`).join('\n') + '\n' + 'x'.repeat(5000);
+    const noisy =
+      Array.from({ length: 200 }, (_, i) => `same log line ${i % 3}`).join('\n') +
+      '\n' +
+      'x'.repeat(5000);
     const noisyRegistry = {
       add: async (): Promise<string> => noisy,
     };
@@ -423,13 +476,22 @@ describe('ToolLoop', () => {
       }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], { tools: [ADD], registry });
-    expect(out.usage).toEqual({ promptTokens: 450, completionTokens: 15, totalTokens: 465, cachedTokens: 370 });
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
+    expect(out.usage).toEqual({
+      promptTokens: 450,
+      completionTokens: 15,
+      totalTokens: 465,
+      cachedTokens: 370,
+    });
   });
 
   it('records read_skeleton avoided tokens in yagni breakdown and optimistic savings', async () => {
     const skelRegistry = {
-      read_skeleton: async () => 'export class Foo {}\n\n/* [read_skeleton: saved ~850 tokens vs reading full file (1000 -> 150 tok)] */',
+      read_skeleton: async () =>
+        'export class Foo {}\n\n/* [read_skeleton: saved ~850 tokens vs reading full file (1000 -> 150 tok)] */',
     };
     const SKELETON_TOOL: import('../src/types.js').ToolDefinition = {
       name: 'read_skeleton',
@@ -445,7 +507,10 @@ describe('ToolLoop', () => {
       result({ content: 'understood', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: 'inspect' }], { tools: [SKELETON_TOOL], registry: skelRegistry });
+    const out = await loop.run([...system, { role: 'user', content: 'inspect' }], {
+      tools: [SKELETON_TOOL],
+      registry: skelRegistry,
+    });
     expect(out.savings?.breakdown?.yagni).toBe(850);
     expect(out.savings?.optimisticSavedTokens).toBeGreaterThanOrEqual(850);
   });
@@ -458,10 +523,17 @@ describe('ToolLoop', () => {
         toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
         usage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 },
       }),
-      result({ content: '5', finishReason: 'stop', usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 } }),
+      result({
+        content: '5',
+        finishReason: 'stop',
+        usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 },
+      }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], { tools: [ADD], registry });
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.usage).toEqual({ promptTokens: 50, completionTokens: 15, totalTokens: 65 });
   });
 
@@ -487,7 +559,11 @@ describe('ToolLoop', () => {
 
     deltas.length = 0;
     (client.stream as unknown as jest.Mock).mockClear();
-    await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry, stream: false });
+    await loop.run([...system, { role: 'user', content: 'go' }], {
+      tools: [ADD],
+      registry,
+      stream: false,
+    });
     // Buffered path: one delta carrying the whole answer, and no stream() call.
     expect(deltas).toEqual(['partial']);
     expect(client.stream).not.toHaveBeenCalled();
@@ -507,7 +583,10 @@ describe('ToolLoop', () => {
     process.env.MUGIL_IDE_NO_STREAM = '1';
     try {
       const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-      const out = await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
+      const out = await loop.run([...system, { role: 'user', content: 'go' }], {
+        tools: [ADD],
+        registry,
+      });
       expect(client.stream).not.toHaveBeenCalled();
       expect(client.complete).toHaveBeenCalledTimes(1);
       expect(out.content).toBe('subagent');
@@ -517,7 +596,9 @@ describe('ToolLoop', () => {
   });
 
   it('parseToolArguments throws ToolError on invalid JSON', () => {
-    expect(() => parseToolArguments({ id: 'c', name: 'add', arguments: 'not json' })).toThrow(ToolError);
+    expect(() => parseToolArguments({ id: 'c', name: 'add', arguments: 'not json' })).toThrow(
+      ToolError,
+    );
     expect(parseToolArguments({ id: 'c', name: 'add', arguments: '{"a":1}' })).toEqual({ a: 1 });
   });
 
@@ -535,7 +616,10 @@ describe('ToolLoop', () => {
       check: async () => ({ allowed: false, reason: 'Permission denied: restricted tool' }),
     };
 
-    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }), maxIterations: 5 });
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      maxIterations: 5,
+    });
     const msgs: ChatMessage[] = [...system, { role: 'user', content: 'compute' }];
     const out = await loop.run(msgs, {
       tools: [ADD],

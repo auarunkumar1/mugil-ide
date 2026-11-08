@@ -118,7 +118,10 @@ export class OnnxEmbeddingProvider implements EmbeddingProvider {
    */
   private embedSubwordProjection(text: string): number[] {
     const vector = new Float64Array(ONNX_EMBEDDING_DIM);
-    const normalized = text.toLowerCase().replace(/[^a-z0-9_\s]/g, ' ').trim();
+    const normalized = text
+      .toLowerCase()
+      .replace(/[^a-z0-9_\s]/g, ' ')
+      .trim();
     const words = normalized.split(/\s+/).filter(Boolean);
 
     if (words.length === 0) {

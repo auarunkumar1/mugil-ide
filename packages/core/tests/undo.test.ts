@@ -146,10 +146,18 @@ describe('undo/redo store', () => {
     const file = path.join(root, 'a.txt');
     fs.writeFileSync(file, 'original');
 
-    pushEdit(root, { path: file, before: { content: 'original', existed: true }, after: { content: 'edited', existed: true } });
+    pushEdit(root, {
+      path: file,
+      before: { content: 'original', existed: true },
+      after: { content: 'edited', existed: true },
+    });
     undoLast(root);
     // New edit after undo — redo must be empty (and the tool writes the file).
-    pushEdit(root, { path: file, before: { content: 'original', existed: true }, after: { content: 'second', existed: true } });
+    pushEdit(root, {
+      path: file,
+      before: { content: 'original', existed: true },
+      after: { content: 'second', existed: true },
+    });
     fs.writeFileSync(file, 'second', 'utf-8');
     expect(redoLast(root)).toBeNull();
     expect(fs.readFileSync(file, 'utf-8')).toBe('second');
@@ -193,7 +201,11 @@ describe('undo/redo store', () => {
     const rootB = tempRoot();
     const fileA = path.join(rootA, 'a.txt');
     fs.writeFileSync(fileA, 'A0');
-    pushEdit(rootA, { path: fileA, before: { content: 'A0', existed: true }, after: { content: 'A1', existed: true } });
+    pushEdit(rootA, {
+      path: fileA,
+      before: { content: 'A0', existed: true },
+      after: { content: 'A1', existed: true },
+    });
 
     expect(undoLast(rootB)).toBeNull();
     const undone = undoLast(rootA)!;
@@ -244,7 +256,9 @@ describe('undo wiring into workspace tools', () => {
     const { toolRegistry } = createWorkspaceTools(root);
     const content = 'y'.repeat(MAX_UNDO_CONTENT_CHARS + 1);
 
-    const result = await toolRegistry.write_file(fileCall('write_file', { path: 'huge.txt', content }));
+    const result = await toolRegistry.write_file(
+      fileCall('write_file', { path: 'huge.txt', content }),
+    );
     // The file was written, but the tool surfaces why it can't be undone.
     expect(fs.readFileSync(path.join(root, 'huge.txt'), 'utf-8')).toBe(content);
     expect(result).toContain('too large to snapshot for /undo');

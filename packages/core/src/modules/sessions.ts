@@ -94,7 +94,10 @@ function workspaceTag(workspace: string): string {
  * app and reopening it in another project never resumes that project's
  * conversation (and never leaks its file references into the new one).
  */
-export function sessionFilePath(env: NodeJS.ProcessEnv = process.env, workspace = process.cwd()): string {
+export function sessionFilePath(
+  env: NodeJS.ProcessEnv = process.env,
+  workspace = process.cwd(),
+): string {
   const dir = env.MUGIL_IDE_CACHE_DIR || path.join(os.homedir(), '.cache', 'mugil-ide');
   return path.join(dir, `last-session-${workspaceTag(workspace)}.json`);
 }
@@ -188,7 +191,11 @@ export function clearNamedSession(name: string, env: NodeJS.ProcessEnv = process
  * ENOSPC…). Persistence is best-effort: a full or read-only cache dir must
  * never take down the session it was trying to save.
  */
-export function saveSession(entries: SessionEntry[], file = sessionFilePath(), stats?: SessionStats): string {
+export function saveSession(
+  entries: SessionEntry[],
+  file = sessionFilePath(),
+  stats?: SessionStats,
+): string {
   try {
     const session: SessionFile = {
       version: 2,
@@ -217,15 +224,24 @@ function sanitizeStats(stats: unknown): SessionStats | null {
     requests: num(s.requests),
     tokensSaved: num(s.tokensSaved),
     compressibleTokens: num(s.compressibleTokens),
-    estimatedCost: typeof s.estimatedCost === 'number' && Number.isFinite(s.estimatedCost) ? s.estimatedCost : 0,
-    filesModified: Array.isArray(s.filesModified) ? s.filesModified.filter((f): f is string => typeof f === 'string') : [],
-    savingsBreakdown: s.savingsBreakdown && typeof s.savingsBreakdown === 'object' ? {
-      caveman: num((s.savingsBreakdown as Record<string, unknown>).caveman),
-      yagni: num((s.savingsBreakdown as Record<string, unknown>).yagni),
-      cache: num((s.savingsBreakdown as Record<string, unknown>).cache),
-      mcp: num((s.savingsBreakdown as Record<string, unknown>).mcp),
-    } : undefined,
-    optimisticTokensSaved: typeof s.optimisticTokensSaved === 'number' && Number.isFinite(s.optimisticTokensSaved) ? s.optimisticTokensSaved : undefined,
+    estimatedCost:
+      typeof s.estimatedCost === 'number' && Number.isFinite(s.estimatedCost) ? s.estimatedCost : 0,
+    filesModified: Array.isArray(s.filesModified)
+      ? s.filesModified.filter((f): f is string => typeof f === 'string')
+      : [],
+    savingsBreakdown:
+      s.savingsBreakdown && typeof s.savingsBreakdown === 'object'
+        ? {
+            caveman: num((s.savingsBreakdown as Record<string, unknown>).caveman),
+            yagni: num((s.savingsBreakdown as Record<string, unknown>).yagni),
+            cache: num((s.savingsBreakdown as Record<string, unknown>).cache),
+            mcp: num((s.savingsBreakdown as Record<string, unknown>).mcp),
+          }
+        : undefined,
+    optimisticTokensSaved:
+      typeof s.optimisticTokensSaved === 'number' && Number.isFinite(s.optimisticTokensSaved)
+        ? s.optimisticTokensSaved
+        : undefined,
   };
 }
 
@@ -233,14 +249,21 @@ function sanitizeStats(stats: unknown): SessionStats | null {
  * Loads a saved conversation + session metrics; empty / null when absent,
  * corrupt, or of an unknown version. Accepts version-1 files (entries only).
  */
-export function loadSessionFile(file = sessionFilePath()): { entries: SessionEntry[]; stats: SessionStats | null } {
+export function loadSessionFile(file = sessionFilePath()): {
+  entries: SessionEntry[];
+  stats: SessionStats | null;
+} {
   // On the auto-resume (startup) path, sweep up the legacy global
   // `last-session.json` from pre-workspace-scoping versions so it doesn't
   // linger on disk. Named-session loads pass an explicit file and skip this.
   if (file === sessionFilePath()) removeLegacySessionFile();
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as SessionFile;
-    if (!parsed || (parsed.version !== 1 && parsed.version !== 2) || !Array.isArray(parsed.entries)) {
+    if (
+      !parsed ||
+      (parsed.version !== 1 && parsed.version !== 2) ||
+      !Array.isArray(parsed.entries)
+    ) {
       return { entries: [], stats: null };
     }
     const entries = parsed.entries
@@ -283,7 +306,10 @@ export function clearSession(file = sessionFilePath()): boolean {
  * start read-only. Mode is a property of the workspace you are working in,
  * not of the user, so it is scoped the same way the session is.
  */
-export function modeFilePath(env: NodeJS.ProcessEnv = process.env, workspace = process.cwd()): string {
+export function modeFilePath(
+  env: NodeJS.ProcessEnv = process.env,
+  workspace = process.cwd(),
+): string {
   return path.join(sessionDir(env), `mode-${workspaceTag(workspace)}.json`);
 }
 
@@ -293,7 +319,9 @@ export function loadMode(
   workspace = process.cwd(),
 ): 'plan' | 'act' | null {
   try {
-    const raw = JSON.parse(fs.readFileSync(modeFilePath(env, workspace), 'utf8')) as { mode?: string };
+    const raw = JSON.parse(fs.readFileSync(modeFilePath(env, workspace), 'utf8')) as {
+      mode?: string;
+    };
     return raw.mode === 'plan' || raw.mode === 'act' ? raw.mode : null;
   } catch {
     return null;

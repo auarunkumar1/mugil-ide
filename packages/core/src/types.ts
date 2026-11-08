@@ -215,4 +215,3 @@ export type PipelineEvent =
   | { type: 'delta'; text: string; streamed: boolean }
   /** Live reasoning / thinking fragment as it arrives from reasoning-capable models. */
   | { type: 'thinking'; text: string; streamed: boolean };
-

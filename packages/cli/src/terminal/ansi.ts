@@ -90,7 +90,11 @@ export function gray(text: string | number): string {
   return `${ANSI.gray}${text}${ANSI.reset}`;
 }
 
-export function badge(label: string, bg: string = ANSI.bgBlue, fg: string = ANSI.brightWhite): string {
+export function badge(
+  label: string,
+  bg: string = ANSI.bgBlue,
+  fg: string = ANSI.brightWhite,
+): string {
   return ` ${bg}${fg}${ANSI.bold} ${label} ${ANSI.reset} `;
 }
 
@@ -117,7 +121,9 @@ export function formatMarkdown(text: string): string {
       if (!inCodeBlock) {
         inCodeBlock = true;
         codeLang = line.trim().slice(3).trim();
-        out.push(`${ANSI.dim}┌─── ${codeLang || 'code'} ${'─'.repeat(Math.max(0, 48 - (codeLang.length || 4)))}┐${ANSI.reset}`);
+        out.push(
+          `${ANSI.dim}┌─── ${codeLang || 'code'} ${'─'.repeat(Math.max(0, 48 - (codeLang.length || 4)))}┐${ANSI.reset}`,
+        );
       } else {
         inCodeBlock = false;
         out.push(`${ANSI.dim}└───${'─'.repeat(50)}┘${ANSI.reset}`);
@@ -301,4 +307,3 @@ export class StreamMarkdown {
     this.flush();
   }
 }
-

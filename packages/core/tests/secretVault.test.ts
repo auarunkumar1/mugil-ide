@@ -1,8 +1,4 @@
-import {
-  hasSecrets,
-  scanSecrets,
-  shannonEntropy,
-} from '../src/modules/security/secretScanner.js';
+import { hasSecrets, scanSecrets, shannonEntropy } from '../src/modules/security/secretScanner.js';
 import { SecretVault, secretToken } from '../src/modules/security/secretVault.js';
 
 /** Fixtures are built at runtime so this file never contains a real-looking key. */
@@ -35,13 +31,18 @@ describe('scanSecrets', () => {
 
   it('detects bearer and basic auth headers', () => {
     const bearer = scanSecrets('Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123');
-    expect(bearer[0]).toMatchObject({ type: 'BEARER_TOKEN', value: 'abcdefghijklmnopqrstuvwxyz0123' });
+    expect(bearer[0]).toMatchObject({
+      type: 'BEARER_TOKEN',
+      value: 'abcdefghijklmnopqrstuvwxyz0123',
+    });
     const basic = scanSecrets('Authorization: Basic dXNlcjpwYXNzd29yZDEyMzQ1Ng==');
     expect(basic[0]!.type).toBe('BASIC_AUTH');
   });
 
   it('extracts only the password from a connection string', () => {
-    const matches = scanSecrets('DATABASE_URL=postgres://admin:s3cr3tP4ssw0rd@db.internal:5432/app');
+    const matches = scanSecrets(
+      'DATABASE_URL=postgres://admin:s3cr3tP4ssw0rd@db.internal:5432/app',
+    );
     expect(matches).toHaveLength(1);
     expect(matches[0]).toMatchObject({ type: 'CONNECTION_PASSWORD', value: 's3cr3tP4ssw0rd' });
   });

@@ -100,7 +100,11 @@ function renderModules(parsed: ParsedFile[]): string {
   return sections.join('\n');
 }
 
-async function assembleMarkdown(root: string, rels: string[], parsed: ParsedFile[]): Promise<string> {
+async function assembleMarkdown(
+  root: string,
+  rels: string[],
+  parsed: ParsedFile[],
+): Promise<string> {
   const meta = readPackageMeta(root);
   const generatedAt = new Date().toISOString();
   const lines = [
@@ -122,7 +126,12 @@ async function assembleMarkdown(root: string, rels: string[], parsed: ParsedFile
     '',
     renderModules(parsed),
   ];
-  return lines.filter((l, i) => !(l === '' && lines[i - 1] === '')).join('\n').trimEnd() + '\n';
+  return (
+    lines
+      .filter((l, i) => !(l === '' && lines[i - 1] === ''))
+      .join('\n')
+      .trimEnd() + '\n'
+  );
 }
 
 /** Generates (and writes) the markdown documentation for a project. */
@@ -130,7 +139,9 @@ export async function generateDocs(options: DocsOptions): Promise<DocsResult> {
   const root = path.resolve(options.root);
   const globs = (options.globs ?? ['**/*']).map(globToRegex);
   const ignore = new Set(options.ignore ?? DEFAULT_IGNORE);
-  const output = options.output ? path.resolve(options.output) : path.join(root, 'DOCUMENTATION.md');
+  const output = options.output
+    ? path.resolve(options.output)
+    : path.join(root, 'DOCUMENTATION.md');
 
   const files = await walkFiles(root, globs, ignore);
   const parsed: ParsedFile[] = [];
@@ -174,9 +185,12 @@ export function watchDocs(options: WatchDocsOptions): { stop(): void } {
     options.onGenerated?.(result);
   };
   void tick().catch((err) => options.onError?.(err));
-  const handle = setInterval(() => {
-    void tick().catch((err) => options.onError?.(err));
-  }, Math.max(1, options.intervalSeconds) * 1000);
+  const handle = setInterval(
+    () => {
+      void tick().catch((err) => options.onError?.(err));
+    },
+    Math.max(1, options.intervalSeconds) * 1000,
+  );
   const stop = (): void => clearInterval(handle);
   options.signal?.addEventListener('abort', stop, { once: true });
   return { stop };

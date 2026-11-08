@@ -29,7 +29,13 @@ import { compressCommandOutput } from '../rtk/index.js';
 import { globalBlobStore } from '../tools/blobStore.js';
 import { globalSecretVault } from '../security/secretVault.js';
 import { countTokens } from '../../token/tokenizer.js';
-import { StepDebugger, globalStepDebugger, type StepAction, type StepDecision, type ToolBreakpoint } from './stepDebugger.js';
+import {
+  StepDebugger,
+  globalStepDebugger,
+  type StepAction,
+  type StepDecision,
+  type ToolBreakpoint,
+} from './stepDebugger.js';
 
 export { StepDebugger, globalStepDebugger };
 export type { StepAction, StepDecision, ToolBreakpoint };
@@ -72,7 +78,11 @@ export interface ToolLoopOptions {
    * Called when tool iterations reach the configured limit before forcing a final answer.
    * Return number of additional iterations to grant (e.g. 15), or 0 to finish now.
    */
-  onLimitReached?: (info: { currentIterations: number; toolCalls: number; usage: Usage }) => number | Promise<number>;
+  onLimitReached?: (info: {
+    currentIterations: number;
+    toolCalls: number;
+    usage: Usage;
+  }) => number | Promise<number>;
 }
 
 export interface ToolLoopRunOptions extends HandoffOptions {
@@ -136,16 +146,28 @@ export class ToolLoop {
   private readonly maxIterations: number;
   private readonly stepDebugger?: StepDebugger;
   private readonly onTool?: (call: ToolCall, index: number) => void;
-  private readonly onToolResult?: (call: ToolCall, result: { content: string; ok: boolean }, index: number) => void;
+  private readonly onToolResult?: (
+    call: ToolCall,
+    result: { content: string; ok: boolean },
+    index: number,
+  ) => void;
   private readonly sizeMaxTokens?: (messages: ChatMessage[]) => number | undefined;
   private readonly onDelta?: (text: string, streamed?: boolean) => void;
-  private readonly onLimitReached?: (info: { currentIterations: number; toolCalls: number; usage: Usage }) => number | Promise<number>;
+  private readonly onLimitReached?: (info: {
+    currentIterations: number;
+    toolCalls: number;
+    usage: Usage;
+  }) => number | Promise<number>;
   private readonly handlers: StreamHandlers;
 
   constructor(options: ToolLoopOptions) {
     this.handoff = options.handoff;
-    const envLimit = process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS ? Number(process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS) : NaN;
-    this.maxIterations = options.maxIterations ?? (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 20);
+    const envLimit = process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS
+      ? Number(process.env.MUGIL_IDE_MAX_TOOL_ITERATIONS)
+      : NaN;
+    this.maxIterations =
+      options.maxIterations ??
+      (Number.isFinite(envLimit) && envLimit > 0 ? Math.floor(envLimit) : 20);
     this.stepDebugger = options.stepDebugger;
     this.onTool = options.onTool;
     this.onToolResult = options.onToolResult;
@@ -231,7 +253,11 @@ export class ToolLoop {
         const signature = `${call.name}:${call.arguments}`;
         const times = (denials.get(signature) ?? 0) + (outcome.ok ? 0 : 1);
         denials.set(signature, times);
-        if (!outcome.ok && times > REPEAT_DENIAL_LIMIT && outcome.content.startsWith('Permission denied')) {
+        if (
+          !outcome.ok &&
+          times > REPEAT_DENIAL_LIMIT &&
+          outcome.content.startsWith('Permission denied')
+        ) {
           // Same call, same refusal — escalate the instruction in the tool result
           // instead of pushing an invalid duplicate assistant turn.
           msgs.push({
@@ -330,7 +356,14 @@ export class ToolLoop {
     call: ToolCall,
     registry: ToolRegistry,
     permission?: (call: ToolCall) => boolean | Promise<boolean>,
-  ): Promise<{ content: string; ok: boolean; savedTokens: number; keptTokens: number; yagniSaved: number; mcpSaved: number }> {
+  ): Promise<{
+    content: string;
+    ok: boolean;
+    savedTokens: number;
+    keptTokens: number;
+    yagniSaved: number;
+    mcpSaved: number;
+  }> {
     const none = { savedTokens: 0, keptTokens: 0, yagniSaved: 0, mcpSaved: 0 };
     let activeCall = call;
 
@@ -341,7 +374,8 @@ export class ToolLoop {
       }
       if (decision.action === 'skip') {
         return {
-          content: decision.skipOutput ?? `[Skipped by developer in Step Debugger: ${activeCall.name}]`,
+          content:
+            decision.skipOutput ?? `[Skipped by developer in Step Debugger: ${activeCall.name}]`,
           ok: true,
           ...none,
         };
@@ -411,20 +445,26 @@ export class ToolLoop {
       // .env`, an auth header in a stack trace). Tokenize it here so the value
       // stays in the local vault and only the placeholder crosses the wire.
       content = globalSecretVault.tokenize(content).text;
-      return { content, ok: true, savedTokens, keptTokens: countTokens(content), yagniSaved, mcpSaved };
+      return {
+        content,
+        ok: true,
+        savedTokens,
+        keptTokens: countTokens(content),
+        yagniSaved,
+        mcpSaved,
+      };
     } catch (err) {
       return {
-        content: globalSecretVault.tokenize(`Error: ${err instanceof Error ? err.message : String(err)}`).text,
+        content: globalSecretVault.tokenize(
+          `Error: ${err instanceof Error ? err.message : String(err)}`,
+        ).text,
         ok: false,
         ...none,
       };
     }
   }
 
-  private sum(
-    a: Usage,
-    b: Usage,
-  ): Usage {
+  private sum(a: Usage, b: Usage): Usage {
     const cachedTokens = (a.cachedTokens ?? 0) + (b.cachedTokens ?? 0);
     return {
       promptTokens: a.promptTokens + b.promptTokens,

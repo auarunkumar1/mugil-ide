@@ -85,7 +85,8 @@ export class WorktreeSquadManager {
   async cleanupWorktree(agentId: string, options: { deleteBranch?: boolean } = {}): Promise<void> {
     const safeId = agentId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const info = this.activeWorktrees.get(agentId) ?? this.activeWorktrees.get(safeId);
-    const worktreeDir = info?.worktreePath ?? path.join(this.workspaceRoot, '.mugil', 'worktrees', safeId);
+    const worktreeDir =
+      info?.worktreePath ?? path.join(this.workspaceRoot, '.mugil', 'worktrees', safeId);
 
     const hasGit = await this.isGitRepo();
     if (hasGit) {

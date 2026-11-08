@@ -1,4 +1,10 @@
-import { inputSavingsPercent, defaultSavingsBreakdown, sumSavingsBreakdowns, optimisticSavingsTotal, optimisticSavingsPercent } from '../src/savings.js';
+import {
+  inputSavingsPercent,
+  defaultSavingsBreakdown,
+  sumSavingsBreakdowns,
+  optimisticSavingsTotal,
+  optimisticSavingsPercent,
+} from '../src/savings.js';
 
 describe('inputSavingsPercent', () => {
   it('measures saved tokens against compressible input, not the whole prompt', () => {

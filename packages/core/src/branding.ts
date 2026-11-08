@@ -2,7 +2,7 @@
 
 export const BRAND = 'Mugil IDE';
 export const BRAND_SLUG = 'mugil-ide';
-export const VERSION = '0.3.0';
+export const VERSION = '0.3.1';
 
 /**
  * 5-row modern ANSI Shadow 3D block glyphs used to build the "MUGIL IDE" logo.
@@ -74,12 +74,24 @@ function hueToRgb(hue: number): [number, number, number] {
   const mod = i;
   let rgb: [number, number, number] = [0, 0, 0];
   switch (mod) {
-    case 0: rgb = [v, t, p]; break;
-    case 1: rgb = [q, v, p]; break;
-    case 2: rgb = [p, v, t]; break;
-    case 3: rgb = [p, q, v]; break;
-    case 4: rgb = [t, p, v]; break;
-    case 5: rgb = [v, p, q]; break;
+    case 0:
+      rgb = [v, t, p];
+      break;
+    case 1:
+      rgb = [q, v, p];
+      break;
+    case 2:
+      rgb = [p, v, t];
+      break;
+    case 3:
+      rgb = [p, q, v];
+      break;
+    case 4:
+      rgb = [t, p, v];
+      break;
+    case 5:
+      rgb = [v, p, q];
+      break;
   }
   return [Math.round(rgb[0] * 255), Math.round(rgb[1] * 255), Math.round(rgb[2] * 255)];
 }

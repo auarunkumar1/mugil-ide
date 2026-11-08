@@ -1,4 +1,10 @@
-import type { ChatMessage, CompletionResult, ThinkingLevel, ToolCall, ToolDefinition } from '../../types.js';
+import type {
+  ChatMessage,
+  CompletionResult,
+  ThinkingLevel,
+  ToolCall,
+  ToolDefinition,
+} from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import { parseOpenAiSse, type StreamedCompletion, type StreamHandlers } from './stream.js';
 
@@ -33,7 +39,8 @@ export interface ProviderCompleteOptions {
  */
 export function requestSignal(options: ProviderCompleteOptions): AbortSignal | undefined {
   const timeout = options.timeoutMs ?? DEFAULT_COMPLETION_TIMEOUT_MS;
-  const timeoutSignal = Number.isFinite(timeout) && timeout > 0 ? AbortSignal.timeout(timeout) : undefined;
+  const timeoutSignal =
+    Number.isFinite(timeout) && timeout > 0 ? AbortSignal.timeout(timeout) : undefined;
   const external = options.signal;
   if (!external && !timeoutSignal) return undefined;
   if (!external) return timeoutSignal;
@@ -224,11 +231,17 @@ export function openAiStreamResult(
   let content = split.content;
   const thinking = split.thinking;
 
-  if (content.trim().length === 0 && streamed.toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
+  if (
+    content.trim().length === 0 &&
+    streamed.toolCalls.length === 0 &&
+    thinking &&
+    thinking.trim().length > 0
+  ) {
     content = thinking;
   }
 
-  const promptTokens = streamed.usage?.promptTokens ?? estimateMessagesTokens(messages, options.tools);
+  const promptTokens =
+    streamed.usage?.promptTokens ?? estimateMessagesTokens(messages, options.tools);
   const completionTokens = streamed.usage?.completionTokens ?? countTokens(content);
   return {
     provider,
@@ -238,7 +251,9 @@ export function openAiStreamResult(
       promptTokens,
       completionTokens,
       totalTokens: streamed.usage?.totalTokens ?? promptTokens + completionTokens,
-      ...(streamed.usage?.cachedTokens !== undefined ? { cachedTokens: streamed.usage.cachedTokens } : {}),
+      ...(streamed.usage?.cachedTokens !== undefined
+        ? { cachedTokens: streamed.usage.cachedTokens }
+        : {}),
     },
     finishReason: streamed.finishReason,
     toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
@@ -263,7 +278,10 @@ export function mockCompletion(
   options: ProviderCompleteOptions,
   missingVar: string,
 ): CompletionResult {
-  const userText = messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
+  const userText = messages
+    .filter((m) => m.role === 'user')
+    .map((m) => m.content)
+    .join('\n');
   const content = [
     `[mock] no ${missingVar} — offline response.`,
     `requested model: ${options.model}`,
@@ -336,7 +354,11 @@ export class OpenAiWireClient implements ProviderClient {
     return `${this.config.baseUrl.replace(/\/+$/, '')}${endpoint}`;
   }
 
-  async post(messages: ChatMessage[], options: ProviderCompleteOptions, stream = false): Promise<Response> {
+  async post(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    stream = false,
+  ): Promise<Response> {
     const body = this.buildBody(messages, options);
     if (stream) {
       body.stream = true;
@@ -358,7 +380,12 @@ export class OpenAiWireClient implements ProviderClient {
     return res;
   }
 
-  protected handleHttpError(status: number, statusText: string, bodyText: string, retryable: boolean): never {
+  protected handleHttpError(
+    status: number,
+    statusText: string,
+    bodyText: string,
+    retryable: boolean,
+  ): never {
     throw new ProviderError(
       `${this.config.providerName} ${status} ${statusText}: ${bodyText.slice(0, 300)}`,
       status,
@@ -372,13 +399,21 @@ export class OpenAiWireClient implements ProviderClient {
     handlers: StreamHandlers,
   ): Promise<CompletionResult> {
     if (this.mock) {
-      const mock = mockCompletion(messages, options, this.config.missingEnvVar ?? `${this.config.providerName.toUpperCase()}_API_KEY`);
+      const mock = mockCompletion(
+        messages,
+        options,
+        this.config.missingEnvVar ?? `${this.config.providerName.toUpperCase()}_API_KEY`,
+      );
       handlers.onDelta?.(mock.content);
       return mock;
     }
     const res = await this.post(messages, options, true);
     if (!res.body) {
-      throw new ProviderError(`${this.config.providerName} returned no body to stream`, res.status, true);
+      throw new ProviderError(
+        `${this.config.providerName} returned no body to stream`,
+        res.status,
+        true,
+      );
     }
     const streamed = await parseOpenAiSse(res.body, handlers);
     return openAiStreamResult(this.config.providerName, messages, options, streamed);
@@ -389,7 +424,11 @@ export class OpenAiWireClient implements ProviderClient {
     options: ProviderCompleteOptions,
   ): Promise<CompletionResult> {
     if (this.mock) {
-      return mockCompletion(messages, options, this.config.missingEnvVar ?? `${this.config.providerName.toUpperCase()}_API_KEY`);
+      return mockCompletion(
+        messages,
+        options,
+        this.config.missingEnvVar ?? `${this.config.providerName.toUpperCase()}_API_KEY`,
+      );
     }
     const res = await this.post(messages, options, false);
     const data = (await res.json()) as {
@@ -415,7 +454,10 @@ export class OpenAiWireClient implements ProviderClient {
       };
     };
     const message = data.choices?.[0]?.message;
-    const split = extractThinkBlock(message?.content ?? '', message?.reasoning_content ?? message?.reasoning);
+    const split = extractThinkBlock(
+      message?.content ?? '',
+      message?.reasoning_content ?? message?.reasoning,
+    );
     let content = split.content;
     const thinking = split.thinking;
     const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
@@ -425,10 +467,16 @@ export class OpenAiWireClient implements ProviderClient {
         name: tc.function!.name!,
         arguments: tc.function!.arguments ?? '{}',
       }));
-    if (content.trim().length === 0 && toolCalls.length === 0 && thinking && thinking.trim().length > 0) {
+    if (
+      content.trim().length === 0 &&
+      toolCalls.length === 0 &&
+      thinking &&
+      thinking.trim().length > 0
+    ) {
       content = thinking;
     }
-    const promptTokens = data.usage?.prompt_tokens ?? estimateMessagesTokens(messages, options.tools);
+    const promptTokens =
+      data.usage?.prompt_tokens ?? estimateMessagesTokens(messages, options.tools);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
     const cachedTokens = data.usage?.prompt_tokens_details?.cached_tokens;
     const usage = {

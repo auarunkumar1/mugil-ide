@@ -39,7 +39,12 @@ export class OpenRouterClient extends OpenAiWireClient {
     });
   }
 
-  protected override handleHttpError(status: number, statusText: string, bodyText: string, retryable: boolean): never {
+  protected override handleHttpError(
+    status: number,
+    statusText: string,
+    bodyText: string,
+    retryable: boolean,
+  ): never {
     throw new OpenRouterError(
       `OpenRouter ${status} ${statusText}: ${bodyText.slice(0, 300)}`,
       status,

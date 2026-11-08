@@ -39,7 +39,10 @@ export function createDiffRunner(): DiffRunner {
   let worker: Worker | null = null;
   let seq = 0;
   let failed = false;
-  const pending = new Map<number, { resolve: (patch: string) => void; reject: (err: Error) => void }>();
+  const pending = new Map<
+    number,
+    { resolve: (patch: string) => void; reject: (err: Error) => void }
+  >();
 
   function rejectAll(err: Error): void {
     for (const p of pending.values()) p.reject(err);
@@ -48,7 +51,14 @@ export function createDiffRunner(): DiffRunner {
 
   /** Synchronous fallback — callers cap input size, so this stays ~1s worst case. */
   function syncPatch(request: DiffPatchRequest): string {
-    return createTwoFilesPatch(request.file1, request.file2, request.before, request.after, request.header1, request.header2);
+    return createTwoFilesPatch(
+      request.file1,
+      request.file2,
+      request.before,
+      request.after,
+      request.header1,
+      request.header2,
+    );
   }
 
   function ensureWorker(): Worker {

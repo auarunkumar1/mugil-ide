@@ -21,11 +21,11 @@ one `catch`/`on('error')` away from being a log line.
 
 ## 1. CRITICAL — malformed `Host` header kills the server, unauthenticated
 
-| | |
-|---|---|
-| Location | `packages/cli/src/server/server.ts:237` (HTTP), `server.ts:1013` (upgrade) |
-| Trigger | Any `Host` value that is not a valid hostname: `a b`, `ünicode`, `[::1`, `a%20b` |
-| Impact | **Process exit 1.** On the `upgrade` path this happens **before** the origin/token check, so it is remote and unauthenticated. |
+|          |                                                                                                                                |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Location | `packages/cli/src/server/server.ts:237` (HTTP), `server.ts:1013` (upgrade)                                                     |
+| Trigger  | Any `Host` value that is not a valid hostname: `a b`, `ünicode`, `[::1`, `a%20b`                                               |
+| Impact   | **Process exit 1.** On the `upgrade` path this happens **before** the origin/token check, so it is remote and unauthenticated. |
 
 ```ts
 const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -35,6 +35,7 @@ const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
 the `'upgrade'` handler is synchronous (uncaught exception → exit).
 
 **Reproduced (HTTP):**
+
 ```
 $ printf 'GET / HTTP/1.1\r\nHost: a b\r\n\r\n' | nc localhost 7799
 TypeError: Invalid URL
@@ -43,6 +44,7 @@ SERVER DEAD
 ```
 
 **Reproduced (upgrade, pre-auth):**
+
 ```
 $ printf 'GET /ws HTTP/1.1\r\nHost: a b\r\nUpgrade: websocket\r\n…' | nc localhost 7805
 code: 'ERR_INVALID_URL'  input: '/ws'  base: 'http://a b'
@@ -59,17 +61,18 @@ hostnames. Severity rises with `--host 0.0.0.0`.
 
 ## 2. CRITICAL — one malformed WebSocket frame kills the server
 
-| | |
-|---|---|
+|          |                                                                                               |
+| -------- | --------------------------------------------------------------------------------------------- |
 | Location | `packages/cli/src/server/server.ts:1033` (`connection`), `1238` (`message`), `1330` (`close`) |
-| Trigger | Any frame-level protocol violation on an **authenticated** socket |
-| Impact | **Process exit 1** — `throw er; // Unhandled 'error' event` |
+| Trigger  | Any frame-level protocol violation on an **authenticated** socket                             |
+| Impact   | **Process exit 1** — `throw er; // Unhandled 'error' event`                                   |
 
 The connection handler registers `message` and `close` but never `ws.on('error')`. `ws` emits
 `'error'` for invalid opcodes, reserved bits, unmasked client frames, invalid UTF-8 and oversized
 frames; with no listener that is an uncaught exception.
 
 **Reproduced** by writing two raw bytes (`0x8f 0x00`) on an authenticated socket:
+
 ```
 Emitted 'error' event on WebSocket instance at:
     at Receiver.receiverOnError (ws/lib/websocket.js:1218:15)
@@ -89,11 +92,11 @@ disappearance because the process is gone.
 
 ## 3. HIGH — session autosave failure kills the server (the "heavy workload" exit)
 
-| | |
-|---|---|
+|          |                                                                                                                                                  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Location | `packages/cli/src/terminal/agentRepl.ts:1252` (after every turn), `agentRepl.ts:398` (after `/undo`); `saveCurrentSession` at `agentRepl.ts:774` |
-| Trigger | `EACCES` / `EROFS` / `ENOSPC` / `EDQUOT` while writing the session file |
-| Impact | **Process exit 1**, losing the very session it was trying to save |
+| Trigger  | `EACCES` / `EROFS` / `ENOSPC` / `EDQUOT` while writing the session file                                                                          |
+| Impact   | **Process exit 1**, losing the very session it was trying to save                                                                                |
 
 ```ts
 // agentRepl.ts:1252 — fire-and-forget, no .catch
@@ -103,9 +106,10 @@ void this.saveCurrentSession();
 `saveCurrentSession()` is `async`, and `saveSession()` (`packages/core/src/modules/sessions.ts:177`)
 uses `mkdirSync` + `writeFileSync`. A synchronous throw inside an `async` function becomes a
 rejected promise; `void` leaves it unhandled → exit. The explicit `/session <name>` path
-(`agentRepl.ts:417`) *is* wrapped in `try/catch`; only the automatic saves are not.
+(`agentRepl.ts:417`) _is_ wrapped in `try/catch`; only the automatic saves are not.
 
 **Reproduced with the real `saveSession` from `dist`** and an unwritable cache dir:
+
 ```
 Error: EACCES: permission denied, open '/tmp/crashprobe/ro/session.json'
     at Object.writeFileSync (node:fs:2367:20)
@@ -125,11 +129,11 @@ make `saveSession()` degrade to a no-op instead of throwing.
 
 ## 4. HIGH — opening the Shell pane kills the app when node-pty is unavailable
 
-| | |
-|---|---|
+|          |                                                                     |
+| -------- | ------------------------------------------------------------------- |
 | Location | `packages/cli/src/server/ptyManager.ts:67-76` (`createFallbackPty`) |
-| Trigger | `spawn(shell, …)` fails: `ENOENT`, `EACCES`, `ENOMEM` |
-| Impact | **Process exit 1** — `Spawn` emits `'error'`, no listener |
+| Trigger  | `spawn(shell, …)` fails: `ENOENT`, `EACCES`, `ENOMEM`               |
+| Impact   | **Process exit 1** — `Spawn` emits `'error'`, no listener           |
 
 The `child_process` fallback wires `stdout`/`stderr`/`exit` but never `child.on('error')`. This
 backend is what Linux users get whenever `node-pty` fails to load: a Node major upgrade with no
@@ -138,6 +142,7 @@ into a GC'd profile.
 
 **Reproduced** (`MUGIL_IDE_PTY_BACKEND=child SHELL=/does/not/exist`, then any
 `resize_pty`/`pty_input` from the browser):
+
 ```
 Emitted 'error' event on ChildProcess instance at:
   errno: -2, code: 'ENOENT', syscall: 'spawn /does/not/exist'
@@ -154,23 +159,24 @@ failure into the pane instead of the process.
 
 ## 5. HIGH — `/api/graph` blocks the event loop for seconds (O(n²) line math)
 
-| | |
-|---|---|
-| Location | `packages/core/src/modules/codegraph/index.ts:146`; route `server.ts:794` |
-| Trigger | Any workspace with a large or generated source file |
-| Impact | Server is **synchronously deaf** for the whole build; no size cap, so heap pressure too |
+|          |                                                                                         |
+| -------- | --------------------------------------------------------------------------------------- |
+| Location | `packages/core/src/modules/codegraph/index.ts:146`; route `server.ts:794`               |
+| Trigger  | Any workspace with a large or generated source file                                     |
+| Impact   | Server is **synchronously deaf** for the whole build; no size cap, so heap pressure too |
 
 ```ts
-const line = content.slice(0, match.index).split('\n').length;   // per symbol → O(n²)
+const line = content.slice(0, match.index).split('\n').length; // per symbol → O(n²)
 ```
 
 **Measured, real `buildCodeGraph` from `dist`:**
-| input | result |
-|---|---|
-| 20 000 symbols in an 857 KB file | **5 099 ms** in the slicing loop alone |
-| `buildCodeGraph('/tmp/crashprobe')` (18 files) | **5 144 ms**, 5.9 MB JSON, 178 MB RSS |
-| incidental `/favicon.ico` issued during that build | **4 570 ms** latency |
-| same request after warm-up | 0.7 ms |
+
+| input                                              | result                                 |
+| -------------------------------------------------- | -------------------------------------- |
+| 20 000 symbols in an 857 KB file                   | **5 099 ms** in the slicing loop alone |
+| `buildCodeGraph('/tmp/crashprobe')` (18 files)     | **5 144 ms**, 5.9 MB JSON, 178 MB RSS  |
+| incidental `/favicon.ico` issued during that build | **4 570 ms** latency                   |
+| same request after warm-up                         | 0.7 ms                                 |
 
 `buildCodeGraph` also `readFileSync`s **every** source file with no per-file or total size
 limit, and `JSON.stringify(graph)` runs synchronously inside the request handler — so a
@@ -185,16 +191,16 @@ the codebase already tracks for tool caching).
 
 ## 6. HIGH — no WebSocket backpressure: throttled tab grows the server without bound
 
-| | |
-|---|---|
-| Location | `packages/cli/src/server/server.ts:1070-1080` (`sendAgentData` / `sendPtyData`) |
-| Trigger | A chatty command (`yes`, `npm test`, a watch loop) in the Shell pane **and** a backgrounded/throttled/suspended browser tab |
-| Impact | Unbounded memory growth in the **server** → OOM kill (SIGKILL 137), no log |
+|          |                                                                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Location | `packages/cli/src/server/server.ts:1070-1080` (`sendAgentData` / `sendPtyData`)                                             |
+| Trigger  | A chatty command (`yes`, `npm test`, a watch loop) in the Shell pane **and** a backgrounded/throttled/suspended browser tab |
+| Impact   | Unbounded memory growth in the **server** → OOM kill (SIGKILL 137), no log                                                  |
 
 ```ts
 const sendPtyData = (data: string) => {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'pty_data', data }));   // bufferedAmount never checked
+    ws.send(JSON.stringify({ type: 'pty_data', data })); // bufferedAmount never checked
   }
 };
 ```
@@ -202,11 +208,11 @@ const sendPtyData = (data: string) => {
 **Measured** — client pauses its TCP socket (simulating a backgrounded tab), then runs
 `yes 0123456789…` in the Shell pane:
 
-| elapsed | server RSS | bytes actually delivered to client |
-|---|---|---|
-| baseline | 118 MB | — |
-| 8 s | **466 MB** | **0** |
-| 12 s | **774 MB** | 0 |
+| elapsed  | server RSS | bytes actually delivered to client |
+| -------- | ---------- | ---------------------------------- |
+| baseline | 118 MB     | —                                  |
+| 8 s      | **466 MB** | **0**                              |
+| 12 s     | **774 MB** | 0                                  |
 
 Server stays responsive (`/` still 200) but memory grows monotonically; on a 16 GB box a
 left-open laptop tab plus a verbose command reaches the OOM killer.
@@ -219,13 +225,13 @@ until the socket drains.
 
 ## 7. MEDIUM — `run_command` timeout leaks the process tree (corrected)
 
-| | |
-|---|---|
-| Location | `packages/core/src/modules/tools/workspaceTools.ts:1090-1113` |
-| Trigger | Command backgrounds a long-lived grandchild (`nohup sleep 25 &`, dev server, watcher) |
-| Impact | Grandchild survives the timeout; processes accumulate across turns |
+|          |                                                                                       |
+| -------- | ------------------------------------------------------------------------------------- |
+| Location | `packages/core/src/modules/tools/workspaceTools.ts:1090-1113`                         |
+| Trigger  | Command backgrounds a long-lived grandchild (`nohup sleep 25 &`, dev server, watcher) |
+| Impact   | Grandchild survives the timeout; processes accumulate across turns                    |
 
-**Correction to an earlier reading:** the `run_command` promise *does* settle — `exec`'s
+**Correction to an earlier reading:** the `run_command` promise _does_ settle — `exec`'s
 `timeout` fires reliably in every probe (`callback at 1007-1010 ms`, `signal=SIGTERM`), including
 against a `SIGTERM`-ignoring shell. There is **no** tool-loop hang.
 
@@ -245,11 +251,11 @@ process group goes.
 
 ## 8. MEDIUM — `SmartCache.prefixTrie` grows without bound
 
-| | |
-|---|---|
+|          |                                                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------------------------ |
 | Location | `packages/core/src/modules/smart-cache/index.ts:101,210`; eviction lives only in the backend (`backends.ts:27,48`) |
-| Trigger | Long-lived server, many distinct prompts |
-| Impact | Unbounded heap in a process meant to stay up for days |
+| Trigger  | Long-lived server, many distinct prompts                                                                           |
+| Impact   | Unbounded heap in a process meant to stay up for days                                                              |
 
 The backend LRU caps at 2 000 entries, but the parallel trie is never evicted — `insert()` is
 called on every store, `clear()` only on reset/close. One trie node is allocated **per
@@ -266,17 +272,17 @@ trie still answers lookups for entries the backend has already evicted (stale
 
 ## 9. Summary table
 
-| # | Finding | Kind | Verified | Exit / impact | Location |
-|---|---|---|---|---|---|
-| 1 | Malformed `Host` header | crash | ✅ | exit 1, **pre-auth** | `server.ts:237`, `1013` |
-| 2 | Malformed WS frame | crash | ✅ | exit 1, **unauthenticated transport** | `server.ts:1033` |
-| 3 | Autosave failure | crash | ✅ | exit 1, **"after heavy workload"** | `agentRepl.ts:398`, `1252` |
-| 4 | Fallback PTY spawn error | crash | ✅ | exit 1, on Shell tab open | `ptyManager.ts:72` |
-| 5 | O(n²) code-graph line math | stall | ✅ | 5.1 s event-loop block | `codegraph/index.ts:146` |
-| 6 | No WS backpressure | OOM | ✅ | 118 → 774 MB unbounded | `server.ts:1076` |
-| 7 | Timeout leaks grandchildren | leak | ✅ | orphan processes | `workspaceTools.ts:1111` |
-| 8 | Trie never evicts | leak | ✅ | 147 MB @ 3k prompts | `smart-cache/index.ts:210` |
-| 9 | No global error handlers | **amplifier** | ✅ | any of #1-#4 = process death | `index.ts:279` |
+| #   | Finding                     | Kind          | Verified | Exit / impact                         | Location                   |
+| --- | --------------------------- | ------------- | -------- | ------------------------------------- | -------------------------- |
+| 1   | Malformed `Host` header     | crash         | ✅       | exit 1, **pre-auth**                  | `server.ts:237`, `1013`    |
+| 2   | Malformed WS frame          | crash         | ✅       | exit 1, **unauthenticated transport** | `server.ts:1033`           |
+| 3   | Autosave failure            | crash         | ✅       | exit 1, **"after heavy workload"**    | `agentRepl.ts:398`, `1252` |
+| 4   | Fallback PTY spawn error    | crash         | ✅       | exit 1, on Shell tab open             | `ptyManager.ts:72`         |
+| 5   | O(n²) code-graph line math  | stall         | ✅       | 5.1 s event-loop block                | `codegraph/index.ts:146`   |
+| 6   | No WS backpressure          | OOM           | ✅       | 118 → 774 MB unbounded                | `server.ts:1076`           |
+| 7   | Timeout leaks grandchildren | leak          | ✅       | orphan processes                      | `workspaceTools.ts:1111`   |
+| 8   | Trie never evicts           | leak          | ✅       | 147 MB @ 3k prompts                   | `smart-cache/index.ts:210` |
+| 9   | No global error handlers    | **amplifier** | ✅       | any of #1-#4 = process death          | `index.ts:279`             |
 
 ### Answers to the two questions asked
 
@@ -311,32 +317,32 @@ trie eviction).
 Phases were implemented in the recommended order; every item below is covered by a
 regression test.
 
-| Phase | Finding | Fix | Test |
-|---|---|---|---|
-| 1 | §9 global handlers | `installCrashGuards()` in `packages/cli/src/index.ts` logs and keeps serving | — (manual) |
-| 1 | §1 malformed `Host` | `parseRequestUrl()` parses against a fixed base; HTTP handler wrapped into a 500 fallback | `server.test.ts` "malformed Host header" |
-| 1 | §2 malformed WS frame | `ws.on('error')` + upgrade-socket error listener | `server.test.ts` "malformed WebSocket frame" |
-| 2 | §3 autosave | `autoSaveSession()` with one-time warning; `saveSession()` returns `''` on failure | existing session tests |
-| 3 | §4 fallback PTY | `child.on('error')` + early-output buffering, stdin EPIPE swallowed | `server.test.ts` "shell spawn failure" |
-| 4 | §6 backpressure | 8 MB/1 MB watermarks, PTY pause/resume, `[output throttled]` notice, env-overridable | `server.test.ts` "backpressure" |
-| 5 | §5 code graph | line-index + binary search, 1 MB file cap, revision-keyed cache (5 099 ms → 83 ms for 20 000 symbols) | `codegraph.test.ts` (line numbers, size cap, cache) |
-| 6 | §7 process tree | own process group + group kill on timeout/abort | `workspaceTools.test.ts` "process-group cleanup" |
-| 6 | §8 trie | bounded `maxTrieEntries` (default 2 000) with generation flush | `smartCache.test.ts` "prefix trie eviction" |
+| Phase | Finding               | Fix                                                                                                   | Test                                                |
+| ----- | --------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1     | §9 global handlers    | `installCrashGuards()` in `packages/cli/src/index.ts` logs and keeps serving                          | — (manual)                                          |
+| 1     | §1 malformed `Host`   | `parseRequestUrl()` parses against a fixed base; HTTP handler wrapped into a 500 fallback             | `server.test.ts` "malformed Host header"            |
+| 1     | §2 malformed WS frame | `ws.on('error')` + upgrade-socket error listener                                                      | `server.test.ts` "malformed WebSocket frame"        |
+| 2     | §3 autosave           | `autoSaveSession()` with one-time warning; `saveSession()` returns `''` on failure                    | existing session tests                              |
+| 3     | §4 fallback PTY       | `child.on('error')` + early-output buffering, stdin EPIPE swallowed                                   | `server.test.ts` "shell spawn failure"              |
+| 4     | §6 backpressure       | 8 MB/1 MB watermarks, PTY pause/resume, `[output throttled]` notice, env-overridable                  | `server.test.ts` "backpressure"                     |
+| 5     | §5 code graph         | line-index + binary search, 1 MB file cap, revision-keyed cache (5 099 ms → 83 ms for 20 000 symbols) | `codegraph.test.ts` (line numbers, size cap, cache) |
+| 6     | §7 process tree       | own process group + group kill on timeout/abort                                                       | `workspaceTools.test.ts` "process-group cleanup"    |
+| 6     | §8 trie               | bounded `maxTrieEntries` (default 2 000) with generation flush                                        | `smartCache.test.ts` "prefix trie eviction"         |
 
 ### Provider API path verification (live probes, 2026-10-28)
 
-| Provider | Endpoint(s) probed | Result |
-|---|---|---|
-| OpenRouter | `GET /api/v1/models`, `POST /api/v1/chat/completions` | 200 / 401 (valid route) |
-| OpenAI | `GET /v1/models`, `POST /v1/chat/completions` | 401 / 401 |
-| Anthropic | `GET /v1/models`, `POST /v1/messages` | 401 / 401 |
-| Vercel AI Gateway | `GET https://ai-gateway.vercel.sh/v1/models` | 200 |
-| Together | `GET https://api.together.xyz/v1/models` | 401 |
-| OpenCode (legacy) | `https://opencode.ai/zen/v1/{models,chat/completions,messages}` | 200 / route live |
-| OpenCode (documented) | `https://opencode.ai/inference/{v1/models,openai/v1/chat/completions,anthropic/v1/messages}` | 200 / 401 / 401 |
-| Cloudflare Workers AI | `POST /client/v4/accounts/{id}/ai/v1/chat/completions`, `GET …/ai/models/search` | route live (auth-gated) |
-| Cloudflare AI Gateway | `POST https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` | 401 (route live) |
-| Ollama / LM Studio | `http://localhost:{11434,1234}/v1/models` | not running locally; OpenAI-compatible paths unchanged |
+| Provider              | Endpoint(s) probed                                                                           | Result                                                 |
+| --------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| OpenRouter            | `GET /api/v1/models`, `POST /api/v1/chat/completions`                                        | 200 / 401 (valid route)                                |
+| OpenAI                | `GET /v1/models`, `POST /v1/chat/completions`                                                | 401 / 401                                              |
+| Anthropic             | `GET /v1/models`, `POST /v1/messages`                                                        | 401 / 401                                              |
+| Vercel AI Gateway     | `GET https://ai-gateway.vercel.sh/v1/models`                                                 | 200                                                    |
+| Together              | `GET https://api.together.xyz/v1/models`                                                     | 401                                                    |
+| OpenCode (legacy)     | `https://opencode.ai/zen/v1/{models,chat/completions,messages}`                              | 200 / route live                                       |
+| OpenCode (documented) | `https://opencode.ai/inference/{v1/models,openai/v1/chat/completions,anthropic/v1/messages}` | 200 / 401 / 401                                        |
+| Cloudflare Workers AI | `POST /client/v4/accounts/{id}/ai/v1/chat/completions`, `GET …/ai/models/search`             | route live (auth-gated)                                |
+| Cloudflare AI Gateway | `POST https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions`      | 401 (route live)                                       |
+| Ollama / LM Studio    | `http://localhost:{11434,1234}/v1/models`                                                    | not running locally; OpenAI-compatible paths unchanged |
 
 Fixed as a result: the Cloudflare AI Gateway path (old code produced
 `api.cloudflare.com/gateway/accounts/…`, which does not exist), Cloudflare model
@@ -359,7 +365,7 @@ input. It should always show some percent.
 
 ### Root cause
 
-Two independent accounting bugs, both in the *denominator*:
+Two independent accounting bugs, both in the _denominator_:
 
 1. **Web UI pill** (`packages/cli/src/server/html.ts`) and **TUI `/stats`**
    (`packages/cli/src/terminal/agentRepl.ts`) computed
@@ -396,14 +402,14 @@ usage, so the ratio drifted toward zero as a session went on.
 
 ### Verification
 
-| Case | Provider reports | Before | After |
-|---|---|---|---|
-| `fix the login bug` (already terse — nothing to compress) | 200 tok | `0%` | `0%` (honest) |
-| `Can you please fix the login bug in order to…` (Caveman only) | 200 tok | `0%` | `36%` |
-| `Please add error handling to the fetch call…` (1 token saved) | 200 tok | `0%` | `4%` |
-| same turn with a realistic 24 500-token agent prompt | 24 500 tok | `0%` | `4%` |
-| 3-turn live server session | 600 tok | `0%` | `26%` |
-| Two identical prompts, second one a cache hit | 200 tok | 51% (inflated: whole completion counted) | `100%` |
+| Case                                                           | Provider reports | Before                                   | After         |
+| -------------------------------------------------------------- | ---------------- | ---------------------------------------- | ------------- |
+| `fix the login bug` (already terse — nothing to compress)      | 200 tok          | `0%`                                     | `0%` (honest) |
+| `Can you please fix the login bug in order to…` (Caveman only) | 200 tok          | `0%`                                     | `36%`         |
+| `Please add error handling to the fetch call…` (1 token saved) | 200 tok          | `0%`                                     | `4%`          |
+| same turn with a realistic 24 500-token agent prompt           | 24 500 tok       | `0%`                                     | `4%`          |
+| 3-turn live server session                                     | 600 tok          | `0%`                                     | `26%`         |
+| Two identical prompts, second one a cache hit                  | 200 tok          | 51% (inflated: whole completion counted) | `100%`        |
 
 The only case that still reads `0%` is a prompt with no removable filler at
 all — there is nothing to save, and reporting a number there would be a lie.

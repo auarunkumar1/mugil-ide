@@ -87,7 +87,11 @@ export interface AskOptions extends HandoffOptions {
    * Called when tool iterations reach the limit before forcing a final answer.
    * Return number of additional iterations (e.g. 15), or 0 to finish now.
    */
-  onLimitReached?: (info: { currentIterations: number; toolCalls: number; usage: Usage }) => number | Promise<number>;
+  onLimitReached?: (info: {
+    currentIterations: number;
+    toolCalls: number;
+    usage: Usage;
+  }) => number | Promise<number>;
 }
 
 const DEFAULT_SYSTEM_PROMPT =
@@ -189,7 +193,10 @@ export class Pipeline {
       void fireWebhooks(
         webhooks,
         'turn.error',
-        { error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - startedAt },
+        {
+          error: err instanceof Error ? err.message : String(err),
+          durationMs: Date.now() - startedAt,
+        },
         options.webhookFetch,
       );
       throw err;
@@ -229,8 +236,12 @@ export class Pipeline {
     // compressed tool output) — never against the provider's prompt count,
     // which includes tens of thousands of uncompressed system/tool tokens and
     // diluted every real saving to 0%.
-    const signatureSaved = options.noRefine ? 0 : Math.max(0, countTokens(prompt) - refine.originalTokens);
-    const refineSaved = options.noRefine ? 0 : Math.max(0, refine.originalTokens - refine.refinedTokens);
+    const signatureSaved = options.noRefine
+      ? 0
+      : Math.max(0, countTokens(prompt) - refine.originalTokens);
+    const refineSaved = options.noRefine
+      ? 0
+      : Math.max(0, refine.originalTokens - refine.refinedTokens);
     const cavemanSaved = signatureSaved + refineSaved;
     const savings: InputSavings = {
       savedTokens: cavemanSaved,
@@ -260,8 +271,7 @@ export class Pipeline {
         cacheLookup.entry &&
         !this.handoff.isMock &&
         (cacheLookup.entry.mock === true ||
-          (cacheLookup.entry.mock === undefined &&
-            cacheLookup.entry.response.includes('[mock]')))
+          (cacheLookup.entry.mock === undefined && cacheLookup.entry.response.includes('[mock]')))
       ) {
         cacheLookup = {};
       }
@@ -293,7 +303,8 @@ export class Pipeline {
             cache: refine.refinedTokens + countTokens(cacheLookup.entry.response),
             mcp: 0,
           },
-          optimisticSavedTokens: refine.refinedTokens + countTokens(cacheLookup.entry.response) + cavemanSaved,
+          optimisticSavedTokens:
+            refine.refinedTokens + countTokens(cacheLookup.entry.response) + cavemanSaved,
         },
         cache: { hit: true, kind: cacheLookup.kind },
         toolCalls: 0,
@@ -342,7 +353,9 @@ export class Pipeline {
     messages.push({ role: 'user', content: effectivePrompt });
 
     const systemTokens = countTokens(system);
-    const historyTokens = options.history ? options.history.reduce((acc, m) => acc + countTokens(m.content), 0) : 0;
+    const historyTokens = options.history
+      ? options.history.reduce((acc, m) => acc + countTokens(m.content), 0)
+      : 0;
     const toolsTokens = options.tools ? countTokens(JSON.stringify(options.tools)) : 0;
     const totalPromptTokens = refine.refinedTokens + systemTokens + historyTokens + toolsTokens;
 
@@ -359,7 +372,10 @@ export class Pipeline {
       (v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0,
     );
     const preferred = caps.length > 0 ? Math.min(...caps) : getMaxOutputTokens();
-    const contextWindow = this.handoff.route(totalPromptTokens, options.preferredModel).contextWindow;
+    const contextWindow = this.handoff.route(
+      totalPromptTokens,
+      options.preferredModel,
+    ).contextWindow;
     const sizeFor = (promptTokens: number): number => {
       const contextRoom = contextWindow - promptTokens - CONTEXT_SAFETY_MARGIN;
       if (!Number.isFinite(contextRoom) || contextRoom <= 0) {
@@ -415,7 +431,8 @@ export class Pipeline {
           // decision; the pipeline only reports what arrived, including whether
           // it arrived incrementally (`streamed`) or as the buffered replay.
           onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }),
-          onThinking: (text, streamed) => emit({ type: 'thinking', text, streamed: streamed === true }),
+          onThinking: (text, streamed) =>
+            emit({ type: 'thinking', text, streamed: streamed === true }),
         }).run(messages, {
           ...options,
           tools: options.tools!,
@@ -428,7 +445,8 @@ export class Pipeline {
           { ...options, maxTokens },
           {
             onDelta: (text, streamed) => emit({ type: 'delta', text, streamed: streamed === true }),
-            onThinking: (text, streamed) => emit({ type: 'thinking', text, streamed: streamed === true }),
+            onThinking: (text, streamed) =>
+              emit({ type: 'thinking', text, streamed: streamed === true }),
           },
         );
     emit({

@@ -45,25 +45,28 @@ Two failure modes follow:
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
+| File                                             | Responsibility                                                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `packages/core/src/modules/smart-cache/index.ts` | **Modify.** Minimum-prefix guard; `CacheEntry.partial` marker via `store()`; new options. |
-| `packages/core/src/pipeline.ts` | **Modify.** Self-contained continuation prompt including the shared prefix. |
-| `packages/core/src/index.ts` | **Modify.** Export new option types. |
-| `packages/core/tests/smartCache.test.ts` | **Modify.** Guard and marker tests. |
-| `packages/core/tests/pipeline.test.ts` | **Modify.** Continuation-prompt tests. |
+| `packages/core/src/pipeline.ts`                  | **Modify.** Self-contained continuation prompt including the shared prefix.               |
+| `packages/core/src/index.ts`                     | **Modify.** Export new option types.                                                      |
+| `packages/core/tests/smartCache.test.ts`         | **Modify.** Guard and marker tests.                                                       |
+| `packages/core/tests/pipeline.test.ts`           | **Modify.** Continuation-prompt tests.                                                    |
 
 ---
 
 ### Task 1: Minimum-Prefix Guard
 
 **Files:**
+
 - Modify: `packages/core/src/modules/smart-cache/index.ts:5-22` (options), `:227-267` (`partialLookup`)
 - Test: `packages/core/tests/smartCache.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from other tasks.
 - Produces:
+
   ```ts
   export interface SmartCacheOptions {
     // ...existing fields...
@@ -96,11 +99,7 @@ describe('partial lookup guards', () => {
   it('rejects a shared prefix that is too short a fraction of the new prompt', async () => {
     const cache = mk();
     // 30 chars stored; the new prompt is 300 chars, so 10% overlap.
-    await cache.store(
-      'fix the parser bug in the lexer',
-      'The bug is in scanNumber.',
-      'm',
-    );
+    await cache.store('fix the parser bug in the lexer', 'The bug is in scanNumber.', 'm');
     const res = await cache.lookup(
       'fix the parser bug in the lexer and also rewrite the tokenizer to be iterative instead of recursive please',
     );
@@ -177,8 +176,8 @@ Add the fields and their defaults to the class:
 ```
 
 ```ts
-    this.partialMinRatio = resolveRatio(options.partialMinRatio);
-    this.partialMinChars = options.partialMinChars ?? 40;
+this.partialMinRatio = resolveRatio(options.partialMinRatio);
+this.partialMinChars = options.partialMinChars ?? 40;
 ```
 
 Add the helper (module scope, bottom of the file):
@@ -226,9 +225,9 @@ Replace the trie path's `normalized.startsWith(entry.prompt)` check:
 Replace the scan path's check:
 
 ```ts
-      if (this.isContinuation(entry.prompt, normalized)) {
-        best = entry;
-      }
+if (this.isContinuation(entry.prompt, normalized)) {
+  best = entry;
+}
 ```
 
 The existing length-pruning line stays as-is — it already skips candidates that
@@ -251,10 +250,12 @@ git commit -m "fix(smart-cache): require a substantial prefix for partial cache 
 ### Task 2: Self-Contained Continuation Prompt
 
 **Files:**
+
 - Modify: `packages/core/src/pipeline.ts:225-232` (`effectivePrompt`)
 - Test: `packages/core/tests/pipeline.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CacheLookupResult.delta` / `.entry` (unchanged shapes).
 - Produces: no new exported API. The continuation prompt text changes only.
 
@@ -263,70 +264,70 @@ git commit -m "fix(smart-cache): require a substantial prefix for partial cache 
 Append to `packages/core/tests/pipeline.test.ts`, inside `describe('Pipeline', ...)`:
 
 ```ts
-  it('gives the model the shared context on a partial cache hit, not just the delta', async () => {
-    const base =
-      'Refactor the tokenizer so that lexNumber no longer allocates a temporary buffer for every character it scans. ';
-    const client = {
-      mock: false,
-      complete: jest.fn().mockResolvedValue({
-        provider: 'openai',
-        model: 'live-model',
-        content: 'Now the tests.',
-        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
-        finishReason: 'stop',
-      }),
-    } as unknown as ProviderClient;
-    const cache = new SmartCache({
-      backend: new MemoryBackend(),
-      ttlSeconds: 3600,
-      embedding: new LexicalEmbedding(),
-    });
-    const pipeline = new Pipeline({
-      cache,
-      handoff: new HandoffManager({ client, models: MODELS }),
-    });
-
-    await pipeline.ask(base);
-    const second = await pipeline.ask(base + 'Now add property tests for it.');
-
-    expect(second.cache.kind).toBe('partial');
-    const sent = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
-    const userMessage = sent[sent.length - 1]!.content;
-    // The shared prefix is present, so the model can answer the whole question.
-    expect(userMessage).toContain('lexNumber no longer allocates');
-    expect(userMessage).toContain('Now add property tests for it.');
+it('gives the model the shared context on a partial cache hit, not just the delta', async () => {
+  const base =
+    'Refactor the tokenizer so that lexNumber no longer allocates a temporary buffer for every character it scans. ';
+  const client = {
+    mock: false,
+    complete: jest.fn().mockResolvedValue({
+      provider: 'openai',
+      model: 'live-model',
+      content: 'Now the tests.',
+      usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+      finishReason: 'stop',
+    }),
+  } as unknown as ProviderClient;
+  const cache = new SmartCache({
+    backend: new MemoryBackend(),
+    ttlSeconds: 3600,
+    embedding: new LexicalEmbedding(),
+  });
+  const pipeline = new Pipeline({
+    cache,
+    handoff: new HandoffManager({ client, models: MODELS }),
   });
 
-  it('does not splice responses when the shared prefix is too small', async () => {
-    const client = {
-      mock: false,
-      complete: jest.fn().mockResolvedValue({
-        provider: 'openai',
-        model: 'live-model',
-        content: 'fresh answer',
-        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
-        finishReason: 'stop',
-      }),
-    } as unknown as ProviderClient;
-    const cache = new SmartCache({
-      backend: new MemoryBackend(),
-      ttlSeconds: 3600,
-      embedding: new LexicalEmbedding(),
-    });
-    const pipeline = new Pipeline({
-      cache,
-      handoff: new HandoffManager({ client, models: MODELS }),
-    });
+  await pipeline.ask(base);
+  const second = await pipeline.ask(base + 'Now add property tests for it.');
 
-    await pipeline.ask('fix the parser bug in the lexer');
-    const second = await pipeline.ask(
-      'fix the parser bug in the lexer and also rewrite the tokenizer to be iterative instead of recursive',
-    );
+  expect(second.cache.kind).toBe('partial');
+  const sent = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
+  const userMessage = sent[sent.length - 1]!.content;
+  // The shared prefix is present, so the model can answer the whole question.
+  expect(userMessage).toContain('lexNumber no longer allocates');
+  expect(userMessage).toContain('Now add property tests for it.');
+});
 
-    expect(second.cache.kind).not.toBe('partial');
-    expect(second.response).toBe('fresh answer');
-    expect(second.response).not.toContain('fix the parser bug in the lexer');
+it('does not splice responses when the shared prefix is too small', async () => {
+  const client = {
+    mock: false,
+    complete: jest.fn().mockResolvedValue({
+      provider: 'openai',
+      model: 'live-model',
+      content: 'fresh answer',
+      usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+      finishReason: 'stop',
+    }),
+  } as unknown as ProviderClient;
+  const cache = new SmartCache({
+    backend: new MemoryBackend(),
+    ttlSeconds: 3600,
+    embedding: new LexicalEmbedding(),
   });
+  const pipeline = new Pipeline({
+    cache,
+    handoff: new HandoffManager({ client, models: MODELS }),
+  });
+
+  await pipeline.ask('fix the parser bug in the lexer');
+  const second = await pipeline.ask(
+    'fix the parser bug in the lexer and also rewrite the tokenizer to be iterative instead of recursive',
+  );
+
+  expect(second.cache.kind).not.toBe('partial');
+  expect(second.response).toBe('fresh answer');
+  expect(second.response).not.toContain('fix the parser bug in the lexer');
+});
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -340,29 +341,29 @@ second PASSES already because Task 1 fixed it.
 In `packages/core/src/pipeline.ts`, replace the `effectivePrompt` block:
 
 ```ts
-    // 3. Build messages and call the handoff manager.
-    //
-    // A partial cache hit means the stored prompt is a long prefix of this one,
-    // so the delta alone is NOT enough context: the model needs the shared
-    // prefix to know what "continue from where it left off" refers to. Sending
-    // only the delta (the old behaviour) produced answers that ignored the
-    // original question entirely.
-    let effectivePrompt: string;
-    if (cacheLookup.kind === 'partial' && cacheLookup.delta) {
-      const shared = cacheLookup.entry?.prompt ?? '';
-      effectivePrompt = [
-        'This is a continuation of a request you have already partially answered.',
-        'Original request (shared prefix):',
-        shared,
-        '',
-        'Additional request:',
-        cacheLookup.delta,
-        '',
-        'Answer ONLY the additional request. Do not repeat the part already answered.',
-      ].join('\n');
-    } else {
-      effectivePrompt = options.noRefine ? prompt : refine.refined;
-    }
+// 3. Build messages and call the handoff manager.
+//
+// A partial cache hit means the stored prompt is a long prefix of this one,
+// so the delta alone is NOT enough context: the model needs the shared
+// prefix to know what "continue from where it left off" refers to. Sending
+// only the delta (the old behaviour) produced answers that ignored the
+// original question entirely.
+let effectivePrompt: string;
+if (cacheLookup.kind === 'partial' && cacheLookup.delta) {
+  const shared = cacheLookup.entry?.prompt ?? '';
+  effectivePrompt = [
+    'This is a continuation of a request you have already partially answered.',
+    'Original request (shared prefix):',
+    shared,
+    '',
+    'Additional request:',
+    cacheLookup.delta,
+    '',
+    'Answer ONLY the additional request. Do not repeat the part already answered.',
+  ].join('\n');
+} else {
+  effectivePrompt = options.noRefine ? prompt : refine.refined;
+}
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -385,14 +386,17 @@ A stored response that is itself a concatenation must not seed another
 concatenation, or errors accumulate across three or more turns.
 
 **Files:**
+
 - Modify: `packages/core/src/types.ts:100-116` (`CacheEntry`)
 - Modify: `packages/core/src/modules/smart-cache/index.ts:169-195` (`store`)
 - Modify: `packages/core/src/pipeline.ts` (the `cache.store(...)` call site)
 - Test: `packages/core/tests/smartCache.test.ts`, `packages/core/tests/pipeline.test.ts`
 
 **Interfaces:**
+
 - Consumes: `CacheLookupResult.kind` from Task 1/2.
 - Produces:
+
   ```ts
   // types.ts
   export interface CacheEntry {
@@ -417,37 +421,37 @@ concatenation, or errors accumulate across three or more turns.
 Append to `packages/core/tests/pipeline.test.ts`:
 
 ```ts
-  it('does not let a concatenated answer seed another concatenation', async () => {
-    const base = 'Explain the retry ladder in detail, including the backoff schedule. ';
-    const client = {
-      mock: false,
-      complete: jest.fn().mockResolvedValue({
-        provider: 'openai',
-        model: 'live-model',
-        content: 'PART-B',
-        usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
-        finishReason: 'stop',
-      }),
-    } as unknown as ProviderClient;
-    const cache = new SmartCache({
-      backend: new MemoryBackend(),
-      ttlSeconds: 3600,
-      embedding: new LexicalEmbedding(),
-    });
-    const pipeline = new Pipeline({
-      cache,
-      handoff: new HandoffManager({ client, models: MODELS }),
-    });
-
-    await pipeline.ask(base);
-    const second = await pipeline.ask(base + 'Now cover timeouts.');
-    expect(second.response).toContain('PART-B');
-
-    const third = await pipeline.ask(base + 'Now cover timeouts. And then cover cancellation.');
-    // The third answer must not stack a second concatenation on top of the
-    // second one; at most one prior answer may be prepended.
-    expect(third.response.split('PART-B').length - 1).toBeLessThanOrEqual(1);
+it('does not let a concatenated answer seed another concatenation', async () => {
+  const base = 'Explain the retry ladder in detail, including the backoff schedule. ';
+  const client = {
+    mock: false,
+    complete: jest.fn().mockResolvedValue({
+      provider: 'openai',
+      model: 'live-model',
+      content: 'PART-B',
+      usage: { promptTokens: 5, completionTokens: 5, totalTokens: 10 },
+      finishReason: 'stop',
+    }),
+  } as unknown as ProviderClient;
+  const cache = new SmartCache({
+    backend: new MemoryBackend(),
+    ttlSeconds: 3600,
+    embedding: new LexicalEmbedding(),
   });
+  const pipeline = new Pipeline({
+    cache,
+    handoff: new HandoffManager({ client, models: MODELS }),
+  });
+
+  await pipeline.ask(base);
+  const second = await pipeline.ask(base + 'Now cover timeouts.');
+  expect(second.response).toContain('PART-B');
+
+  const third = await pipeline.ask(base + 'Now cover timeouts. And then cover cancellation.');
+  // The third answer must not stack a second concatenation on top of the
+  // second one; at most one prior answer may be prepended.
+  expect(third.response.split('PART-B').length - 1).toBeLessThanOrEqual(1);
+});
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
@@ -501,10 +505,10 @@ the trie path:
 In the scan path, skip partial entries before the prefix test:
 
 ```ts
-      if (entry.partial) continue;
-      if (this.isContinuation(entry.prompt, normalized)) {
-        best = entry;
-      }
+if (entry.partial) continue;
+if (this.isContinuation(entry.prompt, normalized)) {
+  best = entry;
+}
 ```
 
 - [ ] **Step 5: Record the flag at the pipeline call site**
@@ -513,19 +517,19 @@ In `packages/core/src/pipeline.ts`, the `this.cache.store(...)` call gains the
 final argument:
 
 ```ts
-      const storeTask = this.cache.store(
-        prompt,
-        response,
-        completion.model,
-        completion.usage,
-        cacheModel,
-        // Always write an explicit flag: `mock` absent on a completion means
-        // a live provider, so the entry must be marked mock:false — otherwise
-        // a later run would fall back to the ambiguous [mock] text scan.
-        completion.mock ?? false,
-        // Mark concatenations so they never seed another concatenation.
-        cacheLookup.kind === 'partial',
-      );
+const storeTask = this.cache.store(
+  prompt,
+  response,
+  completion.model,
+  completion.usage,
+  cacheModel,
+  // Always write an explicit flag: `mock` absent on a completion means
+  // a live provider, so the entry must be marked mock:false — otherwise
+  // a later run would fall back to the ambiguous [mock] text scan.
+  completion.mock ?? false,
+  // Mark concatenations so they never seed another concatenation.
+  cacheLookup.kind === 'partial',
+);
 ```
 
 - [ ] **Step 6: Run the tests to verify they pass**
@@ -545,10 +549,12 @@ git commit -m "fix(smart-cache): prevent partial-cache answers from compounding"
 ### Task 4: Export, Document, Verify
 
 **Files:**
+
 - Modify: `packages/core/src/index.ts`
 - Modify: `CHANGELOG.md`
 
 **Interfaces:**
+
 - Consumes: `SmartCacheOptions` from Task 1 (already exported).
 - Produces: `SmartCacheOptions` re-exported from the package root so external
   callers (the `mcp` package) can set the new thresholds.
@@ -568,7 +574,7 @@ In `packages/core/src/index.ts`, inside the smart-cache export block, add
 Add to `## [Unreleased]` → `### Fixed`:
 
 ```markdown
-- **Partial Cache Spliced Unrelated Answers**: A partial (continuation) cache hit fired whenever a stored prompt was *any* literal prefix of the new one, so two prompts sharing a short common opener — a pasted file header, a shared preamble — produced `cachedAnswer + "\n\n" + newCompletion` as a single confident wrong answer. Partial hits now require the cached prompt to cover at least 60% of the new prompt (`MUGIL_IDE_PARTIAL_MIN_RATIO`) and at least 40 characters, and a stored concatenation can never seed another concatenation.
+- **Partial Cache Spliced Unrelated Answers**: A partial (continuation) cache hit fired whenever a stored prompt was _any_ literal prefix of the new one, so two prompts sharing a short common opener — a pasted file header, a shared preamble — produced `cachedAnswer + "\n\n" + newCompletion` as a single confident wrong answer. Partial hits now require the cached prompt to cover at least 60% of the new prompt (`MUGIL_IDE_PARTIAL_MIN_RATIO`) and at least 40 characters, and a stored concatenation can never seed another concatenation.
 ```
 
 Add to `### Changed`:

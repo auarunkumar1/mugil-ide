@@ -35,7 +35,9 @@ describe('resolveToolPermission', () => {
     expect(resolveToolPermission(policy, call('codegraph'))).toBe('allow');
     expect(resolveToolPermission(policy, call('write_file'))).toBe('deny');
     expect(resolveToolPermission(policy, call('edit_file'))).toBe('deny');
-    expect(resolveToolPermission(policy, call('run_command', { command: 'npm test' }))).toBe('deny');
+    expect(resolveToolPermission(policy, call('run_command', { command: 'npm test' }))).toBe(
+      'deny',
+    );
   });
 
   it('plan mode still allows the agent to record its own todo plan', () => {
@@ -65,15 +67,23 @@ describe('resolveToolPermission', () => {
         ],
       },
     };
-    expect(resolveToolPermission(policy, call('run_command', { command: 'git status' }))).toBe('allow');
-    expect(resolveToolPermission(policy, call('run_command', { command: 'git status -s' }))).toBe('allow');
-    expect(resolveToolPermission(policy, call('run_command', { command: 'git push origin main' }))).toBe('ask');
+    expect(resolveToolPermission(policy, call('run_command', { command: 'git status' }))).toBe(
+      'allow',
+    );
+    expect(resolveToolPermission(policy, call('run_command', { command: 'git status -s' }))).toBe(
+      'allow',
+    );
+    expect(
+      resolveToolPermission(policy, call('run_command', { command: 'git push origin main' })),
+    ).toBe('ask');
     expect(resolveToolPermission(policy, call('run_command', { command: 'rm -rf .' }))).toBe('ask');
   });
 
   it('a bash defaultAction can deny every command', () => {
     const policy: PermissionPolicy = { bash: { defaultAction: 'deny' } };
-    expect(resolveToolPermission(policy, call('run_command', { command: 'npm test' }))).toBe('deny');
+    expect(resolveToolPermission(policy, call('run_command', { command: 'npm test' }))).toBe(
+      'deny',
+    );
   });
 });
 
@@ -99,9 +109,13 @@ describe('applyPermissionOverrides', () => {
 
   it('maps run_command overrides to the bash defaultAction', () => {
     const merged = applyPermissionOverrides(defaultPolicyForMode('act'), { run_command: 'allow' });
-    expect(resolveToolPermission(merged, call('run_command', { command: 'npm test' }))).toBe('allow');
+    expect(resolveToolPermission(merged, call('run_command', { command: 'npm test' }))).toBe(
+      'allow',
+    );
     const denied = applyPermissionOverrides(defaultPolicyForMode('act'), { run_command: 'deny' });
-    expect(resolveToolPermission(denied, call('run_command', { command: 'npm test' }))).toBe('deny');
+    expect(resolveToolPermission(denied, call('run_command', { command: 'npm test' }))).toBe(
+      'deny',
+    );
   });
 
   it('lets plan mode be relaxed to ask per tool', () => {
@@ -156,7 +170,17 @@ describe('plan/act mode semantics', () => {
 
   it('plan mode allows all read tools', () => {
     const policy = defaultPolicyForMode('plan');
-    const readTools = ['read_file', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+    const readTools = [
+      'read_file',
+      'list_files',
+      'search_code',
+      'codegraph',
+      'todoread',
+      'skill',
+      'webfetch',
+      'websearch',
+      'lsp',
+    ];
     for (const tool of readTools) {
       expect(resolveToolPermission(policy, call(tool))).toBe('allow');
     }
@@ -172,7 +196,17 @@ describe('plan/act mode semantics', () => {
 
   it('act mode allows read tools', () => {
     const policy = defaultPolicyForMode('act');
-    const readTools = ['read_file', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+    const readTools = [
+      'read_file',
+      'list_files',
+      'search_code',
+      'codegraph',
+      'todoread',
+      'skill',
+      'webfetch',
+      'websearch',
+      'lsp',
+    ];
     for (const tool of readTools) {
       expect(resolveToolPermission(policy, call(tool))).toBe('allow');
     }

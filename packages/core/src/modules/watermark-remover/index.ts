@@ -135,7 +135,9 @@ export interface StripWatermarkOptions {
 export function stripWatermarks(text: string, options: StripWatermarkOptions = {}): StrategyResult {
   const { unicode, vendor } = getRules();
   const layers = new Set(options.layers ?? (['unicode', 'vendor'] as const));
-  const providers = new Set(options.providers ?? (['openai', 'anthropic', 'gemini'] as WatermarkProvider[]));
+  const providers = new Set(
+    options.providers ?? (['openai', 'anthropic', 'gemini'] as WatermarkProvider[]),
+  );
   const removed: string[] = [];
   let out = text;
 
@@ -178,6 +180,10 @@ export function stripWatermarks(text: string, options: StripWatermarkOptions = {
     }
   }
 
-  out = out.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  out = out
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return { text: out, changed: out !== text.trim(), removed };
 }

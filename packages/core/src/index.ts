@@ -42,7 +42,10 @@ export type { ProviderName, StripOptions } from './modules/signature-remover/ind
 
 // Watermark Remover (inspired by guillaumemeyer/watermarks-remover)
 export { stripWatermarks } from './modules/watermark-remover/index.js';
-export type { StripWatermarkOptions, WatermarkProvider } from './modules/watermark-remover/index.js';
+export type {
+  StripWatermarkOptions,
+  WatermarkProvider,
+} from './modules/watermark-remover/index.js';
 
 // Codegraph (inspired by colbymchenry/codegraph)
 export {
@@ -115,10 +118,7 @@ export {
   LAZY_MCP_TOOL_DEFINITIONS,
   type LazyMcpOptions,
 } from './modules/mcp-client/lazyGateway.js';
-export {
-  WorktreeSquadManager,
-  type WorktreeInfo,
-} from './modules/squads/worktreeSquad.js';
+export { WorktreeSquadManager, type WorktreeInfo } from './modules/squads/worktreeSquad.js';
 export {
   UnifiedWireClient,
   createUnifiedWireClient,
@@ -191,8 +191,33 @@ export {
   createSkill,
   matchSkillTriggers,
   triggeredSkillsBlock,
+  // Gallery & Installer
+  CURATED_GALLERY_SKILLS,
+  installFromGallery,
+  installFromRawContent,
+  installFromUrl,
+  installFromPath,
+  uninstallSkill,
+  resolveSkillTargetDir,
+  validateSkillName,
+  // Credits & Attributions
+  getCredits,
+  parseAttributionsMarkdown,
 } from './modules/skills/index.js';
-export type { SkillInfo, SkillMetadata, SkillSource, SkillFrontmatter } from './modules/skills/index.js';
+export type {
+  SkillInfo,
+  SkillMetadata,
+  SkillSource,
+  SkillFrontmatter,
+  GallerySkill,
+  SkillCategory,
+  SkillTarget,
+  InstallSkillSourceType,
+  InstallSkillOptions,
+  InstallResult,
+  CreditRecord,
+  CreditsManifest,
+} from './modules/skills/index.js';
 // Secret protection (local vault + scanner)
 export { scanSecrets, hasSecrets, shannonEntropy } from './modules/security/secretScanner.js';
 export type { SecretMatch } from './modules/security/secretScanner.js';
@@ -235,11 +260,26 @@ export {
 export type { SessionEntry, SessionFile, SessionInfo, SessionStats } from './modules/sessions.js';
 
 // Tool-edit undo/redo snapshots (write_file / edit_file / apply_patch)
-export { captureFile, pushEdit, undoLast, redoLast, undoDepth, redoDepth, getRecordedEdits } from './modules/undo.js';
+export {
+  captureFile,
+  pushEdit,
+  undoLast,
+  redoLast,
+  undoDepth,
+  redoDepth,
+  getRecordedEdits,
+} from './modules/undo.js';
 export type { FileState, UndoEdit, UndoResult } from './modules/undo.js';
 
 // LSP client (language-server code intelligence)
-export { getLspClient, closeLspClients, LanguageServerClient, formatLspLocations, hoverText, languageIdFor } from './modules/lsp/index.js';
+export {
+  getLspClient,
+  closeLspClients,
+  LanguageServerClient,
+  formatLspLocations,
+  hoverText,
+  languageIdFor,
+} from './modules/lsp/index.js';
 export type { LspClient } from './modules/lsp/index.js';
 
 // Webhook integrations (notify external endpoints about pipeline events)
@@ -253,11 +293,19 @@ export {
   mcpToolName,
   mcpResultToString,
 } from './modules/mcp-client/index.js';
-export type { McpServerConfig, McpToolsBundle, McpConnection, McpConnector } from './modules/mcp-client/index.js';
+export type {
+  McpServerConfig,
+  McpToolsBundle,
+  McpConnection,
+  McpConnector,
+} from './modules/mcp-client/index.js';
 
 // Auto Handoff (OpenRouter / OpenAI / Anthropic / Vercel / Cloudflare / Together / OpenCode providers)
 export { OpenRouterClient, OpenRouterError } from './modules/handoff/openRouter.js';
-export type { OpenRouterClientOptions, OpenRouterCompleteOptions } from './modules/handoff/openRouter.js';
+export type {
+  OpenRouterClientOptions,
+  OpenRouterCompleteOptions,
+} from './modules/handoff/openRouter.js';
 export { OpenAiClient } from './modules/handoff/openAi.js';
 export type { OpenAiClientOptions } from './modules/handoff/openAi.js';
 export { AnthropicClient } from './modules/handoff/anthropic.js';
@@ -276,13 +324,27 @@ export { HandoffManager } from './modules/handoff/index.js';
 export type { HandoffManagerOptions, HandoffResult } from './modules/handoff/index.js';
 
 // Branding
-export { BRAND, BRAND_SLUG, VERSION, BANNER_ART, LOGO_GRID, getBanner, getColoredBanner } from './branding.js';
+export {
+  BRAND,
+  BRAND_SLUG,
+  VERSION,
+  BANNER_ART,
+  LOGO_GRID,
+  getBanner,
+  getColoredBanner,
+} from './branding.js';
 
 // --- Composition layer ------------------------------------------------------
 
 export { refinePrompt, truncateToBudget } from './refine.js';
 export type { RefineOptions } from './refine.js';
-export { inputSavingsPercent, defaultSavingsBreakdown, sumSavingsBreakdowns, optimisticSavingsTotal, optimisticSavingsPercent } from './savings.js';
+export {
+  inputSavingsPercent,
+  defaultSavingsBreakdown,
+  sumSavingsBreakdowns,
+  optimisticSavingsTotal,
+  optimisticSavingsPercent,
+} from './savings.js';
 export { getTokenizer, countTokens } from './token/tokenizer.js';
 export type { Tokenizer } from './token/tokenizer.js';
 
@@ -439,7 +501,10 @@ function createClient(config: AppConfig): ProviderClient {
     return new OpenAiClient({ apiKey: config.openaiApiKey, baseUrl: config.openaiBaseUrl });
   }
   if (config.provider === 'anthropic') {
-    return new AnthropicClient({ apiKey: config.anthropicApiKey, baseUrl: config.anthropicBaseUrl });
+    return new AnthropicClient({
+      apiKey: config.anthropicApiKey,
+      baseUrl: config.anthropicBaseUrl,
+    });
   }
   if (config.provider === 'vercel') {
     return new VercelClient({ apiKey: config.vercelApiKey, baseUrl: config.vercelBaseUrl });

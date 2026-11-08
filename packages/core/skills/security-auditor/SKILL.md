@@ -22,7 +22,7 @@ leaked credentials before committing or publishing.
    reads/writes.
 2. **Credentials.** Search for `API_KEY`, `SECRET`, `TOKEN`, `password`,
    `PRIVATE KEY`, and connection strings. Never echo a matched secret back to
-   the user — report `file:line` and the *type* of credential only. Values
+   the user — report `file:line` and the _type_ of credential only. Values
    already masked as `[MUGIL_SECRET_...]` are safe to quote.
 3. **Path handling.** Every filesystem write must resolve through
    `resolveInsideWorkspace` (lexical + realpath containment). Flag raw

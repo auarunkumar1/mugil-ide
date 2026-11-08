@@ -27,7 +27,13 @@ import defaultRules from '../../rules/rtk.json';
 import { currentRevision, loadRulesSync } from '../overrides.js';
 import { isCodePlaceholder, maskCodeBlocks, restoreCodeBlocks } from '../codeMask.js';
 import { compressJson } from './jsonCrusher.js';
-import { DeltaCache, globalDeltaCache, applyDeltaMode, type DeltaStats, type FailureItem } from './deltaCache.js';
+import {
+  DeltaCache,
+  globalDeltaCache,
+  applyDeltaMode,
+  type DeltaStats,
+  type FailureItem,
+} from './deltaCache.js';
 
 export { compressJson, DeltaCache, globalDeltaCache, applyDeltaMode };
 export type { DeltaStats, FailureItem };
@@ -190,7 +196,10 @@ export function filterTestBuildNoise(output: string): string {
   for (const line of lines) {
     const trimmed = line.trim();
     // Drop purely passing test suite rows when failures exist
-    if (hasFailure && (trimmed.startsWith('PASS ') || trimmed.startsWith('✓ ') || /^\s*√\s+/.test(line))) {
+    if (
+      hasFailure &&
+      (trimmed.startsWith('PASS ') || trimmed.startsWith('✓ ') || /^\s*√\s+/.test(line))
+    ) {
       continue;
     }
     // Drop webpack/vite asset emission noise
@@ -216,7 +225,10 @@ export interface CompressOutputOptions {
  * RTK-style compression for shell/command output: collapses repeated lines,
  * trims blank-line noise, compresses git diffs to 1-line context, and filters test/build noise.
  */
-export function compressCommandOutput(text: string, options: CompressOutputOptions = {}): StrategyResult {
+export function compressCommandOutput(
+  text: string,
+  options: CompressOutputOptions = {},
+): StrategyResult {
   const maxLineLength = options.maxLineLength ?? 200;
   const collapseRepeats = options.collapseRepeats ?? true;
 
@@ -247,7 +259,9 @@ export function compressCommandOutput(text: string, options: CompressOutputOptio
       continue;
     }
     const truncated =
-      line.length > maxLineLength ? `${line.slice(0, maxLineLength)}… (+${line.length - maxLineLength} chars)` : line;
+      line.length > maxLineLength
+        ? `${line.slice(0, maxLineLength)}… (+${line.length - maxLineLength} chars)`
+        : line;
 
     if (collapseRepeats && truncated === prev) {
       count += 1;

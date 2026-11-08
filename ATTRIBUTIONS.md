@@ -31,7 +31,7 @@ own; check the linked repository for the authoritative version.
 
 ## Notes
 
-- This project's own code is original; the modules above are *inspired by* the
+- This project's own code is original; the modules above are _inspired by_ the
   listed projects and reimplement the ideas in TypeScript for this codebase,
   they are not copies of upstream source.
 - If you are the author of one of the projects above and would like the

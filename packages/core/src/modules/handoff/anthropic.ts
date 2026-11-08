@@ -50,7 +50,10 @@ interface AnthropicResponse {
 function toAnthropicMessages(
   messages: ChatMessage[],
 ): Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> {
-  const out: Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> = [];
+  const out: Array<{
+    role: 'user' | 'assistant';
+    content: string | Array<Record<string, unknown>>;
+  }> = [];
   for (const m of messages) {
     if (m.role === 'system') continue; // handled via top-level `system` field
     if (m.role === 'tool') {
@@ -94,8 +97,14 @@ export class AnthropicClient implements ProviderClient {
   }
 
   /** System block, `max_tokens`, thinking config and tools with cache breakpoints. */
-  private buildBody(messages: ChatMessage[], options: ProviderCompleteOptions): Record<string, unknown> {
-    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+  private buildBody(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Record<string, unknown> {
+    const system = messages
+      .filter((m) => m.role === 'system')
+      .map((m) => m.content)
+      .join('\n\n');
     let chat = toAnthropicMessages(messages);
     if (chat.length === 0) {
       chat = [{ role: 'user', content: system || 'hello' }];
@@ -114,7 +123,11 @@ export class AnthropicClient implements ProviderClient {
       temperature = undefined; // Anthropic requires temperature=1 or omitted with thinking
     }
 
-    const systemBlocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [];
+    const systemBlocks: Array<{
+      type: 'text';
+      text: string;
+      cache_control?: { type: 'ephemeral' };
+    }> = [];
     if (system.trim().length > 0) {
       systemBlocks.push({
         type: 'text',
@@ -184,7 +197,8 @@ export class AnthropicClient implements ProviderClient {
         retryable,
       );
     }
-    if (!res.body) throw new ProviderError('Anthropic returned no body to stream', res.status, true);
+    if (!res.body)
+      throw new ProviderError('Anthropic returned no body to stream', res.status, true);
     const streamed = await parseAnthropicSse(res.body, handlers);
     return this.finalize(messages, options, streamed);
   }
@@ -199,7 +213,11 @@ export class AnthropicClient implements ProviderClient {
     const thinking = streamed.thinking;
     // Thinking-only replies (max_tokens exhausted mid-reasoning) contain no
     // text block; surface the reasoning rather than a blank response.
-    if (content.trim().length === 0 && streamed.toolCalls.length === 0 && thinking.trim().length > 0) {
+    if (
+      content.trim().length === 0 &&
+      streamed.toolCalls.length === 0 &&
+      thinking.trim().length > 0
+    ) {
       content = thinking;
     }
     const promptTokens =
@@ -213,7 +231,9 @@ export class AnthropicClient implements ProviderClient {
         promptTokens,
         completionTokens,
         totalTokens: streamed.usage?.totalTokens ?? promptTokens + completionTokens,
-        ...(streamed.usage?.cachedTokens !== undefined ? { cachedTokens: streamed.usage.cachedTokens } : {}),
+        ...(streamed.usage?.cachedTokens !== undefined
+          ? { cachedTokens: streamed.usage.cachedTokens }
+          : {}),
       },
       finishReason: streamed.finishReason,
       toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
@@ -258,14 +278,17 @@ export class AnthropicClient implements ProviderClient {
       .map((block) => block.thinking!)
       .join('');
     const toolCalls: ToolCall[] = blocks
-      .filter((b) => b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string')
+      .filter(
+        (b) => b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string',
+      )
       .map((b) => ({ id: b.id!, name: b.name!, arguments: JSON.stringify(b.input ?? {}) }));
     // Thinking-only replies (max_tokens exhausted mid-reasoning) contain no
     // text block; surface the reasoning rather than a blank response.
     if (content.trim().length === 0 && toolCalls.length === 0 && thinking.trim().length > 0) {
       content = thinking;
     }
-    const promptTokens = data.usage?.input_tokens ?? estimateMessagesTokens(messages, options.tools);
+    const promptTokens =
+      data.usage?.input_tokens ?? estimateMessagesTokens(messages, options.tools);
     const completionTokens = data.usage?.output_tokens ?? countTokens(content);
     const cachedTokens = data.usage?.cache_read_input_tokens;
     const usage = {

@@ -96,7 +96,10 @@ export function captureFile(root: string, target: string): FileState {
  * note to their result so the model/user knows the edit isn't undoable.
  */
 export function pushEdit(root: string, edit: Omit<UndoEdit, 'rel'>): string {
-  if (edit.before.content.length > MAX_UNDO_CONTENT_CHARS || edit.after.content.length > MAX_UNDO_CONTENT_CHARS) {
+  if (
+    edit.before.content.length > MAX_UNDO_CONTENT_CHARS ||
+    edit.after.content.length > MAX_UNDO_CONTENT_CHARS
+  ) {
     return 'file too large to snapshot for /undo';
   }
   const stack = stackFor(undoStacks, root);

@@ -52,7 +52,8 @@ const RS_RULES: Array<{ kind: string; re: Rule }> = [
 
 function languageFor(file: string): string {
   const ext = path.extname(file).toLowerCase();
-  if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'].includes(ext)) return 'typescript';
+  if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'].includes(ext))
+    return 'typescript';
   if (['.py', '.pyw'].includes(ext)) return 'python';
   if (['.go'].includes(ext)) return 'go';
   if (['.rs'].includes(ext)) return 'rust';

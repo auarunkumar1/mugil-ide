@@ -1,6 +1,7 @@
 # Smart Cache Module
 
 Three-layer response cache, checked in order of cost:
+
 1. **exact** — normalized prompt hash
 2. **partial** — a stored prompt that is a literal prefix of the current one
    (cached response covers the shared part; only the delta needs a completion)

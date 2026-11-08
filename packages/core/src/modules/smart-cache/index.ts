@@ -350,7 +350,11 @@ function cacheKeyFor(normalized: string, model?: string, namespace?: string): st
  * Always checked (namespace is instance-level; model is per-lookup), so a
  * project or model never receives another's semantically-matched answer.
  */
-function matchesScope(entry: CacheEntry, model: string | undefined, namespace: string | undefined): boolean {
+function matchesScope(
+  entry: CacheEntry,
+  model: string | undefined,
+  namespace: string | undefined,
+): boolean {
   return entry.key === cacheKeyFor(normalizePrompt(entry.prompt), model, namespace);
 }
 

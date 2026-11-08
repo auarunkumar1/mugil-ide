@@ -12,10 +12,9 @@ describe('OpenRouterClient', () => {
   it('runs in mock mode without an API key', async () => {
     const client = new OpenRouterClient({});
     expect(client.mock).toBe(true);
-    const result = await client.complete(
-      [{ role: 'user', content: 'hello' }],
-      { model: 'cheap-1' },
-    );
+    const result = await client.complete([{ role: 'user', content: 'hello' }], {
+      model: 'cheap-1',
+    });
     expect(result.mock).toBe(true);
     expect(result.content).toContain('hello');
     expect(result.usage.totalTokens).toBeGreaterThan(0);
@@ -28,8 +27,7 @@ describe('OpenRouterClient', () => {
     });
     // Simulate a 429 by stubbing fetch.
     const original = global.fetch;
-    global.fetch = (async () =>
-      new Response('rate limited', { status: 429 })) as typeof fetch;
+    global.fetch = (async () => new Response('rate limited', { status: 429 })) as typeof fetch;
     try {
       const err = await client
         .complete([{ role: 'user', content: 'x' }], { model: 'cheap-1' })
@@ -61,7 +59,10 @@ describe('HandoffManager', () => {
         };
       },
     };
-    const manager = new HandoffManager({ client: client as unknown as OpenRouterClient, models: MODELS });
+    const manager = new HandoffManager({
+      client: client as unknown as OpenRouterClient,
+      models: MODELS,
+    });
     const controller = new AbortController();
     await manager.complete([{ role: 'user', content: 'hi' }], {
       signal: controller.signal,
@@ -85,7 +86,10 @@ describe('HandoffManager', () => {
         throw err;
       },
     };
-    const manager = new HandoffManager({ client: client as unknown as OpenRouterClient, models: MODELS });
+    const manager = new HandoffManager({
+      client: client as unknown as OpenRouterClient,
+      models: MODELS,
+    });
     await expect(manager.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow('cancelled');
     // An abort is a user decision, not a model failure — retrying other models
     // would restart the request the user just cancelled.
@@ -116,7 +120,10 @@ describe('HandoffManager', () => {
         };
       },
     };
-    const manager = new HandoffManager({ client: failing as unknown as OpenRouterClient, models: MODELS });
+    const manager = new HandoffManager({
+      client: failing as unknown as OpenRouterClient,
+      models: MODELS,
+    });
     const result = await manager.complete([{ role: 'user', content: 'hi' }]);
     expect(result.content).toBe('from smart');
     expect(result.attempts[0]).toBe('cheap-1');
@@ -135,7 +142,10 @@ describe('HandoffManager', () => {
         throw new OpenRouterError('boom', 429, true);
       },
     };
-    const manager = new HandoffManager({ client: failing as unknown as OpenRouterClient, models: MODELS });
+    const manager = new HandoffManager({
+      client: failing as unknown as OpenRouterClient,
+      models: MODELS,
+    });
     await expect(
       manager.complete([{ role: 'user', content: 'hi' }], { preferredModel: 'smart-1' }),
     ).rejects.toThrow('boom');
@@ -162,11 +172,14 @@ describe('HandoffManager', () => {
         };
       },
     };
-    const manager = new HandoffManager({ client: failing as unknown as OpenRouterClient, models: MODELS });
-    const result = await manager.complete(
-      [{ role: 'user', content: 'hi' }],
-      { preferredModel: 'smart-1', fallbackChain: ['cheap-1'] },
-    );
+    const manager = new HandoffManager({
+      client: failing as unknown as OpenRouterClient,
+      models: MODELS,
+    });
+    const result = await manager.complete([{ role: 'user', content: 'hi' }], {
+      preferredModel: 'smart-1',
+      fallbackChain: ['cheap-1'],
+    });
     expect(calls).toEqual(['smart-1', 'cheap-1']);
     expect(result.content).toBe('from fallback');
   });
@@ -198,7 +211,10 @@ describe('HandoffManager', () => {
         throw new OpenRouterError('invalid key', 400, false);
       },
     };
-    const manager = new HandoffManager({ client: failing as unknown as OpenRouterClient, models: MODELS });
+    const manager = new HandoffManager({
+      client: failing as unknown as OpenRouterClient,
+      models: MODELS,
+    });
     await expect(manager.complete([{ role: 'user', content: 'hi' }])).rejects.toThrow();
     expect(calls.length).toBe(1);
   });

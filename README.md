@@ -21,13 +21,13 @@
 >
 > You no longer need `npm`, `node`, or any package manager installed to run Mugil IDE. Download official, self-contained click-to-run binaries and installers for your operating system:
 >
-> | Platform | Download & Package Type | How to Run |
-> | :--- | :--- | :--- |
-> | **Windows (x64)** | `mugil-ide-windows-x64.exe` | Double-click or run `.\mugil-ide-windows-x64.exe` |
-> | **Linux (Ubuntu / Debian / Mint)** | `mugil-ide-linux-amd64.deb` | Double-click to install or `sudo dpkg -i mugil-ide-linux-amd64.deb` |
-> | **Linux Universal (x64 / arm64)** | `mugil-ide-linux-x64.tar.gz` | Extract and run `./mugil-ide-linux-x64` |
-> | **macOS (Apple Silicon M1/M2/M3/M4)** | `mugil-ide-darwin-arm64.tar.gz` | Extract and run `./mugil-ide-darwin-arm64` |
-> | **macOS (Intel x64)** | `mugil-ide-darwin-x64.tar.gz` | Extract and run `./mugil-ide-darwin-x64` |
+> | Platform                              | Download & Package Type         | How to Run                                                          |
+> | :------------------------------------ | :------------------------------ | :------------------------------------------------------------------ |
+> | **Windows (x64)**                     | `mugil-ide-windows-x64.exe`     | Double-click or run `.\mugil-ide-windows-x64.exe`                   |
+> | **Linux (Ubuntu / Debian / Mint)**    | `mugil-ide-linux-amd64.deb`     | Double-click to install or `sudo dpkg -i mugil-ide-linux-amd64.deb` |
+> | **Linux Universal (x64 / arm64)**     | `mugil-ide-linux-x64.tar.gz`    | Extract and run `./mugil-ide-linux-x64`                             |
+> | **macOS (Apple Silicon M1/M2/M3/M4)** | `mugil-ide-darwin-arm64.tar.gz` | Extract and run `./mugil-ide-darwin-arm64`                          |
+> | **macOS (Intel x64)**                 | `mugil-ide-darwin-x64.tar.gz`   | Extract and run `./mugil-ide-darwin-x64`                            |
 >
 > 👉 **[Download the Latest Standalone Release on GitHub ↗](https://github.com/auarunkumar1/mugil-ide/releases)**
 
@@ -59,7 +59,9 @@ Works seamlessly with **free local models** (Ollama, LM Studio) and **state-of-t
 Get up and running in under 60 seconds:
 
 ### Option 1: Standalone Binary (Zero dependencies, no Node/npm needed)
+
 Download the standalone executable for your OS from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
+
 ```bash
 # Linux
 chmod +x mugil-ide-linux-x64 && ./mugil-ide-linux-x64
@@ -72,6 +74,7 @@ chmod +x mugil-ide-darwin-arm64 && ./mugil-ide-darwin-arm64
 ```
 
 ### Option 2: Running from Source
+
 ```bash
 git clone https://github.com/auarunkumar1/mugil-ide.git
 cd mugil-ide
@@ -80,7 +83,9 @@ npm start
 ```
 
 ### Option 3: 100% Free & Local AI (No API keys or cloud accounts needed)
+
 Mugil IDE includes 1-click auto-connect for local models. If you have [Ollama](https://ollama.com) installed:
+
 ```bash
 ollama run qwen2.5-coder:7b
 # Launch Mugil IDE — it automatically detects Ollama at localhost:11434 with zero configuration!
@@ -118,15 +123,15 @@ flowchart LR
     %% Inbound flow
     User(["👤 User Prompt"]) --> Refine["⚡ Token Refiner\n(Caveman + RTK TSV)"]
     Refine --> Cache{"🔍 SmartCache"}
-    
+
     %% Caching branches
     Cache -- "Hit" --> Cached["⚡ Instant (0ms · $0)"]
     Cache -- "Miss" --> Router["🔀 Auto-Handoff\n(Cloud / Local LLM)"]
-    
+
     %% Execution loop
     Router --> LLM["🧠 LLM Engine"]
     LLM <--> Tools["🧰 18 Workspace Tools\n(AST · Blobs · CodeGraph · Media)"]
-    
+
     %% Post-generation cleaning
     LLM --> DeAI["✂️ De-AI & Watermark Stripper\n(Purges AI Disclaimers & Signatures)"]
     DeAI --> Stream["🌊 Live SSE Stream\n(Markdown + Thinking)"]
@@ -151,7 +156,7 @@ flowchart LR
 ### 2. 🚀 Pre-Session Setup & Live Token Economics
 
 - **💡 Def:**  
-  No more surprise bills! When you start a coding session, a friendly popup lets you choose your model, pick your history size, and see **exact pricing in real-time** (e.g., *$0.55/1M input* for DeepSeek-R1, or *Free / $0.00* for local Ollama). It even calculates the estimated worst-case cost of a full turn before you type a single word.
+  No more surprise bills! When you start a coding session, a friendly popup lets you choose your model, pick your history size, and see **exact pricing in real-time** (e.g., _$0.55/1M input* for DeepSeek-R1, or *Free / $0.00_ for local Ollama). It even calculates the estimated worst-case cost of a full turn before you type a single word.
 - **⚙️ Under the Hood:**  
   On launch, `/api/config` and `/api/models` probe configured local daemons (Ollama `:11434`, LM Studio `:1234`) and cloud catalogs (OpenRouter, Anthropic, OpenAI). The UI dynamically calculates:
   $$\text{Turn Cost} = \frac{(\text{History Budget} \times \text{Cost}_{\text{in}}) + (\text{Max Output} \times \text{Cost}_{\text{out}})}{1{,}000{,}000}$$
@@ -202,13 +207,13 @@ flowchart LR
 - **⚙️ Under the Hood:**  
   Built-in tools are organized into five specialized operational categories:
 
-  | Category | Tools | Primary Capabilities |
-  | :--- | :--- | :--- |
-  | **Inspection & AST** | `read_file`, `read_symbol`, `read_skeleton`, `search_code`, `list_files`, `codegraph`, `read_blob` | AST code signatures, surgical single-function/class reader, regex pattern search, multi-language symbol graphs, and LRU blob chunking. |
-  | **Surgical Editing** | `edit_file`, `apply_patch`, `write_file` | Precise 1-line unified diff replacements, multi-hunk patch application, atomic writes. |
-  | **Shell & Execution** | `run_command` | Sandboxed command execution with process group timeouts, Delta Mode diffing, and RTK build noise filtering. |
-  | **Swarm Orchestration**| `task` | Spawns scoped subagents (`explore` or `general`) in-process, with their own tool registry and permission policy. |
-  | **Media & External** | `generate_image`, `webfetch`, `mcp` | Multi-tier visual asset generation, live URL retrieval, and Lazy Model Context Protocol gateway. |
+  | Category                | Tools                                                                                              | Primary Capabilities                                                                                                                   |
+  | :---------------------- | :------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
+  | **Inspection & AST**    | `read_file`, `read_symbol`, `read_skeleton`, `search_code`, `list_files`, `codegraph`, `read_blob` | AST code signatures, surgical single-function/class reader, regex pattern search, multi-language symbol graphs, and LRU blob chunking. |
+  | **Surgical Editing**    | `edit_file`, `apply_patch`, `write_file`                                                           | Precise 1-line unified diff replacements, multi-hunk patch application, atomic writes.                                                 |
+  | **Shell & Execution**   | `run_command`                                                                                      | Sandboxed command execution with process group timeouts, Delta Mode diffing, and RTK build noise filtering.                            |
+  | **Swarm Orchestration** | `task`                                                                                             | Spawns scoped subagents (`explore` or `general`) in-process, with their own tool registry and permission policy.                       |
+  | **Media & External**    | `generate_image`, `webfetch`, `mcp`                                                                | Multi-tier visual asset generation, live URL retrieval, and Lazy Model Context Protocol gateway.                                       |
 
 ---
 
@@ -227,13 +232,13 @@ flowchart LR
   <img src="docs/assets/mugil-ide-preview.svg" alt="Mugil IDE Web Interface Preview" width="100%">
 </p>
 
-| Area | Features & Capabilities |
-| :--- | :--- |
-| **Top Navigation** | 🚀 **Pre-Session Setup Popup** · ⚡ **Turbo Mode Toggle** · 🤖 **Model Selector** · 🔑 **API Key Manager** · ⚡ **Token Budget Config** |
-| **Attribution Strip** | Single-line compact strip giving direct credit to upstream projects: *Caveman, RTK Headroom, Ponytail, De-AI, Watermarks, CodeGraph AST, OpenCode* |
-| **Left Pane (Agent Loop)** | Live xterm.js terminal with token-by-token streaming, markdown formatting, turn history pills, and isolated shell terminal with PTY support |
-| **Right Pane (Code & Inspection)** | Interactive file tree, live diff viewer with syntax highlights, file viewer, and structural symbol CodeGraph |
-| **Bottom Status Bar** | Live WebSocket connection indicator, active model ID, session token tally, and real input-token savings (`saved / compressible input` across Caveman, RTK, history compaction and cache hits) |
+| Area                               | Features & Capabilities                                                                                                                                                                       |
+| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Top Navigation**                 | 🚀 **Pre-Session Setup Popup** · ⚡ **Turbo Mode Toggle** · 🤖 **Model Selector** · 🔑 **API Key Manager** · ⚡ **Token Budget Config**                                                       |
+| **Attribution Strip**              | Single-line compact strip giving direct credit to upstream projects: _Caveman, RTK Headroom, Ponytail, De-AI, Watermarks, CodeGraph AST, OpenCode_                                            |
+| **Left Pane (Agent Loop)**         | Live xterm.js terminal with token-by-token streaming, markdown formatting, turn history pills, and isolated shell terminal with PTY support                                                   |
+| **Right Pane (Code & Inspection)** | Interactive file tree, live diff viewer with syntax highlights, file viewer, and structural symbol CodeGraph                                                                                  |
+| **Bottom Status Bar**              | Live WebSocket connection indicator, active model ID, session token tally, and real input-token savings (`saved / compressible input` across Caveman, RTK, history compaction and cache hits) |
 
 ---
 
@@ -244,6 +249,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 ### ✅ Shipped & Ready in v0.3.0 (Current Release)
 
 #### 🧠 Token Economy & Context Architecture
+
 - [x] **Delta Mode Diagnostics (RTK Error Cache):** Session error signature cache for recurring test/build commands (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures and collapses repeated stack traces. A run that visibly failed but produced no parsable failures never counts as "all resolved", and the cache is scoped per workspace.
 - [x] **Auto-Tiered File Reader & Surgical `read_symbol` Tool:** Code files >300 lines read without line ranges return an outline skeleton with line anchors; non-code formats (json/csv/log/markdown) are read in full, and a fallback preview states how many lines were omitted. `read_symbol(path, symbol)` extracts one function/class/method with exact line spans, ignoring braces inside strings, comments and regexes.
 - [x] **Lazy MCP Schema Pruning:** Eliminates 2,000–5,000 static tokens of schema overhead on every turn via deferred discovery (`list_mcp_tools`, `call_mcp`).
@@ -258,6 +264,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Workload Presets & Interactive Sliders:** Presets (Light Convo, Deep Development, Big Codebase & Audit) with dual slider/number controls and real-time turn cost calculations.
 
 #### 🛠️ Autonomous Tools & Execution Control
+
 - [x] **Interactive Step Debugger:** Visual step-through interface to pause, inspect, edit tool call arguments, skip, or abort subagent operations before execution via the Web UI modal and WebSocket breakpoint protocol.
 - [x] **Multi-File Split Diff Review & Hunk-by-Hunk Staging:** Per-hunk acceptance or reversion directly in the web UI via `POST /api/diff/hunk-apply` (position-verified, `reversePatch` for revert, undo-journaled). It edits the working tree; it does not run `git add`.
 - [x] **Worktree Squad Library (not wired into `task` yet):** `WorktreeSquadManager` can create/remove isolated Git worktrees under `.mugil/worktrees/<id>` (gitignored). The `task` tool still runs subagents in-process — worktree isolation is opt-in API surface, not automatic.
@@ -268,6 +275,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Interactive Mid-Turn Limit Extension:** When the tool calling limit is reached, users can dynamically extend limits (+15/+30 iterations) or wrap up seamlessly mid-run.
 
 #### 💻 Browser Web IDE & Developer Control
+
 - [x] **Multi-Workspace Folder Management:** "Open Project Folder" and "Create New Project" modal and directory switcher without restarting the Node server (`/api/workspace/switch`, `/api/workspace/create`).
 - [x] **Pluggable Extension & Skill Registry Drawer:** Visual UI modal to inspect, enable, and configure agent skills, custom tools, and external MCP servers.
 - [x] **Self-Contained Web UI:** The IDE page ships as a single response with inline styles/scripts and vendored xterm.js assets, so it works fully offline with no external CDN.
@@ -282,6 +290,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
 
 #### 🌐 Multi-Provider Handoff & Protocols
+
 - [x] **Provider Wire Clients:** `OpenAiWireClient` is the shared base for the OpenAI-compatible providers (OpenAI, OpenRouter, Together, Vercel, Cloudflare, OpenCode). An additional configurable `UnifiedWireClient` exists for callers that want provider selection by name.
 - [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
 - [x] **Working Vercel AI Gateway:** Targets `https://ai-gateway.vercel.sh/v1`, uses namespaced `creator/model` IDs, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing.
@@ -291,6 +300,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Online Web Access (`webfetch`) Toggle:** Configurable in pre-session setup and environment settings, enabling live web fetching when required.
 
 #### 🛡️ Reliability, Security & Hardening
+
 - [x] **Unified Workspace Path Containment:** Shared `resolveInsideWorkspace` helper in `@mugil-ide/core` prevents lexical directory traversal and symlink/junction escapes across tools and HTTP routes (`/api/generate-image`, `/api/file`).
 - [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
 - [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
@@ -299,7 +309,9 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
 - [x] **Multi-Tier Skills Registry & REST API:** Skills are discovered from `.mugil/skills`, `.agents/skills`, `.claude/skills`, the global `~/.config/mugil-ide/skills`, and built-in skills shipped with `@mugil-ide/core`. Frontmatter carries `version`, `author`, `tags`, `triggers` and `tools`; bundled `scripts/` and `references/` are listed in the inspector. Served by `GET /api/skills`, `GET /api/skills/:name`, `POST /api/skills/toggle` (persisted in `.mugil/config.json`) and `POST /api/skills/create`, with `/skills`, `/skill` and `/skill-create` in the CLI and a live registry drawer (toggle, inspect, create) in the Web UI. Prompt-matching `triggers` inject a skill's instructions up front instead of costing a tool call.
 - [x] **Ephemeral Secret Vault & Zero-Leak Guard:** Credentials pasted into chat or emitted by a tool (`cat .env`, an auth header in a stack trace) are replaced with `[MUGIL_SECRET_<TYPE>_<N>]` tokens before reaching any message. Real values live only in process memory; `run_command` resolves them locally and tool output is re-tokenized. Enforced at three choke points (ingestion, tool loop, `HandoffManager` pre-flight) with a client-side confirmation in the Web UI. Detects 20+ formats: OpenAI/Anthropic/OpenRouter/Google/AWS/GitHub/Slack/Stripe/Hugging Face keys, bearer & basic auth, database connection-string passwords, PEM private keys, and CLI password flags.
-- [x] **Comprehensive Test Suite:** 624 unit and integration tests passing across all packages (43 suites: 548 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
+- [x] **Curated Open-Source Skills Gallery & Universal Installer:** Bundled catalog of 15 battle-tested open-source skills with full attribution, license badges, and 1-click picking to workspace (`.mugil/skills`) or global (`~/.config/mugil-ide/skills`). Supports custom installation from GitHub repositories (`/tree/` subfolders or raw URLs) and local paths with path traversal sandboxing. Accessible via Web UI "Skills Gallery" tab and CLI `/gallery`, `/skill-install`, `/skill-uninstall`.
+- [x] **Dedicated Open-Source Credits & Attributions Page:** Dedicated `📜 Open Source Credits & Attributions` UI modal in the main menu and CLI `/credits` command honoring original authors, canonical repositories, and licenses for agent skills, core modules (Caveman, RTK, Ponytail, OpenCode, CodeGraph, etc.), and libraries.
+- [x] **Comprehensive Test Suite:** 637 unit and integration tests passing across all packages (45 suites: 561 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
 
 ### 🎯 Planned for Next Release Push (v0.4.0 Roadmap)
 
@@ -312,7 +324,9 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 ## 💻 Downloads & Installation
 
 ### Option 1: Standalone Compiled Executables (Recommended)
+
 Download the standalone executable directly from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
+
 - **Windows:** Download `mugil-ide-windows-x64.exe` and launch it from PowerShell or double-click.
 - **Linux (Debian/Ubuntu):** Install the `.deb` package:
   ```bash
@@ -328,7 +342,9 @@ Download the standalone executable directly from **[GitHub Releases](https://git
 ---
 
 ### Option 2: Running from Source (Development)
+
 If you are developing or contributing to Mugil IDE:
+
 - Requirements: **Node.js >= 20** or **Bun >= 1.2**
 
 ```bash
@@ -350,15 +366,16 @@ npm start
 
 Mugil IDE is organized as a modular TypeScript monorepo across four packages:
 
-| Package | Purpose | Workspace Directory | Release Tarball |
-| :--- | :--- | :--- | :--- |
-| **`mugil-ide`** | The complete web IDE, local HTTP/WebSocket server, and CLI tools | `packages/cli` | `mugil-ide-0.1.26.tgz` |
-| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core` | `mugil-ide-core-0.1.26.tgz` |
-| **`@mugil-ide/mcp`** | Model Context Protocol stdio server exposing the engine as tools | `packages/mcp` | `mugil-ide-mcp-0.1.26.tgz` |
-| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code | `packages/docs` | `mugil-ide-docs-0.1.26.tgz` |
+| Package               | Purpose                                                                      | Workspace Directory | Release Tarball             |
+| :-------------------- | :--------------------------------------------------------------------------- | :------------------ | :-------------------------- |
+| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.1.26.tgz`      |
+| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.1.26.tgz` |
+| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.1.26.tgz`  |
+| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.1.26.tgz` |
 
 > [!NOTE]
 > **Installing Tarballs via npm:** While distribution via the public `npmjs.com` registry is sunset in favor of standalone releases, release tarballs (`.tgz`) are built via `npm run pack` and attached to each **[GitHub Release](https://github.com/auarunkumar1/mugil-ide/releases)**. To install globally using Node.js without compiling:
+>
 > ```bash
 > npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.1.26/mugil-ide-0.1.26.tgz
 > ```
@@ -370,6 +387,7 @@ Mugil IDE is organized as a modular TypeScript monorepo across four packages:
 In addition to the interactive Web IDE, Mugil IDE includes several handy CLI tools:
 
 ### One-Shot Headless Mode (`run`)
+
 Run a quick prompt through the token-compression pipeline without opening the browser:
 
 ```bash
@@ -383,6 +401,7 @@ mugil-ide run --json "Refactor auth middleware"
 ```
 
 ### Automated Documentation Generator (`docs`)
+
 Scan your codebase, extract function signatures and JSDoc comments, and generate clean markdown documentation:
 
 ```bash
@@ -390,6 +409,7 @@ mugil-ide docs . -o DOCUMENTATION.md
 ```
 
 ### Standalone MCP Server (`mugil-ide-mcp`)
+
 Expose Mugil IDE's token-saving tools to Claude Desktop, Cursor, or any MCP client:
 
 ```bash
@@ -402,28 +422,28 @@ mugil-ide-mcp
 
 All settings can be configured via the Web UI modals or by editing `~/.config/mugil-ide/.env` (or setting environment variables):
 
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `MUGIL_IDE_TOKEN_LIMIT` | `64000` | Context token budget for multi-turn history window |
-| `MUGIL_IDE_MAX_OUTPUT_TOKENS` | `32768` | Model generation ceiling (prevents output cutoff errors) |
-| `MUGIL_IDE_TURBO_MODE` | `0` | Set to `1` to enable autonomous execution without user prompts |
-| `MUGIL_IDE_HISTORY_BUDGET` | `64000` | Sliding window token budget for past conversation turns |
-| `MUGIL_IDE_MAX_TURNS` | `100` | Maximum number of turns kept in active history before compacting |
-| `MUGIL_IDE_MODE` | `act` | Default mode: `act` (prompts before changes) or `plan` (read-only) |
-| `OPENROUTER_API_KEY` | — | API key for OpenRouter (primary cloud gateway) |
-| `OPENAI_API_KEY` | — | API key for OpenAI |
-| `ANTHROPIC_API_KEY` | — | API key for Anthropic |
-| `VERCEL_API_KEY` | — | API key for the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY` is accepted as an alias) |
-| `VERCEL_BASE_URL` | `https://ai-gateway.vercel.sh/v1` | AI Gateway endpoint — model ids are namespaced, e.g. `anthropic/claude-sonnet-4.5` |
-| `MUGIL_IDE_IMAGE_MODEL` | `bfl/flux-2-klein-4b` | Default image generation model for Vercel AI Gateway |
-| `MUGIL_IDE_OPENAI_IMAGE_MODEL` | `gpt-image-1` | Model override for OpenAI image generation (e.g. `dall-e-3`) |
-| `MUGIL_IDE_OPENROUTER_IMAGE_MODEL` | `black-forest-labs/flux-3-image-klein` | Model override for OpenRouter image generation |
-| `MUGIL_IDE_TOGETHER_IMAGE_MODEL` | `black-forest-labs/FLUX.1-schnell` | Model override for Together AI image generation |
-| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | URL for local Ollama instances |
-| `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | URL for local LM Studio instances |
-| `MUGIL_IDE_COMMAND_TIMEOUT`| `60000` | Terminal command execution timeout in milliseconds |
-| `MUGIL_IDE_MAX_TOOL_CHARS` | `48000` | Maximum character length for a tool return before CCR blob caching |
-| `MUGIL_IDE_SKILLS_DIR` | `~/.config/mugil-ide/skills` | Global (cross-project) skills tier; workspace tiers are `.mugil/skills`, `.agents/skills`, `.claude/skills` |
+| Variable                           | Default                                | Description                                                                                                            |
+| :--------------------------------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
+| `MUGIL_IDE_TOKEN_LIMIT`            | `64000`                                | Context token budget for multi-turn history window                                                                     |
+| `MUGIL_IDE_MAX_OUTPUT_TOKENS`      | `32768`                                | Model generation ceiling (prevents output cutoff errors)                                                               |
+| `MUGIL_IDE_TURBO_MODE`             | `0`                                    | Set to `1` to enable autonomous execution without user prompts                                                         |
+| `MUGIL_IDE_HISTORY_BUDGET`         | `64000`                                | Sliding window token budget for past conversation turns                                                                |
+| `MUGIL_IDE_MAX_TURNS`              | `100`                                  | Maximum number of turns kept in active history before compacting                                                       |
+| `MUGIL_IDE_MODE`                   | `act`                                  | Default mode: `act` (prompts before changes) or `plan` (read-only)                                                     |
+| `OPENROUTER_API_KEY`               | —                                      | API key for OpenRouter (primary cloud gateway)                                                                         |
+| `OPENAI_API_KEY`                   | —                                      | API key for OpenAI                                                                                                     |
+| `ANTHROPIC_API_KEY`                | —                                      | API key for Anthropic                                                                                                  |
+| `VERCEL_API_KEY`                   | —                                      | API key for the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY` is accepted as an alias) |
+| `VERCEL_BASE_URL`                  | `https://ai-gateway.vercel.sh/v1`      | AI Gateway endpoint — model ids are namespaced, e.g. `anthropic/claude-sonnet-4.5`                                     |
+| `MUGIL_IDE_IMAGE_MODEL`            | `bfl/flux-2-klein-4b`                  | Default image generation model for Vercel AI Gateway                                                                   |
+| `MUGIL_IDE_OPENAI_IMAGE_MODEL`     | `gpt-image-1`                          | Model override for OpenAI image generation (e.g. `dall-e-3`)                                                           |
+| `MUGIL_IDE_OPENROUTER_IMAGE_MODEL` | `black-forest-labs/flux-3-image-klein` | Model override for OpenRouter image generation                                                                         |
+| `MUGIL_IDE_TOGETHER_IMAGE_MODEL`   | `black-forest-labs/FLUX.1-schnell`     | Model override for Together AI image generation                                                                        |
+| `OLLAMA_BASE_URL`                  | `http://localhost:11434/v1`            | URL for local Ollama instances                                                                                         |
+| `LMSTUDIO_BASE_URL`                | `http://localhost:1234/v1`             | URL for local LM Studio instances                                                                                      |
+| `MUGIL_IDE_COMMAND_TIMEOUT`        | `60000`                                | Terminal command execution timeout in milliseconds                                                                     |
+| `MUGIL_IDE_MAX_TOOL_CHARS`         | `48000`                                | Maximum character length for a tool return before CCR blob caching                                                     |
+| `MUGIL_IDE_SKILLS_DIR`             | `~/.config/mugil-ide/skills`           | Global (cross-project) skills tier; workspace tiers are `.mugil/skills`, `.agents/skills`, `.claude/skills`            |
 
 ---
 
@@ -468,6 +488,6 @@ See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for complete licenses and attribution not
 <div align="center">
 
 **Built with ❤️ for developers who love fast code, clean context, and smaller bills.**  
-*Star us on GitHub if you find Mugil IDE helpful!*
+_Star us on GitHub if you find Mugil IDE helpful!_
 
 </div>

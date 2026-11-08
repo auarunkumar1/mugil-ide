@@ -171,7 +171,9 @@ export function createMcpServer(engine: Engine = createEngine(loadConfig())): Mc
       description:
         'Locate one function, class, interface, type or method by name and return only its source lines (1-indexed anchors). Avoids reading the whole file into context.',
       inputSchema: {
-        file: z.string().describe('Path to the source file (relative to the process cwd or absolute).'),
+        file: z
+          .string()
+          .describe('Path to the source file (relative to the process cwd or absolute).'),
         symbol: z.string().describe('Exact symbol name to extract.'),
       },
     },
@@ -293,10 +295,26 @@ export function createMcpServer(engine: Engine = createEngine(loadConfig())): Mc
       inputSchema: {
         prompt: z.string().describe('Detailed visual description of the image to generate'),
         path: z.string().describe('Destination file path relative to workspace root'),
-        size: z.string().optional().describe('Dimensions in WxH format, e.g. "1024x1024" or "512x512"'),
-        style: z.string().optional().describe('Visual style guide, e.g. "vector icon", "photorealistic"'),
-        provider: z.string().optional().describe('Explicit provider ("auto", "pollinations", "openai", "together", "openrouter", "vercel", "mock"). Defaults to "auto"'),
-        model: z.string().optional().describe('Specific model identifier for the provider (e.g. "dall-e-3", "flux", "turbo")'),
+        size: z
+          .string()
+          .optional()
+          .describe('Dimensions in WxH format, e.g. "1024x1024" or "512x512"'),
+        style: z
+          .string()
+          .optional()
+          .describe('Visual style guide, e.g. "vector icon", "photorealistic"'),
+        provider: z
+          .string()
+          .optional()
+          .describe(
+            'Explicit provider ("auto", "pollinations", "openai", "together", "openrouter", "vercel", "mock"). Defaults to "auto"',
+          ),
+        model: z
+          .string()
+          .optional()
+          .describe(
+            'Specific model identifier for the provider (e.g. "dall-e-3", "flux", "turbo")',
+          ),
       },
     },
     async ({ prompt, path: outPath, size, style, provider, model }) => {

@@ -59,19 +59,27 @@ describe('webfetch tool', () => {
 
   it('rejects loopback, link-local metadata and private IPs (SSRF protection)', async () => {
     const { toolRegistry } = createWorkspaceTools(ROOT);
-    const loopback = await toolRegistry.webfetch(webfetchCall({ url: 'http://127.0.0.1:8080/secret' }));
+    const loopback = await toolRegistry.webfetch(
+      webfetchCall({ url: 'http://127.0.0.1:8080/secret' }),
+    );
     expect(loopback).toContain('forbidden');
 
-    const metadata = await toolRegistry.webfetch(webfetchCall({ url: 'http://169.254.169.254/latest/meta-data/' }));
+    const metadata = await toolRegistry.webfetch(
+      webfetchCall({ url: 'http://169.254.169.254/latest/meta-data/' }),
+    );
     expect(metadata).toContain('forbidden');
 
     const localHost = await toolRegistry.webfetch(webfetchCall({ url: 'http://localhost:3000/' }));
     expect(localHost).toContain('forbidden');
 
-    const ipv6Ula = await toolRegistry.webfetch(webfetchCall({ url: 'http://[fd00::1]:8080/secret' }));
+    const ipv6Ula = await toolRegistry.webfetch(
+      webfetchCall({ url: 'http://[fd00::1]:8080/secret' }),
+    );
     expect(ipv6Ula).toContain('forbidden');
 
-    const ipv6LinkLocal = await toolRegistry.webfetch(webfetchCall({ url: 'http://[fe80::1]:8080/secret' }));
+    const ipv6LinkLocal = await toolRegistry.webfetch(
+      webfetchCall({ url: 'http://[fe80::1]:8080/secret' }),
+    );
     expect(ipv6LinkLocal).toContain('forbidden');
   });
 
@@ -88,7 +96,9 @@ describe('webfetch tool', () => {
     }) as typeof fetch;
 
     const { toolRegistry } = createWorkspaceTools(ROOT, { fetchFn: redirectFetch });
-    const out = await toolRegistry.webfetch(webfetchCall({ url: 'https://example.com/start-redirect' }));
+    const out = await toolRegistry.webfetch(
+      webfetchCall({ url: 'https://example.com/start-redirect' }),
+    );
     expect(out).toContain('forbidden');
   });
 
@@ -97,7 +107,9 @@ describe('webfetch tool', () => {
       throw new Error('getaddrinfo ENOTFOUND unresolvable-host.internal');
     };
     const { toolRegistry } = createWorkspaceTools(ROOT, { dnsLookupFn: failingDns });
-    const out = await toolRegistry.webfetch(webfetchCall({ url: 'https://unresolvable-host.internal/path' }));
+    const out = await toolRegistry.webfetch(
+      webfetchCall({ url: 'https://unresolvable-host.internal/path' }),
+    );
     expect(out).toContain('DNS lookup failed');
   });
 
@@ -106,7 +118,9 @@ describe('webfetch tool', () => {
       fetchFn: htmlFetch('<p>' + 'word '.repeat(5000) + '</p>'),
     });
     // maxChars below 1000 is clamped up to keep output usable.
-    const out = await toolRegistry.webfetch(webfetchCall({ url: 'https://example.com', maxChars: 500 }));
+    const out = await toolRegistry.webfetch(
+      webfetchCall({ url: 'https://example.com', maxChars: 500 }),
+    );
     expect(out).toContain('truncated at 1000 chars');
     expect(out.length).toBeLessThan(800);
   });
@@ -115,16 +129,16 @@ describe('webfetch tool', () => {
     const { toolRegistry } = createWorkspaceTools(ROOT, {
       fetchFn: htmlFetch('PNG bytes', 'image/png'),
     });
-    expect(await toolRegistry.webfetch(webfetchCall({ url: 'https://example.com/a.png' }))).toContain(
-      'non-text content',
-    );
+    expect(
+      await toolRegistry.webfetch(webfetchCall({ url: 'https://example.com/a.png' })),
+    ).toContain('non-text content');
 
     const errorFetch = (async () =>
       new Response('Not Found', { status: 404, statusText: 'Not Found' })) as typeof fetch;
     const tools2 = createWorkspaceTools(ROOT, { fetchFn: errorFetch });
-    expect(await tools2.toolRegistry.webfetch(webfetchCall({ url: 'https://example.com/missing' }))).toContain(
-      'HTTP 404',
-    );
+    expect(
+      await tools2.toolRegistry.webfetch(webfetchCall({ url: 'https://example.com/missing' })),
+    ).toContain('HTTP 404');
   });
 
   it('returns a readable error when the fetch fails', async () => {

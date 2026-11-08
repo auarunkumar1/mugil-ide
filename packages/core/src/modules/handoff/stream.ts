@@ -37,7 +37,12 @@ export interface StreamedCompletion {
   thinking: string;
   toolCalls: ToolCall[];
   finishReason?: string;
-  usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number; cachedTokens?: number };
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+    cachedTokens?: number;
+  };
   model?: string;
 }
 
@@ -315,8 +320,7 @@ export async function parseAnthropicSse(
     if (type !== 'content_block_delta') continue;
 
     const delta = json.delta as
-      | { type?: string; text?: string; thinking?: string; partial_json?: string }
-      | undefined;
+      { type?: string; text?: string; thinking?: string; partial_json?: string } | undefined;
     if (!delta) continue;
     if (delta.type === 'text_delta' && typeof delta.text === 'string') {
       content += delta.text;
@@ -333,15 +337,18 @@ export async function parseAnthropicSse(
   return {
     content,
     thinking,
-    toolCalls: [...blocks.values()].map((b) => ({ id: b.id, name: b.name, arguments: b.args || '{}' })),
+    toolCalls: [...blocks.values()].map((b) => ({
+      id: b.id,
+      name: b.name,
+      arguments: b.args || '{}',
+    })),
     finishReason,
     usage:
       promptTokens !== undefined || completionTokens !== undefined
         ? {
             promptTokens,
             completionTokens,
-            totalTokens:
-              (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
+            totalTokens: (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
             cachedTokens: cacheReadTokens,
           }
         : undefined,
@@ -382,7 +389,8 @@ export async function streamCompletion(
   if (options.stream === false || process.env.MUGIL_IDE_NO_STREAM === '1') {
     const result = await manager.complete(messages, options);
     if (result.content.length > 0) handlers.onDelta?.(result.content, false);
-    if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking, false);
+    if (result.thinking && result.thinking.length > 0)
+      handlers.onThinking?.(result.thinking, false);
     return result;
   }
   return manager.stream(messages, options, handlers);

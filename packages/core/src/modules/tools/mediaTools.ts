@@ -500,7 +500,9 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
     }
     try {
       const model =
-        modelOverride || process.env.MUGIL_IDE_TOGETHER_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
+        modelOverride ||
+        process.env.MUGIL_IDE_TOGETHER_IMAGE_MODEL ||
+        'black-forest-labs/FLUX.1-schnell';
       const res = await fetchImpl('https://api.together.xyz/v1/images/generations', {
         method: 'POST',
         headers: {

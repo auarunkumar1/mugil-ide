@@ -23,8 +23,7 @@ function isRulesDoc(value: unknown): value is { version: string } {
 
 export function overrideDir(): string {
   return (
-    process.env.MUGIL_IDE_MODULES_DIR ??
-    path.join(os.homedir(), '.config', 'mugil-ide', 'modules')
+    process.env.MUGIL_IDE_MODULES_DIR ?? path.join(os.homedir(), '.config', 'mugil-ide', 'modules')
   );
 }
 

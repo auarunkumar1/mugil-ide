@@ -29,6 +29,9 @@ const start = lines.findIndex((l) => l.startsWith(`## [${version}]`));
 if (start === -1) process.exit(1);
 let end = lines.findIndex((l, i) => i > start && /^## \[/.test(l));
 if (end === -1) end = lines.length;
-const body = lines.slice(start + 1, end).join('\n').trim();
+const body = lines
+  .slice(start + 1, end)
+  .join('\n')
+  .trim();
 if (!body) process.exit(1);
 process.stdout.write(body + '\n');

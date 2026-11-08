@@ -37,7 +37,9 @@ const taskCall = (id: string, args: Record<string, unknown>): ToolCall => ({
 
 describe('task tool (subagents)', () => {
   it('runs an explore subagent with its own system prompt and returns its answer', async () => {
-    const client = scriptedClient([result({ content: 'Found ToolLoop at modules/tool-loop/index.ts:18' })]);
+    const client = scriptedClient([
+      result({ content: 'Found ToolLoop at modules/tool-loop/index.ts:18' }),
+    ]);
     const handoff = new HandoffManager({ client, models: [] });
     const { toolRegistry } = createWorkspaceTools(ROOT, { handoff });
 
@@ -80,7 +82,9 @@ describe('task tool (subagents)', () => {
     const { toolRegistry } = createWorkspaceTools(ROOT, { handoff });
 
     await toolRegistry.task(taskCall('t3', { description: 'hi' }));
-    const firstOptions = (client.complete as jest.Mock).mock.calls[0]![1] as { tools?: { name: string }[] };
+    const firstOptions = (client.complete as jest.Mock).mock.calls[0]![1] as {
+      tools?: { name: string }[];
+    };
     expect(firstOptions.tools!.map((t) => t.name)).not.toContain('task');
     expect(firstOptions.tools!.map((t) => t.name)).toContain('read_file');
   });

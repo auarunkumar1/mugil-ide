@@ -28,7 +28,10 @@ export const LAZY_MCP_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         server: { type: 'string', description: 'Optional server name to filter tools.' },
-        tool: { type: 'string', description: 'Optional tool name to retrieve full parameter schema.' },
+        tool: {
+          type: 'string',
+          description: 'Optional tool name to retrieve full parameter schema.',
+        },
       },
     },
   },
@@ -79,7 +82,9 @@ export async function createLazyMcpGateway(
       serverMap.set(cfg.name, conn);
       servers.push(cfg.name);
     } catch (err) {
-      errors.push(`MCP server "${cfg.name}" unavailable: ${err instanceof Error ? err.message : String(err)}`);
+      errors.push(
+        `MCP server "${cfg.name}" unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

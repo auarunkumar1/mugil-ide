@@ -39,7 +39,10 @@ async function runCli(args: string[], env: Record<string, string> = {}): Promise
 
 function makeFixture(): string {
   const dir = tmpDir();
-  writeFileSync(join(dir, 'a.ts'), 'export function helper() { return 1; }\nexport const entry = () => helper();\n');
+  writeFileSync(
+    join(dir, 'a.ts'),
+    'export function helper() { return 1; }\nexport const entry = () => helper();\n',
+  );
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(join(dir, 'src', 'b.py'), 'def pyfn():\n    return 1\n');
   return dir;
@@ -88,7 +91,9 @@ describe('mugil-ide CLI (spawned)', () => {
     expect(withKey.stdout).toContain('openrouter');
     expect(withKey.stdout).toContain('1234');
 
-    const logout = await runCli(['logout', 'openrouter'], { MUGIL_IDE_ENV_FILE: join(dir, '.env') });
+    const logout = await runCli(['logout', 'openrouter'], {
+      MUGIL_IDE_ENV_FILE: join(dir, '.env'),
+    });
     expect(logout.stdout).toContain('removed OPENROUTER_API_KEY');
     expect(readFileSync(join(dir, '.env'), 'utf8')).not.toContain('OPENROUTER_API_KEY');
   });

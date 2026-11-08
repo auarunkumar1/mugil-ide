@@ -341,7 +341,9 @@ describe('AnthropicClient', () => {
 describe('OpenCodeClient', () => {
   it('runs in mock mode without an API key', async () => {
     const client = new OpenCodeClient();
-    const result = await client.complete([{ role: 'user', content: 'hi' }], { model: 'qwen3-coder' });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'qwen3-coder',
+    });
     expect(result.mock).toBe(true);
     expect(result.content).toContain('[mock] no OPENCODE_API_KEY');
   });
@@ -413,22 +415,30 @@ describe('OpenCodeClient', () => {
   });
 
   it('streams claude models over SSE from /v1/messages and re-brands the provider', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(
-      sseResponse([
-        'event: message_start\ndata: {"message":{"usage":{"input_tokens":5}}}\n\n',
-        'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"Hel"}}\n\n',
-        'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"lo"}}\n\n',
-        'event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}\n\n',
-      ]),
-    );
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(
+        sseResponse([
+          'event: message_start\ndata: {"message":{"usage":{"input_tokens":5}}}\n\n',
+          'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"Hel"}}\n\n',
+          'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"lo"}}\n\n',
+          'event: message_delta\ndata: {"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}\n\n',
+        ]),
+      );
     global.fetch = fetchMock as unknown as typeof fetch;
     const client = new OpenCodeClient({ apiKey: 'oc-test' });
     const deltas: Array<{ text: string; streamed?: boolean }> = [];
-    const result = await client.stream!([{ role: 'user', content: 'hi' }], { model: 'claude-haiku-4-5' }, {
-      onDelta: (text, streamed) => deltas.push({ text, streamed }),
-    });
+    const result = await client.stream!(
+      [{ role: 'user', content: 'hi' }],
+      { model: 'claude-haiku-4-5' },
+      {
+        onDelta: (text, streamed) => deltas.push({ text, streamed }),
+      },
+    );
 
-    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { stream: boolean };
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      stream: boolean;
+    };
     expect(body.stream).toBe(true);
     expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/zen/v1/messages');
     expect(deltas.map((d) => d.text)).toEqual(['Hel', 'lo']);
@@ -440,19 +450,25 @@ describe('OpenCodeClient', () => {
   });
 
   it('streams non-claude models from /v1/chat/completions and re-brands the provider', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(
-      sseResponse([
-        'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
-        'data: {"choices":[{"delta":{"content":" there"},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":3,"total_tokens":7}}\n\n',
-        'data: [DONE]\n\n',
-      ]),
-    );
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(
+        sseResponse([
+          'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+          'data: {"choices":[{"delta":{"content":" there"},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":3,"total_tokens":7}}\n\n',
+          'data: [DONE]\n\n',
+        ]),
+      );
     global.fetch = fetchMock as unknown as typeof fetch;
     const client = new OpenCodeClient({ apiKey: 'oc-test' });
     const deltas: string[] = [];
-    const result = await client.stream!([{ role: 'user', content: 'hi' }], { model: 'qwen3-coder' }, {
-      onDelta: (text) => deltas.push(text),
-    });
+    const result = await client.stream!(
+      [{ role: 'user', content: 'hi' }],
+      { model: 'qwen3-coder' },
+      {
+        onDelta: (text) => deltas.push(text),
+      },
+    );
 
     expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/zen/v1/chat/completions');
     expect(deltas).toEqual(['hi', ' there']);
@@ -527,18 +543,14 @@ describe('provider selection in createEngine', () => {
   });
 
   it('supports Ollama without API key', () => {
-    const engine = createEngine(
-      loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'ollama' }),
-    );
+    const engine = createEngine(loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'ollama' }));
     expect(engine.client.constructor.name).toBe('OpenAiClient');
     expect(engine.client.mock).toBe(false);
     expect(engine.config.provider).toBe('ollama');
   });
 
   it('supports LM Studio without API key', () => {
-    const engine = createEngine(
-      loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'lmstudio' }),
-    );
+    const engine = createEngine(loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'lmstudio' }));
     expect(engine.client.constructor.name).toBe('OpenAiClient');
     expect(engine.client.mock).toBe(false);
     expect(engine.config.provider).toBe('lmstudio');
@@ -561,7 +573,12 @@ describe('tool calling (Anthropic)', () => {
       tools: [{ name: 'add', description: 'add two numbers', parameters: { type: 'object' } }],
     });
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
-      tools?: Array<{ name: string; description: string; input_schema: unknown; cache_control?: unknown }>;
+      tools?: Array<{
+        name: string;
+        description: string;
+        input_schema: unknown;
+        cache_control?: unknown;
+      }>;
     };
     expect(body.tools).toEqual([
       {
@@ -618,7 +635,9 @@ describe('tool calling (Anthropic)', () => {
       ],
       { model: 'claude-3-5-sonnet', tools: [{ name: 'add', description: 'add', parameters: {} }] },
     );
-    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { messages: unknown[] };
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      messages: unknown[];
+    };
     expect(body.messages).toEqual([
       { role: 'user', content: '2 + 3' },
       {
@@ -649,13 +668,22 @@ describe('tool calling (OpenAI family)', () => {
       description: 'add two numbers',
       parameters: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'number' } } },
     };
-    await client.complete([{ role: 'user', content: '2 + 3' }], { model: 'gpt-4o-mini', tools: [tool] });
+    await client.complete([{ role: 'user', content: '2 + 3' }], {
+      model: 'gpt-4o-mini',
+      tools: [tool],
+    });
 
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
-      tools?: Array<{ type: string; function: { name: string; description: string; parameters: unknown } }>;
+      tools?: Array<{
+        type: string;
+        function: { name: string; description: string; parameters: unknown };
+      }>;
     };
     expect(body.tools).toEqual([
-      { type: 'function', function: { name: 'add', description: 'add two numbers', parameters: tool.parameters } },
+      {
+        type: 'function',
+        function: { name: 'add', description: 'add two numbers', parameters: tool.parameters },
+      },
     ]);
   });
 
@@ -668,7 +696,11 @@ describe('tool calling (OpenAI family)', () => {
             message: {
               content: null,
               tool_calls: [
-                { id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } },
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'add', arguments: '{"a":2,"b":3}' },
+                },
               ],
             },
             finish_reason: 'tool_calls',
@@ -697,7 +729,12 @@ describe('tool calling (OpenAI family)', () => {
               content: '',
               // No `type: 'function'` — some Ollama/LM Studio builds and
               // proxies omit it; the call must still be executed.
-              tool_calls: [{ id: 'call_1', function: { name: 'write_file', arguments: '{"path":"index.html"}' } }],
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  function: { name: 'write_file', arguments: '{"path":"index.html"}' },
+                },
+              ],
             },
             finish_reason: 'tool_calls',
           },
@@ -738,13 +775,17 @@ describe('tool calling (OpenAI family)', () => {
       ],
       { model: 'gpt-4o-mini', tools: [{ name: 'add', description: 'add', parameters: {} }] },
     );
-    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { messages: unknown[] };
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      messages: unknown[];
+    };
     expect(body.messages).toEqual([
       { role: 'user', content: '2 + 3' },
       {
         role: 'assistant',
         content: '',
-        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } }],
+        tool_calls: [
+          { id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } },
+        ],
       },
       { role: 'tool', tool_call_id: 'call_1', content: '5' },
     ]);
@@ -776,12 +817,15 @@ describe('tool-calling capability detection', () => {
   });
 
   it('defaults Ollama models to tool support', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(
-      okResponse({ data: [{ id: 'llama3.2:latest' }] }),
-    );
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(okResponse({ data: [{ id: 'llama3.2:latest' }] }));
     global.fetch = fetchMock as unknown as typeof fetch;
     // Distinct baseUrl to avoid the fetchProviderModels suite's cache key.
-    const models = await fetchProviderModels({ provider: 'ollama', baseUrl: 'http://ollama.detect:11434/v1' });
+    const models = await fetchProviderModels({
+      provider: 'ollama',
+      baseUrl: 'http://ollama.detect:11434/v1',
+    });
     expect(models[0]!.supportsTools).toBe(true);
   });
 });
@@ -791,8 +835,16 @@ describe('fetchProviderModels', () => {
     const fetchMock = jest.fn().mockResolvedValue(
       okResponse({
         data: [
-          { id: 'meta-llama/llama-3.3-70b-instruct', context_length: 128000, pricing: { prompt: '0.00000012', completion: '0.0000003' } },
-          { id: 'deepseek/deepseek-r1', context_length: 128000, pricing: { prompt: '0.00000055', completion: '0.00000219' } },
+          {
+            id: 'meta-llama/llama-3.3-70b-instruct',
+            context_length: 128000,
+            pricing: { prompt: '0.00000012', completion: '0.0000003' },
+          },
+          {
+            id: 'deepseek/deepseek-r1',
+            context_length: 128000,
+            pricing: { prompt: '0.00000055', completion: '0.00000219' },
+          },
         ],
       }),
     );
@@ -812,7 +864,10 @@ describe('fetchProviderModels', () => {
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const models = await fetchProviderModels({ provider: 'ollama', baseUrl: 'http://localhost:11434/v1' });
+    const models = await fetchProviderModels({
+      provider: 'ollama',
+      baseUrl: 'http://localhost:11434/v1',
+    });
     expect(models.length).toBe(2);
     expect(models[0]!.id).toBe('llama3.2:latest');
     expect(models[1]!.supportsThinking).toBe(true);
@@ -860,12 +915,20 @@ describe('fetchProviderModels', () => {
 
 describe('Vercel AI Gateway', () => {
   it('probes the gateway host, not api.vercel.ai', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(okResponse({ data: [{ id: 'openai/gpt-4o-mini' }] }));
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(okResponse({ data: [{ id: 'openai/gpt-4o-mini' }] }));
     global.fetch = fetchMock as unknown as typeof fetch;
-    await fetchProviderModels({ provider: 'vercel', apiKey: 'vck_test', baseUrl: 'https://ai-gateway.vercel.sh/v1' });
+    await fetchProviderModels({
+      provider: 'vercel',
+      apiKey: 'vck_test',
+      baseUrl: 'https://ai-gateway.vercel.sh/v1',
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://ai-gateway.vercel.sh/v1/models',
-      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer vck_test' }) }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer vck_test' }),
+      }),
     );
   });
 
@@ -964,9 +1027,9 @@ describe('CloudflareClient API paths', () => {
 
 describe('Cloudflare model discovery', () => {
   it('uses the configured account id (not just one parsed from the URL)', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(
-      okResponse({ result: [{ id: '@cf/meta/llama-3.1-8b-instruct' }] }),
-    );
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(okResponse({ result: [{ id: '@cf/meta/llama-3.1-8b-instruct' }] }));
     global.fetch = fetchMock as unknown as typeof fetch;
     const models = await fetchProviderModels({
       provider: 'cloudflare',

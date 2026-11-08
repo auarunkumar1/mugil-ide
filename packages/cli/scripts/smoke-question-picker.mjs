@@ -47,7 +47,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Minimal scripted engine + client (mirrors packages/cli/tests/server.test.ts). */
 function scriptedEngine(client) {
-  const cache = new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 0, embedding: new LexicalEmbedding() });
+  const cache = new SmartCache({
+    backend: new MemoryBackend(),
+    ttlSeconds: 0,
+    embedding: new LexicalEmbedding(),
+  });
   const handoff = new HandoffManager({ client, models: [] });
   const pipeline = new Pipeline({ cache, handoff });
   const engine = {
@@ -101,7 +105,9 @@ function findChrome() {
     env.CHROME_PATH,
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe') : undefined,
+    env.LOCALAPPDATA
+      ? join(env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+      : undefined,
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium',
@@ -114,11 +120,25 @@ function findChrome() {
 async function launchChrome(chromePath) {
   const profile = mkdtempSync(join(tmpdir(), 'mugil-smoke-'));
   const flagSets = [
-    ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0'],
-    ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0'],
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--remote-debugging-port=0',
+    ],
+    [
+      '--headless',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--remote-debugging-port=0',
+    ],
   ];
   for (const flags of flagSets) {
-    const proc = spawn(chromePath, [...flags, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+    const proc = spawn(chromePath, [...flags, `--user-data-dir=${profile}`, 'about:blank'], {
+      stdio: 'ignore',
+    });
     const portFile = join(profile, 'DevToolsActivePort');
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline && !existsSync(portFile) && proc.exitCode === null) {
@@ -131,7 +151,9 @@ async function launchChrome(chromePath) {
     proc.kill();
     await sleep(200);
   }
-  throw new Error('Chrome did not start (no DevToolsActivePort). Is Chrome installed? Set CHROME_PATH if needed.');
+  throw new Error(
+    'Chrome did not start (no DevToolsActivePort). Is Chrome installed? Set CHROME_PATH if needed.',
+  );
 }
 
 function killChrome(proc, profile) {
@@ -198,9 +220,15 @@ class Cdp {
     }
   }
   async evaluate(expression) {
-    const r = await this.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    const r = await this.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    });
     if (r.exceptionDetails) {
-      throw new Error(`page eval failed: ${r.exceptionDetails.text} ${r.exceptionDetails.exception?.description ?? ''}`);
+      throw new Error(
+        `page eval failed: ${r.exceptionDetails.text} ${r.exceptionDetails.exception?.description ?? ''}`,
+      );
     }
     return r.result?.value;
   }
@@ -217,12 +245,16 @@ class Cdp {
       }
       await sleep(interval);
     }
-    throw new Error(`timed out waiting for: ${label}${lastErr ? ` (last error: ${lastErr.message})` : ''}`);
+    throw new Error(
+      `timed out waiting for: ${label}${lastErr ? ` (last error: ${lastErr.message})` : ''}`,
+    );
   }
 }
 
 async function connectPage(port) {
-  const target = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' }).then((r) => r.json());
+  const target = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, {
+    method: 'PUT',
+  }).then((r) => r.json());
   const cdp = new Cdp(target.webSocketDebuggerUrl);
   await cdp.open();
   await cdp.send('Page.enable');
@@ -235,7 +267,9 @@ async function connectPage(port) {
     diagnostics.console.push(p.args.map((a) => a.value ?? a.description ?? '').join(' '));
   });
   cdp.onEvent('Runtime.exceptionThrown', (p) => {
-    diagnostics.exceptions.push(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? 'unknown');
+    diagnostics.exceptions.push(
+      p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? 'unknown',
+    );
   });
   cdp.onEvent('Log.entryAdded', (p) => {
     diagnostics.console.push(`[log:${p.entry.level}] ${p.entry.text}`);
@@ -253,7 +287,9 @@ async function connectPage(port) {
 
 function assertEq(actual, expected, label) {
   if (actual !== expected) {
-    throw new Error(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    throw new Error(
+      `${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
   }
 }
 
@@ -263,7 +299,9 @@ async function waitForFedBack(fedBack, needle, timeoutMs = 15000) {
     if (fedBack.some((s) => s.includes(needle))) return;
     await sleep(100);
   }
-  throw new Error(`model never saw ${JSON.stringify(needle)}; fedBack=${JSON.stringify(fedBack, null, 2)}`);
+  throw new Error(
+    `model never saw ${JSON.stringify(needle)}; fedBack=${JSON.stringify(fedBack, null, 2)}`,
+  );
 }
 
 async function runScenario(name, { timeoutMs, act }) {
@@ -283,7 +321,9 @@ async function runScenario(name, { timeoutMs, act }) {
     const htmlRes = await fetch(server.url);
     const htmlText = await htmlRes.text();
     if (htmlRes.status !== 200 || !htmlText.includes('id="chat-input"')) {
-      throw new Error(`server did not serve the app HTML (${server.url}, status ${htmlRes.status})`);
+      throw new Error(
+        `server did not serve the app HTML (${server.url}, status ${htmlRes.status})`,
+      );
     }
 
     await cdp.send('Page.navigate', { url: server.url });
@@ -318,7 +358,11 @@ async function runScenario(name, { timeoutMs, act }) {
     }))()`);
     assertEq(rendered.header, 'Runner', 'modal header');
     assertEq(rendered.text, 'Which test runner?', 'modal question text');
-    assertEq(JSON.stringify(rendered.options), JSON.stringify(['[1] jest', '[2] vitest']), 'modal option buttons');
+    assertEq(
+      JSON.stringify(rendered.options),
+      JSON.stringify(['[1] jest', '[2] vitest']),
+      'modal option buttons',
+    );
 
     await act(cdp, fedBack);
     console.log(`  ✓ ${name}`);
@@ -347,13 +391,23 @@ async function runScenario(name, { timeoutMs, act }) {
         await sleep(800);
         const dump = {};
         const expr = (label, js) =>
-          safeEval(js).then((v) => (dump[label] = v)).catch((e) => (dump[label] = `(err: ${e.message})`));
+          safeEval(js)
+            .then((v) => (dump[label] = v))
+            .catch((e) => (dump[label] = `(err: ${e.message})`));
         await expr('href', `location.href`);
         await expr('hasQuestionModal', `!!document.getElementById('question-modal')`);
-        await expr('questionModalClass', `(document.getElementById('question-modal') || {}).className || '(missing)'`);
+        await expr(
+          'questionModalClass',
+          `(document.getElementById('question-modal') || {}).className || '(missing)'`,
+        );
         await expr('showQuestion', `typeof showQuestion`);
-        await expr('pendingQuestionId', `typeof pendingQuestionId !== 'undefined' ? pendingQuestionId : '(n/a)'`);
-        await expr('termTail', `(() => {
+        await expr(
+          'pendingQuestionId',
+          `typeof pendingQuestionId !== 'undefined' ? pendingQuestionId : '(n/a)'`,
+        );
+        await expr(
+          'termTail',
+          `(() => {
           const out = [];
           if (typeof agentTerm !== 'undefined' && agentTerm && agentTerm.buffer) {
             const n = agentTerm.buffer.active.length;
@@ -365,7 +419,8 @@ async function runScenario(name, { timeoutMs, act }) {
             out.push('(no agentTerm)');
           }
           return out.join('|');
-        })()`);
+        })()`,
+        );
         console.error('DEBUG page state:', JSON.stringify(dump, null, 2));
         console.error('DEBUG fedBack:', JSON.stringify(fedBack, null, 2));
         console.error('DEBUG console/exceptions:', JSON.stringify(diagnostics.console, null, 2));
@@ -402,7 +457,9 @@ async function main() {
   // 1. Click an option -> the chosen answer feeds back to the model.
   await runScenario('click option', {
     act: async (cdp, fedBack) => {
-      await cdp.evaluate(`document.querySelector('#question-modal-options .modal-item-card').click()`);
+      await cdp.evaluate(
+        `document.querySelector('#question-modal-options .modal-item-card').click()`,
+      );
       await cdp.waitFor(`!document.getElementById('question-modal').classList.contains('open')`, {
         label: 'modal closed after click',
       });

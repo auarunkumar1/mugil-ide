@@ -36,7 +36,10 @@ export class DeltaCache {
 
   /** Normalize command to group minor flag variations (e.g. `npm test` vs `npm test -- --runInBand`). */
   normalizeCommand(command: string): string {
-    const normalized = command.trim().replace(/\s+--\s+.*$/, '').replace(/\s+/g, ' ');
+    const normalized = command
+      .trim()
+      .replace(/\s+--\s+.*$/, '')
+      .replace(/\s+/g, ' ');
     return this.scope ? `${this.scope}\u0000${normalized}` : normalized;
   }
 
@@ -48,7 +51,11 @@ export class DeltaCache {
   private looksBroken(output: string): boolean {
     // A green run may still mention "errors" ("0 errors", "Tests: 5 passed"),
     // so an explicit success marker wins.
-    if (/(?:^|\n)\s*\d+\s+(?:errors?\b)?.*\b0 errors?\b|Tests:\s+\d+ passed|Test Suites:\s+\d+ passed/.test(output)) {
+    if (
+      /(?:^|\n)\s*\d+\s+(?:errors?\b)?.*\b0 errors?\b|Tests:\s+\d+ passed|Test Suites:\s+\d+ passed/.test(
+        output,
+      )
+    ) {
       return false;
     }
     return /(?:^|\n)\s*(?:error|ERR!|fatal|FAIL\b|✕|×)|\berror\s+TS\d+|EACCES|ENOENT/.test(output);
@@ -77,7 +84,9 @@ export class DeltaCache {
       const failMatch = !hasJestBullet ? line.match(/^FAIL\s+([^\s]+)/) : null;
       const pytestMatch = line.match(/^FAILED\s+([^\s]+)(?:\s+-\s+(.+))?/);
       const cargoMatch = line.match(/^test\s+([^\s]+)\s+\.\.\.\s+FAILED/);
-      const tscMatch = line.match(/^([^\s]+(?:\.tsx?|\.jsx?|\.vue|\.rs|\.py|\.go|\.c|\.cpp))(?::|\()(\d+)(?:,\d+|\))?:\s+error\s+(.*)$/i);
+      const tscMatch = line.match(
+        /^([^\s]+(?:\.tsx?|\.jsx?|\.vue|\.rs|\.py|\.go|\.c|\.cpp))(?::|\()(\d+)(?:,\d+|\))?:\s+error\s+(.*)$/i,
+      );
 
       let newId: string | null = null;
       let newSummary: string | null = null;
@@ -114,7 +123,11 @@ export class DeltaCache {
         };
       } else if (currentItem) {
         // Collect following lines until end or new section
-        if (line.startsWith('Test Suites:') || line.startsWith('=== FAILURES ===') || line.startsWith('Tests: ')) {
+        if (
+          line.startsWith('Test Suites:') ||
+          line.startsWith('=== FAILURES ===') ||
+          line.startsWith('Tests: ')
+        ) {
           failures.push({
             id: currentItem.id,
             summary: currentItem.summary,
@@ -189,7 +202,11 @@ export class DeltaCache {
    * Applies Delta Mode compression to output.
    * If there are unchanged failures, collapses them and surfaces resolved/new failures prominently.
    */
-  apply(command: string, output: string, options: { maxUnchangedShown?: number } = {}): {
+  apply(
+    command: string,
+    output: string,
+    options: { maxUnchangedShown?: number } = {},
+  ): {
     text: string;
     changed: boolean;
     deltaStats?: DeltaStats;
@@ -252,13 +269,22 @@ export class DeltaCache {
     // Build concise delta summary header
     const summaryLines: string[] = ['--- [Delta Mode Diagnostics] ---'];
     if (resolved.length > 0) {
-      summaryLines.push(`✔ Resolved (${resolved.length}): ${resolved.slice(0, 3).join(', ')}${resolved.length > 3 ? ` (+${resolved.length - 3} more)` : ''}`);
+      summaryLines.push(
+        `✔ Resolved (${resolved.length}): ${resolved.slice(0, 3).join(', ')}${resolved.length > 3 ? ` (+${resolved.length - 3} more)` : ''}`,
+      );
     }
     if (newFailures.length > 0) {
-      summaryLines.push(`✕ New failures (${newFailures.length}): ${newFailures.map((f) => f.id).slice(0, 3).join(', ')}`);
+      summaryLines.push(
+        `✕ New failures (${newFailures.length}): ${newFailures
+          .map((f) => f.id)
+          .slice(0, 3)
+          .join(', ')}`,
+      );
     }
     if (unchanged.length > 0) {
-      summaryLines.push(`⚠ Unchanged failures (${unchanged.length}): ${unchanged.length > maxUnchanged ? `${maxUnchanged} shown, ${unchanged.length - maxUnchanged} collapsed` : `${unchanged.length} shown`}`);
+      summaryLines.push(
+        `⚠ Unchanged failures (${unchanged.length}): ${unchanged.length > maxUnchanged ? `${maxUnchanged} shown, ${unchanged.length - maxUnchanged} collapsed` : `${unchanged.length} shown`}`,
+      );
     }
     summaryLines.push('--------------------------------');
 
@@ -291,7 +317,11 @@ export const globalDeltaCache = new DeltaCache();
 const scopedCaches = new Map<string, DeltaCache>();
 
 /** Convenience helper for delta mode. */
-export function applyDeltaMode(command: string, output: string, cache?: DeltaCache): {
+export function applyDeltaMode(
+  command: string,
+  output: string,
+  cache?: DeltaCache,
+): {
   text: string;
   changed: boolean;
   deltaStats?: DeltaStats;

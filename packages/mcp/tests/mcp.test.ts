@@ -60,7 +60,16 @@ describe('Mugil IDE MCP server', () => {
     const file = path.join(dir, 'sample.ts');
     fs.writeFileSync(
       file,
-      ['export function wanted() {', '  return 1;', '}', '', 'export function other() {', '  return 2;', '}', ''].join('\n'),
+      [
+        'export function wanted() {',
+        '  return 1;',
+        '}',
+        '',
+        'export function other() {',
+        '  return 2;',
+        '}',
+        '',
+      ].join('\n'),
       'utf-8',
     );
     try {
@@ -89,7 +98,8 @@ describe('Mugil IDE MCP server', () => {
     const res = (await client.callTool({
       name: 'refine_prompt',
       arguments: {
-        prompt: 'Hi there! In order to fix the bug, please kindly review the code. Thanks in advance!',
+        prompt:
+          'Hi there! In order to fix the bug, please kindly review the code. Thanks in advance!',
       },
     })) as ToolResult;
     const parsed = JSON.parse(await toolResultText(res)) as {

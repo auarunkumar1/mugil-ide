@@ -104,7 +104,14 @@ interface CodegraphRules {
 
 interface CompiledRules {
   ignoreDirs: Set<string>;
-  languages: Record<CodeLanguage, { extensions: string[]; symbols: Array<{ kind: string; re: RegExp }>; imports: Array<{ kind: string; re: RegExp }> }>;
+  languages: Record<
+    CodeLanguage,
+    {
+      extensions: string[];
+      symbols: Array<{ kind: string; re: RegExp }>;
+      imports: Array<{ kind: string; re: RegExp }>;
+    }
+  >;
 }
 
 let compiled: CompiledRules | undefined;
@@ -113,13 +120,22 @@ let compiledAt = -1;
 function getRules(): CompiledRules {
   const revision = currentRevision();
   if (!compiled || compiledAt !== revision) {
-    const doc = loadRulesSync<CodegraphRules>('codegraph', defaultRules as unknown as CodegraphRules);
+    const doc = loadRulesSync<CodegraphRules>(
+      'codegraph',
+      defaultRules as unknown as CodegraphRules,
+    );
     const languages = {} as CompiledRules['languages'];
     for (const [name, lang] of Object.entries(doc.languages)) {
       languages[name as CodeLanguage] = {
         extensions: lang.extensions,
-        symbols: lang.symbols.map((s) => ({ kind: s.kind, re: new RegExp(s.pattern, s.flags ?? 'g') })),
-        imports: lang.imports.map((i) => ({ kind: i.kind, re: new RegExp(i.pattern, i.flags ?? 'g') })),
+        symbols: lang.symbols.map((s) => ({
+          kind: s.kind,
+          re: new RegExp(s.pattern, s.flags ?? 'g'),
+        })),
+        imports: lang.imports.map((i) => ({
+          kind: i.kind,
+          re: new RegExp(i.pattern, i.flags ?? 'g'),
+        })),
       };
     }
     compiled = { ignoreDirs: new Set(doc.ignoreDirs), languages };
@@ -189,7 +205,10 @@ function collectSymbols(
 }
 
 /** Extracts import specifiers from source content. */
-function collectImports(content: string, rules: Array<{ kind: string; re: RegExp }>): Array<{ to: string; kind: string }> {
+function collectImports(
+  content: string,
+  rules: Array<{ kind: string; re: RegExp }>,
+): Array<{ to: string; kind: string }> {
   const found: Array<{ to: string; kind: string }> = [];
   for (const { kind, re } of rules) {
     re.lastIndex = 0;
@@ -217,7 +236,11 @@ function attachSnippets(
     // Always include at least the symbol's own line: two symbols can share a
     // line (`export const a = 1; export const b = 2;`), where `nextLine - 1`
     // would be `s.line - 1` and leave the first snippet empty.
-    const end = Math.min(Math.max(nextLine - 1, s.line), s.line - 1 + MAX_SNIPPET_LINES, lines.length);
+    const end = Math.min(
+      Math.max(nextLine - 1, s.line),
+      s.line - 1 + MAX_SNIPPET_LINES,
+      lines.length,
+    );
     const snippet = lines.slice(s.line - 1, end).join('\n');
     return { ...s, snippet };
   });
@@ -266,7 +289,11 @@ export function parseCodeFile(file: string, content: string): CodeFile {
     line: s.line,
     snippet: s.snippet,
   }));
-  const imports = collectImports(content, rules.imports).map((i) => ({ from: file, to: i.to, kind: i.kind }));
+  const imports = collectImports(content, rules.imports).map((i) => ({
+    from: file,
+    to: i.to,
+    kind: i.kind,
+  }));
   return { path: file, language, symbols, imports };
 }
 
@@ -373,7 +400,11 @@ export interface QueryResult {
  * Ranks symbols by relevance to a task description — for context injection.
  * Name matches weigh most, then file path, then signature/snippet matches.
  */
-export function queryCodeGraph(graph: CodeGraph, query: string, options: { top?: number } = {}): QueryResult[] {
+export function queryCodeGraph(
+  graph: CodeGraph,
+  query: string,
+  options: { top?: number } = {},
+): QueryResult[] {
   const tokens = query
     .toLowerCase()
     .split(/[^a-z0-9_]+/)
@@ -395,6 +426,11 @@ export function queryCodeGraph(graph: CodeGraph, query: string, options: { top?:
     if (score > 0) scored.push({ symbol, score });
   }
 
-  scored.sort((a, b) => b.score - a.score || a.symbol.file.localeCompare(b.symbol.file) || a.symbol.line - b.symbol.line);
+  scored.sort(
+    (a, b) =>
+      b.score - a.score ||
+      a.symbol.file.localeCompare(b.symbol.file) ||
+      a.symbol.line - b.symbol.line,
+  );
   return scored.slice(0, options.top ?? 10);
 }

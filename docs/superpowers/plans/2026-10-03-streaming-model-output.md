@@ -20,20 +20,20 @@
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
-| `packages/core/src/modules/handoff/stream.ts` | **Create.** Pure SSE frame parser + `streamCompletion()` dispatcher. No I/O beyond reading the response body. |
-| `packages/core/src/modules/handoff/provider.ts` | **Modify.** Add optional `stream()` to `ProviderClient`; add `stream?: boolean` to `ProviderCompleteOptions`. |
-| `packages/core/src/modules/handoff/openAi.ts` | **Modify.** Implement `stream()` (OpenAI wire format). |
-| `packages/core/src/modules/handoff/anthropic.ts` | **Modify.** Implement `stream()` (Anthropic wire format). |
-| `packages/core/src/modules/handoff/openRouter.ts`, `vercel.ts`, `together.ts`, `cloudflare.ts` | **Modify.** Implement `stream()` (all OpenAI-compatible; delegate to a shared helper). |
-| `packages/core/src/types.ts` | **Modify.** Add `PipelineEvent` variant `{ type: 'delta'; text: string }`. |
-| `packages/core/src/modules/tool-loop/index.ts` | **Modify.** Accept `onDelta`, forward to handoff, flush provisional deltas. |
-| `packages/core/src/pipeline.ts` | **Modify.** Accept `stream`, pass through, emit `delta` events. |
-| `packages/cli/src/terminal/agentRepl.ts` | **Modify.** Render deltas live; discard provisional text when a tool call follows. |
-| `packages/core/tests/stream.test.ts` | **Create.** SSE parser + dispatcher tests (fake `fetch`, no network). |
-| `packages/core/tests/toolLoop.test.ts` | **Modify.** Delta forwarding tests. |
-| `packages/core/tests/pipeline.test.ts` | **Modify.** `stream: false` and default-stream tests. |
+| File                                                                                           | Responsibility                                                                                                |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/modules/handoff/stream.ts`                                                  | **Create.** Pure SSE frame parser + `streamCompletion()` dispatcher. No I/O beyond reading the response body. |
+| `packages/core/src/modules/handoff/provider.ts`                                                | **Modify.** Add optional `stream()` to `ProviderClient`; add `stream?: boolean` to `ProviderCompleteOptions`. |
+| `packages/core/src/modules/handoff/openAi.ts`                                                  | **Modify.** Implement `stream()` (OpenAI wire format).                                                        |
+| `packages/core/src/modules/handoff/anthropic.ts`                                               | **Modify.** Implement `stream()` (Anthropic wire format).                                                     |
+| `packages/core/src/modules/handoff/openRouter.ts`, `vercel.ts`, `together.ts`, `cloudflare.ts` | **Modify.** Implement `stream()` (all OpenAI-compatible; delegate to a shared helper).                        |
+| `packages/core/src/types.ts`                                                                   | **Modify.** Add `PipelineEvent` variant `{ type: 'delta'; text: string }`.                                    |
+| `packages/core/src/modules/tool-loop/index.ts`                                                 | **Modify.** Accept `onDelta`, forward to handoff, flush provisional deltas.                                   |
+| `packages/core/src/pipeline.ts`                                                                | **Modify.** Accept `stream`, pass through, emit `delta` events.                                               |
+| `packages/cli/src/terminal/agentRepl.ts`                                                       | **Modify.** Render deltas live; discard provisional text when a tool call follows.                            |
+| `packages/core/tests/stream.test.ts`                                                           | **Create.** SSE parser + dispatcher tests (fake `fetch`, no network).                                         |
+| `packages/core/tests/toolLoop.test.ts`                                                         | **Modify.** Delta forwarding tests.                                                                           |
+| `packages/core/tests/pipeline.test.ts`                                                         | **Modify.** `stream: false` and default-stream tests.                                                         |
 
 ---
 
@@ -42,12 +42,15 @@
 Pure functions over a `ReadableStream<Uint8Array>`. No network, no providers.
 
 **Files:**
+
 - Create: `packages/core/src/modules/handoff/stream.ts`
 - Test: `packages/core/tests/stream.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing from other tasks.
 - Produces:
+
   ```ts
   export interface StreamHandlers {
     onDelta?: (text: string) => void;
@@ -144,7 +147,10 @@ describe('parseOpenAiSse', () => {
   });
 
   it('ends cleanly on [DONE] with no trailing newline', async () => {
-    const stream = streamFromChunks(['data: {"choices":[{"delta":{"content":"x"}}]}\n\n', 'data: [DONE]']);
+    const stream = streamFromChunks([
+      'data: {"choices":[{"delta":{"content":"x"}}]}\n\n',
+      'data: [DONE]',
+    ]);
     await expect(parseOpenAiSse(stream)).resolves.toMatchObject({ content: 'x' });
   });
 });
@@ -294,7 +300,11 @@ export async function parseOpenAiSse(
     const json = safeJson(ev.data);
     if (!json) continue;
     if (json.usage) {
-      const u = json.usage as { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      const u = json.usage as {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      };
       usage = {
         promptTokens: u.prompt_tokens,
         completionTokens: u.completion_tokens,
@@ -375,8 +385,7 @@ export async function parseAnthropicSse(
     if (type !== 'content_block_delta') continue;
 
     const delta = json.delta as
-      | { type?: string; text?: string; thinking?: string; partial_json?: string }
-      | undefined;
+      { type?: string; text?: string; thinking?: string; partial_json?: string } | undefined;
     if (!delta) continue;
     if (delta.type === 'text_delta' && typeof delta.text === 'string') {
       content += delta.text;
@@ -393,15 +402,18 @@ export async function parseAnthropicSse(
   return {
     content,
     thinking,
-    toolCalls: [...blocks.values()].map((b) => ({ id: b.id, name: b.name, arguments: b.args || '{}' })),
+    toolCalls: [...blocks.values()].map((b) => ({
+      id: b.id,
+      name: b.name,
+      arguments: b.args || '{}',
+    })),
     finishReason,
     usage:
       promptTokens !== undefined || completionTokens !== undefined
         ? {
             promptTokens,
             completionTokens,
-            totalTokens:
-              (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
+            totalTokens: (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
           }
         : undefined,
   };
@@ -425,6 +437,7 @@ git commit -m "feat(handoff): add SSE parsers for OpenAI and Anthropic stream fo
 ### Task 2: `ProviderClient.stream()` with Non-Streaming Fallback
 
 **Files:**
+
 - Modify: `packages/core/src/modules/handoff/provider.ts`
 - Modify: `packages/core/src/modules/handoff/openAi.ts`
 - Modify: `packages/core/src/modules/handoff/anthropic.ts`
@@ -432,8 +445,10 @@ git commit -m "feat(handoff): add SSE parsers for OpenAI and Anthropic stream fo
 - Test: `packages/core/tests/stream.test.ts`
 
 **Interfaces:**
+
 - Consumes: `parseOpenAiSse`, `parseAnthropicSse`, `StreamHandlers`, `StreamedCompletion` from Task 1; `requestSignal()` from `provider.ts`.
 - Produces:
+
   ```ts
   // provider.ts
   export interface ProviderClient {
@@ -478,9 +493,14 @@ describe('streamCompletion dispatcher', () => {
       finishReason: 'stop',
     }));
     const deltas: string[] = [];
-    const out = await streamCompletion({ mock: false, complete }, MSGS, { model: 'm' }, {
-      onDelta: (t) => deltas.push(t),
-    });
+    const out = await streamCompletion(
+      { mock: false, complete },
+      MSGS,
+      { model: 'm' },
+      {
+        onDelta: (t) => deltas.push(t),
+      },
+    );
 
     expect(complete).toHaveBeenCalledTimes(1);
     expect(deltas).toEqual(['whole answer']);
@@ -868,14 +888,17 @@ git commit -m "feat(handoff): stream completions via SSE with non-streaming fall
 ### Task 3: Pipeline and Tool Loop Delta Events
 
 **Files:**
+
 - Modify: `packages/core/src/types.ts`
 - Modify: `packages/core/src/pipeline.ts`
 - Modify: `packages/core/src/modules/tool-loop/index.ts`
 - Test: `packages/core/tests/pipeline.test.ts`, `packages/core/tests/toolLoop.test.ts`
 
 **Interfaces:**
+
 - Consumes: `streamCompletion` from Task 2.
 - Produces:
+
   ```ts
   // types.ts — PipelineEvent gains one variant
   | { type: 'delta'; text: string }
@@ -890,60 +913,81 @@ git commit -m "feat(handoff): stream completions via SSE with non-streaming fall
 Append to `packages/core/tests/toolLoop.test.ts`:
 
 ```ts
-  it('forwards streamed deltas through onDelta', async () => {
-    const client = scriptedClient([result({ content: 'par', finishReason: 'stop' })]);
-    const deltas: string[] = [];
-    const loop = new ToolLoop({
-      handoff: new HandoffManager({ client, models: [] }),
-      onDelta: (t) => deltas.push(t),
-    });
-    await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
-    // The scripted client has no stream(), so the dispatcher replays the whole
-    // answer as a single delta — proving the wiring, not the transport.
-    expect(deltas).toEqual(['par']);
+it('forwards streamed deltas through onDelta', async () => {
+  const client = scriptedClient([result({ content: 'par', finishReason: 'stop' })]);
+  const deltas: string[] = [];
+  const loop = new ToolLoop({
+    handoff: new HandoffManager({ client, models: [] }),
+    onDelta: (t) => deltas.push(t),
   });
+  await loop.run([...system, { role: 'user', content: 'go' }], { tools: [ADD], registry });
+  // The scripted client has no stream(), so the dispatcher replays the whole
+  // answer as a single delta — proving the wiring, not the transport.
+  expect(deltas).toEqual(['par']);
+});
 ```
 
 Append to `packages/core/tests/pipeline.test.ts`, inside `describe('Pipeline', ...)`:
 
 ```ts
-  it('emits delta events while streaming and stops when stream is false', async () => {
-    const streaming = {
-      mock: false,
-      complete: jest.fn().mockResolvedValue({
-        provider: 'openai', model: 'm', content: 'streamed',
-        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 }, finishReason: 'stop',
+it('emits delta events while streaming and stops when stream is false', async () => {
+  const streaming = {
+    mock: false,
+    complete: jest.fn().mockResolvedValue({
+      provider: 'openai',
+      model: 'm',
+      content: 'streamed',
+      usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+      finishReason: 'stop',
+    }),
+    stream: jest.fn(async (_m: unknown, _o: unknown, h: any) => {
+      h?.onDelta?.('str');
+      h?.onDelta?.('eamed');
+      return {
+        provider: 'openai',
+        model: 'm',
+        content: 'streamed',
+        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        finishReason: 'stop',
+      };
+    }),
+  };
+  const mk = () =>
+    new Pipeline({
+      cache: new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
       }),
-      stream: jest.fn(async (_m: unknown, _o: unknown, h: any) => {
-        h?.onDelta?.('str');
-        h?.onDelta?.('eamed');
-        return {
-          provider: 'openai', model: 'm', content: 'streamed',
-          usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 }, finishReason: 'stop',
-        };
+      handoff: new HandoffManager({
+        client: streaming as unknown as ProviderClient,
+        models: MODELS,
       }),
-    };
-    const mk = () => new Pipeline({
-      cache: new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() }),
-      handoff: new HandoffManager({ client: streaming as unknown as ProviderClient, models: MODELS }),
     });
 
-    const seen: string[] = [];
-    const result = await mk().ask('hello', { noCache: true, onEvent: (e) => {
+  const seen: string[] = [];
+  const result = await mk().ask('hello', {
+    noCache: true,
+    onEvent: (e) => {
       if (e.type === 'delta') seen.push(e.text);
-    } });
-    expect(seen).toEqual(['str', 'eamed']);
-    expect(result.response).toBe('streamed');
-    expect(streaming.complete).not.toHaveBeenCalled();
-
-    const seenOff: string[] = [];
-    await mk().ask('hello', { noCache: true, stream: false, onEvent: (e) => {
-      if (e.type === 'delta') seenOff.push(e.text);
-    } });
-    expect(streaming.complete).toHaveBeenCalledTimes(1);
-    // Fallback path still emits deltas, just not incrementally.
-    expect(seenOff).toEqual(['streamed']);
+    },
   });
+  expect(seen).toEqual(['str', 'eamed']);
+  expect(result.response).toBe('streamed');
+  expect(streaming.complete).not.toHaveBeenCalled();
+
+  const seenOff: string[] = [];
+  await mk().ask('hello', {
+    noCache: true,
+    stream: false,
+    onEvent: (e) => {
+      if (e.type === 'delta') seenOff.push(e.text);
+    },
+  });
+  expect(streaming.complete).toHaveBeenCalledTimes(1);
+  // Fallback path still emits deltas, just not incrementally.
+  expect(seenOff).toEqual(['streamed']);
+});
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -982,21 +1026,21 @@ In `packages/core/src/modules/tool-loop/index.ts`:
    handlers:
 
 ```ts
-      const handlers: StreamHandlers = {
-        onDelta: this.onDelta
-          ? (text) => {
-              // Provisional: if this completion turns out to carry tool calls,
-              // the consumer discards what it rendered. See agentRepl.ts.
-              this.onDelta(text);
-            }
-          : undefined,
-      };
-      const completion = await streamCompletion(
-        this.handoff.currentClient,
-        msgs,
-        this.streamOptions(this.sized(msgs, options)),
-        handlers,
-      );
+const handlers: StreamHandlers = {
+  onDelta: this.onDelta
+    ? (text) => {
+        // Provisional: if this completion turns out to carry tool calls,
+        // the consumer discards what it rendered. See agentRepl.ts.
+        this.onDelta(text);
+      }
+    : undefined,
+};
+const completion = await streamCompletion(
+  this.handoff.currentClient,
+  msgs,
+  this.streamOptions(this.sized(msgs, options)),
+  handlers,
+);
 ```
 
 5. Add a private helper so the three call sites stay consistent:
@@ -1066,10 +1110,12 @@ git commit -m "feat(pipeline): emit delta events from streamed completions"
 ### Task 4: Live Terminal and Browser Rendering
 
 **Files:**
+
 - Modify: `packages/cli/src/terminal/agentRepl.ts`
 - Test: `packages/cli/tests/server.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PipelineEvent` `{ type: 'delta'; text: string }` from Task 3.
 - Produces: no new exported API. `ReplIO.write` already forwards to the
   browser as an `agent_data` WebSocket frame, so no server or `html.ts` change
@@ -1080,41 +1126,44 @@ git commit -m "feat(pipeline): emit delta events from streamed completions"
 Append to `packages/cli/tests/server.test.ts`:
 
 ```ts
-  it('streams assistant text to the browser before the turn completes', async () => {
-    const streaming = {
-      mock: false,
-      complete: jest.fn().mockResolvedValue({
-        provider: 'openai', model: 'm', content: 'Hello world',
-        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 }, finishReason: 'stop',
-      }),
-      stream: jest.fn(async (_m: unknown, _o: unknown, h: any) => {
-        h?.onDelta?.('Hello ');
-        h?.onDelta?.('world');
-        return {
-          provider: 'openai', model: 'm', content: 'Hello world',
-          usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 }, finishReason: 'stop',
-        };
-      }),
-    } as unknown as ProviderClient;
-    const server = await startIdeServer({ engine: scriptedEngine(streaming), port: 0 });
-    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
-    const frames: string[] = [];
-    await new Promise<void>((r) => ws.on('open', () => r()));
-    ws.on('message', (raw) => frames.push(String(raw)));
+it('streams assistant text to the browser before the turn completes', async () => {
+  const streaming = {
+    mock: false,
+    complete: jest.fn().mockResolvedValue({
+      provider: 'openai',
+      model: 'm',
+      content: 'Hello world',
+      usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+      finishReason: 'stop',
+    }),
+    stream: jest.fn(async (_m: unknown, _o: unknown, h: any) => {
+      h?.onDelta?.('Hello ');
+      h?.onDelta?.('world');
+      return {
+        provider: 'openai',
+        model: 'm',
+        content: 'Hello world',
+        usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+        finishReason: 'stop',
+      };
+    }),
+  } as unknown as ProviderClient;
+  const server = await startIdeServer({ engine: scriptedEngine(streaming), port: 0 });
+  const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+  const frames: string[] = [];
+  await new Promise<void>((r) => ws.on('open', () => r()));
+  ws.on('message', (raw) => frames.push(String(raw)));
 
-    ws.send(JSON.stringify({ type: 'agent_input', data: 'hello there\r' }));
-    await waitForMessage<{ turn: { response: string } }>(
-      ws,
-      (m) => m.type === 'turn_complete',
-    );
+  ws.send(JSON.stringify({ type: 'agent_input', data: 'hello there\r' }));
+  await waitForMessage<{ turn: { response: string } }>(ws, (m) => m.type === 'turn_complete');
 
-    // The deltas reached the socket as incremental agent_data frames — no new
-    // WebSocket message type was needed.
-    const joined = frames.join('');
-    expect(joined).toContain('Hello ');
-    expect(joined).toContain('world');
-    await server.close();
-  });
+  // The deltas reached the socket as incremental agent_data frames — no new
+  // WebSocket message type was needed.
+  const joined = frames.join('');
+  expect(joined).toContain('Hello ');
+  expect(joined).toContain('world');
+  await server.close();
+});
 ```
 
 This mirrors the existing tests at `server.test.ts:138` (`ws://localhost:${server.port}/ws`)
@@ -1133,8 +1182,8 @@ In `packages/cli/src/terminal/agentRepl.ts`, inside `executePrompt()`:
 1. Add a per-turn accumulator before the `pipeline.ask(...)` call:
 
 ```ts
-      let streamed = '';
-      let streamingActive = false;
+let streamed = '';
+let streamingActive = false;
 ```
 
 2. Add a `delta` branch to the existing `onEvent` switch, before the `done`
@@ -1157,23 +1206,23 @@ In `packages/cli/src/terminal/agentRepl.ts`, inside `executePrompt()`:
    what actually came back:
 
 ```ts
-      if (streamingActive) {
-        // Tool calls invalidate the streamed text: the model was narrating
-        // intent, not answering. Clear the streamed region before the final
-        // answer is printed so the transcript does not show both.
-        this.io.write(`\r\n${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`);
-      }
+if (streamingActive) {
+  // Tool calls invalidate the streamed text: the model was narrating
+  // intent, not answering. Clear the streamed region before the final
+  // answer is printed so the transcript does not show both.
+  this.io.write(`\r\n${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`);
+}
 ```
 
 4. Replace the unconditional header write so it is not printed twice:
 
 ```ts
-      // Assistant Response (only when nothing was streamed above)
-      if (!streamingActive) {
-        this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
-      }
-      const polishedResponse = formatMarkdown(result.response);
-      this.io.write(`${polishedResponse}\r\n`);
+// Assistant Response (only when nothing was streamed above)
+if (!streamingActive) {
+  this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
+}
+const polishedResponse = formatMarkdown(result.response);
+this.io.write(`${polishedResponse}\r\n`);
 ```
 
 Because streamed text is raw and the final print is markdown-formatted, the
@@ -1181,16 +1230,16 @@ final `formatMarkdown` pass still runs. When streaming succeeded the formatted
 output duplicates the streamed text, so guard it:
 
 ```ts
-      if (!streamingActive) {
-        this.io.write(`${formatMarkdown(result.response)}\r\n`);
-      }
+if (!streamingActive) {
+  this.io.write(`${formatMarkdown(result.response)}\r\n`);
+}
 ```
 
 5. Ensure a newline is written before the turn footer when streaming was
    active, so the footer does not land on the last streamed line:
 
 ```ts
-      if (streamingActive) this.io.write('\r\n');
+if (streamingActive) this.io.write('\r\n');
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -1217,10 +1266,12 @@ git commit -m "feat(cli): render streamed model output live in the REPL"
 ### Task 5: Cancellation Propagation and Documentation
 
 **Files:**
+
 - Modify: `packages/core/src/modules/tools/workspaceTools.ts`
 - Modify: `CHANGELOG.md`
 
 **Interfaces:**
+
 - Consumes: `ToolLoopRunOptions.signal` (already threaded through
   `HandoffOptions`) from the Phase 3 work.
 - Produces: `CreateWorkspaceToolsOptions.signal?: AbortSignal`, forwarded into
@@ -1231,20 +1282,20 @@ git commit -m "feat(cli): render streamed model output live in the REPL"
 Append to `packages/core/tests/taskTool.test.ts`:
 
 ```ts
-  it('propagates an abort signal into the subagent loop', async () => {
-    const controller = new AbortController();
-    controller.abort();
-    const client = scriptedClient([result({ content: 'never used', finishReason: 'stop' })]);
-    const handoff = new HandoffManager({ client, models: [] });
-    const { toolRegistry } = createWorkspaceTools(ROOT, {
-      handoff,
-      signal: controller.signal,
-    });
-    const out = await toolRegistry.task(
-      taskCall('c1', { mode: 'explore', description: 'look around' }),
-    );
-    expect(out).toMatch(/abort|cancel/i);
+it('propagates an abort signal into the subagent loop', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const client = scriptedClient([result({ content: 'never used', finishReason: 'stop' })]);
+  const handoff = new HandoffManager({ client, models: [] });
+  const { toolRegistry } = createWorkspaceTools(ROOT, {
+    handoff,
+    signal: controller.signal,
   });
+  const out = await toolRegistry.task(
+    taskCall('c1', { mode: 'explore', description: 'look around' }),
+  );
+  expect(out).toMatch(/abort|cancel/i);
+});
 ```
 
 Reuses the file's existing helpers: `scriptedClient` (:10), `result` (:22),

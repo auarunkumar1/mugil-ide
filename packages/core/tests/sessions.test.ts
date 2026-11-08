@@ -39,7 +39,12 @@ describe('sessions', () => {
     saveSession(entries, file);
     const loaded = loadSession(file);
     expect(loaded).toHaveLength(2);
-    expect(loaded[1]).toMatchObject({ id: 2, prompt: 'prompt-2', response: 'response-2', model: 'test-model' });
+    expect(loaded[1]).toMatchObject({
+      id: 2,
+      prompt: 'prompt-2',
+      response: 'response-2',
+      model: 'test-model',
+    });
   });
 
   it('caps the number of saved entries', () => {
@@ -94,7 +99,9 @@ describe('sessions', () => {
   });
 
   it('listSessions returns [] when the cache dir is absent', () => {
-    expect(listSessions({ MUGIL_IDE_CACHE_DIR: path.join(dir, 'nope') } as NodeJS.ProcessEnv)).toEqual([]);
+    expect(
+      listSessions({ MUGIL_IDE_CACHE_DIR: path.join(dir, 'nope') } as NodeJS.ProcessEnv),
+    ).toEqual([]);
   });
 
   it('drops malformed entries but keeps valid ones', () => {
@@ -103,7 +110,11 @@ describe('sessions', () => {
       JSON.stringify({
         version: 1,
         savedAt: Date.now(),
-        entries: [{ id: 1, prompt: 'ok', response: 'fine' }, { id: 'x', prompt: 42, response: 'bad' }, null],
+        entries: [
+          { id: 1, prompt: 'ok', response: 'fine' },
+          { id: 'x', prompt: 42, response: 'bad' },
+          null,
+        ],
       }),
       'utf-8',
     );
@@ -153,7 +164,11 @@ describe('sessions', () => {
   it('auto-resume sweeps up the legacy global last-session.json', () => {
     // Simulate a pre-workspace-scoping install: a global last-session.json.
     const legacy = path.join(dir, 'last-session.json');
-    fs.writeFileSync(legacy, JSON.stringify({ version: 1, savedAt: 1, entries: [entry(1)] }), 'utf-8');
+    fs.writeFileSync(
+      legacy,
+      JSON.stringify({ version: 1, savedAt: 1, entries: [entry(1)] }),
+      'utf-8',
+    );
     const prev = process.env.MUGIL_IDE_CACHE_DIR;
     process.env.MUGIL_IDE_CACHE_DIR = dir;
     try {
@@ -186,7 +201,10 @@ describe('sessions', () => {
       filesModified: ['src/a.ts', 'README.md'],
     };
     saveSession([entry(1)], statsFile, stats);
-    const saved = JSON.parse(fs.readFileSync(statsFile, 'utf-8')) as { version: number; stats: SessionStats };
+    const saved = JSON.parse(fs.readFileSync(statsFile, 'utf-8')) as {
+      version: number;
+      stats: SessionStats;
+    };
     expect(saved.version).toBe(2);
     expect(saved.stats).toEqual(stats);
 
@@ -220,7 +238,11 @@ describe('sessions', () => {
   it('loads version-1 files (entries, no stats) and sanitizes garbage stats', () => {
     const statsFile = path.join(dir, 'stats-test.json');
     // Pre-stats (version 1) files still load — stats are null.
-    fs.writeFileSync(statsFile, JSON.stringify({ version: 1, savedAt: 1, entries: [entry(1)] }), 'utf-8');
+    fs.writeFileSync(
+      statsFile,
+      JSON.stringify({ version: 1, savedAt: 1, entries: [entry(1)] }),
+      'utf-8',
+    );
     const v1 = loadSessionFile(statsFile);
     expect(v1.entries).toHaveLength(1);
     expect(v1.stats).toBeNull();

@@ -25,8 +25,8 @@ export interface PtyOptions {
 export async function createPtySession(options: PtyOptions = {}): Promise<PtyInstance> {
   const isWindows = process.platform === 'win32';
   const defaultShell = isWindows
-    ? (process.env.COMSPEC || 'powershell.exe')
-    : (process.env.SHELL || '/bin/bash');
+    ? process.env.COMSPEC || 'powershell.exe'
+    : process.env.SHELL || '/bin/bash';
 
   const shell = options.shell || defaultShell;
   const cols = options.cols || 80;

@@ -1,4 +1,7 @@
-import { UnifiedWireClient, createUnifiedWireClient } from '../src/modules/handoff/unifiedWireClient.js';
+import {
+  UnifiedWireClient,
+  createUnifiedWireClient,
+} from '../src/modules/handoff/unifiedWireClient.js';
 
 describe('UnifiedWireClient', () => {
   it('configures OpenAI provider defaults', () => {

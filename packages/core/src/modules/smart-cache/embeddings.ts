@@ -23,10 +23,7 @@ export class LexicalEmbedding implements EmbeddingProvider {
 
   async embed(text: string): Promise<number[]> {
     const vector = new Float64Array(FEATURE_DIM);
-    const tokens = text
-      .toLowerCase()
-      .match(/[a-z0-9_]+/g)
-      ?? [];
+    const tokens = text.toLowerCase().match(/[a-z0-9_]+/g) ?? [];
     for (const token of tokens) {
       const h = createHash('sha256').update(token).digest();
       const idx = h.readUInt32BE(0) % FEATURE_DIM;
@@ -42,9 +39,7 @@ export class LexicalEmbedding implements EmbeddingProvider {
 export class RemoteEmbedding implements EmbeddingProvider {
   readonly name = 'remote';
 
-  constructor(
-    private opts: { apiKey: string; model: string; baseUrl: string },
-  ) {}
+  constructor(private opts: { apiKey: string; model: string; baseUrl: string }) {}
 
   async embed(text: string): Promise<number[]> {
     const res = await fetch(`${this.opts.baseUrl}/embeddings`, {

@@ -1,5 +1,10 @@
 import { diffWords } from 'diff';
-import { inputSavingsPercent, type Engine, type AskOptions, type ThinkingLevel } from '@mugil-ide/core';
+import {
+  inputSavingsPercent,
+  type Engine,
+  type AskOptions,
+  type ThinkingLevel,
+} from '@mugil-ide/core';
 
 export interface RunOptions {
   model?: string;
@@ -13,11 +18,7 @@ export interface RunOptions {
 }
 
 /** Runs a single prompt through the pipeline and prints the result. */
-export async function runOnce(
-  engine: Engine,
-  prompt: string,
-  options: RunOptions,
-): Promise<void> {
+export async function runOnce(engine: Engine, prompt: string, options: RunOptions): Promise<void> {
   const budget = options.budget ? Number(options.budget) : undefined;
   const ponytail: AskOptions['ponytail'] =
     options.ponytail === false
@@ -27,7 +28,10 @@ export async function runOnce(
         : true;
   const thinkingVal = options.thinking?.toLowerCase();
   const thinkingLevel: ThinkingLevel | undefined =
-    thinkingVal === 'low' || thinkingVal === 'medium' || thinkingVal === 'high' || thinkingVal === 'off'
+    thinkingVal === 'low' ||
+    thinkingVal === 'medium' ||
+    thinkingVal === 'high' ||
+    thinkingVal === 'off'
       ? thinkingVal
       : undefined;
 
@@ -80,10 +84,18 @@ export async function runOnce(
     ),
   );
   if (ponytail !== false) {
-    console.log(line('output', `minimal${typeof ponytail === 'object' && ponytail.outputBudget ? ` (≤${ponytail.outputBudget} tok)` : ' (ponytail)'}`));
+    console.log(
+      line(
+        'output',
+        `minimal${typeof ponytail === 'object' && ponytail.outputBudget ? ` (≤${ponytail.outputBudget} tok)` : ' (ponytail)'}`,
+      ),
+    );
   }
   console.log(
-    line('usage', `${result.usage.promptTokens} in / ${result.usage.completionTokens} out / ${result.usage.totalTokens} total`),
+    line(
+      'usage',
+      `${result.usage.promptTokens} in / ${result.usage.completionTokens} out / ${result.usage.totalTokens} total`,
+    ),
   );
   console.log(line('elapsed', `${elapsedMs}ms`));
   console.log('─'.repeat(64));

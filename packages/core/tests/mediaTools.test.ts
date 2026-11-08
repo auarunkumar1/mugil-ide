@@ -132,7 +132,9 @@ describe('Media Tools (generateImage, dimensions & providers)', () => {
 
         expect(res.success).toBe(true);
         expect(res.provider).toBe('vercel-ai-gateway');
-        expect(fs.readFileSync(path.join(tempDir, 'banner.png')).toString()).toBe('vercel-png-content');
+        expect(fs.readFileSync(path.join(tempDir, 'banner.png')).toString()).toBe(
+          'vercel-png-content',
+        );
       } finally {
         if (orig === undefined) delete process.env.VERCEL_API_KEY;
         else process.env.VERCEL_API_KEY = orig;
@@ -162,7 +164,9 @@ describe('Media Tools (generateImage, dimensions & providers)', () => {
 
         expect(res.success).toBe(true);
         expect(res.provider).toBe('openrouter-flux');
-        expect(fs.readFileSync(path.join(tempDir, 'icon.png')).toString()).toBe('openrouter-png-content');
+        expect(fs.readFileSync(path.join(tempDir, 'icon.png')).toString()).toBe(
+          'openrouter-png-content',
+        );
       } finally {
         if (orig === undefined) delete process.env.OPENROUTER_API_KEY;
         else process.env.OPENROUTER_API_KEY = orig;
@@ -173,7 +177,10 @@ describe('Media Tools (generateImage, dimensions & providers)', () => {
       const orig = process.env.OPENAI_API_KEY;
       process.env.OPENAI_API_KEY = 'test-fake-key';
 
-      const fakeImageBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('downloaded-image-data')]);
+      const fakeImageBytes = Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from('downloaded-image-data'),
+      ]);
       const fakeFetch = async (url: string | URL | Request, init?: RequestInit) => {
         const u = url.toString();
         if (u.includes('api.openai.com')) {
@@ -221,7 +228,10 @@ describe('Media Tools (generateImage, dimensions & providers)', () => {
       process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
 
       // A real WebP header — the requested .png path must not lie about it.
-      const webp = Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA', 'base64');
+      const webp = Buffer.from(
+        'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA',
+        'base64',
+      );
       const fakeFetch = async () =>
         ({
           ok: true,
@@ -250,7 +260,10 @@ describe('Media Tools (generateImage, dimensions & providers)', () => {
       const orig = process.env.OPENROUTER_API_KEY;
       process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
 
-      const webp = Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA', 'base64');
+      const webp = Buffer.from(
+        'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEALmk0mk0iIiIiIgBoSygABc6zbAAA',
+        'base64',
+      );
       const fakeFetch = async () =>
         ({
           ok: true,

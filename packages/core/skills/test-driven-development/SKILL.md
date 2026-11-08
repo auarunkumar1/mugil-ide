@@ -21,7 +21,7 @@ tests for existing code.
    (`package.json` scripts, `jest.config`, `pytest.ini`, `go test`, …). Reuse
    the existing test file for the module when one exists.
 2. **Write one failing test** that states the new behaviour in its name. Run
-   only that test and confirm it fails *for the expected reason* (not a typo
+   only that test and confirm it fails _for the expected reason_ (not a typo
    or a missing import).
 3. **Implement the minimum** that makes it pass. No speculative options, no
    abstractions with a single caller.

@@ -65,7 +65,9 @@ describe('secret protection choke points', () => {
       {
         role: 'assistant',
         content: '',
-        toolCalls: [{ id: '1', name: 'run_command', arguments: `{"command":"echo ${OPENROUTER}"}` }],
+        toolCalls: [
+          { id: '1', name: 'run_command', arguments: `{"command":"echo ${OPENROUTER}"}` },
+        ],
       },
     ]);
     expect(JSON.stringify(client.seen[0])).not.toContain('sk-or-v1');

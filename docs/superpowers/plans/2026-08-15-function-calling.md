@@ -24,6 +24,7 @@
 ### Task 1: OpenAI-family tool calls (types, options, threading, openAi.ts, openRouter.ts)
 
 **Files:**
+
 - Modify: `packages/core/src/types.ts` (add `ToolDefinition`, `ToolCall`, widen `ChatMessage`, add `CompletionResult.toolCalls`)
 - Modify: `packages/core/src/modules/handoff/provider.ts` (add `tools` to `ProviderCompleteOptions`; add shared `toOpenAiTools` helper)
 - Modify: `packages/core/src/modules/handoff/openAi.ts` (send `tools`, parse `tool_calls`)
@@ -32,8 +33,10 @@
 - Test: `packages/core/tests/providerClients.test.ts`, `packages/core/tests/handoff.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `ChatMessage`, `CompletionResult`, `ProviderCompleteOptions`, `HandoffOptions`.
 - Produces:
+
   ```ts
   export interface ToolDefinition {
     name: string;
@@ -77,13 +80,22 @@ describe('tool calling (OpenAI family)', () => {
       description: 'add two numbers',
       parameters: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'number' } } },
     };
-    await client.complete([{ role: 'user', content: '2 + 3' }], { model: 'gpt-4o-mini', tools: [tool] });
+    await client.complete([{ role: 'user', content: '2 + 3' }], {
+      model: 'gpt-4o-mini',
+      tools: [tool],
+    });
 
     const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
-      tools?: Array<{ type: string; function: { name: string; description: string; parameters: unknown } }>;
+      tools?: Array<{
+        type: string;
+        function: { name: string; description: string; parameters: unknown };
+      }>;
     };
     expect(body.tools).toEqual([
-      { type: 'function', function: { name: 'add', description: 'add two numbers', parameters: tool.parameters } },
+      {
+        type: 'function',
+        function: { name: 'add', description: 'add two numbers', parameters: tool.parameters },
+      },
     ]);
   });
 
@@ -96,7 +108,11 @@ describe('tool calling (OpenAI family)', () => {
             message: {
               content: null,
               tool_calls: [
-                { id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } },
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'add', arguments: '{"a":2,"b":3}' },
+                },
               ],
             },
             finish_reason: 'tool_calls',
@@ -128,18 +144,26 @@ describe('tool calling (OpenAI family)', () => {
     await client.complete(
       [
         { role: 'user', content: '2 + 3' },
-        { role: 'assistant', content: '', toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }] },
+        {
+          role: 'assistant',
+          content: '',
+          toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
+        },
         { role: 'tool', toolCallId: 'call_1', content: '5' },
       ],
       { model: 'gpt-4o-mini', tools: [{ name: 'add', description: 'add', parameters: {} }] },
     );
-    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { messages: unknown[] };
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      messages: unknown[];
+    };
     expect(body.messages).toEqual([
       { role: 'user', content: '2 + 3' },
       {
         role: 'assistant',
         content: '',
-        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } }],
+        tool_calls: [
+          { id: 'call_1', type: 'function', function: { name: 'add', arguments: '{"a":2,"b":3}' } },
+        ],
       },
       { role: 'tool', tool_call_id: 'call_1', content: '5' },
     ]);
@@ -151,9 +175,14 @@ Add to `packages/core/tests/handoff.test.ts` (mirror the existing stub-client ha
 
 ```ts
 it('forwards tools to the provider client', async () => {
-  const client = { mock: false, complete: jest.fn().mockResolvedValue(mockCompletion([], { model: 'm' }, 'X')) };
+  const client = {
+    mock: false,
+    complete: jest.fn().mockResolvedValue(mockCompletion([], { model: 'm' }, 'X')),
+  };
   const manager = new HandoffManager({ client: client as unknown as ProviderClient, models: [] });
-  await manager.complete([{ role: 'user', content: 'hi' }], { tools: [{ name: 'add', description: 'add', parameters: {} }] });
+  await manager.complete([{ role: 'user', content: 'hi' }], {
+    tools: [{ name: 'add', description: 'add', parameters: {} }],
+  });
   expect(client.complete).toHaveBeenCalledWith(
     expect.anything(),
     expect.objectContaining({ tools: [{ name: 'add', description: 'add', parameters: {} }] }),
@@ -278,7 +307,13 @@ const result = await this.client.complete(messages, {
 In `packages/core/src/modules/handoff/openAi.ts`:
 
 ```ts
-import { mockCompletion, ProviderError, toOpenAiTools, type ProviderClient, type ProviderCompleteOptions } from './provider.js';
+import {
+  mockCompletion,
+  ProviderError,
+  toOpenAiTools,
+  type ProviderClient,
+  type ProviderCompleteOptions,
+} from './provider.js';
 import type { ChatMessage, CompletionResult, ToolCall, ToolDefinition } from '../../types.js';
 ```
 
@@ -333,7 +368,12 @@ In `packages/core/src/modules/handoff/openRouter.ts`:
 
 ```ts
 import type { ChatMessage, CompletionResult, ToolCall } from '../../types.js';
-import { mockCompletion, toOpenAiTools, type ProviderClient, type ProviderCompleteOptions } from './provider.js';
+import {
+  mockCompletion,
+  toOpenAiTools,
+  type ProviderClient,
+  type ProviderCompleteOptions,
+} from './provider.js';
 ```
 
 In `remoteComplete`, build the body with translated messages (`messages: toOpenAiMessages(messages)`) and add tools after the `body` literal:
@@ -368,10 +408,12 @@ git commit -m "feat(core): OpenAI-family tool calls in provider clients"
 ### Task 2: Anthropic tool calls (tool_use blocks + message translation)
 
 **Files:**
+
 - Modify: `packages/core/src/modules/handoff/anthropic.ts`
 - Test: `packages/core/tests/providerClients.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ToolDefinition`, `ToolCall`, `ChatMessage.toolCalls`/`toolCallId` from Task 1.
 - Produces: nothing new externally — `AnthropicClient.complete` returns `CompletionResult` with `toolCalls` populated.
 
@@ -448,7 +490,9 @@ describe('tool calling (Anthropic)', () => {
       ],
       { model: 'claude-3-5-sonnet', tools: [{ name: 'add', description: 'add', parameters: {} }] },
     );
-    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as { messages: unknown[] };
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string) as {
+      messages: unknown[];
+    };
     expect(body.messages).toEqual([
       { role: 'user', content: '2 + 3' },
       {
@@ -504,7 +548,10 @@ Add a module-level translator (before the class):
 function toAnthropicMessages(
   messages: ChatMessage[],
 ): Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> {
-  const out: Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> = [];
+  const out: Array<{
+    role: 'user' | 'assistant';
+    content: string | Array<Record<string, unknown>>;
+  }> = [];
   for (const m of messages) {
     if (m.role === 'system') continue; // handled via top-level `system` field
     if (m.role === 'tool') {
@@ -595,12 +642,15 @@ git commit -m "feat(core): Anthropic tool calls with tool_use message translatio
 ### Task 3: The ToolLoop module (simple agentic looping)
 
 **Files:**
+
 - Create: `packages/core/src/modules/tool-loop/index.ts`
 - Create: `packages/core/tests/toolLoop.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HandoffManager` (Task 1), `ChatMessage`, `ToolCall`, `ToolDefinition`, `HandoffOptions`, `HandoffResult`.
 - Produces:
+
   ```ts
   export type ToolExecutor = (call: ToolCall) => Promise<string>;
   export type ToolRegistry = Record<string, ToolExecutor>;
@@ -701,10 +751,10 @@ describe('ToolLoop', () => {
   it('returns immediately when the model makes no tool calls', async () => {
     const client = scriptedClient([result({ content: '5', finishReason: 'stop' })]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run(
-      [...system, { role: 'user', content: '2 + 3' }],
-      { tools: [ADD], registry },
-    );
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toBe('5');
     expect(out.toolCalls).toBe(0);
     expect(out.usage.totalTokens).toBe(15);
@@ -721,10 +771,10 @@ describe('ToolLoop', () => {
       result({ content: 'The answer is 5.', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run(
-      [...system, { role: 'user', content: '2 + 3' }],
-      { tools: [ADD], registry },
-    );
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
 
     expect(out.content).toBe('The answer is 5.');
     expect(out.toolCalls).toBe(1);
@@ -748,10 +798,10 @@ describe('ToolLoop', () => {
       result({ content: 'I cannot do that.', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run(
-      [...system, { role: 'user', content: 'do it' }],
-      { tools: [ADD], registry },
-    );
+    const out = await loop.run([...system, { role: 'user', content: 'do it' }], {
+      tools: [ADD],
+      registry,
+    });
     const messages = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
     expect(messages[messages.length - 1]).toMatchObject({
       role: 'tool',
@@ -776,7 +826,10 @@ describe('ToolLoop', () => {
       result({ content: 'failed', finishReason: 'stop' }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    await loop.run([...system, { role: 'user', content: 'divide' }], { tools: [ADD], registry: boom });
+    await loop.run([...system, { role: 'user', content: 'divide' }], {
+      tools: [ADD],
+      registry: boom,
+    });
     const messages = (client.complete as jest.Mock).mock.calls[1]![0] as ChatMessage[];
     expect(messages[messages.length - 1]).toMatchObject({
       role: 'tool',
@@ -785,7 +838,9 @@ describe('ToolLoop', () => {
   });
 
   it('throws ToolError when a declared tool has no registry entry', async () => {
-    const loop = new ToolLoop({ handoff: new HandoffManager({ client: scriptedClient([]), models: [] }) });
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client: scriptedClient([]), models: [] }),
+    });
     await expect(
       loop.run([{ role: 'user', content: 'x' }], { tools: [ADD], registry: {} }),
     ).rejects.toBeInstanceOf(ToolError);
@@ -797,12 +852,20 @@ describe('ToolLoop', () => {
       finishReason: 'tool_calls',
       toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":1,"b":2}' }],
     });
-    const client = scriptedClient([alwaysCall, alwaysCall, alwaysCall, result({ content: 'forced', finishReason: 'stop' })]);
-    const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }), maxIterations: 3 });
-    const out = await loop.run(
-      [...system, { role: 'user', content: 'loop forever' }],
-      { tools: [ADD], registry },
-    );
+    const client = scriptedClient([
+      alwaysCall,
+      alwaysCall,
+      alwaysCall,
+      result({ content: 'forced', finishReason: 'stop' }),
+    ]);
+    const loop = new ToolLoop({
+      handoff: new HandoffManager({ client, models: [] }),
+      maxIterations: 3,
+    });
+    const out = await loop.run([...system, { role: 'user', content: 'loop forever' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.content).toBe('forced');
     expect(out.toolCalls).toBe(3);
     // The final (forced) completion must NOT send tools.
@@ -818,18 +881,24 @@ describe('ToolLoop', () => {
         toolCalls: [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }],
         usage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 },
       }),
-      result({ content: '5', finishReason: 'stop', usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 } }),
+      result({
+        content: '5',
+        finishReason: 'stop',
+        usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 },
+      }),
     ]);
     const loop = new ToolLoop({ handoff: new HandoffManager({ client, models: [] }) });
-    const out = await loop.run(
-      [...system, { role: 'user', content: '2 + 3' }],
-      { tools: [ADD], registry },
-    );
+    const out = await loop.run([...system, { role: 'user', content: '2 + 3' }], {
+      tools: [ADD],
+      registry,
+    });
     expect(out.usage).toEqual({ promptTokens: 50, completionTokens: 15, totalTokens: 65 });
   });
 
   it('parseToolArguments throws ToolError on invalid JSON', () => {
-    expect(() => parseToolArguments({ id: 'c', name: 'add', arguments: 'not json' })).toThrow(ToolError);
+    expect(() => parseToolArguments({ id: 'c', name: 'add', arguments: 'not json' })).toThrow(
+      ToolError,
+    );
     expect(parseToolArguments({ id: 'c', name: 'add', arguments: '{"a":1}' })).toEqual({ a: 1 });
   });
 });
@@ -934,15 +1003,22 @@ export class ToolLoop {
       for (const call of completion.toolCalls) {
         toolCalls += 1;
         this.onTool?.(call, toolCalls);
-        msgs.push({ role: 'tool', toolCallId: call.id, content: await this.execute(call, options.registry) });
+        msgs.push({
+          role: 'tool',
+          toolCallId: call.id,
+          content: await this.execute(call, options.registry),
+        });
       }
     }
 
     // Bounded: force a final answer without tools so we never return empty.
-    const final = await this.handoff.complete([...msgs, { role: 'user', content: MAX_ITERATION_PROMPT }], {
-      ...options,
-      tools: undefined,
-    });
+    const final = await this.handoff.complete(
+      [...msgs, { role: 'user', content: MAX_ITERATION_PROMPT }],
+      {
+        ...options,
+        tools: undefined,
+      },
+    );
     usage = this.sum(usage, final.usage);
     return { ...final, usage, toolCalls };
   }
@@ -959,7 +1035,10 @@ export class ToolLoop {
     }
   }
 
-  private sum(a: { promptTokens: number; completionTokens: number; totalTokens: number }, b: { promptTokens: number; completionTokens: number; totalTokens: number }) {
+  private sum(
+    a: { promptTokens: number; completionTokens: number; totalTokens: number },
+    b: { promptTokens: number; completionTokens: number; totalTokens: number },
+  ) {
     return {
       promptTokens: a.promptTokens + b.promptTokens,
       completionTokens: a.completionTokens + b.completionTokens,
@@ -991,13 +1070,16 @@ git commit -m "feat(core): bounded tool loop with registry and forced final answ
 ### Task 4: Pipeline integration (loop wiring + cache bypass + events)
 
 **Files:**
+
 - Modify: `packages/core/src/types.ts` (`AskResult.toolCalls`, `PipelineEvent` tool event)
 - Modify: `packages/core/src/pipeline.ts` (`AskOptions.toolRegistry`/`maxToolIterations`; run loop when tools declared; bypass cache)
 - Test: `packages/core/tests/pipeline.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ToolLoop`, `ToolRegistry`, `ToolError` (Task 3); `ToolDefinition` (Task 1).
 - Produces:
+
   ```ts
   // AskOptions gains:
   //   toolRegistry?: ToolRegistry
@@ -1012,9 +1094,7 @@ Add to `packages/core/tests/pipeline.test.ts` (reuse the file's existing engine/
 
 ```ts
 it('runs the tool loop when tools are declared and bypasses the cache', async () => {
-  const toolCalls = [
-    { id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' },
-  ];
+  const toolCalls = [{ id: 'call_1', name: 'add', arguments: '{"a":2,"b":3}' }];
   const client = {
     mock: false,
     complete: jest
@@ -1041,7 +1121,10 @@ it('runs the tool loop when tools are declared and bypasses the cache', async ()
     tools: [{ name: 'add', description: 'add two numbers', parameters: {} }],
     toolRegistry: {
       add: async (call: import('../src/types.js').ToolCall): Promise<string> =>
-        String((JSON.parse(call.arguments) as { a: number; b: number }).a + (JSON.parse(call.arguments) as { a: number; b: number }).b),
+        String(
+          (JSON.parse(call.arguments) as { a: number; b: number }).a +
+            (JSON.parse(call.arguments) as { a: number; b: number }).b,
+        ),
     },
     onEvent: (ev) => {
       if (ev.type === 'tool') events.push(ev.name);
@@ -1066,6 +1149,7 @@ Expected: FAIL — `toolRegistry`/`toolCalls` unknown, no `tool` event.
 - [ ] **Step 3: Add types**
 
 In `packages/core/src/types.ts`:
+
 - Add `toolCalls: number;` to `AskResult` (after `thinking`).
 - Add `| { type: 'tool'; name: string }` to the `PipelineEvent` union.
 
@@ -1146,14 +1230,17 @@ git commit -m "feat(core): wire tool loop into pipeline with cache bypass and to
 ### Task 5: Tool-calling capability detection in the model catalog
 
 **Files:**
+
 - Modify: `packages/core/src/config.ts` (`modelSupportsTools` heuristic)
 - Modify: `packages/core/src/modules/handoff/models.ts` (populate `supportsTools` from OpenRouter `supported_parameters`)
 - Modify: `packages/core/src/types.ts` (`ModelSpec.supportsTools`)
 - Test: `packages/core/tests/providerClients.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ModelSpec` (all catalog producers).
 - Produces:
+
   ```ts
   // ModelSpec gains: supportsTools?: boolean
   export function modelSupportsTools(id: string): boolean; // config.ts
@@ -1183,11 +1270,14 @@ describe('tool-calling capability detection', () => {
   });
 
   it('defaults Ollama models to tool support', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(
-      okResponse({ data: [{ id: 'llama3.2:latest' }] }),
-    );
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(okResponse({ data: [{ id: 'llama3.2:latest' }] }));
     global.fetch = fetchMock as unknown as typeof fetch;
-    const models = await fetchProviderModels({ provider: 'ollama', baseUrl: 'http://localhost:11434/v1' });
+    const models = await fetchProviderModels({
+      provider: 'ollama',
+      baseUrl: 'http://localhost:11434/v1',
+    });
     expect(models[0]!.supportsTools).toBe(true);
   });
 });
@@ -1214,6 +1304,7 @@ export function modelSupportsTools(id: string): boolean {
 ```
 
 In `packages/core/src/modules/handoff/models.ts`:
+
 - Import `modelSupportsTools` from `../../config.js` (already imported there — add it to the existing import list).
 - OpenRouter branch: widen the mapped type to include `supported_parameters?: string[]` and set:
 
@@ -1247,6 +1338,7 @@ git commit -m "feat(core): detect tool-calling capability in the model catalog"
 ### Task 6: Exports, module docs, and full verification
 
 **Files:**
+
 - Modify: `packages/core/src/index.ts` (export new module + types)
 - Create: `packages/core/src/modules/tool-loop/README.md`
 - Modify: `packages/core/src/modules/handoff/README.md`
@@ -1259,7 +1351,13 @@ In `packages/core/src/index.ts`, after the handoff exports:
 ```ts
 // Tool Loop (agentic function calling)
 export { ToolLoop, ToolError, parseToolArguments } from './modules/tool-loop/index.js';
-export type { ToolRegistry, ToolExecutor, ToolLoopOptions, ToolLoopRunOptions, ToolLoopResult } from './modules/tool-loop/index.js';
+export type {
+  ToolRegistry,
+  ToolExecutor,
+  ToolLoopOptions,
+  ToolLoopRunOptions,
+  ToolLoopResult,
+} from './modules/tool-loop/index.js';
 ```
 
 In the types export block add `ToolDefinition, ToolCall`. In the config export block add `modelSupportsTools`.
@@ -1286,7 +1384,7 @@ message, and repeats until the model answers without tool calls.
 - **Neutral format** — `ToolCall.arguments` is a raw JSON string; each provider
   client (OpenAI/OpenRouter/Anthropic) translates to its own wire format.
 - **Bounded** — `maxIterations` (default 6). When exhausted, the model is
-  forced to answer *without* tools so a final text is always produced.
+  forced to answer _without_ tools so a final text is always produced.
 - **Resilient** — unknown tools and executor exceptions are returned to the
   model as `Error: ...` tool results so it can recover.
 - **Validation** — a declared tool without a registry entry throws `ToolError`
@@ -1308,11 +1406,13 @@ In `packages/core/src/modules/handoff/README.md`, add a short "Tools" subsection
 - [ ] **Step 5: Update project docs**
 
 In `project-context.md`:
+
 - Module tree / subsystems: add `modules/tool-loop/` (bounded agentic loop) and note `supportsTools` on `ModelSpec`.
 - Gotchas: add "Tool-bearing requests bypass the cache" and "Tool loop is bounded; a forced no-tools completion guarantees a final answer".
 - Status/test count: update the count after running the full suite (see Step 6).
 
 In `README.md` (user-facing):
+
 - Features table: add a row for function calling / tool loop.
 - If the one-shot `--thinking` section is nearby, mention that tool use is engine-level and surfaced through `AskOptions.tools` (no CLI flag yet — CLI exposure is a follow-up).
 
@@ -1334,7 +1434,7 @@ git commit -m "docs(core): export tool loop and document function calling"
 
 - **CLI/TUI surfacing** — no `/tools` command or `--tool` flag yet; callers use `AskOptions.tools`/`toolRegistry` programmatically. A TUI indicator for tool-capable models (like the 🧠 thinking hint) and a tool-call progress line are natural next steps now that `PipelineEvent` carries `{ type: 'tool' }`.
 - **Built-in tool registry** — no default tools ship yet; the loop is tested with a sample `add` executor. Wiring `queryCodeGraph` (codegraph module) as a first real tool is a small follow-up.
-- **MCP client consumption** — this plan makes the engine a tool *consumer*. The existing `@mugil-ide/mcp` server (tool *provider*) is untouched.
+- **MCP client consumption** — this plan makes the engine a tool _consumer_. The existing `@mugil-ide/mcp` server (tool _provider_) is untouched.
 - **Mock-mode tool calls** — the offline mock still returns text only; tool loops are exercised via stub clients in tests.
 
 ## Self-Review

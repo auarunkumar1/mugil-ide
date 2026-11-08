@@ -25,7 +25,29 @@ interface ScanState {
   template: boolean;
 }
 
-const REGEX_PRECEDERS = new Set(['', '(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '<', '>', '~', '^']);
+const REGEX_PRECEDERS = new Set([
+  '',
+  '(',
+  ',',
+  '=',
+  ':',
+  '[',
+  '!',
+  '&',
+  '|',
+  '?',
+  '{',
+  '}',
+  ';',
+  '+',
+  '-',
+  '*',
+  '%',
+  '<',
+  '>',
+  '~',
+  '^',
+]);
 
 function stripNonCode(line: string, state: ScanState): string {
   let out = '';
@@ -148,7 +170,7 @@ export function findSymbolInContent(
       `(?:(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?(?:function\\*?|class|interface|type|enum)\\s+(${escaped})\\b)` +
         `|(?:(?:const|let|var)\\s+(${escaped})\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[a-zA-Z0-9_$]+)\\s*=>)` +
         `|(?:(?:public|private|protected|static|async|get|set|override|readonly)*\\s*(${escaped})\\s*\\([^)]*\\)\\s*(?::\\s*[^{]+)?\\s*\\{)` +
-        `|(?:(${escaped})\\s*:\\s*(?:async\\s*)?(?:function|\\([^)]*\\)\\s*=>))`
+        `|(?:(${escaped})\\s*:\\s*(?:async\\s*)?(?:function|\\([^)]*\\)\\s*=>))`,
     );
   }
 

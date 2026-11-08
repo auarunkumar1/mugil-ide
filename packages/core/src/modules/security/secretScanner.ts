@@ -37,7 +37,8 @@ interface ScanPattern {
 }
 
 /** Values that only *look* like secrets: docs, fixtures, redactions. */
-const PLACEHOLDER = /^(?:x{4,}|\*{4,}|\.{3,}|<.*>|\$\{.*\}|your[_-]|example|changeme|placeholder|redacted|dummy|sample|test|fake|todo)/i;
+const PLACEHOLDER =
+  /^(?:x{4,}|\*{4,}|\.{3,}|<.*>|\$\{.*\}|your[_-]|example|changeme|placeholder|redacted|dummy|sample|test|fake|todo)/i;
 
 function notPlaceholder(value: string): boolean {
   return value.length > 0 && !PLACEHOLDER.test(value) && !/[<>{}]/.test(value);
@@ -72,7 +73,8 @@ const SECRET_PATTERNS: ScanPattern[] = [
   // --- Private keys & certificates -----------------------------------------
   {
     type: 'PRIVATE_KEY',
-    regex: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/g,
+    regex:
+      /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/g,
   },
 
   // --- Auth headers ---------------------------------------------------------
@@ -82,7 +84,8 @@ const SECRET_PATTERNS: ScanPattern[] = [
   // --- Connection strings (the password portion only) -----------------------
   {
     type: 'CONNECTION_PASSWORD',
-    regex: /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp|amqps):\/\/[^:\s/@]+:([^@\s/]+)@/gi,
+    regex:
+      /\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|amqp|amqps):\/\/[^:\s/@]+:([^@\s/]+)@/gi,
     group: 1,
   },
 
@@ -94,7 +97,8 @@ const SECRET_PATTERNS: ScanPattern[] = [
   },
   {
     type: 'PASSWORD_ASSIGNMENT',
-    regex: /\b(?:password|passwd|pwd|secret|api[-_]?key|access[-_]?token)\s*[:=]\s*["']?([A-Za-z0-9_\-+/=]{12,})["']?/gi,
+    regex:
+      /\b(?:password|passwd|pwd|secret|api[-_]?key|access[-_]?token)\s*[:=]\s*["']?([A-Za-z0-9_\-+/=]{12,})["']?/gi,
     group: 1,
     minEntropy: 3,
     reject: notPlaceholder,
@@ -107,14 +111,17 @@ const SECRET_PATTERNS: ScanPattern[] = [
  * substring that every pattern below requires. Deliberately loose — a false
  * positive only costs the full scan.
  */
-const HINT = /sk-|bearer|basic |akia|asia|gh[pousr]_|xox[baprs]-|aiza|sk_live_|hf_|begin |:\/\/|passw|secret|api[-_]?key|token/i;
+const HINT =
+  /sk-|bearer|basic |akia|asia|gh[pousr]_|xox[baprs]-|aiza|sk_live_|hf_|begin |:\/\/|passw|secret|api[-_]?key|token/i;
 
 /** All credential spans in `text`, ordered by position, never overlapping. */
 export function scanSecrets(text: string): SecretMatch[] {
   if (!text || !HINT.test(text)) return [];
   const found: SecretMatch[] = [];
   for (const pattern of SECRET_PATTERNS) {
-    const flags = pattern.regex.flags.includes('g') ? pattern.regex.flags : `${pattern.regex.flags}g`;
+    const flags = pattern.regex.flags.includes('g')
+      ? pattern.regex.flags
+      : `${pattern.regex.flags}g`;
     const re = new RegExp(pattern.regex.source, flags);
     let match: RegExpExecArray | null;
     while ((match = re.exec(text)) !== null) {

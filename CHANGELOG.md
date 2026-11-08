@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-08
+
+### Added
+
+- **Curated Open-Source Skills Gallery**: Bundled catalog of 15 battle-tested open-source skills (`system-architect`, `api-designer`, `database-schema`, `playwright-e2e`, `mutation-tester`, `owasp-guard`, `dependency-auditor`, `code-review-critic`, `legacy-refactorer`, `docker-packager`, `github-actions-ci`, `git-workflow-pro`, `changelog-generator`, `web-vitals-optimizer`, `test-driven-development`) with full upstream author attribution, license identifiers, and templates.
+- **Universal Skill Installer Engine** (`installFromGallery`, `installFromUrl`, `installFromPath`, `uninstallSkill`): 1-click installation from the gallery into workspace (`.mugil/skills`) or global (`~/.config/mugil-ide/skills`), installation from GitHub tree/raw URLs, and local directory importing with path traversal sandboxing.
+- **Dedicated Open-Source Credits & Attributions Page**: Header `☰ Menu` item and modal (`#credits-modal`) listing full authors, canonical upstream repositories, and licenses for agent skills, core engine modules (Caveman, RTK, Ponytail, OpenCode, CodeGraph, etc.), and libraries.
+- **Credits REST & CLI Suite**: `GET /api/credits`, `GET /api/skills/gallery`, `GET /api/skills/gallery/:id`, `POST /api/skills/install`, `DELETE /api/skills/:name`, plus REPL slash commands `/gallery [category]`, `/skill-install <id|url>`, `/skill-uninstall <name>`, and `/credits [category]`.
+- **Skills Gallery Web UI**: Dedicated "Skills Gallery" tab in the Extensions modal with category filter chips (Architecture, Testing, Security, Refactoring, DevOps, Git, Performance), keyword search, instruction preview drawer, and 1-click install buttons.
+
 ## [0.3.0] - 2026-11-08
 
 ### Added
+
 - **Multi-tier skills discovery**: skills now resolve across four tiers — workspace (`.mugil/skills`, `.agents/skills`, `.claude/skills`), global (`~/.config/mugil-ide/skills`, override with `MUGIL_IDE_SKILLS_DIR`), and built-in skills shipped with `@mugil-ide/core` (`security-auditor`, `test-driven-development`). A higher tier shadows a lower one by name.
 - **Extended skill frontmatter**: `version`, `author`, `tags`, `triggers`, `tools` alongside `name`/`description`, plus `hasScripts`/`hasReferences` detection for bundled `scripts/` and `references/`.
 - **Skills REST suite**: `GET /api/skills`, `GET /api/skills/:name` (document body + asset listing), `POST /api/skills/toggle` (persisted in `.mugil/config.json`), `POST /api/skills/create` (scaffolds `.mugil/skills/<name>` or the global tier).
@@ -21,13 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Three secret choke points**: user input is tokenized at ingestion (CLI REPL, and in the Web UI after a confirmation), tool output is tokenized in `ToolLoop.execute` before it is fed back, and `HandoffManager.complete()` / `stream()` re-scan every message and tool-call argument before any remote provider call.
 - **Local-only secret resolution**: `run_command` substitutes real values into the command line in-process; the output is re-tokenized before the model sees it.
 - **Web UI secret pre-flight linter**: the chat input warns about detected credentials before sending, naming each type found.
+
 ### Changed
+
 - `skillsContextBlock` only advertises enabled skills, and the `skill` tool refuses to load a disabled one.
 - `@mugil-ide/core` now publishes its bundled `skills/` directory.
 
 ## [0.2.0] - 2026-11-08
 
 ### Added
+
 - **Delta Mode Error Diagnostics (RTK DeltaCache)**: In-memory error signature cache across test/build runs (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new and unchanged failures and collapses repeated stack traces. A red run with no parsable failures no longer reports "all resolved", and caches are scoped per workspace.
 - **Auto-Tiered File Reader & Surgical `read_symbol` Tool**: Code files >300 lines read without line ranges return an outline skeleton with line anchors; non-code formats are read in full, and a fallback preview reports omitted lines. Adds `read_symbol(path, symbol)` for surgical extraction of one function, class or method.
 - **Lazy MCP Schema Pruning**: Deferred tool discovery via `list_mcp_tools` and `call_mcp`, eliminating 2,000–5,000 static tokens of schema overhead per turn.
@@ -42,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Test Suite Expansion**: 590 passing tests across all packages (515 core, 56 cli, 10 docs, 9 mcp), hermetic by default (ambient provider API keys and the user env file are cleared in `setupEnv`).
 
 ### Fixed
+
 - **`/api/diff/hunk-apply` containment**: the route now resolves paths through the shared `resolveInsideWorkspace` helper, so lexical and symlink escapes out of the workspace are rejected with 400 (previously it was the only write route without the check).
 - **Hunk application correctness**: hunks are applied with the `diff` package (`parsePatch`/`applyPatch`, `fuzzFactor: 0`) instead of a first-substring `String.replace`. This fixes both wrong-function edits when a block appears twice and corruption from `$&`/`$1` expansion in added lines. Revert uses `reversePatch`.
 - **Staging UI was a no-op**: the viewer passed the bare `@@` header as the hunk payload; it now forwards the header plus its body lines, and surfaces a console warning when a hunk no longer matches.
@@ -60,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.26] - 2026-11-07
 
 ### Added
+
 - **Image Generation Provider & Model Selectors**: Interactive dropdown selectors for Provider (`Auto`, `Pollinations AI`, `OpenAI`, `Together AI`, `OpenRouter`, `Vercel AI Gateway`, `Offline Mock`) and Model directly in the Image Generation UI modal (`packages/cli/src/server/html.ts`), complete with dynamic provider-specific recommended presets and custom model ID entry.
 - **Targeted Provider Dispatch & Credential Diagnostics**: Core `generateImage()` supports explicit `provider` targeting and `model` overrides. Explicit selections validate provider API keys (flagging missing credentials in the placeholder diagnostic instead of silently cascading to another live provider), while `auto` retains the zero-friction multi-tier fallback cascade.
 - **Workspace Tool & MCP Parameters**: Exposed `provider` and `model` parameters on the agent's `generate_image` workspace tool and MCP server tool schemas.
@@ -72,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Regression Test for Web UI Inline Scripts**: Automated test asserting all inline `<script>` tags in `html.ts` compile without syntax errors via `new Function()`.
 
 ### Changed
+
 - **Unified Workspace Path Containment (`resolveInsideWorkspace`)**: Centralized path resolution in `packages/core/src/modules/tools/paths.ts` enforcing both lexical containment and symlink/junction escape detection, shared across workspace tools and server endpoints (`/api/generate-image`, `/api/file`).
 - **Binary File Diffing**: `/api/diffs` flags binary modifications with `binary: true` and skips diff patch computation, displaying "Binary file changed" in the diff viewer instead of base64 text dumps.
 - **Full Binary Undo Support**: Binary file edits (images, audio, video, pdf) are captured in base64 within the session journal and accurately restored byte-for-byte upon `/undo`.
@@ -81,10 +98,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Safe `/api/generate-image` Endpoint**: Body capped at 2 MB via `readJsonBody`, strict symlink traversal prevention, pre-write snapshotting of all plausible format extensions, and undo journal integration.
 
 ## [0.1.25] - 2026-10-29
+
 ### Changed
+
 - **Big-Codebase Token Presets**: Default limits raised across the board so large repositories no longer truncate prompts or cut replies off mid-file. `DEFAULT_HISTORY_BUDGET` 16,000 → 64,000, `DEFAULT_MAX_OUTPUT_TOKENS` 8,192 → 32,768, prompt-trimming `TOKEN_BUDGET` 32,000 → 128,000, `DEFAULT_MAX_HISTORY_TURNS` 50 → 100 and `DEFAULT_MAX_TOOL_ITERATIONS` 20 → 40.
 - **Workload Presets Rebalanced**: Light (32k context / 8k output), Deep (64k / 32k), and Big Codebase & Audit (128k / 64k, 60 tool calls) — sliders now allow up to 256k context and 128k output.
+
 ### Fixed
+
 - **CodeGraph Missed Most Exports**: The TypeScript rules only matched arrow-function consts, so `export const LIMIT = 64_000`, `export const X: T = …`, default/abstract classes, generator and generic functions were absent from the graph (37+ symbols in this repo alone). Rules bumped to `1.0.1`; `export namespace` / `export const enum` are covered too.
 - **Empty CodeGraph Snippets**: Two symbols declared on one line left the first with `snippet: ""`; a snippet now always includes the declaration line.
 - **Stale `/api/graph`**: The graph cache is now invalidated per request, so external edits (`git checkout`, another editor) show up without restarting.
@@ -92,6 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.24] - 2026-10-28
 
 ### Added
+
 - **Kill Server Button**: A red `⚠ Kill Server` header control opens a confirmation modal (warning icon plus a list of what will be terminated), then stops the backend through the session-token- and Origin-gated `POST /api/shutdown`. The UI shows a final "Server stopped" screen instead of reconnecting forever; `SIGINT`/`SIGTERM` share the same idempotent shutdown path.
 - **Update-Available Indicator**: A `⬆ vX.Y.Z` pill appears beside the header version when a newer release exists, backed by `GET /api/update-check` (npm `latest` vs the running `VERSION`, six-hour cache, four-second timeout, never throws). The pill links to the matching GitHub release tag.
 - **Cloudflare AI Gateway Support**: `CLOUDFLARE_GATEWAY_ID` routes Workers AI through the documented gateway host and paths.
@@ -99,7 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **WebSocket Flow Control**: PTY pause/resume above an 8 MB socket watermark with one-time `[output throttled]` / `[output resumed]` notices, configurable via `MUGIL_IDE_WS_HIGH_WATERMARK` and `MUGIL_IDE_WS_LOW_WATERMARK`.
 
 ### Fixed
-- **Savings Indicator Always Read 0%**: The status-bar pill divided the tokens removed by the modules by the provider's *whole* prompt count — system prompt, tool schemas and history, tens of thousands of tokens no module touches — so refinement alone rounded to zero. Savings are now `savedTokens / (savedTokens + compressibleTokens)` (Caveman/RTK refinement, signature stripping, history eviction, tool-output compression, cache hits), so an ordinary Caveman run reports a real percentage.
+
+- **Savings Indicator Always Read 0%**: The status-bar pill divided the tokens removed by the modules by the provider's _whole_ prompt count — system prompt, tool schemas and history, tens of thousands of tokens no module touches — so refinement alone rounded to zero. Savings are now `savedTokens / (savedTokens + compressibleTokens)` (Caveman/RTK refinement, signature stripping, history eviction, tool-output compression, cache hits), so an ordinary Caveman run reports a real percentage.
 - **Crash Audit 2026-10-26** (all nine findings from `crash-audit-26-10-26.md`): global `unhandledRejection`/`uncaughtException` handlers keep the server serving; a malformed `Host` header answers 400 instead of killing the process; malformed WebSocket frames terminate only their own socket; session autosave can no longer reject out of a turn; a failed fallback-PTY spawn surfaces `[Shell failed to start: …]`; `/api/graph` is linear-time (20 000 symbols: 5 099 ms → 83 ms) with a per-file size cap and a revision-keyed cache; WebSocket output is flow-controlled; `run_command` timeouts kill the whole process group; and the `SmartCache` prefix trie is bounded.
 - **Cloudflare Gateway URL**: Requests went to `api.cloudflare.com/gateway/accounts/…` (404); they now use `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions`.
 - **Cloudflare Model Catalog**: Discovery parsed the account id out of a base URL that never contains `/accounts/`, so the catalog was never listed; the id is now passed from config.
@@ -108,6 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.23] - 2026-10-26
 
 ### Added
+
 - **Stop Button for Agent Streams**: The web UI now has a dedicated `■ Stop` control beside the prompt box (and `Esc` as a shortcut). It aborts the in-flight turn — the streaming completion, the tool loop, or a running subagent — without closing the session or the terminal.
 - **Live Busy State over WebSocket**: `status` frames now carry a `busy` flag, so the Stop button mirrors the server's real state (visible while a turn runs, hidden the moment it settles or the socket drops) instead of being inferred from keystrokes.
 - **`cancel_turn` WebSocket Frame**: A first-class, idempotent cancel message. The Ctrl-C terminal path is preserved; both converge on the same `AgentRepl.cancelTurn()` abort.
@@ -117,6 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Busy Indicator in the Status Bar**: A pulsing `● Working…` label sits beside the connection dot while a turn streams (with a `prefers-reduced-motion` fallback), so in-flight work stays visible even when the Stop button is off-screen.
 
 ### Fixed
+
 - **Vercel AI Gateway Base URL**: The Vercel provider pointed at `https://api.vercel.ai/v1`, which is not a Gateway host (it answers `404 DEPLOYMENT_NOT_FOUND`). It now defaults to `https://ai-gateway.vercel.sh/v1` in the client, the config loader, model discovery, and `.env.example`.
 - **Vercel Model IDs**: Gateway model ids are namespaced `creator/model`; the bare ids in the default ladder (`gpt-4o-mini`, `claude-3-5-sonnet-latest`, `deepseek-r1`) do not exist there, so every default handoff would have failed. The ladder now uses `openai/gpt-4o-mini`, `anthropic/claude-haiku-4.5`, `openai/gpt-4o`, `anthropic/claude-sonnet-4.5`, and `deepseek/deepseek-r1`.
 - **Vercel Base-URL Allowlist**: `POST /api/keys` rejected the correct Gateway host as an exfiltration attempt (`400 Disallowed Base URL`). `ai-gateway.vercel.sh` and `vercel.sh` are now allowlisted alongside the existing `vercel.com` entries.
@@ -124,6 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`AI_GATEWAY_API_KEY` Alias**: Vercel documents its key under `AI_GATEWAY_API_KEY`; it is now accepted as an alias for `VERCEL_API_KEY` by the config loader, the `/models` discovery probe, and `GET /api/models`, so following Vercel's own snippet no longer silently falls back to mock mode — or hides every Vercel model from the picker.
 
 ### Changed
+
 - **CI Can No Longer Hang for Hours**: Added a workflow `concurrency` group with `cancel-in-progress` (a superseded push cancels the stale run), per-step `timeout-minutes` budgets, and a `timeout` wrapper around `npm test` so a leaked handle kills the step instead of idling to the job ceiling. A previous run sat blocked for 1h12m before being cancelled by hand.
 - **Release Artifacts Are Verified Before Publishing**: The release workflow now checks that all five binaries exist, are plausibly sized, and carry the expected CPU architecture (`PE32+` / `x86-64` / `aarch64` / `arm64` / `x86_64`), runs the native build's `--version` against the tag, and publishes `SHA256SUMS.txt`. A failed compile now fails the release instead of being silently omitted.
 - **Release Notes Come From the CHANGELOG**: `scripts/release-notes.mjs` extracts the tag's `CHANGELOG.md` section for the release body, falling back to a compare link when the section is missing.
@@ -264,7 +290,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Partial Cache Spliced Unrelated Answers**: A partial (continuation) cache hit fired whenever a stored prompt was *any* literal prefix of the new one, so two prompts sharing a short common opener — a pasted file header, a shared preamble — produced `cachedAnswer + "\n\n" + newCompletion` as a single confident wrong answer. Partial hits now require the cached prompt to cover at least 60% of the new prompt (`MUGIL_IDE_PARTIAL_MIN_RATIO`) and at least 40 characters, and a stored concatenation can never seed another concatenation.
+- **Partial Cache Spliced Unrelated Answers**: A partial (continuation) cache hit fired whenever a stored prompt was _any_ literal prefix of the new one, so two prompts sharing a short common opener — a pasted file header, a shared preamble — produced `cachedAnswer + "\n\n" + newCompletion` as a single confident wrong answer. Partial hits now require the cached prompt to cover at least 60% of the new prompt (`MUGIL_IDE_PARTIAL_MIN_RATIO`) and at least 40 characters, and a stored concatenation can never seed another concatenation.
 - **Output Truncated Mid-Answer (`max_tokens` collapse)**: The prompt-trim budget was doubling as the generation budget. Once history plus tool schemas exceeded `TOKEN_BUDGET`, `max(256, budget − promptTokens − 512)` floored every completion at 256 tokens, cutting replies off mid-sentence with no indication. Generation budget is now sized independently of prompt trimming (`DEFAULT_MAX_OUTPUT_TOKENS=8192`, floor `MIN_MAX_OUTPUT_TOKENS=1024`) and clamped against the routed model's real context window.
 - **`maxTokens` Silently Dropped**: Passing ponytail as `{ outputBudget }` discarded a caller-supplied `maxTokens`. Both are caps now; the tighter wins.
 - **`finish_reason` Ignored**: Providers reported `length`/`max_tokens` and the value was discarded, presenting partial answers as complete. `AskResult.finishReason`/`truncated` now surface it, the TUI prints a truncation warning, and a new `truncated` pipeline event fires.
@@ -343,7 +369,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.6] - 2026-08-22
 
-- Added OpenCode Zen (opencode.ai/zen) as a completion provider: `OPENCODE_API_KEY` + optional `OPENCODE_BASE_URL`/`OPENCODE_MODELS`, auto-detected when only its key is set; claude-* models use Zen's Messages endpoint, others chat completions; gpt-*/codex-* (Responses API) not yet supported.
+- Added OpenCode Zen (opencode.ai/zen) as a completion provider: `OPENCODE_API_KEY` + optional `OPENCODE_BASE_URL`/`OPENCODE_MODELS`, auto-detected when only its key is set; claude-* models use Zen's Messages endpoint, others chat completions; gpt-_/codex-_ (Responses API) not yet supported.
 
 ## [0.1.5] - 2026-08-20
 
@@ -440,43 +466,29 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
   contain long-form provider API keys or committed `.env` files.
 
 [0.1.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.0
-
 [0.1.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.1
-
 [0.1.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.2
-
 [0.1.3]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.3
-
 [0.1.4]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.4
-
 [0.1.5]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.5
-
 [0.1.6]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.6
-
 [0.1.10]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.10
 [0.1.11]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.11
 [0.1.12]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.12
-
 [0.1.13]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.13
-
 [0.1.14]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.14
-
 [0.1.15]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.15
-
 [0.1.16]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.16
-
 [0.1.17]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.17
 [0.1.18]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.18
 [0.1.19]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.19
 [0.1.20]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.20
 [0.1.21]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.21
-
 [0.1.22]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.22
-
 [0.1.23]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.23
 [0.1.25]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.25
 [0.1.24]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.24
-
 [0.1.26]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.1.26
-
 [0.3.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.0
+
+[0.3.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.1

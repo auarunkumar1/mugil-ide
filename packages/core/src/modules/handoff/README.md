@@ -25,7 +25,7 @@ the latter when present).
 provider client, which sends it in the provider's own wire format
 (`tools`/`tool_calls` for OpenAI-family, `tools`/`tool_use` for Anthropic)
 and parses requested calls back into neutral `ToolCall`s. The tool-call
-*round trip* (execution + result feedback + bounding) is owned by the
+_round trip_ (execution + result feedback + bounding) is owned by the
 [tool-loop](../tool-loop/README.md) module, not by handoff.
 
 **Credits:** model routing and fallback are built on the

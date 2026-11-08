@@ -16,7 +16,15 @@ import { startIdeServer } from '../src/server/server.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, unlinkSync, symlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  unlinkSync,
+  symlinkSync,
+} from 'node:fs';
 import * as net from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -590,7 +598,12 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         scriptedResult({
           model: 'openai/gpt-4o',
           content: 'done',
-          usage: { promptTokens: 20000, completionTokens: 100, totalTokens: 20100, cachedTokens: 18000 },
+          usage: {
+            promptTokens: 20000,
+            completionTokens: 100,
+            totalTokens: 20100,
+            cachedTokens: 18000,
+          },
         }),
     };
     const engine = scriptedEngine(client);
@@ -691,8 +704,14 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
     // Status frames are coalesced and can land before a listener is attached,
     // so collect every snapshot from the moment the socket opens.
-    const statuses: Array<{ tokensSaved: number; compressibleTokens: number; savingsPct: number; savingsBreakdown?: any; optimisticTokensSaved?: number; optimisticSavingsPct?: number }> =
-      [];
+    const statuses: Array<{
+      tokensSaved: number;
+      compressibleTokens: number;
+      savingsPct: number;
+      savingsBreakdown?: any;
+      optimisticTokensSaved?: number;
+      optimisticSavingsPct?: number;
+    }> = [];
     ws.on('message', (data: WebSocket.RawData) => {
       try {
         const msg = JSON.parse(data.toString());
@@ -1176,7 +1195,13 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     pushEdit(root, {
       path: join(root, 'diff-smoke-binary.png'),
       before: { content: '', existed: false },
-      after: { content: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).toString('base64'), existed: true, isBinary: true },
+      after: {
+        content: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).toString(
+          'base64',
+        ),
+        existed: true,
+        isBinary: true,
+      },
     });
 
     try {
@@ -1201,7 +1226,13 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       expect(res).toBeLessThan(2000);
 
       const data = (await (await fetch(`${server.url}/api/diffs`)).json()) as {
-        diffs: Array<{ rel: string; patch: string; skipped?: boolean; binary?: boolean; before: string }>;
+        diffs: Array<{
+          rel: string;
+          patch: string;
+          skipped?: boolean;
+          binary?: boolean;
+          before: string;
+        }>;
       };
       const small = data.diffs.find((d) => d.rel.includes('diff-smoke-small'));
       const medium = data.diffs.find((d) => d.rel.includes('diff-smoke-medium'));
@@ -2208,7 +2239,10 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       // Inspect returns the document body.
       const detailRes = await fetch(`${server.url}/api/skills/api-test-skill`);
       expect(detailRes.status).toBe(200);
-      const detailJson = (await detailRes.json()) as { content: string; assets: { scripts: string[] } };
+      const detailJson = (await detailRes.json()) as {
+        content: string;
+        assets: { scripts: string[] };
+      };
       expect(detailJson.content).toContain('api-test-skill');
       expect(detailJson.assets.scripts).toEqual([]);
       expect((await fetch(`${server.url}/api/skills/nope`)).status).toBe(404);
@@ -2241,6 +2275,51 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       });
       expect(badCreate.status).toBe(400);
       expect(fs.existsSync(path.join(tmpDir, 'escape'))).toBe(false);
+
+      // Gallery endpoints: list & inspect
+      const galleryRes = await fetch(`${server.url}/api/skills/gallery`);
+      expect(galleryRes.status).toBe(200);
+      const galleryJson = (await galleryRes.json()) as {
+        gallery: Array<{ id: string; name: string; installed: boolean }>;
+      };
+      expect(galleryJson.gallery.length).toBeGreaterThanOrEqual(14);
+      const playwright = galleryJson.gallery.find((g) => g.id === 'playwright-e2e');
+      expect(playwright).toBeDefined();
+
+      const galleryDetailRes = await fetch(`${server.url}/api/skills/gallery/playwright-e2e`);
+      expect(galleryDetailRes.status).toBe(200);
+      const detailGalleryJson = (await galleryDetailRes.json()) as {
+        skill: { id: string; content: string };
+      };
+      expect(detailGalleryJson.skill.id).toBe('playwright-e2e');
+
+      // Install from gallery via POST /api/skills/install
+      const installRes = await fetch(`${server.url}/api/skills/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'gallery', source: 'playwright-e2e', target: 'workspace' }),
+      });
+      expect(installRes.status).toBe(200);
+      expect(
+        fs.existsSync(path.join(tmpDir, '.mugil', 'skills', 'playwright-e2e', 'SKILL.md')),
+      ).toBe(true);
+
+      // Credits endpoint: GET /api/credits
+      const creditsRes = await fetch(`${server.url}/api/credits`);
+      expect(creditsRes.status).toBe(200);
+      const creditsJson = (await creditsRes.json()) as {
+        skills: Array<{ name: string; installed: boolean }>;
+        coreModules: unknown[];
+      };
+      expect(creditsJson.skills.length).toBeGreaterThanOrEqual(14);
+      expect(creditsJson.coreModules.length).toBeGreaterThanOrEqual(5);
+
+      // Uninstall via DELETE /api/skills/:name
+      const deleteRes = await fetch(`${server.url}/api/skills/playwright-e2e`, {
+        method: 'DELETE',
+      });
+      expect(deleteRes.status).toBe(200);
+      expect(fs.existsSync(path.join(tmpDir, '.mugil', 'skills', 'playwright-e2e'))).toBe(false);
     } finally {
       process.chdir(origCwd);
       if (server) await server.close();

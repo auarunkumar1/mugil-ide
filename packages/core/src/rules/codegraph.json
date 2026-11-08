@@ -20,16 +20,7 @@
   ],
   "languages": {
     "typescript": {
-      "extensions": [
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-        ".mjs",
-        ".cjs",
-        ".mts",
-        ".cts"
-      ],
+      "extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"],
       "symbols": [
         {
           "kind": "function",
@@ -81,10 +72,7 @@
       ]
     },
     "python": {
-      "extensions": [
-        ".py",
-        ".pyw"
-      ],
+      "extensions": [".py", ".pyw"],
       "symbols": [
         {
           "kind": "function",
@@ -111,9 +99,7 @@
       ]
     },
     "go": {
-      "extensions": [
-        ".go"
-      ],
+      "extensions": [".go"],
       "symbols": [
         {
           "kind": "function",
@@ -140,9 +126,7 @@
       ]
     },
     "rust": {
-      "extensions": [
-        ".rs"
-      ],
+      "extensions": [".rs"],
       "symbols": [
         {
           "kind": "function",

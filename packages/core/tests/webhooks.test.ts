@@ -29,7 +29,9 @@ describe('parseWebhookConfigs', () => {
     );
     const env = {
       MUGIL_IDE_WEBHOOKS_CONFIG: file,
-      MUGIL_IDE_WEBHOOKS: JSON.stringify([{ url: 'https://example.com/a', events: ['turn.error'] }]),
+      MUGIL_IDE_WEBHOOKS: JSON.stringify([
+        { url: 'https://example.com/a', events: ['turn.error'] },
+      ]),
     };
     const configs = parseWebhookConfigs(env as NodeJS.ProcessEnv);
     expect(configs).toHaveLength(2);
@@ -65,7 +67,10 @@ describe('fireWebhooks', () => {
   it('POSTs a JSON envelope to subscribed webhooks', async () => {
     const calls: { url: string; init: RequestInit }[] = [];
     const results = await fireWebhooks(
-      [{ url: 'https://example.com/hooks' }, { url: 'https://example.com/only-completed', events: ['turn.completed'] }],
+      [
+        { url: 'https://example.com/hooks' },
+        { url: 'https://example.com/only-completed', events: ['turn.completed'] },
+      ],
       'turn.completed',
       { model: 'm1', usage: { totalTokens: 10 } },
       recordFetch(calls, { ok: true, status: 200 }),
@@ -75,7 +80,9 @@ describe('fireWebhooks', () => {
     expect(calls).toHaveLength(2);
     for (const call of calls) {
       expect(call.init.method).toBe('POST');
-      expect((call.init.headers as Record<string, string>)['content-type']).toBe('application/json');
+      expect((call.init.headers as Record<string, string>)['content-type']).toBe(
+        'application/json',
+      );
       const body = JSON.parse(call.init.body as string);
       expect(body.event).toBe('turn.completed');
       expect(body.source).toBe('mugil-ide');

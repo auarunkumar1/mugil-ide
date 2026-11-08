@@ -1,7 +1,11 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createWorkspaceTools, WORKSPACE_TOOL_DEFINITIONS, extractCodeSkeleton } from '../src/modules/tools/workspaceTools.js';
+import {
+  createWorkspaceTools,
+  WORKSPACE_TOOL_DEFINITIONS,
+  extractCodeSkeleton,
+} from '../src/modules/tools/workspaceTools.js';
 import type { ToolCall } from '../src/types.js';
 
 describe('Workspace Tools', () => {
@@ -50,7 +54,11 @@ describe('Workspace Tools', () => {
     const editCall: ToolCall = {
       id: 'e1',
       name: 'edit_file',
-      arguments: JSON.stringify({ path: tmpFile, target: 'foo target bar', replacement: 'foo replaced bar' }),
+      arguments: JSON.stringify({
+        path: tmpFile,
+        target: 'foo target bar',
+        replacement: 'foo replaced bar',
+      }),
     };
     const editRes = await toolRegistry.edit_file(editCall);
     expect(editRes).toContain('Successfully edited');
@@ -150,7 +158,11 @@ describe('Workspace Tools', () => {
   it('rejects binary files on read', async () => {
     const binary = path.join(root, '.test_binary.bin');
     fs.writeFileSync(binary, Buffer.from([0x00, 0x01, 0x02, 0xff]));
-    const call: ToolCall = { id: 'b1', name: 'read_file', arguments: JSON.stringify({ path: binary }) };
+    const call: ToolCall = {
+      id: 'b1',
+      name: 'read_file',
+      arguments: JSON.stringify({ path: binary }),
+    };
     const out = await toolRegistry.read_file(call);
     expect(out).toContain('binary');
     fs.unlinkSync(binary);
@@ -159,7 +171,11 @@ describe('Workspace Tools', () => {
   it('truncates over-long lines in read output', async () => {
     const longFile = path.join(root, '.test_long.txt');
     fs.writeFileSync(longFile, `short line\n${'a'.repeat(2500)}\n`);
-    const call: ToolCall = { id: 'b2', name: 'read_file', arguments: JSON.stringify({ path: longFile }) };
+    const call: ToolCall = {
+      id: 'b2',
+      name: 'read_file',
+      arguments: JSON.stringify({ path: longFile }),
+    };
     const out = await toolRegistry.read_file(call);
     const longLine = out.split('\n')[1]!;
     expect(longLine.length).toBeLessThan(2100);
@@ -168,14 +184,21 @@ describe('Workspace Tools', () => {
   });
 
   it('rejects reads and writes outside the workspace root', async () => {
-    const escapeRead: ToolCall = { id: 'b3', name: 'read_file', arguments: JSON.stringify({ path: path.join(root, '..', 'escape.txt') }) };
+    const escapeRead: ToolCall = {
+      id: 'b3',
+      name: 'read_file',
+      arguments: JSON.stringify({ path: path.join(root, '..', 'escape.txt') }),
+    };
     const out = await toolRegistry.read_file(escapeRead);
     expect(out).toContain('outside the workspace');
 
     const escapeWrite: ToolCall = {
       id: 'b4',
       name: 'write_file',
-      arguments: JSON.stringify({ path: path.join(root, '..', 'escape-write.txt'), content: 'nope' }),
+      arguments: JSON.stringify({
+        path: path.join(root, '..', 'escape-write.txt'),
+        content: 'nope',
+      }),
     };
     const writeOut = await toolRegistry.write_file(escapeWrite);
     expect(writeOut).toContain('outside the workspace');
@@ -184,7 +207,7 @@ describe('Workspace Tools', () => {
 
   it('appends typecheck errors to write results when diagnostics are enabled', async () => {
     const fakeRunner = (): { output: string; ran: boolean } => ({
-      output: 'src/a.ts(3,5): error TS2304: Cannot find name \'x\'.',
+      output: "src/a.ts(3,5): error TS2304: Cannot find name 'x'.",
       ran: true,
     });
     const { toolRegistry: reg } = createWorkspaceTools(root, {
@@ -231,8 +254,16 @@ describe('Workspace Tools', () => {
     });
     const logFile = path.join(root, 'audit.log');
     const mdFile = path.join(root, 'report.md');
-    await reg.write_file({ id: 'l1', name: 'write_file', arguments: JSON.stringify({ path: logFile, content: 'log line' }) });
-    await reg.write_file({ id: 'm1', name: 'write_file', arguments: JSON.stringify({ path: mdFile, content: '# Report' }) });
+    await reg.write_file({
+      id: 'l1',
+      name: 'write_file',
+      arguments: JSON.stringify({ path: logFile, content: 'log line' }),
+    });
+    await reg.write_file({
+      id: 'm1',
+      name: 'write_file',
+      arguments: JSON.stringify({ path: mdFile, content: '# Report' }),
+    });
     expect(fakeRunner).not.toHaveBeenCalled();
     if (fs.existsSync(logFile)) fs.unlinkSync(logFile);
     if (fs.existsSync(mdFile)) fs.unlinkSync(mdFile);
@@ -279,7 +310,11 @@ describe('Workspace Tools', () => {
     expect(readRes).toContain('(completed)');
 
     // Replacing with an empty array clears the list.
-    const clearCall: ToolCall = { id: 't3', name: 'todowrite', arguments: JSON.stringify({ todos: [] }) };
+    const clearCall: ToolCall = {
+      id: 't3',
+      name: 'todowrite',
+      arguments: JSON.stringify({ todos: [] }),
+    };
     await toolRegistry.todowrite(clearCall);
     const after = await toolRegistry.todoread(readCall);
     expect(after).toContain('no todos yet');
@@ -361,7 +396,10 @@ export class AccountService {
 
   it('auto-tiers files > 300 lines to skeleton unless raw: true or line ranges are provided', async () => {
     const largeFile = path.join(root, 'large-module.ts');
-    const content = Array.from({ length: 350 }, (_, i) => `// Line ${i + 1}\nexport function fn${i + 1}() { return ${i + 1}; }`).join('\n');
+    const content = Array.from(
+      { length: 350 },
+      (_, i) => `// Line ${i + 1}\nexport function fn${i + 1}() { return ${i + 1}; }`,
+    ).join('\n');
     fs.writeFileSync(largeFile, content, 'utf-8');
 
     try {

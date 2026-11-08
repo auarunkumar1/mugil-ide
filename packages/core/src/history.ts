@@ -118,7 +118,8 @@ export function budgetConversationHistory(
     if (tokens + cost > budgetTokens && kept.length > 0) {
       dropped += 1;
       evicted.unshift(rawTurn);
-      evictedTokens += (turn === rawTurn) ? cost : countTokens(rawTurn.prompt) + countTokens(rawTurn.response);
+      evictedTokens +=
+        turn === rawTurn ? cost : countTokens(rawTurn.prompt) + countTokens(rawTurn.response);
       continue;
     }
     kept.unshift(turn);

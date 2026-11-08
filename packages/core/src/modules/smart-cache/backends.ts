@@ -108,7 +108,7 @@ interface RedisLike {
   del(keys: string | string[]): Promise<unknown>;
   scan(
     cursor: string,
-    opts?: { MATCH?: string; COUNT?: number }
+    opts?: { MATCH?: string; COUNT?: number },
   ): Promise<{ cursor: string; keys: string[] }>;
 }
 
@@ -199,7 +199,7 @@ export class RedisBackend implements CacheBackend {
    */
   private async scanKeys(
     client: RedisLike,
-    onBatch: (keys: string[]) => Promise<void> | void
+    onBatch: (keys: string[]) => Promise<void> | void,
   ): Promise<void> {
     let cursor = '0';
     do {

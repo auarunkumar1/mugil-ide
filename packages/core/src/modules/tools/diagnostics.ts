@@ -64,13 +64,18 @@ export function runDiagnostics(root: string, options: DiagnosticsOptions = {}): 
     return { output: '', ran: true }; // clean
   } catch (err) {
     const error = err as { stdout?: string; stderr?: string; message?: string };
-    const combined = [error.stdout, error.stderr].filter(Boolean).join('\n') || `typecheck failed: ${error.message}`;
+    const combined =
+      [error.stdout, error.stderr].filter(Boolean).join('\n') ||
+      `typecheck failed: ${error.message}`;
     const lines = combined
       .split(/\r?\n/)
       .map((l) => l.trimEnd())
       .filter((l) => l.trim().length > 0)
       .slice(0, maxLines);
-    return { output: compressCommandOutput(lines.join('\n'), { maxLineLength: 300 }).text, ran: true };
+    return {
+      output: compressCommandOutput(lines.join('\n'), { maxLineLength: 300 }).text,
+      ran: true,
+    };
   }
 }
 

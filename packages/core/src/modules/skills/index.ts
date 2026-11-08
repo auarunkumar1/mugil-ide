@@ -41,6 +41,8 @@ export interface SkillMetadata {
   description: string;
   version?: string;
   author?: string;
+  upstream?: string;
+  license?: string;
   tags?: string[];
   /** Phrases that activate the skill automatically for a matching prompt. */
   triggers?: string[];
@@ -65,6 +67,8 @@ export interface SkillFrontmatter {
   description?: string;
   version?: string;
   author?: string;
+  upstream?: string;
+  license?: string;
   tags?: string[];
   triggers?: string[];
   tools?: string[];
@@ -90,12 +94,17 @@ export function parseSkillFrontmatter(text: string): SkillFrontmatter {
     const colon = line.indexOf(':');
     if (colon <= 0) continue;
     const key = line.slice(0, colon).trim();
-    const value = line.slice(colon + 1).trim().replace(/^["']|["']$/g, '');
+    const value = line
+      .slice(colon + 1)
+      .trim()
+      .replace(/^["']|["']$/g, '');
     if (!value) continue;
     if (key === 'name') out.name = value;
     else if (key === 'description') out.description = value;
     else if (key === 'version') out.version = value;
     else if (key === 'author') out.author = value;
+    else if (key === 'upstream') out.upstream = value;
+    else if (key === 'license') out.license = value;
     else if (key === 'tags') out.tags = parseList(value);
     else if (key === 'triggers') out.triggers = parseList(value);
     else if (key === 'tools') out.tools = parseList(value);
@@ -123,7 +132,9 @@ function readDisabled(cwd: string): Set<string> {
       skills?: { disabled?: unknown };
     };
     const list = raw.skills?.disabled;
-    return new Set(Array.isArray(list) ? list.filter((v): v is string => typeof v === 'string') : []);
+    return new Set(
+      Array.isArray(list) ? list.filter((v): v is string => typeof v === 'string') : [],
+    );
   } catch {
     return new Set();
   }
@@ -151,7 +162,10 @@ interface Tier {
 
 function tiers(cwd: string): Tier[] {
   return [
-    ...SKILL_DIRS.map((dirName) => ({ dir: path.join(cwd, dirName), source: 'workspace' as const })),
+    ...SKILL_DIRS.map((dirName) => ({
+      dir: path.join(cwd, dirName),
+      source: 'workspace' as const,
+    })),
     { dir: globalSkillsDir(), source: 'global' as const },
     { dir: builtinSkillsDir(), source: 'builtin' as const },
   ];
@@ -199,6 +213,8 @@ export function discoverSkills(cwd: string = process.cwd()): SkillMetadata[] {
         description: front.description || firstMeaningfulLine(text),
         ...(front.version ? { version: front.version } : {}),
         ...(front.author ? { author: front.author } : {}),
+        ...(front.upstream ? { upstream: front.upstream } : {}),
+        ...(front.license ? { license: front.license } : {}),
         ...(front.tags ? { tags: front.tags } : {}),
         ...(front.triggers ? { triggers: front.triggers } : {}),
         ...(front.tools ? { tools: front.tools } : {}),
@@ -225,7 +241,10 @@ export function loadSkill(cwd: string, name: string): string | null {
 }
 
 /** Files a skill bundles next to its SKILL.md (helper scripts + reference docs). */
-export function listSkillAssets(cwd: string, name: string): { scripts: string[]; references: string[] } {
+export function listSkillAssets(
+  cwd: string,
+  name: string,
+): { scripts: string[]; references: string[] } {
   const skill = discoverSkills(cwd).find((s) => s.name === name);
   if (!skill) return { scripts: [], references: [] };
   const dir = path.dirname(skill.file);
@@ -262,7 +281,13 @@ export function createSkill(
   cwd: string,
   name: string,
   description = 'Describe what this skill does and when to use it.',
-  options: { source?: SkillSource; version?: string; author?: string; tags?: string[]; triggers?: string[] } = {},
+  options: {
+    source?: SkillSource;
+    version?: string;
+    author?: string;
+    tags?: string[];
+    triggers?: string[];
+  } = {},
 ): string {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(name)) {
     throw new Error('skill name must be lowercase letters, digits, ".", "_" or "-" (max 64 chars)');
@@ -271,7 +296,8 @@ export function createSkill(
   const base =
     source === 'global'
       ? globalSkillsDir()
-      : SKILL_DIRS.map((d) => path.join(cwd, d)).find((dir) => isDir(dir)) ?? path.join(cwd, SKILL_DIRS[0]!);
+      : (SKILL_DIRS.map((d) => path.join(cwd, d)).find((dir) => isDir(dir)) ??
+        path.join(cwd, SKILL_DIRS[0]!));
   const dir = path.join(base, name);
   if (fs.existsSync(path.join(dir, 'SKILL.md'))) throw new Error(`skill "${name}" already exists`);
   fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
@@ -325,7 +351,9 @@ export function matchSkillTriggers(cwd: string, prompt: string): SkillMetadata[]
   return discoverSkills(cwd).filter(
     (skill) =>
       skill.enabled &&
-      (skill.triggers ?? []).some((trigger) => trigger.length >= 3 && haystack.includes(trigger.toLowerCase())),
+      (skill.triggers ?? []).some(
+        (trigger) => trigger.length >= 3 && haystack.includes(trigger.toLowerCase()),
+      ),
   );
 }
 
@@ -352,3 +380,5 @@ function firstMeaningfulLine(text: string): string {
   }
   return 'No description provided.';
 }
+
+export * from './gallery/index.js';

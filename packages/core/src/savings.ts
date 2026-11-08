@@ -1,4 +1,4 @@
-import type { SavingsBreakdown } from "./types.js";
+import type { SavingsBreakdown } from './types.js';
 
 /**
  * Input-token savings percentage.
@@ -59,10 +59,7 @@ export function optimisticSavingsTotal(
 }
 
 /** Computes optimistic savings percentage based on optimistic total. */
-export function optimisticSavingsPercent(
-  optimisticSaved: number,
-  keptTokens: number,
-): number {
+export function optimisticSavingsPercent(optimisticSaved: number, keptTokens: number): number {
   const total = optimisticSaved + keptTokens;
   if (!Number.isFinite(total) || total <= 0) return 0;
   return Math.round((Math.max(0, optimisticSaved) / total) * 100);

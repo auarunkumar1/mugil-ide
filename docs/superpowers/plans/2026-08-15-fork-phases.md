@@ -25,11 +25,13 @@
 ### Task 1: TUI home-screen logo → Mugil IDE wordmark
 
 **Files:**
+
 - Modify: `vendor/opencode/packages/tui/src/logo.ts` (glyph data `logo.left` / `logo.right` / `go` — currently spell "opencode")
 - Modify: `vendor/opencode/packages/tui/src/component/logo.tsx` (only if the glyph markers change)
 - Verify: `vendor/opencode/packages/tui/src/routes/home.tsx` (renders `<Logo />` in the `home_logo` slot on the startup screen)
 
 **Interfaces:**
+
 - Consumes: the existing glyph-grid format — 4-row ASCII with `_` / `^` / `~` / `,` shadow markers (see `logo.ts` + `logo.tsx` renderLine switch).
 - Produces: `logo.left` / `logo.right` 4-row grids spelling **MUGIL** (left) and **IDE** (right) in the same 3D-block geometry, 4 rows tall, 7-8 cols per letter (each letter in `logo.ts` is 7 cols wide including its trailing space).
 
@@ -57,12 +59,14 @@ git commit -m "brand(tui): replace home-screen logo with MUGIL IDE wordmark"
 ### Task 2: CLI wordmark + script name + version string
 
 **Files:**
+
 - Modify: `vendor/opencode/packages/opencode/src/cli/ui.ts` (the `wordmark` array printed by `UI.logo()` before CLI help/version output)
 - Modify: `vendor/opencode/packages/opencode/src/index.ts` (`.scriptName("opencode")` → `"mugil-ide"`; the `show()` guard `text.startsWith("opencode ")` → `"mugil-ide "`)
-- Modify: `vendor/opencode/packages/opencode/src/session/llm/request.ts` (`USER_AGENT = \`opencode/${InstallationVersion}\`` → `mugil-ide/...`)
+- Modify: `vendor/opencode/packages/opencode/src/session/llm/request.ts` (`USER_AGENT = \`opencode/${InstallationVersion}\``→`mugil-ide/...`)
 - Modify: `vendor/opencode/packages/core/src/installation/version.ts` (the `OPENCODE_VERSION` global name is build-injected — leave the const; see Step 3)
 
 **Interfaces:**
+
 - Consumes: the `wordmark` 4-row array format in `cli/ui.ts` (same glyph grid as Task 1).
 - Produces: `wordmark` spells **MUGIL IDE**; `yargs.scriptName` and the `show()` prefix check use `mugil-ide`; the outgoing LLM `User-Agent` header reads `mugil-ide/<version>`.
 
@@ -73,10 +77,13 @@ Replace the `wordmark` array in `vendor/opencode/packages/opencode/src/cli/ui.ts
 - [ ] **Step 2: Rename the script name + help guard**
 
 In `vendor/opencode/packages/opencode/src/index.ts`:
+
 ```ts
 .scriptName("mugil-ide")
 ```
+
 and in `show()`:
+
 ```ts
 if (!text.startsWith("mugil-ide ")) {
 ```
@@ -84,9 +91,11 @@ if (!text.startsWith("mugil-ide ")) {
 - [ ] **Step 3: Rebrand the LLM user agent**
 
 In `vendor/opencode/packages/opencode/src/session/llm/request.ts`:
+
 ```ts
-const USER_AGENT = `mugil-ide/${InstallationVersion}`
+const USER_AGENT = `mugil-ide/${InstallationVersion}`;
 ```
+
 (Leave `InstallationVersion`/`OPENCODE_VERSION` alone — it is injected at build time by `script/build.ts` and read by version display; renaming it is Phase-1-cosmetic but build-breaking. If desired, add a separate `MUGIL_IDE_BRAND` const later.)
 
 - [ ] **Step 4: Typecheck + CLI smoke**
@@ -104,17 +113,20 @@ git commit -m "brand(cli): MUGIL IDE wordmark, script name, and user agent"
 ### Task 3: Credits at startup + `/credits` command in the fork TUI
 
 **Files:**
+
 - Create: `vendor/opencode/packages/tui/src/feature-plugins/home/credits.tsx` (builtin TUI plugin registering a `home_bottom` slot that renders the credits line(s) under the logo)
 - Modify: `vendor/opencode/packages/tui/src/feature-plugins/builtins.ts` (register the new plugin)
 - Reference: `packages/cli/src/components/app.tsx:796-845` (the legacy `/credits` text to port) and root `ATTRIBUTIONS.md`
 
 **Interfaces:**
+
 - Consumes: `TuiPlugin` / `TuiPluginApi` shapes from `@opencode-ai/plugin/tui` (same as `home/footer.tsx`); `api.slots.register({ order, slots: { home_bottom() { ... } } })`; theme via `api.theme.current`.
 - Produces: a `credits` builtin plugin with `id: "internal:home-credits"`; a `home_bottom` slot rendering one muted line: `✦ Mugil IDE — OpenCode core (MIT) · Caveman · RTK · Ponytail · Watermark Remover · CodeGraph — /credits for full list`.
 
 - [ ] **Step 1: Port the credits data as a shared constant**
 
 Create `vendor/opencode/packages/tui/src/feature-plugins/home/credits.tsx`. Top of file:
+
 ```tsx
 export const CREDITS = `✦ Mugil IDE — Credited Open Source Modules & Repositories:
 
@@ -130,35 +142,41 @@ export const CREDITS = `✦ Mugil IDE — Credited Open Source Modules & Reposit
 • Agent Skills:      https://github.com/anthropics/anthropic-tools
 • MCP Client:        https://modelcontextprotocol.io
 • Web Search (Exa):  https://mcp.exa.ai/mcp
-• LSP Client:        https://microsoft.github.io/language-server-protocol`
+• LSP Client:        https://microsoft.github.io/language-server-protocol`;
 ```
+
 (Match the legacy `/credits` list — keep it in sync with `ATTRIBUTIONS.md`.)
 
 - [ ] **Step 2: Render the startup credits line via a `home_bottom` slot**
 
 In the same file, export a `TuiPlugin`:
+
 ```tsx
 const tui: TuiPlugin = async (api) => {
   api.slots.register({
     order: 200, // after tips (100) so credits sit below tips
     slots: {
       home_bottom() {
-        const theme = () => api.theme.current
+        const theme = () => api.theme.current;
         return (
           <box paddingTop={1} flexShrink={0}>
-            <text fg={theme().textMuted}>✦ Mugil IDE — OpenCode core (MIT) · Caveman · RTK · Ponytail · Watermark Remover · CodeGraph — /credits for full list</text>
+            <text fg={theme().textMuted}>
+              ✦ Mugil IDE — OpenCode core (MIT) · Caveman · RTK · Ponytail · Watermark Remover ·
+              CodeGraph — /credits for full list
+            </text>
           </box>
-        )
+        );
       },
     },
-  })
-}
-export default { id: "internal:home-credits", tui } satisfies BuiltinTuiPlugin
+  });
+};
+export default { id: 'internal:home-credits', tui } satisfies BuiltinTuiPlugin;
 ```
 
 - [ ] **Step 3: Register the plugin in builtins**
 
 In `vendor/opencode/packages/tui/src/feature-plugins/builtins.ts`:
+
 ```ts
 import HomeCredits from "./home/credits"
 // inside createBuiltinPlugins() return array:
@@ -177,7 +195,7 @@ git add vendor/opencode/packages/tui/src/feature-plugins/home/credits.tsx vendor
 git commit -m "feat(tui): credits footer on startup screen"
 ```
 
-> **Note:** the full multi-line `/credits` *command* already exists in the legacy TUI and is ported to the fork in Task 4 (Phase 3) when the command palette is verified — the startup screen gets the one-line credit now, per the user's "Credits at startup screen" request.
+> **Note:** the full multi-line `/credits` _command_ already exists in the legacy TUI and is ported to the fork in Task 4 (Phase 3) when the command palette is verified — the startup screen gets the one-line credit now, per the user's "Credits at startup screen" request.
 
 ---
 
@@ -186,9 +204,11 @@ git commit -m "feat(tui): credits footer on startup screen"
 ### Task 4: Audit graft completeness — verify every addon is wired and toggleable
 
 **Files:**
+
 - Inspect: `vendor/opencode/packages/opencode/src/mugil/index.ts` (the 5-module port), `session/prompt.ts` (pre-request + system), `session/processor.ts` (post-generation)
 
 **Interfaces:**
+
 - Consumes: `mugilPreprocess(text)`, `mugilSystemInstruction()`, `mugilPostprocess(text)` (existing exports).
 - Produces: a documented matrix — which addon is wired, where, and how to verify each — in `docs/opencode-fork.md`.
 
@@ -218,66 +238,87 @@ git commit -m "docs(fork): graft audit matrix — all five addons verified wired
 ### Task 5: RTK command-output compression on tool results
 
 **Files:**
+
 - Modify: `vendor/opencode/packages/opencode/src/mugil/index.ts` (add `mugilCompressOutput`)
 - Modify: `vendor/opencode/packages/opencode/src/session/processor.ts` (`tool-result` case — compress `output.output` before `completeToolCall`)
 - Test: extend the live probe in Task 4's doc matrix
 
 **Interfaces:**
+
 - Consumes: `SessionV1.ToolPart` tool-result output flow in `processor.ts` (`toolResultOutput` → `completeToolCall`).
 - Produces:
+
   ```ts
   /** RTK-style output compression: collapse repeated lines, truncate long ones (keeps error lines). */
-  export function mugilCompressOutput(text: string, maxLineLength?: number): string
+  export function mugilCompressOutput(text: string, maxLineLength?: number): string;
   ```
 
 - [ ] **Step 1: Port `compressCommandOutput` into the mugil module**
 
 Add to `vendor/opencode/packages/opencode/src/mugil/index.ts` (port from `packages/core/src/modules/rtk/index.ts`):
+
 ```ts
 export function mugilCompressOutput(text: string, maxLineLength = 200): string {
-  if (!ENABLED) return text
-  const lines = text.split("\n")
-  const out: string[] = []
-  let prev: string | undefined
-  let count = 0
+  if (!ENABLED) return text;
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let prev: string | undefined;
+  let count = 0;
   const push = () => {
-    if (prev === undefined) return
-    out.push(count > 1 ? `${prev}  [${count}×]` : prev)
-  }
+    if (prev === undefined) return;
+    out.push(count > 1 ? `${prev}  [${count}×]` : prev);
+  };
   for (const raw of lines) {
-    const line = raw.replace(/\s+$/, "")
-    if (line.trim().length === 0) { push(); prev = undefined; count = 0; continue }
-    const truncated = line.length > maxLineLength ? `${line.slice(0, maxLineLength)}… (+${line.length - maxLineLength} chars)` : line
-    if (truncated === prev) { count += 1; continue }
-    push(); prev = truncated; count = 1
+    const line = raw.replace(/\s+$/, '');
+    if (line.trim().length === 0) {
+      push();
+      prev = undefined;
+      count = 0;
+      continue;
+    }
+    const truncated =
+      line.length > maxLineLength
+        ? `${line.slice(0, maxLineLength)}… (+${line.length - maxLineLength} chars)`
+        : line;
+    if (truncated === prev) {
+      count += 1;
+      continue;
+    }
+    push();
+    prev = truncated;
+    count = 1;
   }
-  push()
-  return out.join("\n")
+  push();
+  return out.join('\n');
 }
 ```
 
 - [ ] **Step 2: Wire into the `tool-result` handler**
 
 In `vendor/opencode/packages/opencode/src/session/processor.ts`, in the `tool-result` case, before `completeToolCall(value.id, output)`:
+
 ```ts
 const output = {
   ...rawOutput,
   output: mugilCompressOutput(rawOutput.output),
   attachments: attachments.length ? attachments : undefined,
-}
+};
 ```
+
 (Apply only to tool results whose output is text — the existing `toolResultOutput` already stringifies.)
 
 - [ ] **Step 3: Typecheck + unit probe**
 
 Run: `cd vendor/opencode/packages/opencode && bun run typecheck`
 Then:
+
 ```bash
 cd vendor/opencode/packages/opencode && bun -e "
 const { mugilCompressOutput } = await import('./src/mugil/index.ts');
 console.log(JSON.stringify(mugilCompressOutput('a\\nb\\nb\\nb\\n' + 'x'.repeat(250))))
 "
 ```
+
 Expected: `"a\nb  [3×]\nxxx… (+N chars)"` (deduped + truncated).
 
 - [ ] **Step 4: Commit**
@@ -290,40 +331,46 @@ git commit -m "feat(fork): RTK compressCommandOutput on tool results"
 ### Task 6: Ponytail `max_tokens` cap on completions
 
 **Files:**
+
 - Modify: `vendor/opencode/packages/opencode/src/mugil/index.ts` (add `mugilOutputBudget`)
 - Modify: `vendor/opencode/packages/opencode/src/session/llm/request.ts` (apply the cap where `max_tokens` is set)
 
 **Interfaces:**
+
 - Consumes: the LLM request preparation in `request.ts` (find where `max_tokens`/`maxTokens` is passed to the provider; `grep -n "max_tokens\|maxTokens" src/session/llm/request.ts`).
 - Produces:
+
   ```ts
   /** Ponytail output budget: hard cap on completion tokens, or undefined when disabled. */
-  export function mugilOutputBudget(): number | undefined
+  export function mugilOutputBudget(): number | undefined;
   ```
+
   Default `8192` cap; env override `MUGIL_IDE_OUTPUT_BUDGET`; `undefined` when `MUGIL_IDE_ADDONS=0`.
 
 - [ ] **Step 1: Add the budget helper**
 
 ```ts
 export function mugilOutputBudget(): number | undefined {
-  if (!ENABLED) return undefined
-  const raw = process.env.MUGIL_IDE_OUTPUT_BUDGET
+  if (!ENABLED) return undefined;
+  const raw = process.env.MUGIL_IDE_OUTPUT_BUDGET;
   if (raw !== undefined) {
-    const n = Number(raw)
-    if (Number.isFinite(n) && n > 0) return Math.floor(n)
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
   }
-  return 8192
+  return 8192;
 }
 ```
 
 - [ ] **Step 2: Apply it in the LLM request path**
 
 In `vendor/opencode/packages/opencode/src/session/llm/request.ts`, where `max_tokens` is set for the provider call, cap it:
+
 ```ts
 const budget = mugilOutputBudget()
 // when building the provider request:
 ...(budget !== undefined ? { max_tokens: Math.min(budget, existingMax ?? budget) } : {})
 ```
+
 Locate the exact field by grepping `max_tokens` in the file first — do not guess.
 
 - [ ] **Step 3: Typecheck + probe**
@@ -341,18 +388,22 @@ git commit -m "feat(fork): ponytail max_tokens cap on completions"
 ### Task 7: Smart-cache graft into the LLM call path
 
 **Files:**
+
 - Create: `vendor/opencode/packages/opencode/src/mugil/cache.ts` (self-contained cache: in-memory + optional file backend, keyed by prompt+model)
 - Modify: `vendor/opencode/packages/opencode/src/session/llm/request.ts` (or the native-request path) — lookup before the provider call, store after, **bypass entirely when the request carries tool calls**
 - Reference: `packages/core/src/modules/smart-cache/` (exact/partial semantics; keep this graft simple: exact-match only)
 
 **Interfaces:**
+
 - Consumes: `ModelMessage[]` + `system: string[]` (the prepared request) and `Provider.Model` (for the model-scoped key).
 - Produces:
+
   ```ts
-  export function mugilCacheLookup(key: string): string | undefined
-  export function mugilCacheStore(key: string, response: string): void
-  export function mugilCacheKey(system: string[], messages: ModelMessage[], model: string): string
+  export function mugilCacheLookup(key: string): string | undefined;
+  export function mugilCacheStore(key: string, response: string): void;
+  export function mugilCacheKey(system: string[], messages: ModelMessage[], model: string): string;
   ```
+
   Plus an env gate `MUGIL_IDE_CACHE_DIR` (default `~/.cache/mugil-ide/fork-cache.json`).
 
 - [ ] **Step 1: Implement the exact-match cache**
@@ -378,17 +429,21 @@ git commit -m "feat(fork): smart-cache exact tier in LLM call path (tool-call by
 ### Task 8: Webhooks as an OpenCode hook
 
 **Files:**
+
 - Create: `vendor/opencode/packages/opencode/src/mugil/webhooks.ts` (config parse + fire-and-forget POST)
 - Modify: `vendor/opencode/packages/opencode/src/hook/index.ts` (or the closest hook registry — `ls src/hook/`) to fire `turn.started` / `turn.completed` / `turn.error` / `tool.executed`
 - Reference: `packages/core/src/modules/webhooks.ts`
 
 **Interfaces:**
+
 - Consumes: the fork's hook registry (`grep -rn "trigger\|hooks" src/hook/*.ts` to find the extension point).
 - Produces:
+
   ```ts
-  export function mugilFireWebhooks(event: string, payload: Record<string, unknown>): void
-  export function mugilWebhookConfigs(): Array<{ url: string; events?: string[] }>
+  export function mugilFireWebhooks(event: string, payload: Record<string, unknown>): void;
+  export function mugilWebhookConfigs(): Array<{ url: string; events?: string[] }>;
   ```
+
   Env: `MUGIL_IDE_WEBHOOKS` (JSON array) / `MUGIL_IDE_WEBHOOKS_CONFIG` (file path). Fire-and-forget with a 5s timeout, never awaited.
 
 - [ ] **Step 1: Port the config parser + fire helper**
@@ -414,6 +469,7 @@ git commit -m "feat(fork): webhook notifications on turn/tool events"
 ### Task 9: Verify codegraph + MCP server standalone surfaces
 
 **Files:**
+
 - Inspect: `packages/cli/src/index.ts` (`graph` command), `packages/mcp/` (server), `docs/opencode-fork.md` (keep list)
 
 - [ ] **Step 1: Confirm `mugil-ide graph` still works**
@@ -440,15 +496,18 @@ git commit -m "docs(fork): codegraph + MCP server remain standalone surfaces" ||
 ### Task 10: Tool calling + file creation end-to-end in the fork
 
 **Files:**
+
 - Verify: `vendor/opencode/packages/opencode/src/tool/` (built-in tools), `src/session/processor.ts` (tool loop), `src/mugil/index.ts` (pre/post transforms don't corrupt tool args)
 - Test: the from-source dev loop
 
 - [ ] **Step 1: Create a file through the fork agent**
 
 Run in a scratch dir:
+
 ```bash
 cd $(mktemp -d) && cd vendor/opencode/packages/opencode && timeout 120 bun run --conditions=browser ./src/index.ts run "create index.html containing <h1>hi</h1>"
 ```
+
 Expected: the file exists with the content; the assistant reports success; no raw "token stream" dump (tool result compression from Task 5 is active).
 
 - [ ] **Step 2: Verify a permission-denied path surfaces visibly**
@@ -470,6 +529,7 @@ git commit -m "docs(fork): verified file creation + permission denial end-to-end
 ### Task 11: Sessions, undo/redo, skills, MCP client — spot verification
 
 **Files:**
+
 - Verify: fork built-ins (`src/session/session.ts`, `src/snapshot/`, `src/skill/`, `src/mcp/`) — these are OpenCode's battle-tested implementations; verify they function, don't re-implement.
 
 - [ ] **Step 1: Session resume**
@@ -496,11 +556,13 @@ git commit -m "docs(fork): sessions/undo/skills/mcp spot-verified" || true
 ### Task 12: Build the vendored binary (grafted addons reach the real TUI)
 
 **Files:**
+
 - Run: `vendor/opencode/packages/opencode/script/build.ts` (`bun run script/build.ts`)
 - Modify: `packages/cli/src/opencodeTui.ts` (point the bridge at the built binary instead of the npm `opencode-ai` dep, or keep both behind an env flag)
 - Modify: `docs/opencode-fork.md` (M3 status)
 
 **Interfaces:**
+
 - Consumes: the existing `script/build.ts` (produces the platform binary), `opencodeTui.ts` (currently spawns `opencode-ai` from node_modules).
 - Produces: a locally-built `mugil-ide`-branded binary containing the grafted transforms; `opencodeTui.ts` prefers it when present (e.g. `MUGIL_IDE_FORK_BINARY` env or a `vendor/opencode/dist/` lookup), falling back to the npm binary.
 
@@ -533,6 +595,7 @@ git commit -m "feat(fork): launch the grafted binary with branding + credits"
 ### Task 13: Retire the legacy stack (parity gate)
 
 **Files:**
+
 - Delete: `packages/cli/src/components/app.tsx` (legacy Ink TUI) + `MUGIL_IDE_LEGACY_TUI` env handling
 - Delete (superseded): `packages/core/src/modules/tool-loop`, handoff pipeline, `modules/sessions.ts`, `modules/undo.ts`, `modules/skills`, `modules/tools/*` — per the drop list in `docs/opencode-fork.md`
 - Keep: `codegraph` (`mugil-ide graph`), the MCP server package, `ATTRIBUTIONS.md` + credit discipline
@@ -567,10 +630,11 @@ git commit -m "chore: retire legacy Ink TUI + superseded modules (fork is defaul
 ## Self-Review
 
 **1. Spec coverage:**
-- *UI branding* → Tasks 1–2 (logo, wordmark, script name, user agent).
-- *Credits at startup screen* → Task 3 (home_bottom credits line; full list constant ported).
-- *All modules properly incorporated* → Task 4 (audit), Task 5 (RTK tool-output), Task 6 (ponytail cap), Task 7 (smart-cache), Task 8 (webhooks), Task 9 (codegraph/MCP keep).
-- *Basic functionalities correctly working* → Tasks 10–11 (file creation, permissions, sessions, undo, skills, MCP), Task 12 (binary build so it ships), Task 13 (retire legacy after parity).
+
+- _UI branding_ → Tasks 1–2 (logo, wordmark, script name, user agent).
+- _Credits at startup screen_ → Task 3 (home_bottom credits line; full list constant ported).
+- _All modules properly incorporated_ → Task 4 (audit), Task 5 (RTK tool-output), Task 6 (ponytail cap), Task 7 (smart-cache), Task 8 (webhooks), Task 9 (codegraph/MCP keep).
+- _Basic functionalities correctly working_ → Tasks 10–11 (file creation, permissions, sessions, undo, skills, MCP), Task 12 (binary build so it ships), Task 13 (retire legacy after parity).
 
 **2. Placeholder scan:** No TBD/TODO steps; every code step carries the actual snippet or an exact grep to locate the insertion point. Two spots deliberately defer exact line numbers to the implementer with explicit `grep` first steps (Task 6 `max_tokens`, Task 8 hook registry) because they depend on the vendored source's shape — acceptable, the instruction is concrete.
 

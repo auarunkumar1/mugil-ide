@@ -70,7 +70,13 @@ export function loadUserEnvIntoProcess(env: NodeJS.ProcessEnv = process.env): vo
 
 /** Helper to quote env value when needed */
 function formatEnvValue(value: string): string {
-  if (value.includes('\n') || value.includes('"') || value.includes("'") || value.includes(' ') || value.includes('#')) {
+  if (
+    value.includes('\n') ||
+    value.includes('"') ||
+    value.includes("'") ||
+    value.includes(' ') ||
+    value.includes('#')
+  ) {
     return JSON.stringify(value);
   }
   return value;
@@ -169,7 +175,11 @@ export function deleteUserEnvKeys(
     }
     return true;
   });
-  const out = lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+  const out =
+    lines
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trimEnd() + '\n';
   fs.writeFileSync(file, out, { mode: 0o600 });
   try {
     fs.chmodSync(file, 0o600);

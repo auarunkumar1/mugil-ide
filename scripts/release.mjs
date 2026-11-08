@@ -18,7 +18,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const bumpArg = (process.argv.find((a) => ['patch', 'minor', 'major'].includes(a)) ?? 'patch');
+const bumpArg = process.argv.find((a) => ['patch', 'minor', 'major'].includes(a)) ?? 'patch';
 const mode = process.argv.includes('--publish')
   ? 'publish'
   : process.argv.includes('--bump')
@@ -49,7 +49,11 @@ const newVersion = bumpVersion(rootPkg.version, bumpArg);
 // --- git state check (skipped in dry-run)
 const isGit = existsSync(path.join(root, '.git'));
 function git(args) {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
 }
 if (isGit && mode !== 'dry-run' && !force) {
   const dirty = git(['status', '--porcelain']);
@@ -109,7 +113,12 @@ function updateChangelog(version) {
 function setVersion(pkgPath) {
   const p = readJson(pkgPath);
   p.version = newVersion;
-  for (const section of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+  for (const section of [
+    'dependencies',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
     const deps = p[section];
     if (!deps) continue;
     for (const key of Object.keys(deps)) {
@@ -148,5 +157,7 @@ if (mode === 'bump' || mode === 'publish') {
 }
 
 if (mode === 'publish') {
-  console.log('ℹ npm publishing is disabled. Binaries are compiled and published directly to GitHub Releases via Actions.');
+  console.log(
+    'ℹ npm publishing is disabled. Binaries are compiled and published directly to GitHub Releases via Actions.',
+  );
 }

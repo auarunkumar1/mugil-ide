@@ -75,7 +75,9 @@ describe('stripWatermarks (hygiene)', () => {
   });
 
   it('reports what was removed', () => {
-    const { removed } = stripWatermarks('hello\u200B world\nThis response was created by an AI assistant.');
+    const { removed } = stripWatermarks(
+      'hello\u200B world\nThis response was created by an AI assistant.',
+    );
     expect(removed.some((r) => r.includes('unicode'))).toBe(true);
     expect(removed.some((r) => r.includes('attribution-line'))).toBe(true);
   });

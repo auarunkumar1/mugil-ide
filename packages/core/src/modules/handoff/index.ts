@@ -35,7 +35,10 @@ function redactForRemote(messages: ChatMessage[]): ChatMessage[] {
   );
   if (!dirty) return messages;
   return messages.map((message) => {
-    const next: ChatMessage = { ...message, content: globalSecretVault.tokenize(message.content).text };
+    const next: ChatMessage = {
+      ...message,
+      content: globalSecretVault.tokenize(message.content).text,
+    };
     if (message.toolCalls) {
       next.toolCalls = message.toolCalls.map((call) => ({
         ...call,
@@ -187,7 +190,11 @@ export class HandoffManager {
         // would restart the request the user just aborted.
         if (isAbortError(err)) break;
         // Non-retryable errors (e.g. 400 invalid request, 401 auth, 403 forbidden) shouldn't burn the whole chain.
-        if (err instanceof Error && 'retryable' in err && (err as { retryable: boolean }).retryable === false) {
+        if (
+          err instanceof Error &&
+          'retryable' in err &&
+          (err as { retryable: boolean }).retryable === false
+        ) {
           const status = (err as { status?: number }).status;
           if (status !== undefined && [400, 401, 403].includes(status)) {
             break;
@@ -205,10 +212,7 @@ export class HandoffManager {
    * See `buildChain()` for how the chain is ordered and `walk()` for the
    * break/rethrow policy.
    */
-  async complete(
-    messages: ChatMessage[],
-    options: HandoffOptions = {},
-  ): Promise<HandoffResult> {
+  async complete(messages: ChatMessage[], options: HandoffOptions = {}): Promise<HandoffResult> {
     const attempts: string[] = [];
     const safeMessages = redactForRemote(messages);
     const result = await this.walk(this.buildChain(safeMessages, options), attempts, (modelId) =>
@@ -243,20 +247,26 @@ export class HandoffManager {
       // One delta, flagged `streamed: false`: a renderer must not read "I got a
       // delta" as "streaming is on".
       if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
-      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking, false);
+      if (buffered.thinking && buffered.thinking.length > 0)
+        handlers.onThinking?.(buffered.thinking, false);
       return buffered;
     }
     const attempts: string[] = [];
     const client = this.client;
     const safeMessages = redactForRemote(messages);
-    const result = await this.walk(this.buildChain(safeMessages, options), attempts, async (modelId) => {
-      const attempt = this.attemptOptions(options, modelId);
-      if (client.stream) return client.stream(safeMessages, attempt, handlers);
-      const buffered = await client.complete(safeMessages, attempt);
-      if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
-      if (buffered.thinking && buffered.thinking.length > 0) handlers.onThinking?.(buffered.thinking, false);
-      return buffered;
-    });
+    const result = await this.walk(
+      this.buildChain(safeMessages, options),
+      attempts,
+      async (modelId) => {
+        const attempt = this.attemptOptions(options, modelId);
+        if (client.stream) return client.stream(safeMessages, attempt, handlers);
+        const buffered = await client.complete(safeMessages, attempt);
+        if (buffered.content.length > 0) handlers.onDelta?.(buffered.content, false);
+        if (buffered.thinking && buffered.thinking.length > 0)
+          handlers.onThinking?.(buffered.thinking, false);
+        return buffered;
+      },
+    );
     return { ...result, attempts };
   }
 

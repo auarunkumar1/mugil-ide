@@ -41,7 +41,11 @@ export class BlobStore {
     return this.blobs.get(id);
   }
 
-  readChunk(id: string, offset = 0, limit = 2000): { text: string; hasMore: boolean; total: number } | undefined {
+  readChunk(
+    id: string,
+    offset = 0,
+    limit = 2000,
+  ): { text: string; hasMore: boolean; total: number } | undefined {
     const entry = this.blobs.get(id);
     if (!entry) return undefined;
     const start = Math.max(0, offset);

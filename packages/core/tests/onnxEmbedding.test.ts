@@ -1,5 +1,11 @@
-import { OnnxEmbeddingProvider, ONNX_EMBEDDING_DIM } from '../src/modules/smart-cache/onnxEmbedding.js';
-import { cosineSimilarity, createEmbeddingProvider } from '../src/modules/smart-cache/embeddings.js';
+import {
+  OnnxEmbeddingProvider,
+  ONNX_EMBEDDING_DIM,
+} from '../src/modules/smart-cache/onnxEmbedding.js';
+import {
+  cosineSimilarity,
+  createEmbeddingProvider,
+} from '../src/modules/smart-cache/embeddings.js';
 
 describe('OnnxEmbeddingProvider (Offline Vector Semantic Cache)', () => {
   it('generates 384-dimensional unit vectors in offline mode', async () => {

@@ -37,9 +37,28 @@ export interface PermissionPolicy {
 }
 
 /** Reads tools — safe to expose to every agent without approval. */
-export const READ_TOOLS = ['read_file', 'read_symbol', 'read_skeleton', 'read_blob', 'list_files', 'search_code', 'codegraph', 'todoread', 'skill', 'webfetch', 'websearch', 'lsp'];
+export const READ_TOOLS = [
+  'read_file',
+  'read_symbol',
+  'read_skeleton',
+  'read_blob',
+  'list_files',
+  'search_code',
+  'codegraph',
+  'todoread',
+  'skill',
+  'webfetch',
+  'websearch',
+  'lsp',
+];
 /** Write tools — mutate the workspace. */
-export const WRITE_TOOLS = ['write_file', 'edit_file', 'apply_patch', 'todowrite', 'generate_image'];
+export const WRITE_TOOLS = [
+  'write_file',
+  'edit_file',
+  'apply_patch',
+  'todowrite',
+  'generate_image',
+];
 /**
  * Lazy MCP gateway tools. They reach third-party servers, but their names do
  * not carry the `mcp_` prefix the prefix rule keys on, so plan mode silently
@@ -137,9 +156,7 @@ export function applyPermissionOverrides(
   overrides: Record<string, ToolPermissionAction>,
 ): PermissionPolicy {
   const tools = { ...(base.tools ?? {}) };
-  const bash = base.bash
-    ? { ...base.bash, rules: [...(base.bash.rules ?? [])] }
-    : undefined;
+  const bash = base.bash ? { ...base.bash, rules: [...(base.bash.rules ?? [])] } : undefined;
   for (const [tool, action] of Object.entries(overrides)) {
     if (tool === 'run_command') {
       if (bash) bash.defaultAction = action;

@@ -58,9 +58,21 @@ function normalizeLocations(result: unknown): LspLocation[] {
   for (const item of items) {
     if (!item || typeof item !== 'object') continue;
     const record = item as Record<string, unknown>;
-    const uri = typeof record.targetUri === 'string' ? record.targetUri : typeof record.uri === 'string' ? record.uri : null;
-    const range = (record.targetRange ?? record.range) as { start?: { line?: number; character?: number } } | undefined;
-    if (!uri || !range?.start || typeof range.start.line !== 'number' || typeof range.start.character !== 'number') continue;
+    const uri =
+      typeof record.targetUri === 'string'
+        ? record.targetUri
+        : typeof record.uri === 'string'
+          ? record.uri
+          : null;
+    const range = (record.targetRange ?? record.range) as
+      { start?: { line?: number; character?: number } } | undefined;
+    if (
+      !uri ||
+      !range?.start ||
+      typeof range.start.line !== 'number' ||
+      typeof range.start.character !== 'number'
+    )
+      continue;
     out.push({ uri, line: range.start.line, character: range.start.character });
     if (out.length >= MAX_LOCATIONS) break;
   }
@@ -89,7 +101,11 @@ export function hoverText(contents: unknown): string {
   const parts: string[] = [];
   const push = (c: unknown): void => {
     if (typeof c === 'string') parts.push(c);
-    else if (c && typeof c === 'object' && typeof (c as Record<string, unknown>).value === 'string') {
+    else if (
+      c &&
+      typeof c === 'object' &&
+      typeof (c as Record<string, unknown>).value === 'string'
+    ) {
       parts.push((c as Record<string, unknown>).value as string);
     }
   };
@@ -187,7 +203,9 @@ export class LanguageServerClient implements LspClient {
           : `language server error: ${err.message}`;
       client.failAll(new Error(message));
     });
-    client.proc.on('exit', (code) => client.failAll(new Error(`language server exited (code ${code ?? 'unknown'})`)));
+    client.proc.on('exit', (code) =>
+      client.failAll(new Error(`language server exited (code ${code ?? 'unknown'})`)),
+    );
     client.proc.stderr!.on('data', () => {
       // language servers log to stderr; ignore (failures surface via requests)
     });
@@ -205,7 +223,11 @@ export class LanguageServerClient implements LspClient {
         },
       },
     });
-    if (!init || typeof init !== 'object' || !('capabilities' in (init as Record<string, unknown>))) {
+    if (
+      !init ||
+      typeof init !== 'object' ||
+      !('capabilities' in (init as Record<string, unknown>))
+    ) {
       client.close();
       throw new Error('language server initialize failed');
     }
@@ -238,7 +260,10 @@ export class LanguageServerClient implements LspClient {
       const pending = this.pending.get(id)!;
       this.pending.delete(id);
       clearTimeout(pending.timer);
-      if (msg.error) pending.reject(new Error(typeof msg.error === 'object' ? JSON.stringify(msg.error) : String(msg.error)));
+      if (msg.error)
+        pending.reject(
+          new Error(typeof msg.error === 'object' ? JSON.stringify(msg.error) : String(msg.error)),
+        );
       else pending.resolve(msg.result);
     }
     // Server notifications (publishDiagnostics, window/logMessage) are ignored.
@@ -322,7 +347,10 @@ const lspClientCache = new Map<string, Promise<LspClient>>();
  * Returns a cached real client for the root (or the injected fake in tests).
  * Failures are dropped from the cache so a later call can retry.
  */
-export function getLspClient(root: string, connect?: (r: string) => Promise<LspClient>): Promise<LspClient> {
+export function getLspClient(
+  root: string,
+  connect?: (r: string) => Promise<LspClient>,
+): Promise<LspClient> {
   if (connect) return connect(root);
   let cached = lspClientCache.get(root);
   if (!cached) {

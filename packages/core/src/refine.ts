@@ -95,7 +95,9 @@ export function refinePrompt(prompt: string, options: RefineOptions = {}): Refin
   const originalTokens = countTokens(prompt);
   const refinedTokens = countTokens(text);
   const savingsPct =
-    originalTokens === 0 ? 0 : Math.round(((originalTokens - refinedTokens) / originalTokens) * 100);
+    originalTokens === 0
+      ? 0
+      : Math.round(((originalTokens - refinedTokens) / originalTokens) * 100);
 
   return {
     original: prompt,

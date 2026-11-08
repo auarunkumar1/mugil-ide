@@ -73,7 +73,8 @@ export class UnifiedWireClient extends OpenAiWireClient {
 
     const headers: Record<string, string> = { ...(options.extraHeaders || {}) };
     if (kind === 'openrouter') {
-      if (!headers['HTTP-Referer']) headers['HTTP-Referer'] = 'https://github.com/auarunkumar1/mugil-ide';
+      if (!headers['HTTP-Referer'])
+        headers['HTTP-Referer'] = 'https://github.com/auarunkumar1/mugil-ide';
       if (!headers['X-Title']) headers['X-Title'] = 'Mugil IDE';
     }
 
@@ -90,11 +91,18 @@ export class UnifiedWireClient extends OpenAiWireClient {
     this.providerKind = kind;
   }
 
-  override buildBody(messages: ChatMessage[], options: ProviderCompleteOptions): Record<string, unknown> {
+  override buildBody(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Record<string, unknown> {
     const body = super.buildBody(messages, options);
 
     // Together reasoning effort
-    if (this.providerKind === 'together' && options.thinkingLevel && options.thinkingLevel !== 'off') {
+    if (
+      this.providerKind === 'together' &&
+      options.thinkingLevel &&
+      options.thinkingLevel !== 'off'
+    ) {
       body.reasoning = { effort: options.thinkingLevel };
     }
 

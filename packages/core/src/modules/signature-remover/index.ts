@@ -74,12 +74,18 @@ function getRules(): CompiledRules {
         label: r.label,
         regex: new RegExp(r.pattern, r.flags ?? 'gi'),
       })),
-      generatedHeader: new RegExp(doc.code.generatedHeader.pattern, doc.code.generatedHeader.flags ?? 'i'),
+      generatedHeader: new RegExp(
+        doc.code.generatedHeader.pattern,
+        doc.code.generatedHeader.flags ?? 'i',
+      ),
       generatedCommentLine: new RegExp(
         doc.code.generatedCommentLine.pattern,
         doc.code.generatedCommentLine.flags ?? 'gim',
       ),
-      invisibleWatermark: new RegExp(doc.code.invisibleWatermark.pattern, doc.code.invisibleWatermark.flags ?? 'g'),
+      invisibleWatermark: new RegExp(
+        doc.code.invisibleWatermark.pattern,
+        doc.code.invisibleWatermark.flags ?? 'g',
+      ),
     };
     compiledAt = revision;
   }
@@ -96,7 +102,9 @@ export interface StripOptions {
  */
 export function stripSignatures(text: string, options: StripOptions = {}): StrategyResult {
   const { rules } = getRules();
-  const providers = new Set(options.providers ?? (['anthropic', 'openai', 'generic'] as ProviderName[]));
+  const providers = new Set(
+    options.providers ?? (['anthropic', 'openai', 'generic'] as ProviderName[]),
+  );
   const removed: string[] = [];
   let out = text;
 
@@ -108,7 +116,10 @@ export function stripSignatures(text: string, options: StripOptions = {}): Strat
     });
   }
 
-  out = out.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  out = out
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return { text: out, changed: out !== text.trim(), removed };
 }
 
@@ -135,6 +146,9 @@ export function stripCodeSignatures(code: string): StrategyResult {
     out = out.replace(invisibleWatermark, '');
   }
 
-  out = out.replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  out = out
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return { text: out, changed: out !== code.trim(), removed };
 }

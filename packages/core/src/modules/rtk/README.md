@@ -1,6 +1,7 @@
 # RTK Module — Reduced Token Kernel
 
 Removes redundant tokens from prompt context and tool output:
+
 - `rtkStrategy` — strips intro/closing boilerplate and de-duplicates repeated
   sentences, keeping the imperative kernel.
 - `compressCommandOutput` — RTK-style compression for shell output: collapses

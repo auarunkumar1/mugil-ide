@@ -6,7 +6,11 @@ import {
   streamFromChunks,
 } from '../src/modules/handoff/stream.js';
 import { HandoffManager } from '../src/modules/handoff/index.js';
-import { ProviderError, type ProviderClient, type ProviderCompleteOptions } from '../src/modules/handoff/provider.js';
+import {
+  ProviderError,
+  type ProviderClient,
+  type ProviderCompleteOptions,
+} from '../src/modules/handoff/provider.js';
 import { OpenAiClient } from '../src/modules/handoff/openAi.js';
 import { AnthropicClient } from '../src/modules/handoff/anthropic.js';
 import { OpenRouterClient } from '../src/modules/handoff/openRouter.js';
@@ -74,7 +78,10 @@ describe('parseOpenAiSse', () => {
   });
 
   it('ends cleanly on [DONE] with no trailing newline', async () => {
-    const stream = streamFromChunks(['data: {"choices":[{"delta":{"content":"x"}}]}\n\n', 'data: [DONE]']);
+    const stream = streamFromChunks([
+      'data: {"choices":[{"delta":{"content":"x"}}]}\n\n',
+      'data: [DONE]',
+    ]);
     await expect(parseOpenAiSse(stream)).resolves.toMatchObject({ content: 'x' });
   });
 
@@ -178,9 +185,14 @@ describe('streamCompletion dispatcher', () => {
       finishReason: 'stop',
     }));
     const deltas: string[] = [];
-    const out = await streamCompletion(ladder({ mock: false, complete }), MSGS, {}, {
-      onDelta: (t) => deltas.push(t),
-    });
+    const out = await streamCompletion(
+      ladder({ mock: false, complete }),
+      MSGS,
+      {},
+      {
+        onDelta: (t) => deltas.push(t),
+      },
+    );
 
     expect(complete).toHaveBeenCalledTimes(1);
     expect(deltas).toEqual(['whole answer']);
@@ -234,7 +246,10 @@ describe('streamCompletion dispatcher', () => {
       if (o.model === 'a') throw new ProviderError('rate limited', 429, true);
       return resultFor(o.model);
     });
-    const out = await streamCompletion(ladder({ mock: false, complete: jest.fn() as never, stream }), MSGS);
+    const out = await streamCompletion(
+      ladder({ mock: false, complete: jest.fn() as never, stream }),
+      MSGS,
+    );
 
     expect(out.model).toBe('b');
     expect(out.attempts).toEqual(['a', 'b']);
@@ -406,7 +421,11 @@ describe('AnthropicClient.stream', () => {
 
     const deltas: string[] = [];
     const client = new AnthropicClient({ apiKey: 'sk-ant-test' });
-    const out = await client.stream!(MSGS, { model: 'claude-x' }, { onDelta: (t) => deltas.push(t) });
+    const out = await client.stream!(
+      MSGS,
+      { model: 'claude-x' },
+      { onDelta: (t) => deltas.push(t) },
+    );
 
     expect(seenBody.stream).toBe(true);
     expect(seenBody.stream_options).toBeUndefined();
@@ -468,36 +487,45 @@ describe('OpenAI-format gateway clients stream', () => {
     return seen;
   }
 
-  it.each(CASES)('$name sends stream:true + stream_options and tags its provider', async ({ client, provider }) => {
-    const seen = captureBodies();
+  it.each(CASES)(
+    '$name sends stream:true + stream_options and tags its provider',
+    async ({ client, provider }) => {
+      const seen = captureBodies();
 
-    const out = await client.stream!(MSGS, { model: 'm' });
-    expect(seen.stream.stream).toBe(true);
-    expect(seen.stream.stream_options).toEqual({ include_usage: true });
-    expect(out.provider).toBe(provider);
-    expect(out.content).toBe('ok');
-    expect(out.usage).toEqual({ promptTokens: 1, completionTokens: 1, totalTokens: 2 });
-  });
+      const out = await client.stream!(MSGS, { model: 'm' });
+      expect(seen.stream.stream).toBe(true);
+      expect(seen.stream.stream_options).toEqual({ include_usage: true });
+      expect(out.provider).toBe(provider);
+      expect(out.content).toBe('ok');
+      expect(out.usage).toEqual({ promptTokens: 1, completionTokens: 1, totalTokens: 2 });
+    },
+  );
 
-  it.each(CASES)('$name keeps stream/stream_options out of the buffered body', async ({ client }) => {
-    const seen = captureBodies();
+  it.each(CASES)(
+    '$name keeps stream/stream_options out of the buffered body',
+    async ({ client }) => {
+      const seen = captureBodies();
 
-    await client.complete(MSGS, { model: 'm' });
-    expect(seen.complete.stream).toBeUndefined();
-    expect(seen.complete.stream_options).toBeUndefined();
-  });
+      await client.complete(MSGS, { model: 'm' });
+      expect(seen.complete.stream).toBeUndefined();
+      expect(seen.complete.stream_options).toBeUndefined();
+    },
+  );
 
-  it.each(CASES)('$name splits <think> on the buffered path like the streaming path', async ({ client }) => {
-    global.fetch = (async () =>
-      new Response(
-        JSON.stringify({
-          choices: [{ message: { content: '<think>reason</think>answer' } }],
-        }),
-        { status: 200 },
-      )) as unknown as typeof fetch;
+  it.each(CASES)(
+    '$name splits <think> on the buffered path like the streaming path',
+    async ({ client }) => {
+      global.fetch = (async () =>
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '<think>reason</think>answer' } }],
+          }),
+          { status: 200 },
+        )) as unknown as typeof fetch;
 
-    const out = await client.complete(MSGS, { model: 'deepseek-r1' });
-    expect(out.content).toBe('answer');
-    expect(out.thinking).toBe('reason');
-  });
+      const out = await client.complete(MSGS, { model: 'deepseek-r1' });
+      expect(out.content).toBe('answer');
+      expect(out.thinking).toBe('reason');
+    },
+  );
 });

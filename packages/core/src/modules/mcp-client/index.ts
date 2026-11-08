@@ -24,7 +24,11 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { ToolCall, ToolDefinition } from '../../types.js';
 import type { ToolRegistry } from '../tool-loop/index.js';
-import { createLazyMcpGateway, LAZY_MCP_TOOL_DEFINITIONS, type LazyMcpOptions } from './lazyGateway.js';
+import {
+  createLazyMcpGateway,
+  LAZY_MCP_TOOL_DEFINITIONS,
+  type LazyMcpOptions,
+} from './lazyGateway.js';
 
 export { createLazyMcpGateway, LAZY_MCP_TOOL_DEFINITIONS };
 export type { LazyMcpOptions };
@@ -117,7 +121,10 @@ export async function connectMcpServers(
         tools.push({
           name,
           description: tool.description ?? '',
-          parameters: (tool.inputSchema ?? { type: 'object', properties: {} }) as Record<string, unknown>,
+          parameters: (tool.inputSchema ?? { type: 'object', properties: {} }) as Record<
+            string,
+            unknown
+          >,
         });
         registry[name] = async (call: ToolCall): Promise<string> => {
           let args: unknown;
@@ -196,8 +203,13 @@ async function connectOneMcpServer(server: McpServerConfig): Promise<McpConnecti
       inputSchema: t.inputSchema,
     })),
     callTool: async (name, args) => {
-      const result = await client.callTool({ name, arguments: args as Record<string, unknown> | undefined });
-      return mcpResultToString(result as { isError?: boolean; content?: { type?: string; text?: string }[] });
+      const result = await client.callTool({
+        name,
+        arguments: args as Record<string, unknown> | undefined,
+      });
+      return mcpResultToString(
+        result as { isError?: boolean; content?: { type?: string; text?: string }[] },
+      );
     },
     close: async () => {
       await client.close();

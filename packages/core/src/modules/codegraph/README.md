@@ -23,12 +23,12 @@ for (const { symbol, score } of context) {
 
 ## What it extracts
 
-| Piece | Description |
-| --- | --- |
-| **Symbols** | Exported functions, consts, classes, interfaces, types, enums (TS/JS); functions, classes (Python); funcs, structs/interfaces (Go); fns, structs, enums, traits (Rust) |
-| **Snippets** | Each symbol carries the source block from its definition up to the next symbol (~60 lines max) — ready-made context |
-| **Import edges** | File → imported module specifier (`from`/`require` in TS, `import`/`from` in Python, `import` in Go, `use` in Rust) |
-| **Call edges** | Same-file references: symbol A's body mentions symbol B → edge A→B |
+| Piece            | Description                                                                                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Symbols**      | Exported functions, consts, classes, interfaces, types, enums (TS/JS); functions, classes (Python); funcs, structs/interfaces (Go); fns, structs, enums, traits (Rust) |
+| **Snippets**     | Each symbol carries the source block from its definition up to the next symbol (~60 lines max) — ready-made context                                                    |
+| **Import edges** | File → imported module specifier (`from`/`require` in TS, `import`/`from` in Python, `import` in Go, `use` in Rust)                                                    |
+| **Call edges**   | Same-file references: symbol A's body mentions symbol B → edge A→B                                                                                                     |
 
 ## Querying
 

@@ -50,7 +50,11 @@ function scriptedEngine() {
       throw new Error('smoke: no model call expected');
     },
   };
-  const cache = new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 0, embedding: new LexicalEmbedding() });
+  const cache = new SmartCache({
+    backend: new MemoryBackend(),
+    ttlSeconds: 0,
+    embedding: new LexicalEmbedding(),
+  });
   const handoff = new HandoffManager({ client, models: [] });
   const pipeline = new Pipeline({ cache, handoff });
   const engine = {
@@ -79,14 +83,26 @@ function recordSmokeEdits() {
   // In-cap but worst-case: 900 fully-dissimilar lines ≈ 300-400ms of diff work.
   pushEdit(root, {
     path: join(root, 'diff-smoke-medium.txt'),
-    before: { content: Array.from({ length: 900 }, (_, i) => `alpha line ${i}`).join('\n'), existed: true },
-    after: { content: Array.from({ length: 900 }, (_, i) => `beta line ${i}`).join('\n'), existed: true },
+    before: {
+      content: Array.from({ length: 900 }, (_, i) => `alpha line ${i}`).join('\n'),
+      existed: true,
+    },
+    after: {
+      content: Array.from({ length: 900 }, (_, i) => `beta line ${i}`).join('\n'),
+      existed: true,
+    },
   });
   // Oversized (>1000 lines): must be skipped by the server, not diffed.
   pushEdit(root, {
     path: join(root, 'diff-smoke-big.txt'),
-    before: { content: Array.from({ length: 3000 }, (_, i) => `alpha line ${i}`).join('\n'), existed: true },
-    after: { content: Array.from({ length: 3000 }, (_, i) => `beta line ${i}`).join('\n'), existed: true },
+    before: {
+      content: Array.from({ length: 3000 }, (_, i) => `alpha line ${i}`).join('\n'),
+      existed: true,
+    },
+    after: {
+      content: Array.from({ length: 3000 }, (_, i) => `beta line ${i}`).join('\n'),
+      existed: true,
+    },
   });
 }
 
@@ -98,7 +114,9 @@ function findChrome() {
     env.CHROME_PATH,
     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    env.LOCALAPPDATA ? join(env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe') : undefined,
+    env.LOCALAPPDATA
+      ? join(env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+      : undefined,
     '/usr/bin/google-chrome',
     '/usr/bin/google-chrome-stable',
     '/usr/bin/chromium',
@@ -111,11 +129,25 @@ function findChrome() {
 async function launchChrome(chromePath) {
   const profile = mkdtempSync(join(tmpdir(), 'mugil-smoke-'));
   const flagSets = [
-    ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0'],
-    ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0'],
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--remote-debugging-port=0',
+    ],
+    [
+      '--headless',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--remote-debugging-port=0',
+    ],
   ];
   for (const flags of flagSets) {
-    const proc = spawn(chromePath, [...flags, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+    const proc = spawn(chromePath, [...flags, `--user-data-dir=${profile}`, 'about:blank'], {
+      stdio: 'ignore',
+    });
     const portFile = join(profile, 'DevToolsActivePort');
     const deadline = Date.now() + 10000;
     while (Date.now() < deadline && !existsSync(portFile) && proc.exitCode === null) {
@@ -128,7 +160,9 @@ async function launchChrome(chromePath) {
     proc.kill();
     await sleep(200);
   }
-  throw new Error('Chrome did not start (no DevToolsActivePort). Is Chrome installed? Set CHROME_PATH if needed.');
+  throw new Error(
+    'Chrome did not start (no DevToolsActivePort). Is Chrome installed? Set CHROME_PATH if needed.',
+  );
 }
 
 function killChrome(proc, profile) {
@@ -194,9 +228,15 @@ class Cdp {
     }
   }
   async evaluate(expression) {
-    const r = await this.send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    const r = await this.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise: true,
+    });
     if (r.exceptionDetails) {
-      throw new Error(`page eval failed: ${r.exceptionDetails.text} ${r.exceptionDetails.exception?.description ?? ''}`);
+      throw new Error(
+        `page eval failed: ${r.exceptionDetails.text} ${r.exceptionDetails.exception?.description ?? ''}`,
+      );
     }
     return r.result?.value;
   }
@@ -213,12 +253,16 @@ class Cdp {
       }
       await sleep(interval);
     }
-    throw new Error(`timed out waiting for: ${label}${lastErr ? ` (last error: ${lastErr.message})` : ''}`);
+    throw new Error(
+      `timed out waiting for: ${label}${lastErr ? ` (last error: ${lastErr.message})` : ''}`,
+    );
   }
 }
 
 async function connectPage(port) {
-  const target = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' }).then((r) => r.json());
+  const target = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, {
+    method: 'PUT',
+  }).then((r) => r.json());
   const cdp = new Cdp(target.webSocketDebuggerUrl);
   await cdp.open();
   await cdp.send('Page.enable');
@@ -230,7 +274,9 @@ async function connectPage(port) {
     diagnostics.console.push(p.args.map((a) => a.value ?? a.description ?? '').join(' '));
   });
   cdp.onEvent('Runtime.exceptionThrown', (p) => {
-    diagnostics.exceptions.push(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? 'unknown');
+    diagnostics.exceptions.push(
+      p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? 'unknown',
+    );
   });
   cdp.onEvent('Log.entryAdded', (p) => {
     diagnostics.console.push(`[log:${p.entry.level}] ${p.entry.text}`);
@@ -242,7 +288,9 @@ async function connectPage(port) {
 
 function assertEq(actual, expected, label) {
   if (actual !== expected) {
-    throw new Error(`${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    throw new Error(
+      `${label}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`,
+    );
   }
 }
 
@@ -258,7 +306,9 @@ async function runScenario() {
     const htmlRes = await fetch(server.url);
     const htmlText = await htmlRes.text();
     if (htmlRes.status !== 200 || !htmlText.includes('id="chat-input"')) {
-      throw new Error(`server did not serve the app HTML (${server.url}, status ${htmlRes.status})`);
+      throw new Error(
+        `server did not serve the app HTML (${server.url}, status ${htmlRes.status})`,
+      );
     }
 
     await cdp.send('Page.navigate', { url: server.url });
@@ -276,18 +326,30 @@ async function runScenario() {
       label: 'diff-count badge = 3 (all three edits rendered)',
     });
 
-    assertEq(await cdp.evaluate(`document.getElementById('diff-file-title').textContent`), 'Modified Files (3)', 'diff title');
-    assertEq(await cdp.evaluate(`document.querySelectorAll('#diff-content > div').length`), 3, 'diff cards rendered');
+    assertEq(
+      await cdp.evaluate(`document.getElementById('diff-file-title').textContent`),
+      'Modified Files (3)',
+      'diff title',
+    );
+    assertEq(
+      await cdp.evaluate(`document.querySelectorAll('#diff-content > div').length`),
+      3,
+      'diff cards rendered',
+    );
 
     // The small edit produced a real patch (a '+mugil' added line).
     assertEq(
-      await cdp.evaluate(`Array.from(document.querySelectorAll('#diff-content pre div')).some((el) => el.textContent.includes('mugil'))`),
+      await cdp.evaluate(
+        `Array.from(document.querySelectorAll('#diff-content pre div')).some((el) => el.textContent.includes('mugil'))`,
+      ),
       true,
       'small-edit patch rendered',
     );
     // The medium edit (worker-thread diff) rendered its changed lines too.
     assertEq(
-      await cdp.evaluate(`Array.from(document.querySelectorAll('#diff-content pre div')).some((el) => el.textContent.includes('beta line'))`),
+      await cdp.evaluate(
+        `Array.from(document.querySelectorAll('#diff-content pre div')).some((el) => el.textContent.includes('beta line'))`,
+      ),
       true,
       'medium-edit patch rendered',
     );
@@ -311,7 +373,9 @@ async function runScenario() {
     })()`);
     assertEq(winner, 'status', 'event loop responsive during diff (async diffing)');
 
-    console.log('  ✓ Diff Viewer: patches render, oversized edits show the skip notice, event loop stays responsive');
+    console.log(
+      '  ✓ Diff Viewer: patches render, oversized edits show the skip notice, event loop stays responsive',
+    );
   } catch (err) {
     if (process.env.MUGIL_SMOKE_DEBUG) {
       const safeEval = async (expr) => {
@@ -321,7 +385,10 @@ async function runScenario() {
           return `(eval failed: ${e.message})`;
         }
       };
-      console.error('DEBUG diff-content HTML:', await safeEval(`document.getElementById('diff-content').innerHTML.slice(0, 2000)`));
+      console.error(
+        'DEBUG diff-content HTML:',
+        await safeEval(`document.getElementById('diff-content').innerHTML.slice(0, 2000)`),
+      );
       console.error('DEBUG console/exceptions:', JSON.stringify(diagnostics.console, null, 2));
       console.error('DEBUG exceptions:', JSON.stringify(diagnostics.exceptions, null, 2));
     }

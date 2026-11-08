@@ -1,6 +1,7 @@
 # Signature Remover Module
 
 Removes boilerplate "signatures":
+
 - **Prompt side** — Anthropic `Human:`/`Assistant:` markers, `<system>` tags
   and "You are Claude…" preambles; OpenAI "As an AI language model…" preambles;
   generic gratitude closers and disclaimers.

@@ -1,4 +1,8 @@
-import { SmartCache, PrefixTrie, type SmartCacheOptions } from '../src/modules/smart-cache/index.js';
+import {
+  SmartCache,
+  PrefixTrie,
+  type SmartCacheOptions,
+} from '../src/modules/smart-cache/index.js';
 import { MemoryBackend } from '../src/modules/smart-cache/backends.js';
 import { cosineSimilarity, LexicalEmbedding } from '../src/modules/smart-cache/embeddings.js';
 
@@ -22,13 +26,27 @@ describe('SmartCache', () => {
 
   it('persists the mock flag on stored entries', async () => {
     const cache = makeCache();
-    await cache.store('Write a fibonacci function.', 'fib A', 'model-a', undefined, 'model-a', true);
+    await cache.store(
+      'Write a fibonacci function.',
+      'fib A',
+      'model-a',
+      undefined,
+      'model-a',
+      true,
+    );
     const live = await cache.lookup('Write a fibonacci function.', { model: 'model-a' });
     expect(live.kind).toBe('exact');
     expect(live.entry?.mock).toBe(true);
     // Without the flag the entry is explicitly non-mock (authoritative, so the
     // pipeline can serve it even if the text contains the [mock] marker).
-    await cache.store('Another prompt.', 'mentions [mock] in text', 'model-a', undefined, 'model-a', false);
+    await cache.store(
+      'Another prompt.',
+      'mentions [mock] in text',
+      'model-a',
+      undefined,
+      'model-a',
+      false,
+    );
     const nonMock = await cache.lookup('Another prompt.', { model: 'model-a' });
     expect(nonMock.entry?.mock).toBe(false);
   });
@@ -70,9 +88,13 @@ describe('SmartCache', () => {
   it('semantic hits respect the model scope', async () => {
     const cache = makeCache(0.3);
     await cache.store('How do I sort an array of numbers?', 'Use .sort()', 'm-a', undefined, 'm-a');
-    const other = await cache.lookup('What is the best way to sort a list of numbers?', { model: 'm-b' });
+    const other = await cache.lookup('What is the best way to sort a list of numbers?', {
+      model: 'm-b',
+    });
     expect(other.entry).toBeUndefined();
-    const own = await cache.lookup('What is the best way to sort a list of numbers?', { model: 'm-a' });
+    const own = await cache.lookup('What is the best way to sort a list of numbers?', {
+      model: 'm-a',
+    });
     expect(own.kind).toBe('semantic');
     expect(own.entry?.response).toBe('Use .sort()');
   });
@@ -80,7 +102,9 @@ describe('SmartCache', () => {
   it('partial hit returns the delta', async () => {
     const cache = makeCache();
     await cache.store('Write a function that adds two numbers together.', 'add(a, b)', 'm');
-    const { kind, delta } = await cache.lookup('Write a function that adds two numbers together. Then test it.');
+    const { kind, delta } = await cache.lookup(
+      'Write a function that adds two numbers together. Then test it.',
+    );
     expect(kind).toBe('partial');
     expect(delta).toContain('Then test it');
   });
@@ -298,11 +322,7 @@ describe('partial lookup guards', () => {
   it('rejects a shared prefix that is too short a fraction of the new prompt', async () => {
     const cache = mk();
     // 30 chars stored; the new prompt is 300 chars, so 10% overlap.
-    await cache.store(
-      'fix the parser bug in the lexer',
-      'The bug is in scanNumber.',
-      'm',
-    );
+    await cache.store('fix the parser bug in the lexer', 'The bug is in scanNumber.', 'm');
     const res = await cache.lookup(
       'fix the parser bug in the lexer and also rewrite the tokenizer to be iterative instead of recursive please',
     );

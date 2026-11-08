@@ -788,6 +788,9 @@ export function getWebUiHtml(): string {
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openModulesModal();">
             <span>⚡ Token Modules & Rules</span>
           </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openCreditsModal();">
+            <span>📜 Open Source Credits & Attributions</span>
+          </button>
           <div class="menu-divider"></div>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); triggerUndo();" style="color:var(--yellow);">
             <span>↩ Undo Last Edit</span>
@@ -1360,14 +1363,18 @@ export function getWebUiHtml(): string {
         </div>
         <div class="modal-tabs">
           <button class="modal-tab-btn active" id="exttab-skills" onclick="switchExtTab('skills')">Agent Skills</button>
+          <button class="modal-tab-btn" id="exttab-gallery" onclick="switchExtTab('gallery')">Skills Gallery</button>
           <button class="modal-tab-btn" id="exttab-mcp" onclick="switchExtTab('mcp')">Connected MCP Servers (0)</button>
         </div>
         <div id="ext-skills-pane" style="display:flex; flex-direction:column; gap:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <span style="font-size:11px; color:var(--text-dim);">
               Skills are discovered from <code>.mugil/skills</code>, <code>.agents/skills</code>, <code>.claude/skills</code>, your global <code>~/.config/mugil-ide/skills</code>, and built-ins.
             </span>
-            <button class="btn btn-primary" onclick="openSkillCreate()" style="font-size:11px; padding:4px 10px; white-space:nowrap;">✨ New Skill</button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn" onclick="openSkillInstallModal()" style="font-size:11px; padding:4px 10px; white-space:nowrap;">📥 Install Custom</button>
+              <button class="btn btn-primary" onclick="openSkillCreate()" style="font-size:11px; padding:4px 10px; white-space:nowrap;">✨ New Skill</button>
+            </div>
           </div>
           <div id="skill-list" style="display:flex; flex-direction:column; gap:10px;">
             <div style="color:var(--text-dim); font-size:11.5px; padding:12px;">Loading skills…</div>
@@ -1378,6 +1385,24 @@ export function getWebUiHtml(): string {
               <button class="btn" onclick="closeSkillViewer()" style="padding:2px 8px;">✕</button>
             </div>
             <pre id="skill-viewer-body" style="margin:0; padding:12px; font-size:11px; line-height:1.5; max-height:340px; overflow:auto; white-space:pre-wrap;"></pre>
+          </div>
+        </div>
+        <div id="ext-gallery-pane" style="display:none; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="gallery-search" placeholder="Search curated gallery skills by name, tag, or description..." oninput="filterGallery()" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:11.5px;" />
+          </div>
+          <div id="gallery-categories" style="display:flex; gap:5px; flex-wrap:wrap;">
+            <button class="btn active-cat" id="cat-all" onclick="switchGalleryCategory('all')" style="font-size:10px; padding:2px 8px; border-radius:12px;">All</button>
+            <button class="btn" id="cat-architecture" onclick="switchGalleryCategory('Architecture')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Architecture</button>
+            <button class="btn" id="cat-testing" onclick="switchGalleryCategory('Testing')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Testing</button>
+            <button class="btn" id="cat-security" onclick="switchGalleryCategory('Security')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Security</button>
+            <button class="btn" id="cat-refactoring" onclick="switchGalleryCategory('Refactoring')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Refactoring</button>
+            <button class="btn" id="cat-devops" onclick="switchGalleryCategory('DevOps')" style="font-size:10px; padding:2px 8px; border-radius:12px;">DevOps</button>
+            <button class="btn" id="cat-git" onclick="switchGalleryCategory('Git & Workflow')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Git & Workflow</button>
+            <button class="btn" id="cat-performance" onclick="switchGalleryCategory('Performance')" style="font-size:10px; padding:2px 8px; border-radius:12px;">Performance</button>
+          </div>
+          <div id="gallery-list" style="display:flex; flex-direction:column; gap:10px; max-height:50vh; overflow-y:auto;">
+            <div style="color:var(--text-dim); font-size:11.5px; padding:12px;">Loading gallery…</div>
           </div>
         </div>
         <div id="ext-mcp-pane" style="display:none; flex-direction:column; gap:10px;">
@@ -1426,6 +1451,72 @@ export function getWebUiHtml(): string {
       </div>
     </div>
   </div>
+
+  <!-- Install Custom Skill Modal -->
+  <div class="modal-overlay" id="skill-install-modal">
+    <div class="modal-dialog" style="max-width:540px;">
+      <div class="modal-title-bar">
+        <span>📥 Install Custom Skill</span>
+        <button class="btn" onclick="closeSkillInstallModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:11.5px; color:var(--text-dim); line-height:1.4;">
+          Install an agent skill from a GitHub repository, subfolder URL, direct raw <code>SKILL.md</code> link, or local directory.
+        </div>
+        <div>
+          <label for="skill-install-source" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Skill Source URL or Local Path</label>
+          <input type="text" id="skill-install-source" placeholder="e.g. https://github.com/org/repo/tree/main/skills/my-skill" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px; font-family:monospace;" />
+        </div>
+        <div>
+          <label for="skill-install-name" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Custom Skill Name (Optional)</label>
+          <input type="text" id="skill-install-name" placeholder="Leave empty to infer from repository / SKILL.md" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px;" />
+        </div>
+        <div>
+          <label for="skill-install-target" style="font-size:12px; font-weight:600; display:block; margin-bottom:4px;">Installation Target</label>
+          <select id="skill-install-target" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12px;">
+            <option value="workspace">Workspace (.mugil/skills — this project only)</option>
+            <option value="global">Global (~/.config/mugil-ide/skills — available everywhere)</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="skill-install-force" />
+          <label for="skill-install-force" style="font-size:11.5px; color:var(--text);">Overwrite if already installed</label>
+        </div>
+        <div id="skill-install-error" style="display:none; color:var(--red); font-size:11px; padding:6px 10px; background:#f8514915; border-radius:6px; border:1px solid #f8514933;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+          <button class="btn" onclick="closeSkillInstallModal()">Cancel</button>
+          <button class="btn btn-primary" id="skill-install-submit-btn" onclick="submitCustomSkillInstall()">📥 Install Skill</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Open Source Credits & Attributions Modal -->
+  <div class="modal-overlay" id="credits-modal">
+    <div class="modal-dialog" style="max-width:760px; max-height:85vh; display:flex; flex-direction:column;">
+      <div class="modal-title-bar">
+        <span>📜 Open Source Credits & Attributions</span>
+        <button class="btn" onclick="closeCreditsModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:12px; overflow-y:auto;">
+        <div style="font-size:12px; color:var(--text-dim); line-height:1.4;">
+          Mugil IDE stands on the shoulders of the open-source community. All agent skills, core engine modules, and foundational libraries are credited below with their authors, upstream repositories, and licenses.
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="credits-search" placeholder="Search credits by name, author, license, or keyword..." oninput="filterCredits()" style="flex:1; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:11.5px;" />
+        </div>
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" id="credtab-skills" onclick="switchCreditsTab('skills')">Agent Skills</button>
+          <button class="modal-tab-btn" id="credtab-modules" onclick="switchCreditsTab('modules')">Core Engine Modules</button>
+          <button class="modal-tab-btn" id="credtab-libraries" onclick="switchCreditsTab('libraries')">Libraries & Infrastructure</button>
+        </div>
+        <div id="credits-container" style="display:flex; flex-direction:column; gap:10px; max-height:55vh; overflow-y:auto;">
+          <div style="color:var(--text-dim); font-size:11.5px; padding:12px;">Loading credits…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Workspace Project Selector Modal -->
   <div class="modal-overlay" id="workspace-modal">
     <div class="modal-dialog" style="max-width:560px;">
@@ -3943,6 +4034,7 @@ export function getWebUiHtml(): string {
     function openExtensionsModal() {
       document.getElementById('extensions-modal').classList.add('open');
       loadSkills();
+      loadGallery();
     }
     let skillsCache = [];
     function escHtml(s) {
@@ -4079,21 +4171,262 @@ export function getWebUiHtml(): string {
 
     function switchExtTab(tab) {
       const skillsPane = document.getElementById('ext-skills-pane');
+      const galleryPane = document.getElementById('ext-gallery-pane');
       const mcpPane = document.getElementById('ext-mcp-pane');
       const btnSkills = document.getElementById('exttab-skills');
+      const btnGallery = document.getElementById('exttab-gallery');
       const btnMcp = document.getElementById('exttab-mcp');
 
-      if (tab === 'skills') {
-        skillsPane.style.display = 'flex';
-        mcpPane.style.display = 'none';
-        btnSkills.classList.add('active');
-        btnMcp.classList.remove('active');
-      } else {
-        skillsPane.style.display = 'none';
-        mcpPane.style.display = 'flex';
-        btnSkills.classList.remove('active');
-        btnMcp.classList.add('active');
+      if (skillsPane) skillsPane.style.display = tab === 'skills' ? 'flex' : 'none';
+      if (galleryPane) galleryPane.style.display = tab === 'gallery' ? 'flex' : 'none';
+      if (mcpPane) mcpPane.style.display = tab === 'mcp' ? 'flex' : 'none';
+
+      if (btnSkills) btnSkills.classList.toggle('active', tab === 'skills');
+      if (btnGallery) btnGallery.classList.toggle('active', tab === 'gallery');
+      if (btnMcp) btnMcp.classList.toggle('active', tab === 'mcp');
+    }
+
+    let galleryCache = [];
+    let activeGalleryCategory = 'all';
+
+    async function loadGallery() {
+      const list = document.getElementById('gallery-list');
+      if (!list) return;
+      try {
+        const res = await fetch('/api/skills/gallery');
+        const data = await res.json();
+        galleryCache = Array.isArray(data.gallery) ? data.gallery : [];
+        const tab = document.getElementById('exttab-gallery');
+        if (tab) tab.textContent = 'Skills Gallery (' + galleryCache.length + ')';
+        renderGallery();
+      } catch (err) {
+        list.innerHTML = '<div style="color:var(--red); font-size:11.5px; padding:12px;">Failed to load gallery: ' + escHtml(err.message) + '</div>';
       }
+    }
+
+    function switchGalleryCategory(cat) {
+      activeGalleryCategory = cat;
+      const chips = document.querySelectorAll('#gallery-categories button');
+      chips.forEach((btn) => {
+        btn.classList.toggle('btn-primary', btn.id === ('cat-' + (cat === 'Git & Workflow' ? 'git' : cat.toLowerCase())));
+      });
+      renderGallery();
+    }
+
+    function filterGallery() {
+      renderGallery();
+    }
+
+    function renderGallery() {
+      const list = document.getElementById('gallery-list');
+      if (!list) return;
+      const q = (document.getElementById('gallery-search')?.value || '').toLowerCase().trim();
+
+      let items = galleryCache;
+      if (activeGalleryCategory !== 'all') {
+        items = items.filter((s) => s.category.toLowerCase() === activeGalleryCategory.toLowerCase());
+      }
+      if (q) {
+        items = items.filter((s) =>
+          s.name.toLowerCase().includes(q)
+          || s.description.toLowerCase().includes(q)
+          || (s.tags && s.tags.some((t) => t.toLowerCase().includes(q)))
+          || s.author.toLowerCase().includes(q)
+        );
+      }
+
+      if (items.length === 0) {
+        list.innerHTML = '<div style="color:var(--text-dim); font-size:11.5px; padding:16px; text-align:center;">No matching gallery skills found.</div>';
+        return;
+      }
+
+      list.innerHTML = items.map((item) => {
+        const installedBadge = item.installed
+          ? '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; background:#23863633; color:var(--green);">✓ Installed (' + escHtml(item.installedTarget || 'workspace') + ')</span>'
+          : '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; background:#1f6feb22; color:var(--accent);">Ready to Pick</span>';
+
+        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22; display:flex; flex-direction:column; gap:6px;">'
+          + '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
+          + '<div><strong style="font-size:12.5px;">' + escHtml(item.name) + '</strong> <span style="font-size:10.5px; color:var(--text-dim);">(' + escHtml(item.id) + ')</span></div>'
+          + '<div style="display:flex; gap:6px; align-items:center;">'
+          + '<span style="font-size:10px; padding:2px 6px; border-radius:8px; background:#30363d; color:var(--text-dim);">' + escHtml(item.category) + '</span>'
+          + installedBadge
+          + '</div></div>'
+          + '<p style="font-size:11.5px; color:var(--text-dim); margin:2px 0;">' + escHtml(item.description) + '</p>'
+          + '<div style="font-size:10.5px; color:var(--text-dim); display:flex; gap:12px; flex-wrap:wrap;">'
+          + '<span>👤 <b>' + escHtml(item.author) + '</b></span>'
+          + '<span>⚖️ <b>' + escHtml(item.license) + '</b></span>'
+          + '<a href="' + escHtml(item.upstreamUrl) + '" target="_blank" style="color:var(--accent); text-decoration:none;">↗ Upstream Source</a>'
+          + '</div>'
+          + '<div style="display:flex; gap:6px; margin-top:6px;">'
+          + '<button class="btn" style="font-size:10.5px; padding:3px 8px;" onclick="previewGallerySkill(\\'' + escHtml(item.id) + '\\')">Preview Instructions</button>'
+          + '<button class="btn btn-primary" style="font-size:10.5px; padding:3px 8px;" onclick="installGallerySkill(\\'' + escHtml(item.id) + '\\', \\'workspace\\')">📥 Install to Workspace</button>'
+          + '<button class="btn" style="font-size:10.5px; padding:3px 8px;" onclick="installGallerySkill(\\'' + escHtml(item.id) + '\\', \\'global\\')">🌐 Install Globally</button>'
+          + '</div></div>';
+      }).join('');
+    }
+
+    function previewGallerySkill(id) {
+      const item = galleryCache.find((s) => s.id === id);
+      if (!item) return;
+      document.getElementById('skill-viewer-title').textContent = item.name + ' (' + item.id + ') — Gallery Preview';
+      document.getElementById('skill-viewer-body').textContent = item.content;
+      document.getElementById('skill-viewer').style.display = 'block';
+      document.getElementById('skill-viewer').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function installGallerySkill(id, target) {
+      try {
+        const res = await fetch('/api/skills/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'gallery', source: id, target, overwrite: true }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        alert('✓ ' + (data.result?.message || 'Skill installed successfully!'));
+        await loadSkills();
+        await loadGallery();
+      } catch (err) {
+        alert('Could not install skill: ' + err.message);
+      }
+    }
+
+    function openSkillInstallModal() {
+      document.getElementById('skill-install-modal').classList.add('open');
+      document.getElementById('skill-install-error').style.display = 'none';
+    }
+
+    function closeSkillInstallModal() {
+      document.getElementById('skill-install-modal').classList.remove('open');
+    }
+
+    async function submitCustomSkillInstall() {
+      const source = document.getElementById('skill-install-source').value.trim();
+      const name = document.getElementById('skill-install-name').value.trim();
+      const target = document.getElementById('skill-install-target').value;
+      const overwrite = document.getElementById('skill-install-force').checked;
+      const errBox = document.getElementById('skill-install-error');
+      const submitBtn = document.getElementById('skill-install-submit-btn');
+
+      errBox.style.display = 'none';
+      if (!source) {
+        errBox.textContent = 'Please enter a repository URL, raw SKILL.md URL, or folder path.';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Installing…';
+
+      try {
+        const res = await fetch('/api/skills/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: source.startsWith('http') ? 'url' : 'path',
+            source,
+            name: name || undefined,
+            target,
+            overwrite,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        closeSkillInstallModal();
+        document.getElementById('skill-install-source').value = '';
+        document.getElementById('skill-install-name').value = '';
+        alert('✓ ' + (data.result?.message || 'Custom skill installed successfully!'));
+        await loadSkills();
+        await loadGallery();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📥 Install Skill';
+      }
+    }
+
+    // Credits Modal
+    let creditsCache = null;
+    let activeCreditsTab = 'skills';
+
+    function openCreditsModal() {
+      document.getElementById('credits-modal').classList.add('open');
+      loadCredits();
+    }
+
+    function closeCreditsModal() {
+      document.getElementById('credits-modal').classList.remove('open');
+    }
+
+    async function loadCredits() {
+      const container = document.getElementById('credits-container');
+      if (!container) return;
+      try {
+        const res = await fetch('/api/credits');
+        creditsCache = await res.json();
+        renderCredits();
+      } catch (err) {
+        container.innerHTML = '<div style="color:var(--red); font-size:11.5px; padding:12px;">Failed to load credits: ' + escHtml(err.message) + '</div>';
+      }
+    }
+
+    function switchCreditsTab(tab) {
+      activeCreditsTab = tab;
+      const btnSkills = document.getElementById('credtab-skills');
+      const btnModules = document.getElementById('credtab-modules');
+      const btnLibs = document.getElementById('credtab-libraries');
+      if (btnSkills) btnSkills.classList.toggle('active', tab === 'skills');
+      if (btnModules) btnModules.classList.toggle('active', tab === 'modules');
+      if (btnLibs) btnLibs.classList.toggle('active', tab === 'libraries');
+      renderCredits();
+    }
+
+    function filterCredits() {
+      renderCredits();
+    }
+
+    function renderCredits() {
+      const container = document.getElementById('credits-container');
+      if (!container || !creditsCache) return;
+
+      const q = (document.getElementById('credits-search')?.value || '').toLowerCase().trim();
+      let records = [];
+      if (activeCreditsTab === 'skills') records = creditsCache.skills || [];
+      else if (activeCreditsTab === 'modules') records = creditsCache.coreModules || [];
+      else if (activeCreditsTab === 'libraries') records = creditsCache.libraries || [];
+
+      if (q) {
+        records = records.filter((r) =>
+          r.name.toLowerCase().includes(q)
+          || r.author.toLowerCase().includes(q)
+          || r.license.toLowerCase().includes(q)
+          || (r.concept && r.concept.toLowerCase().includes(q))
+        );
+      }
+
+      if (records.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-dim); font-size:11.5px; padding:16px; text-align:center;">No matching attribution records found.</div>';
+        return;
+      }
+
+      container.innerHTML = records.map((r) => {
+        const instBadge = r.installed ? '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; background:#23863633; color:var(--green);">✓ Installed</span>' : '';
+        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22; display:flex; flex-direction:column; gap:4px;">'
+          + '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
+          + '<strong style="font-size:12.5px;">' + escHtml(r.name) + '</strong>'
+          + '<div style="display:flex; gap:6px; align-items:center;">'
+          + '<span style="font-size:10px; padding:2px 6px; border-radius:8px; background:#30363d; color:var(--text); font-weight:600;">' + escHtml(r.license) + '</span>'
+          + instBadge
+          + '</div></div>'
+          + '<p style="font-size:11.5px; color:var(--text-dim); margin:2px 0;">' + escHtml(r.concept || '') + '</p>'
+          + '<div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-top:4px;">'
+          + '<span style="color:var(--text-dim);">Creator / Project: <b style="color:var(--text);">' + escHtml(r.author) + '</b></span>'
+          + '<a href="' + escHtml(r.upstreamUrl) + '" target="_blank" style="color:var(--accent); text-decoration:none; font-weight:500;">↗ Upstream Repository</a>'
+          + '</div></div>';
+      }).join('');
     }
 
     window.onload = async () => {

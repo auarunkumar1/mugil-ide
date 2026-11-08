@@ -17,7 +17,10 @@ const MAX_FILE_SIZE_BYTES = 250_000; // 250 KB per file
  * reads the local files from the filesystem, and appends their content
  * formatted with markdown blocks to provide grounding context for the LLM.
  */
-export function resolveFileContext(prompt: string, cwd: string = process.cwd()): ResolveContextResult {
+export function resolveFileContext(
+  prompt: string,
+  cwd: string = process.cwd(),
+): ResolveContextResult {
   const attachedFiles: string[] = [];
   const warnings: string[] = [];
   const fileContents: string[] = [];
@@ -53,16 +56,14 @@ export function resolveFileContext(prompt: string, cwd: string = process.cwd()):
           const ext = path.extname(raw).replace(/^\./, '') || 'text';
           const relPath = path.relative(cwd, resolved);
 
-          fileContents.push(
-            `\n\`\`\`${ext} [File: ${relPath}]\n${text}\n\`\`\``
-          );
+          fileContents.push(`\n\`\`\`${ext} [File: ${relPath}]\n${text}\n\`\`\``);
           attachedFiles.push(relPath);
         } else if (stat.isDirectory()) {
           // List directory files
           const files = fs.readdirSync(resolved);
           const relPath = path.relative(cwd, resolved) || '.';
           fileContents.push(
-            `\n[Directory: ${relPath}]\nFiles: ${files.slice(0, 50).join(', ')}${files.length > 50 ? '…' : ''}`
+            `\n[Directory: ${relPath}]\nFiles: ${files.slice(0, 50).join(', ')}${files.length > 50 ? '…' : ''}`,
           );
           attachedFiles.push(relPath);
         }

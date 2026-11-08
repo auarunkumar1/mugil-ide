@@ -30,8 +30,8 @@ import {
   defaultPolicyForMode,
   applyPermissionOverrides,
   diagnosticsEnabledFromEnv,
-readUserEnv,
-connectMcpServers,
+  readUserEnv,
+  connectMcpServers,
   parseMcpServerConfigs,
   skillsContextBlock,
   triggeredSkillsBlock,
@@ -41,6 +41,11 @@ connectMcpServers,
   setSkillEnabled,
   createSkill,
   listSkillAssets,
+  CURATED_GALLERY_SKILLS,
+  installFromGallery,
+  installFromUrl,
+  uninstallSkill,
+  getCredits,
   renderConversationForSummary,
   saveSession,
   loadSessionFile,
@@ -61,7 +66,19 @@ connectMcpServers,
   DEFAULT_OPENCODE_MODELS,
   type ConversationTurn,
 } from '@mugil-ide/core';
-import { ANSI, c, bold, dim, cyan, green, yellow, red, magenta, formatMarkdown, StreamMarkdown } from './ansi.js';
+import {
+  ANSI,
+  c,
+  bold,
+  dim,
+  cyan,
+  green,
+  yellow,
+  red,
+  magenta,
+  formatMarkdown,
+  StreamMarkdown,
+} from './ansi.js';
 
 export interface ReplIO {
   write: (data: string) => void;
@@ -271,7 +288,8 @@ export class AgentRepl {
 
   public printBanner(): void {
     this.stopLogoAnimation();
-    const modeLabel = this.mode === 'plan' ? yellow('plan (read-only)') : green('act (asks before writes)');
+    const modeLabel =
+      this.mode === 'plan' ? yellow('plan (read-only)') : green('act (asks before writes)');
     const banner = [
       '',
       `  ${c('☁️ MUGIL IDE', ANSI.bold, ANSI.brightGreen)} ${dim('— Token-Efficient Autonomous AI IDE')}`,
@@ -351,7 +369,9 @@ export class AgentRepl {
       case 'model':
       case 'm':
         if (!argStr) {
-          this.io.write(`\r\n  ${dim('Current model:')} ${bold(cyan(this.getActiveModel()))} ${dim(`(${this.engine.config.provider})`)}\r\n  ${dim('Use')} ${cyan('/model <id or number>')} ${dim('or')} ${cyan('/models')} ${dim('to list.')}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${dim('Current model:')} ${bold(cyan(this.getActiveModel()))} ${dim(`(${this.engine.config.provider})`)}\r\n  ${dim('Use')} ${cyan('/model <id or number>')} ${dim('or')} ${cyan('/models')} ${dim('to list.')}\r\n\r\n`,
+          );
         } else {
           let selected = argStr;
           let provider: string | undefined;
@@ -361,7 +381,9 @@ export class AgentRepl {
             selected = found.id;
             provider = found.provider;
           } else {
-            const found = this.lastListedModels.find((m) => m.id.toLowerCase() === selected.toLowerCase());
+            const found = this.lastListedModels.find(
+              (m) => m.id.toLowerCase() === selected.toLowerCase(),
+            );
             if (found) {
               selected = found.id;
               provider = found.provider;
@@ -373,7 +395,9 @@ export class AgentRepl {
             }
           }
           this.setActiveModel(selected, provider);
-          this.io.write(`\r\n  ${green('✓')} Active model changed to: ${bold(cyan(selected))}${provider ? dim(` (${provider})`) : ''}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${green('✓')} Active model changed to: ${bold(cyan(selected))}${provider ? dim(` (${provider})`) : ''}\r\n\r\n`,
+          );
         }
         break;
 
@@ -384,22 +408,31 @@ export class AgentRepl {
       case 'plan':
         this.setMode('plan');
         saveMode('plan');
-        this.io.write(`\r\n  ${yellow('🔒 Plan mode')} ${dim('— read-only: writes, edits and commands are denied.')}\r\n\r\n`);
+        this.io.write(
+          `\r\n  ${yellow('🔒 Plan mode')} ${dim('— read-only: writes, edits and commands are denied.')}\r\n\r\n`,
+        );
         break;
 
       case 'act':
         this.setMode('act');
         saveMode('act');
-        this.io.write(`\r\n  ${green('⚡ Act mode')} ${dim('— writes, edits and commands ask for your approval.')}\r\n\r\n`);
+        this.io.write(
+          `\r\n  ${green('⚡ Act mode')} ${dim('— writes, edits and commands ask for your approval.')}\r\n\r\n`,
+        );
         break;
       case 'turbo': {
-        const isCurrent = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
+        const isCurrent =
+          process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
         const next = argStr === 'on' ? true : argStr === 'off' ? false : !isCurrent;
         process.env.MUGIL_IDE_TURBO_MODE = next ? '1' : '0';
         if (next) {
-          this.io.write(`\r\n  ${yellow('⚡ Turbo Mode: ENABLED')} ${dim('— autonomous execution without user prompts. Tool confirmations bypassed.')}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${yellow('⚡ Turbo Mode: ENABLED')} ${dim('— autonomous execution without user prompts. Tool confirmations bypassed.')}\r\n\r\n`,
+          );
         } else {
-          this.io.write(`\r\n  ${green('✓ Turbo Mode: DISABLED')} ${dim('— ask-gated tool actions require user confirmation.')}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${green('✓ Turbo Mode: DISABLED')} ${dim('— ask-gated tool actions require user confirmation.')}\r\n\r\n`,
+          );
         }
         break;
       }
@@ -430,7 +463,9 @@ export class AgentRepl {
             this.io.write(`\r\n  ${yellow('ℹ')} Nothing to undo.\r\n\r\n`);
           }
         } catch (err) {
-          this.io.write(`\r\n  ${red('✗')} Undo failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${red('✗')} Undo failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+          );
         }
         break;
 
@@ -440,6 +475,22 @@ export class AgentRepl {
 
       case 'skills':
         this.listSkills();
+        break;
+
+      case 'gallery':
+        this.listGallerySkills(argStr);
+        break;
+
+      case 'skill-install':
+        await this.installSkillFromCli(argStr);
+        break;
+
+      case 'skill-uninstall':
+        this.uninstallSkillFromCli(argStr);
+        break;
+
+      case 'credits':
+        this.showCredits(argStr);
         break;
 
       case 'skill':
@@ -452,14 +503,20 @@ export class AgentRepl {
 
       case 'session':
         if (!argStr) {
-          this.io.write(`\r\n  ${yellow('Usage:')} ${cyan('/session <name>')} ${dim('— save the conversation under a name')}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${yellow('Usage:')} ${cyan('/session <name>')} ${dim('— save the conversation under a name')}\r\n\r\n`,
+          );
           break;
         }
         try {
           const file = await this.saveCurrentSession(namedSessionPath(argStr));
-          this.io.write(`\r\n  ${green('✓')} Session saved as ${bold(argStr)} → ${dim(file)}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${green('✓')} Session saved as ${bold(argStr)} → ${dim(file)}\r\n\r\n`,
+          );
         } catch (err) {
-          this.io.write(`\r\n  ${red('✗')} Save failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${red('✗')} Save failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+          );
         }
         break;
 
@@ -469,24 +526,32 @@ export class AgentRepl {
 
       case 'resume':
         if (!argStr) {
-          this.io.write(`\r\n  ${yellow('Usage:')} ${cyan('/resume <name>')} ${dim('— load a named session')}\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${yellow('Usage:')} ${cyan('/resume <name>')} ${dim('— load a named session')}\r\n\r\n`,
+          );
           break;
         }
         {
           const resumed = loadSessionFile(namedSessionPath(argStr));
           if (resumed.entries.length === 0) {
-            this.io.write(`\r\n  ${yellow('ℹ')} No saved session named ${bold(argStr)}. Try ${cyan('/sessions')}.\r\n\r\n`);
+            this.io.write(
+              `\r\n  ${yellow('ℹ')} No saved session named ${bold(argStr)}. Try ${cyan('/sessions')}.\r\n\r\n`,
+            );
             break;
           }
           this.restoreSessionEntries(resumed.entries);
           this.restoreSessionStats(resumed.stats);
-          this.io.write(`\r\n  ${green('✓')} Resumed session ${bold(argStr)} (${resumed.entries.length} turns).\r\n\r\n`);
+          this.io.write(
+            `\r\n  ${green('✓')} Resumed session ${bold(argStr)} (${resumed.entries.length} turns).\r\n\r\n`,
+          );
         }
         break;
 
       case 'clear-session':
         clearSession();
-        this.io.write(`\r\n  ${green('✓')} Cleared the auto-saved session — the next launch starts fresh.\r\n\r\n`);
+        this.io.write(
+          `\r\n  ${green('✓')} Cleared the auto-saved session — the next launch starts fresh.\r\n\r\n`,
+        );
         break;
 
       case 'compact':
@@ -500,7 +565,9 @@ export class AgentRepl {
         // Also clear the auto-saved session file so a later launch doesn't
         // resurrect the reset conversation (or its stats).
         clearSession();
-        this.io.write(`\r\n  ${green('✓')} Conversation context reset — the next launch starts fresh.\r\n\r\n`);
+        this.io.write(
+          `\r\n  ${green('✓')} Conversation context reset — the next launch starts fresh.\r\n\r\n`,
+        );
         break;
 
       case 'exit':
@@ -511,7 +578,9 @@ export class AgentRepl {
         break;
 
       default:
-        this.io.write(`\r\n  ${red('✗')} Unknown command: ${bold('/' + command)}. Type ${cyan('/help')} for command list.\r\n\r\n`);
+        this.io.write(
+          `\r\n  ${red('✗')} Unknown command: ${bold('/' + command)}. Type ${cyan('/help')} for command list.\r\n\r\n`,
+        );
         break;
     }
   }
@@ -534,6 +603,10 @@ export class AgentRepl {
       `  ${cyan('/graph <query>')}        ${dim('Search project code graph for relevant functions/symbols')}`,
       `  ${cyan('/skills')}               ${dim('List agent skills (workspace, global and built-in)')}`,
       `  ${cyan('/skill <name> [on|off]')} ${dim("Show a skill's instructions, or enable/disable it")}`,
+      `  ${cyan('/gallery [category]')}    ${dim('Browse curated open-source skills gallery')}`,
+      `  ${cyan('/skill-install <id|url>')} ${dim('Install a skill from gallery or Git/GitHub URL')}`,
+      `  ${cyan('/skill-uninstall <name>')} ${dim('Remove an installed skill')}`,
+      `  ${cyan('/credits')}              ${dim('View open-source credits, authors and upstream licenses')}`,
       `  ${cyan('/skill-create <name>')}   ${dim('Scaffold a new workspace skill under .mugil/skills')}`,
       `  ${cyan('/undo')}                 ${dim('Undo last file change made by tool execution')}`,
       `  ${cyan('/history')}              ${dim('View prompt history in current session')}`,
@@ -546,14 +619,19 @@ export class AgentRepl {
   }
 
   private async listModels(): Promise<void> {
-    this.io.write(`\r\n  ${dim('Scanning for models (local Ollama, LM Studio, and configured providers)...')}\r\n`);
+    this.io.write(
+      `\r\n  ${dim('Scanning for models (local Ollama, LM Studio, and configured providers)...')}\r\n`,
+    );
     try {
       const allFound: Array<ModelSpec & { provider?: string; isLocal?: boolean }> = [];
       // 1. Local Ollama
       try {
         const ollama = await fetchProviderModels({
           provider: 'ollama',
-          baseUrl: process.env.OLLAMA_BASE_URL || this.engine.config.ollamaBaseUrl || 'http://localhost:11434/v1',
+          baseUrl:
+            process.env.OLLAMA_BASE_URL ||
+            this.engine.config.ollamaBaseUrl ||
+            'http://localhost:11434/v1',
           timeoutMs: 1500,
         });
         if (ollama && ollama.length > 0) {
@@ -567,7 +645,10 @@ export class AgentRepl {
       try {
         const lm = await fetchProviderModels({
           provider: 'lmstudio',
-          baseUrl: process.env.LMSTUDIO_BASE_URL || this.engine.config.lmstudioBaseUrl || 'http://localhost:1234/v1',
+          baseUrl:
+            process.env.LMSTUDIO_BASE_URL ||
+            this.engine.config.lmstudioBaseUrl ||
+            'http://localhost:1234/v1',
           timeoutMs: 1500,
         });
         if (lm && lm.length > 0) {
@@ -588,18 +669,54 @@ export class AgentRepl {
         return undefined;
       };
       const cloudTargets: Array<{
-        provider: 'openrouter' | 'openai' | 'anthropic' | 'vercel' | 'cloudflare' | 'together' | 'opencode';
+        provider:
+          'openrouter' | 'openai' | 'anthropic' | 'vercel' | 'cloudflare' | 'together' | 'opencode';
         label: string;
         apiKey?: string;
         baseUrl?: string;
       }> = [
-        { provider: 'openrouter', label: 'OpenRouter', apiKey: keyFor(['OPENROUTER_API_KEY']), baseUrl: this.engine.config.openRouterBaseUrl },
-        { provider: 'openai', label: 'OpenAI', apiKey: keyFor(['OPENAI_API_KEY']), baseUrl: this.engine.config.openaiBaseUrl },
-        { provider: 'anthropic', label: 'Anthropic', apiKey: keyFor(['ANTHROPIC_API_KEY']), baseUrl: this.engine.config.anthropicBaseUrl },
-        { provider: 'vercel', label: 'Vercel AI', apiKey: keyFor(['VERCEL_API_KEY', 'AI_GATEWAY_API_KEY']), baseUrl: this.engine.config.vercelBaseUrl },
-        { provider: 'cloudflare', label: 'Cloudflare', apiKey: keyFor(['CLOUDFLARE_API_KEY']), baseUrl: this.engine.config.cloudflareBaseUrl },
-        { provider: 'together', label: 'Together AI', apiKey: keyFor(['TOGETHER_API_KEY']), baseUrl: this.engine.config.togetherBaseUrl },
-        { provider: 'opencode', label: 'OpenCode Zen', apiKey: keyFor(['OPENCODE_API_KEY']), baseUrl: this.engine.config.opencodeBaseUrl },
+        {
+          provider: 'openrouter',
+          label: 'OpenRouter',
+          apiKey: keyFor(['OPENROUTER_API_KEY']),
+          baseUrl: this.engine.config.openRouterBaseUrl,
+        },
+        {
+          provider: 'openai',
+          label: 'OpenAI',
+          apiKey: keyFor(['OPENAI_API_KEY']),
+          baseUrl: this.engine.config.openaiBaseUrl,
+        },
+        {
+          provider: 'anthropic',
+          label: 'Anthropic',
+          apiKey: keyFor(['ANTHROPIC_API_KEY']),
+          baseUrl: this.engine.config.anthropicBaseUrl,
+        },
+        {
+          provider: 'vercel',
+          label: 'Vercel AI',
+          apiKey: keyFor(['VERCEL_API_KEY', 'AI_GATEWAY_API_KEY']),
+          baseUrl: this.engine.config.vercelBaseUrl,
+        },
+        {
+          provider: 'cloudflare',
+          label: 'Cloudflare',
+          apiKey: keyFor(['CLOUDFLARE_API_KEY']),
+          baseUrl: this.engine.config.cloudflareBaseUrl,
+        },
+        {
+          provider: 'together',
+          label: 'Together AI',
+          apiKey: keyFor(['TOGETHER_API_KEY']),
+          baseUrl: this.engine.config.togetherBaseUrl,
+        },
+        {
+          provider: 'opencode',
+          label: 'OpenCode Zen',
+          apiKey: keyFor(['OPENCODE_API_KEY']),
+          baseUrl: this.engine.config.opencodeBaseUrl,
+        },
       ];
       for (const target of cloudTargets) {
         if (!target.apiKey && target.provider !== 'openrouter') continue;
@@ -611,7 +728,9 @@ export class AgentRepl {
             timeoutMs: 3000,
           });
           if (found && found.length > 0) {
-            found.forEach((m) => allFound.push({ ...m, provider: target.provider, isLocal: false }));
+            found.forEach((m) =>
+              allFound.push({ ...m, provider: target.provider, isLocal: false }),
+            );
           }
         } catch {
           // ignore — provider probe failed (missing key / network), continue
@@ -622,11 +741,15 @@ export class AgentRepl {
 
       if (this.lastListedModels.length === 0) {
         this.io.write(`\r\n  ${yellow('⚠ No active local or cloud models found.')}\r\n`);
-        this.io.write(`  ${dim('Add a key in the web UI')} ${cyan('Accounts & Keys')} ${dim('modal (or set it in')} ${cyan('~/.config/mugil-ide/.env')}${dim('), or start a local Ollama / LM Studio instance.')}\r\n\r\n`);
+        this.io.write(
+          `  ${dim('Add a key in the web UI')} ${cyan('Accounts & Keys')} ${dim('modal (or set it in')} ${cyan('~/.config/mugil-ide/.env')}${dim('), or start a local Ollama / LM Studio instance.')}\r\n\r\n`,
+        );
         return;
       }
 
-      this.io.write(`\r\n  ${bold('Available Models (' + this.lastListedModels.length + ' found):')}\r\n`);
+      this.io.write(
+        `\r\n  ${bold('Available Models (' + this.lastListedModels.length + ' found):')}\r\n`,
+      );
       for (let i = 0; i < Math.min(this.lastListedModels.length, 30); i++) {
         const m = this.lastListedModels[i]!;
         const num = `[${i + 1}]`.padEnd(4);
@@ -635,11 +758,17 @@ export class AgentRepl {
         const tools = m.supportsTools ? cyan('[tools]') : '';
         const think = m.supportsThinking ? magenta('[think]') : '';
         const prov = m.provider ? dim(`[${m.provider}]`) : '';
-        this.io.write(`  ${cyan(num)} ${indicator} ${bold(m.id.padEnd(35))} ${prov.padEnd(14)} ${dim(m.tier.padEnd(8))} ${tools} ${think}\r\n`);
+        this.io.write(
+          `  ${cyan(num)} ${indicator} ${bold(m.id.padEnd(35))} ${prov.padEnd(14)} ${dim(m.tier.padEnd(8))} ${tools} ${think}\r\n`,
+        );
       }
-      this.io.write(`\r\n  ${dim('Type')} ${cyan('/model <number>')} ${dim('(e.g. /model 1) or')} ${cyan('/model <id>')} ${dim('to select.')}\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${dim('Type')} ${cyan('/model <number>')} ${dim('(e.g. /model 1) or')} ${cyan('/model <id>')} ${dim('to select.')}\r\n\r\n`,
+      );
     } catch (err) {
-      this.io.write(`  ${yellow('⚠ Could not probe models dynamically:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+      this.io.write(
+        `  ${yellow('⚠ Could not probe models dynamically:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+      );
     }
   }
 
@@ -679,8 +808,12 @@ export class AgentRepl {
     this.io.write(`\r\n  ${bold('Session Conversation Turns:')}\r\n`);
     this.turns.forEach((t) => {
       const timeStr = new Date(t.timestamp).toLocaleTimeString();
-      this.io.write(`  ${bold(cyan(`[Turn ${t.id}]`))} ${dim(timeStr)} ${bold(t.prompt.slice(0, 50))}\r\n`);
-      this.io.write(`      ${dim(`Model: ${t.model} · Tokens: ${t.tokens.total} · Tools: ${t.toolsCalled.length}`)}\r\n`);
+      this.io.write(
+        `  ${bold(cyan(`[Turn ${t.id}]`))} ${dim(timeStr)} ${bold(t.prompt.slice(0, 50))}\r\n`,
+      );
+      this.io.write(
+        `      ${dim(`Model: ${t.model} · Tokens: ${t.tokens.total} · Tools: ${t.toolsCalled.length}`)}\r\n`,
+      );
       if (t.filesModified.length > 0) {
         this.io.write(`      ${green(`Modified: ${t.filesModified.join(', ')}`)}\r\n`);
       }
@@ -691,7 +824,9 @@ export class AgentRepl {
   private listSavedSessions(): void {
     const infos = listSessions();
     if (infos.length === 0) {
-      this.io.write(`\r\n  ${dim('No saved named sessions yet — use')} ${cyan('/session <name>')} ${dim('to save one.')}\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${dim('No saved named sessions yet — use')} ${cyan('/session <name>')} ${dim('to save one.')}\r\n\r\n`,
+      );
       return;
     }
     this.io.write(`\r\n  ${bold('Saved Sessions:')}\r\n`);
@@ -708,7 +843,10 @@ export class AgentRepl {
       this.io.write(`\r\n  ${dim('Nothing to compact yet — no completed turns.')}\r\n\r\n`);
       return;
     }
-    const turns: ConversationTurn[] = this.turns.map((t) => ({ prompt: t.prompt, response: t.response }));
+    const turns: ConversationTurn[] = this.turns.map((t) => ({
+      prompt: t.prompt,
+      response: t.response,
+    }));
     const rendered = renderConversationForSummary(turns);
     this.io.write(`\r\n  ${dim('⚡ Summarizing conversation...')}\r\n`);
     try {
@@ -716,7 +854,8 @@ export class AgentRepl {
         'Summarize the conversation below. Keep it dense: preserve decisions, file changes, tool outcomes, and any unfinished work.',
         {
           preferredModel: this.getActiveModel(),
-          systemPrompt: 'You are a conversation compactor. Output only the summary, with no preamble.',
+          systemPrompt:
+            'You are a conversation compactor. Output only the summary, with no preamble.',
           ponytail: { outputBudget: 1200 },
           history: [{ role: 'user', content: rendered }],
         },
@@ -724,12 +863,19 @@ export class AgentRepl {
       const summary = result.response.trim();
       const turnCount = this.turns.length;
       this.messageHistory = [
-        { role: 'user', content: `[Conversation compacted — earlier turns summarized]\n${summary}` },
+        {
+          role: 'user',
+          content: `[Conversation compacted — earlier turns summarized]\n${summary}`,
+        },
         { role: 'assistant', content: '[acknowledged]' },
       ];
-      this.io.write(`  ${green('✓')} Conversation compacted (${turnCount} turns → summary).\r\n\r\n`);
+      this.io.write(
+        `  ${green('✓')} Conversation compacted (${turnCount} turns → summary).\r\n\r\n`,
+      );
     } catch (err) {
-      this.io.write(`\r\n  ${red('✗')} Compaction failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${red('✗')} Compaction failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+      );
     }
   }
 
@@ -747,11 +893,15 @@ export class AgentRepl {
         return;
       }
       for (const r of results) {
-        this.io.write(`  ${green(`[score ${r.score}]`)} ${bold(r.symbol.file)}:${cyan(r.symbol.line)} ${dim(r.symbol.signature)}\r\n`);
+        this.io.write(
+          `  ${green(`[score ${r.score}]`)} ${bold(r.symbol.file)}:${cyan(r.symbol.line)} ${dim(r.symbol.signature)}\r\n`,
+        );
       }
       this.io.write('\r\n');
     } catch (err) {
-      this.io.write(`\r\n  ${red('✗')} CodeGraph query failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${red('✗')} CodeGraph query failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+      );
     }
   }
 
@@ -767,12 +917,19 @@ export class AgentRepl {
     this.io.write(`\r\n  ${bold(`Available skills (${skills.length}):`)}\r\n`);
     for (const skill of skills) {
       const state = skill.enabled ? green('enabled') : dim('disabled');
-      const assets = [skill.hasScripts ? 'scripts' : '', skill.hasReferences ? 'references' : ''].filter(Boolean);
+      const assets = [
+        skill.hasScripts ? 'scripts' : '',
+        skill.hasReferences ? 'references' : '',
+      ].filter(Boolean);
       const suffix = assets.length > 0 ? dim(` · ${assets.join('+')}`) : '';
-      this.io.write(`  ${cyan(skill.name.padEnd(28))} ${dim(`[${skill.source}]`)} ${state}${suffix}\r\n`);
+      this.io.write(
+        `  ${cyan(skill.name.padEnd(28))} ${dim(`[${skill.source}]`)} ${state}${suffix}\r\n`,
+      );
       this.io.write(`  ${' '.repeat(28)} ${dim(skill.description)}\r\n`);
     }
-    this.io.write(`\r\n  ${dim('Load one with')} ${cyan('/skill <name>')} ${dim('· toggle with')} ${cyan('/skill <name> on|off')}\r\n\r\n`);
+    this.io.write(
+      `\r\n  ${dim('Load one with')} ${cyan('/skill <name>')} ${dim('· toggle with')} ${cyan('/skill <name> on|off')}\r\n\r\n`,
+    );
   }
 
   /** `/skill <name> [on|off]` — print a skill's instructions or toggle it. */
@@ -784,12 +941,16 @@ export class AgentRepl {
     }
     const skill = discoverSkills(process.cwd()).find((s) => s.name === name);
     if (!skill) {
-      this.io.write(`\r\n  ${red('✗')} Unknown skill ${bold(name)}. Try ${cyan('/skills')}.\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${red('✗')} Unknown skill ${bold(name)}. Try ${cyan('/skills')}.\r\n\r\n`,
+      );
       return;
     }
     if (toggle === 'on' || toggle === 'off') {
       setSkillEnabled(process.cwd(), name, toggle === 'on');
-      this.io.write(`\r\n  ${green('✓')} ${bold(name)} ${toggle === 'on' ? 'enabled' : 'disabled'} for this workspace.\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${green('✓')} ${bold(name)} ${toggle === 'on' ? 'enabled' : 'disabled'} for this workspace.\r\n\r\n`,
+      );
       return;
     }
     const content = loadSkill(process.cwd(), name);
@@ -798,8 +959,10 @@ export class AgentRepl {
       return;
     }
     const assets = listSkillAssets(process.cwd(), name);
-    if (assets.scripts.length > 0) this.io.write(`\r\n  ${dim('scripts:')} ${assets.scripts.join(', ')}`);
-    if (assets.references.length > 0) this.io.write(`\r\n  ${dim('references:')} ${assets.references.join(', ')}`);
+    if (assets.scripts.length > 0)
+      this.io.write(`\r\n  ${dim('scripts:')} ${assets.scripts.join(', ')}`);
+    if (assets.references.length > 0)
+      this.io.write(`\r\n  ${dim('references:')} ${assets.references.join(', ')}`);
     this.io.write(`\r\n\r\n${content}\r\n\r\n`);
   }
 
@@ -807,7 +970,9 @@ export class AgentRepl {
   private createSkillFromCli(argStr: string): void {
     const [name, ...rest] = argStr.split(/\s+/);
     if (!name) {
-      this.io.write(`\r\n  ${yellow('Usage:')} ${cyan('/skill-create <name> [description]')}\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${yellow('Usage:')} ${cyan('/skill-create <name> [description]')}\r\n\r\n`,
+      );
       return;
     }
     try {
@@ -817,8 +982,121 @@ export class AgentRepl {
         : createSkill(process.cwd(), name);
       this.io.write(`\r\n  ${green('✓')} Created skill ${bold(name)} → ${dim(file)}\r\n\r\n`);
     } catch (err) {
-      this.io.write(`\r\n  ${red('✗')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+      this.io.write(
+        `\r\n  ${red('✗')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+      );
     }
+  }
+
+  /** `/gallery [category]` — browse the curated open-source skills gallery. */
+  private listGallerySkills(argStr: string): void {
+    const category = argStr.trim().toLowerCase();
+    const installed = new Set(discoverSkills(process.cwd()).map((s) => s.name));
+    let items = CURATED_GALLERY_SKILLS;
+    if (category && category !== 'all') {
+      items = items.filter((s) => s.category.toLowerCase().includes(category));
+    }
+
+    this.io.write(`\r\n  ${bold(`Curated Open-Source Skills Gallery (${items.length}):`)}\r\n`);
+    for (const item of items) {
+      const isInst = installed.has(item.id);
+      const statusPill = isInst ? green('✓ installed') : cyan('available');
+      this.io.write(
+        `  ${bold(cyan(item.id.padEnd(26)))} ${dim(`[${item.category}]`)} ${statusPill} ${dim(`(${item.license} · ${item.author})`)}\r\n`,
+      );
+      this.io.write(`  ${' '.repeat(26)} ${dim(item.description)}\r\n`);
+    }
+    this.io.write(
+      `\r\n  ${dim('Install with')} ${cyan('/skill-install <id>')} ${dim('or')} ${cyan('/skill-install <id> --global')}\r\n\r\n`,
+    );
+  }
+
+  /** `/skill-install <id|url> [--global] [--force]` — install a skill. */
+  private async installSkillFromCli(argStr: string): Promise<void> {
+    const parts = argStr.split(/\s+/);
+    const source = parts[0];
+    if (!source) {
+      this.io.write(
+        `\r\n  ${yellow('Usage:')} ${cyan('/skill-install <id|git-url|raw-url> [--global] [--force]')}\r\n\r\n`,
+      );
+      return;
+    }
+    const isGlobal = parts.includes('--global');
+    const overwrite = parts.includes('--force');
+    const target = isGlobal ? 'global' : 'workspace';
+
+    this.io.write(`\r\n  ${dim(`Installing skill "${source}" into ${target} tier...`)}\r\n`);
+    try {
+      let result;
+      if (source.startsWith('http://') || source.startsWith('https://')) {
+        result = await installFromUrl(process.cwd(), source, { target, overwrite });
+      } else {
+        result = await installFromGallery(process.cwd(), source, { target, overwrite });
+      }
+      this.io.write(
+        `  ${green('✓')} Successfully installed ${bold(result.name)} to ${dim(result.file)}\r\n\r\n`,
+      );
+    } catch (err) {
+      this.io.write(
+        `  ${red('✗')} Install failed: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+      );
+    }
+  }
+
+  /** `/skill-uninstall <name> [--global]` — remove an installed skill. */
+  private uninstallSkillFromCli(argStr: string): void {
+    const parts = argStr.split(/\s+/);
+    const name = parts[0];
+    if (!name) {
+      this.io.write(
+        `\r\n  ${yellow('Usage:')} ${cyan('/skill-uninstall <name> [--global]')}\r\n\r\n`,
+      );
+      return;
+    }
+    const isGlobal = parts.includes('--global');
+    const target = isGlobal ? 'global' : 'workspace';
+    const removed = uninstallSkill(process.cwd(), name, { target });
+    if (removed) {
+      this.io.write(
+        `\r\n  ${green('✓')} Uninstalled skill ${bold(name)} from ${target} tier.\r\n\r\n`,
+      );
+    } else {
+      this.io.write(
+        `\r\n  ${yellow('ℹ')} Skill ${bold(name)} not found in ${target} tier.\r\n\r\n`,
+      );
+    }
+  }
+
+  /** `/credits [category]` — show open-source credits and license attributions. */
+  private showCredits(argStr: string): void {
+    const filter = argStr.trim().toLowerCase();
+    const manifest = getCredits(process.cwd());
+
+    this.io.write(`\r\n  ${bold('📜 Open-Source Credits & Attributions')}\r\n`);
+
+    if (!filter || filter === 'modules' || filter === 'core') {
+      this.io.write(`\r\n  ${bold('Core Engine Modules & Inspirations:')}\r\n`);
+      for (const m of manifest.coreModules) {
+        this.io.write(`  · ${bold(m.name)} ${dim(`[${m.license}]`)} — ${dim(m.author)}\r\n`);
+        this.io.write(`    ${dim(m.concept)}\r\n`);
+        this.io.write(`    ${cyan(m.upstreamUrl)}\r\n`);
+      }
+    }
+
+    if (!filter || filter === 'skills') {
+      this.io.write(`\r\n  ${bold(`Agent Skills (${manifest.skills.length}):`)}\r\n`);
+      for (const s of manifest.skills) {
+        const instBadge = s.installed ? green('✓ installed') : dim('gallery');
+        this.io.write(
+          `  · ${bold(s.name)} ${dim(`[${s.license}]`)} ${instBadge} — ${dim(s.author)}\r\n`,
+        );
+        this.io.write(`    ${cyan(s.upstreamUrl)}\r\n`);
+      }
+    }
+
+    this.io.write(
+      `\r\n  ${dim('View in browser:')} ${cyan('Menu ▾ -> 📜 Open Source Credits & Attributions')}\r\n\r\n`,
+    );
   }
 
   /**
@@ -829,7 +1107,8 @@ export class AgentRepl {
    */
   private buildPermissionCheck(): PermissionCheck {
     let policy = defaultPolicyForMode(this.mode);
-    const raw = readUserEnv().MUGIL_IDE_TOOL_PERMISSIONS || process.env.MUGIL_IDE_TOOL_PERMISSIONS || '';
+    const raw =
+      readUserEnv().MUGIL_IDE_TOOL_PERMISSIONS || process.env.MUGIL_IDE_TOOL_PERMISSIONS || '';
     if (raw.trim()) {
       try {
         const parsed = JSON.parse(raw) as Record<string, Record<string, ToolPermissionAction>>;
@@ -838,11 +1117,14 @@ export class AgentRepl {
           policy = applyPermissionOverrides(policy, overrides);
         }
       } catch {
-        this.io.write(`  ${yellow('⚠ Warning:')} Malformed MUGIL_IDE_TOOL_PERMISSIONS JSON — falling back to ${this.mode} mode defaults.\r\n`);
+        this.io.write(
+          `  ${yellow('⚠ Warning:')} Malformed MUGIL_IDE_TOOL_PERMISSIONS JSON — falling back to ${this.mode} mode defaults.\r\n`,
+        );
       }
     }
-    const isTurbo = process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
-    const onAsk = isTurbo ? (() => true) : this.options.onAsk;
+    const isTurbo =
+      process.env.MUGIL_IDE_TURBO_MODE === '1' || process.env.MUGIL_IDE_TURBO_MODE === 'true';
+    const onAsk = isTurbo ? () => true : this.options.onAsk;
     return createPermissionCheck(policy, onAsk);
   }
 
@@ -863,13 +1145,19 @@ export class AgentRepl {
           this.io.write(`  ${yellow('⚠')} ${dim(err)}\r\n`);
         }
         if (bundle.servers.length > 0) {
-          this.io.write(`  ${dim(`MCP servers connected: ${bundle.servers.join(', ')} (${bundle.tools.length} tools)`)}`);
-          this.io.write(`  ${dim('— mcp__* tools are ask-gated in act mode, denied in plan mode.')}\r\n`);
+          this.io.write(
+            `  ${dim(`MCP servers connected: ${bundle.servers.join(', ')} (${bundle.tools.length} tools)`)}`,
+          );
+          this.io.write(
+            `  ${dim('— mcp__* tools are ask-gated in act mode, denied in plan mode.')}\r\n`,
+          );
         }
         return bundle;
       })().catch((err: unknown) => {
         this.mcpConnecting = null; // allow a later turn to retry
-        this.io.write(`  ${yellow('⚠ MCP connection failed:')} ${err instanceof Error ? err.message : String(err)}\r\n`);
+        this.io.write(
+          `  ${yellow('⚠ MCP connection failed:')} ${err instanceof Error ? err.message : String(err)}\r\n`,
+        );
         return { tools: [], registry: {}, errors: [], servers: [], close: async () => {} };
       });
     }
@@ -918,14 +1206,18 @@ export class AgentRepl {
   }
 
   /** Sets available models probed by web UI or CLI, retaining pricing specs. */
-  public setAvailableModels(models: Array<ModelSpec & { provider?: string; isLocal?: boolean }>): void {
+  public setAvailableModels(
+    models: Array<ModelSpec & { provider?: string; isLocal?: boolean }>,
+  ): void {
     if (Array.isArray(models) && models.length > 0) {
       this.lastListedModels = models;
     }
   }
 
   /** Resolves metadata and token pricing for a given model ID. */
-  public async resolveModelMetaAsync(modelId: string): Promise<(ModelSpec & { provider?: string; isLocal?: boolean }) | undefined> {
+  public async resolveModelMetaAsync(
+    modelId: string,
+  ): Promise<(ModelSpec & { provider?: string; isLocal?: boolean }) | undefined> {
     const cached = this.resolveModelMeta(modelId);
     if (cached && (cached.costPerMTokIn > 0 || cached.costPerMTokOut > 0 || cached.isLocal)) {
       return cached;
@@ -942,7 +1234,9 @@ export class AgentRepl {
           timeoutMs: 4000,
         });
         if (liveModels && liveModels.length > 0) {
-          this.setAvailableModels(liveModels.map((m) => ({ ...m, provider: 'openrouter', isLocal: false })));
+          this.setAvailableModels(
+            liveModels.map((m) => ({ ...m, provider: 'openrouter', isLocal: false })),
+          );
           const fresh = this.resolveModelMeta(modelId);
           if (fresh) return fresh;
         }
@@ -955,9 +1249,13 @@ export class AgentRepl {
   }
 
   /** Resolves metadata and token pricing for a given model ID. */
-  public resolveModelMeta(modelId: string): (ModelSpec & { provider?: string; isLocal?: boolean }) | undefined {
+  public resolveModelMeta(
+    modelId: string,
+  ): (ModelSpec & { provider?: string; isLocal?: boolean }) | undefined {
     if (!modelId) return undefined;
-    const direct = this.lastListedModels.find((m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase());
+    const direct = this.lastListedModels.find(
+      (m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase(),
+    );
     if (direct && (direct.costPerMTokIn > 0 || direct.costPerMTokOut > 0 || direct.isLocal)) {
       return direct;
     }
@@ -979,7 +1277,8 @@ export class AgentRepl {
       (m) => m.id === modelId || m.id.toLowerCase() === modelId.toLowerCase(),
     );
     if (foundDefault) {
-      const isLocal = DEFAULT_OLLAMA_MODELS.some((m) => m.id === foundDefault.id) ||
+      const isLocal =
+        DEFAULT_OLLAMA_MODELS.some((m) => m.id === foundDefault.id) ||
         DEFAULT_LMSTUDIO_MODELS.some((m) => m.id === foundDefault.id) ||
         DEFAULT_LOCAL_MODELS.some((m) => m.id === foundDefault.id);
       return { ...foundDefault, isLocal };
@@ -1020,7 +1319,10 @@ export class AgentRepl {
         typeof stats.compressibleTokens === 'number' && Number.isFinite(stats.compressibleTokens)
           ? stats.compressibleTokens
           : 0,
-      estimatedCost: typeof stats.estimatedCost === 'number' && Number.isFinite(stats.estimatedCost) ? stats.estimatedCost : 0,
+      estimatedCost:
+        typeof stats.estimatedCost === 'number' && Number.isFinite(stats.estimatedCost)
+          ? stats.estimatedCost
+          : 0,
       filesModified: new Set(stats.filesModified),
       savingsBreakdown: stats.savingsBreakdown ?? defaultSavingsBreakdown(),
       optimisticTokensSaved: stats.optimisticTokensSaved ?? (stats.tokensSaved || 0),
@@ -1078,7 +1380,9 @@ export class AgentRepl {
     const streamMarkdown = new StreamMarkdown();
 
     this.io.write('\r\n' + `${ANSI.bold}${ANSI.cyan}` + '─'.repeat(64) + `${ANSI.reset}\r\n`);
-    this.io.write(`  ${bold(cyan(`Turn #${currentTurnId}`))} ${dim('— Thinking & Planning...')}\r\n`);
+    this.io.write(
+      `  ${bold(cyan(`Turn #${currentTurnId}`))} ${dim('— Thinking & Planning...')}\r\n`,
+    );
 
     try {
       // Wire up workspace tools so model can read, write, edit, and run commands on disk.
@@ -1119,7 +1423,9 @@ export class AgentRepl {
         }
       }
       const historyBudget = getHistoryBudget();
-      const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, { compactOlderTurns: true });
+      const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, {
+        compactOlderTurns: true,
+      });
       const budgetedHistory: ChatMessage[] = [];
       if (budgeted.compactedSummary) {
         budgetedHistory.push({ role: 'user', content: budgeted.compactedSummary });
@@ -1130,10 +1436,7 @@ export class AgentRepl {
         budgetedHistory.push({ role: 'assistant', content: t.response });
       }
 
-      const agentInstruction =
-        this.mode === 'plan'
-          ? PLAN_MODE_INSTRUCTION
-          : ACT_MODE_INSTRUCTION;
+      const agentInstruction = this.mode === 'plan' ? PLAN_MODE_INSTRUCTION : ACT_MODE_INSTRUCTION;
       const contextBlocks = [
         agentInstruction,
         buildEnvironmentContext(process.cwd()),
@@ -1161,7 +1464,11 @@ export class AgentRepl {
             const answer = await this.options.onQuestion({
               header: '⚠️ Tool Call Limit Reached',
               question: `Completed ${currentIterations} tool iterations (${usage.totalTokens} tokens used). Do you want to extend the limit to proceed?`,
-              options: ['Extend by 15 iterations', 'Extend by 30 iterations', 'Finish & summarize now'],
+              options: [
+                'Extend by 15 iterations',
+                'Extend by 30 iterations',
+                'Finish & summarize now',
+              ],
             });
             if (answer.includes('15')) return 15;
             if (answer.includes('30')) return 30;
@@ -1201,7 +1508,9 @@ export class AgentRepl {
             const hasConversationalPreamble = streamed.trim().length > 0;
             const quietThinking = process.env.MUGIL_IDE_QUIET_TOOL_THINKING === '1';
             if (hasConversationalPreamble && !quietThinking) {
-              this.io.write(`\r\n  ${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`);
+              this.io.write(
+                `\r\n  ${yellow('⚠ Partial reasoning discarded — the model requested tools.')}\r\n`,
+              );
             }
             streamed = '';
             streamedThinking = '';
@@ -1222,12 +1531,17 @@ export class AgentRepl {
             toolsCalled.push({ name: event.name, args: argsObj });
 
             // Record modified files
-            if (event.name === 'write_file' || event.name === 'edit_file' || event.name === 'apply_patch') {
-              const targetPath = typeof argsObj.path === 'string'
-                ? argsObj.path
-                : typeof argsObj.file === 'string'
-                  ? argsObj.file
-                  : undefined;
+            if (
+              event.name === 'write_file' ||
+              event.name === 'edit_file' ||
+              event.name === 'apply_patch'
+            ) {
+              const targetPath =
+                typeof argsObj.path === 'string'
+                  ? argsObj.path
+                  : typeof argsObj.file === 'string'
+                    ? argsObj.file
+                    : undefined;
               if (targetPath) {
                 filesModifiedThisTurn.push(targetPath);
                 this.stats.filesModified.add(targetPath);
@@ -1240,7 +1554,9 @@ export class AgentRepl {
                 ? `cmd: "${argsObj.command}"`
                 : JSON.stringify(argsObj).slice(0, 60);
 
-            this.io.write(`\r\n  ${yellow('⚡ Tool Call:')} ${bold(yellow(event.name))}(${argSummary})\r\n`);
+            this.io.write(
+              `\r\n  ${yellow('⚡ Tool Call:')} ${bold(yellow(event.name))}(${argSummary})\r\n`,
+            );
           } else if (event.type === 'tool-result') {
             const last = toolsCalled[toolsCalled.length - 1];
             if (last) {
@@ -1298,8 +1614,10 @@ export class AgentRepl {
           modelMeta.costPerMTokCacheRead ??
           (modelMeta.costPerMTokIn > 0 ? modelMeta.costPerMTokIn * 0.1 : 0);
         const costIn =
-          ((uncachedToks * modelMeta.costPerMTokIn) + (cachedToks * cacheReadRate)) / 1_000_000;
-        const costOut = modelMeta.costPerMTokOut ? (result.usage.completionTokens * modelMeta.costPerMTokOut) / 1_000_000 : 0;
+          (uncachedToks * modelMeta.costPerMTokIn + cachedToks * cacheReadRate) / 1_000_000;
+        const costOut = modelMeta.costPerMTokOut
+          ? (result.usage.completionTokens * modelMeta.costPerMTokOut) / 1_000_000
+          : 0;
         this.stats.estimatedCost += costIn + costOut;
       }
       if (result.cache.hit) this.stats.cacheHits++;
@@ -1314,8 +1632,14 @@ export class AgentRepl {
             savedTokens:
               budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
             keptTokens: 0,
-            breakdown: { caveman: budgeted.compressionSavings.savedTokens, yagni: 0, cache: budgeted.compressionSavings.keptTokens, mcp: 0 },
-            optimisticSavedTokens: budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
+            breakdown: {
+              caveman: budgeted.compressionSavings.savedTokens,
+              yagni: 0,
+              cache: budgeted.compressionSavings.keptTokens,
+              mcp: 0,
+            },
+            optimisticSavedTokens:
+              budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
           }
         : budgeted.compressionSavings;
       const turnTokensSaved = result.savings.savedTokens + historySavings.savedTokens;
@@ -1324,7 +1648,12 @@ export class AgentRepl {
       this.stats.compressibleTokens += Math.max(0, turnCompressible);
 
       // Accumulate multi-level breakdown across Caveman, YAGNI, Cache, and MCP
-      const histBd = historySavings.breakdown ?? { caveman: historySavings.savedTokens, yagni: 0, cache: 0, mcp: 0 };
+      const histBd = historySavings.breakdown ?? {
+        caveman: historySavings.savedTokens,
+        yagni: 0,
+        cache: 0,
+        mcp: 0,
+      };
       const resBd = result.savings.breakdown ?? { caveman: 0, yagni: 0, cache: 0, mcp: 0 };
       this.stats.savingsBreakdown.caveman += (resBd.caveman ?? 0) + (histBd.caveman ?? 0);
       this.stats.savingsBreakdown.yagni += (resBd.yagni ?? 0) + (histBd.yagni ?? 0);
@@ -1360,8 +1689,7 @@ export class AgentRepl {
       // already in the streamed region or streamed thinking block.
       const thinking = result.thinking?.trim() ?? '';
       const alreadyOnScreen =
-        streamedThinking.trim().length > 0 ||
-        (thinking.length > 0 && streamed.includes(thinking));
+        streamedThinking.trim().length > 0 || (thinking.length > 0 && streamed.includes(thinking));
       if (result.thinking && !alreadyOnScreen) {
         this.io.write(`\r\n${magenta('💭 Reasoning / Thinking:')}\r\n`);
         const formattedThinking = result.thinking
@@ -1402,11 +1730,15 @@ export class AgentRepl {
 
       // Summary of changes applied to disk
       if (filesModifiedThisTurn.length > 0) {
-        this.io.write(`\r\n  ${green('📁 Files updated on disk:')} ${bold(filesModifiedThisTurn.join(', '))}\r\n`);
+        this.io.write(
+          `\r\n  ${green('📁 Files updated on disk:')} ${bold(filesModifiedThisTurn.join(', '))}\r\n`,
+        );
       }
 
       // Turn Footer
-      this.io.write(`\r\n${dim(`[${result.model} · ${result.usage.totalTokens} tok · ${elapsed}ms · ${toolsCalled.length} tools]`)}\r\n`);
+      this.io.write(
+        `\r\n${dim(`[${result.model} · ${result.usage.totalTokens} tok · ${elapsed}ms · ${toolsCalled.length} tools]`)}\r\n`,
+      );
       if (result.truncated) {
         this.io.write(
           `  ${yellow('⚠ Answer was cut off by the model output-token cap')} ${dim(`(finish_reason: ${result.finishReason}) — raise max_tokens or shorten the task.`)}\r\n`,
@@ -1444,12 +1776,16 @@ export class AgentRepl {
         // a finished one — and it was never stored: nothing below the try ever
         // ran, so history, the session file and the cache do not have it.
         if (streamedRegion && streamed.trim().length > 0) {
-          this.io.write(`\r\n  ${yellow('■ Turn cancelled.')} ${dim('The streamed text is an incomplete answer — it was NOT saved to history or the session file.')}\r\n`);
+          this.io.write(
+            `\r\n  ${yellow('■ Turn cancelled.')} ${dim('The streamed text is an incomplete answer — it was NOT saved to history or the session file.')}\r\n`,
+          );
         } else {
           this.io.write(`\r\n${yellow('■ Turn cancelled.')}\r\n\r\n`);
         }
       } else {
-        this.io.write(`\r\n${red('✗ Error executing request:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+        this.io.write(
+          `\r\n${red('✗ Error executing request:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+        );
       }
     } finally {
       this.turnAbort = null;

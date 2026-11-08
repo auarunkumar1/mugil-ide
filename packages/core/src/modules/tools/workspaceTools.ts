@@ -26,10 +26,19 @@ import { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } from '../cod
 import { cavemanStrategy } from '../caveman/index.js';
 import { compressCommandOutput, applyDeltaMode } from '../rtk/index.js';
 import { discoverSkills, loadSkill } from '../skills/index.js';
-import { createPermissionCheck, defaultPolicyForMode, type PermissionCheck } from './permissions.js';
+import {
+  createPermissionCheck,
+  defaultPolicyForMode,
+  type PermissionCheck,
+} from './permissions.js';
 import { runDiagnostics, type DiagnosticsResult } from './diagnostics.js';
 import { captureFile, pushEdit } from '../undo.js';
-import { connectMcpServers, type McpConnector, type McpServerConfig, type McpToolsBundle } from '../mcp-client/index.js';
+import {
+  connectMcpServers,
+  type McpConnector,
+  type McpServerConfig,
+  type McpToolsBundle,
+} from '../mcp-client/index.js';
 import { getLspClient, type LspClient } from '../lsp/index.js';
 import { globalBlobStore } from './blobStore.js';
 import { countTokens } from '../../token/tokenizer.js';
@@ -46,11 +55,23 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
+        path: {
+          type: 'string',
+          description:
+            'File path, relative to the workspace root or absolute inside the workspace.',
+        },
         startLine: { type: 'number', description: 'Optional 1-indexed start line (inclusive).' },
         endLine: { type: 'number', description: 'Optional 1-indexed end line (inclusive).' },
-        skeleton: { type: 'boolean', description: 'When true, returns the AST skeleton/signatures omitting internal function bodies for token efficiency.' },
-        raw: { type: 'boolean', description: 'When true, forces full text reading even if the file exceeds 300 lines (disables auto-tiering).' },
+        skeleton: {
+          type: 'boolean',
+          description:
+            'When true, returns the AST skeleton/signatures omitting internal function bodies for token efficiency.',
+        },
+        raw: {
+          type: 'boolean',
+          description:
+            'When true, forces full text reading even if the file exceeds 300 lines (disables auto-tiering).',
+        },
       },
       required: ['path'],
     },
@@ -62,8 +83,15 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
-        symbol: { type: 'string', description: 'Exact name of the symbol (function, class, interface, or type) to extract.' },
+        path: {
+          type: 'string',
+          description:
+            'File path, relative to the workspace root or absolute inside the workspace.',
+        },
+        symbol: {
+          type: 'string',
+          description: 'Exact name of the symbol (function, class, interface, or type) to extract.',
+        },
       },
       required: ['path', 'symbol'],
     },
@@ -75,7 +103,11 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
+        path: {
+          type: 'string',
+          description:
+            'File path, relative to the workspace root or absolute inside the workspace.',
+        },
       },
       required: ['path'],
     },
@@ -87,8 +119,15 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        dir: { type: 'string', description: 'Directory path relative to the workspace root (defaults to the root itself).' },
-        pattern: { type: 'string', description: 'Optional file extension or substring filter (e.g. ".tsx" or "app").' },
+        dir: {
+          type: 'string',
+          description:
+            'Directory path relative to the workspace root (defaults to the root itself).',
+        },
+        pattern: {
+          type: 'string',
+          description: 'Optional file extension or substring filter (e.g. ".tsx" or "app").',
+        },
       },
     },
   },
@@ -100,7 +139,10 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Text or regex pattern to search for.' },
-        extension: { type: 'string', description: 'Optional file extension filter (e.g. "ts", "tsx", "py").' },
+        extension: {
+          type: 'string',
+          description: 'Optional file extension filter (e.g. "ts", "tsx", "py").',
+        },
       },
       required: ['query'],
     },
@@ -112,7 +154,10 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Task, function, or symbol name to look up in the code graph.' },
+        query: {
+          type: 'string',
+          description: 'Task, function, or symbol name to look up in the code graph.',
+        },
       },
       required: ['query'],
     },
@@ -124,9 +169,17 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
+        path: {
+          type: 'string',
+          description:
+            'File path, relative to the workspace root or absolute inside the workspace.',
+        },
         content: { type: 'string', description: 'File content to write or append.' },
-        append: { type: 'boolean', description: 'If true, append content to the existing file rather than overwriting. Defaults to false.' },
+        append: {
+          type: 'boolean',
+          description:
+            'If true, append content to the existing file rather than overwriting. Defaults to false.',
+        },
       },
       required: ['path', 'content'],
     },
@@ -138,7 +191,11 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
+        path: {
+          type: 'string',
+          description:
+            'File path, relative to the workspace root or absolute inside the workspace.',
+        },
         target: { type: 'string', description: 'Exact string to be replaced in the file.' },
         replacement: { type: 'string', description: 'Replacement content.' },
       },
@@ -168,8 +225,15 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        command: { type: 'string', description: 'Shell command to execute (e.g. "npm test", "git status").' },
-        delta: { type: 'boolean', description: 'When true (default for tests/builds), enables Delta Mode to collapse unchanged failures and surface new/resolved errors.' },
+        command: {
+          type: 'string',
+          description: 'Shell command to execute (e.g. "npm test", "git status").',
+        },
+        delta: {
+          type: 'boolean',
+          description:
+            'When true (default for tests/builds), enables Delta Mode to collapse unchanged failures and surface new/resolved errors.',
+        },
       },
       required: ['command'],
     },
@@ -238,12 +302,15 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'websearch',
     description:
-      'Search the web for a topic and return clean, ready-to-use results (Exa AI hosted MCP, no key required; enable with MUGIL_IDE_ENABLE_EXA=1). Use it to research current information, find docs, or answer questions beyond the model\'s training data. Prefer websearch for discovery and webfetch for retrieving a specific page.',
+      "Search the web for a topic and return clean, ready-to-use results (Exa AI hosted MCP, no key required; enable with MUGIL_IDE_ENABLE_EXA=1). Use it to research current information, find docs, or answer questions beyond the model's training data. Prefer websearch for discovery and webfetch for retrieving a specific page.",
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'The search query.' },
-        numResults: { type: 'number', description: 'Optional result count (default 5, capped at 10).' },
+        numResults: {
+          type: 'number',
+          description: 'Optional result count (default 5, capped at 10).',
+        },
       },
       required: ['query'],
     },
@@ -260,7 +327,11 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
           enum: ['goToDefinition', 'findReferences', 'hover'],
           description: 'The code-intelligence operation to run.',
         },
-        path: { type: 'string', description: 'File path, relative to the workspace root or absolute inside the workspace.' },
+        path: {
+          type: 'string',
+          description:
+            'File path, relative to the workspace root or absolute inside the workspace.',
+        },
         line: { type: 'number', description: '1-indexed line of the symbol (default 1).' },
         character: { type: 'number', description: '1-indexed column of the symbol (default 1).' },
       },
@@ -276,7 +347,10 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         id: { type: 'string', description: 'The blob ID (e.g. blob_1_abcd).' },
         offset: { type: 'number', description: '0-indexed character offset (default 0).' },
-        limit: { type: 'number', description: 'Number of characters to read (default 2000, capped at 8000).' },
+        limit: {
+          type: 'number',
+          description: 'Number of characters to read (default 2000, capped at 8000).',
+        },
       },
       required: ['id'],
     },
@@ -284,11 +358,14 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'question',
     description:
-      'Ask the user a question mid-task — for clarifying requirements, getting a decision, or offering implementation choices. Provide a short header, the question, and 2-6 concise options; the user picks one and it is returned as this tool\'s result. Use it only when a decision genuinely blocks progress.',
+      "Ask the user a question mid-task — for clarifying requirements, getting a decision, or offering implementation choices. Provide a short header, the question, and 2-6 concise options; the user picks one and it is returned as this tool's result. Use it only when a decision genuinely blocks progress.",
     parameters: {
       type: 'object',
       properties: {
-        header: { type: 'string', description: 'Short label for the question (e.g. "Test runner").' },
+        header: {
+          type: 'string',
+          description: 'Short label for the question (e.g. "Test runner").',
+        },
         question: { type: 'string', description: 'The question to ask the user.' },
         options: {
           type: 'array',
@@ -302,15 +379,20 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'task',
     description:
-      'Delegate a self-contained sub-task to a subagent with its own fresh context and tool loop (OpenCode-style). Use explore for read-only codebase research — it returns concise findings with file:line references. Use general for a full agent that can read, write, edit, and run commands (subject to the same approval policy). The subagent result is returned as this tool\'s output. Do not use task for work you can do directly in a few steps — it costs a separate model round-trip.',
+      "Delegate a self-contained sub-task to a subagent with its own fresh context and tool loop (OpenCode-style). Use explore for read-only codebase research — it returns concise findings with file:line references. Use general for a full agent that can read, write, edit, and run commands (subject to the same approval policy). The subagent result is returned as this tool's output. Do not use task for work you can do directly in a few steps — it costs a separate model round-trip.",
     parameters: {
       type: 'object',
       properties: {
-        description: { type: 'string', description: 'Clear, self-contained instructions for the subagent (include file paths and acceptance criteria).' },
+        description: {
+          type: 'string',
+          description:
+            'Clear, self-contained instructions for the subagent (include file paths and acceptance criteria).',
+        },
         mode: {
           type: 'string',
           enum: ['explore', 'general'],
-          description: 'explore = read-only research (default); general = full agent with write/command access (asks for approval).',
+          description:
+            'explore = read-only research (default); general = full agent with write/command access (asks for approval).',
         },
       },
       required: ['description'],
@@ -323,12 +405,35 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: {
       type: 'object',
       properties: {
-        prompt: { type: 'string', description: 'Detailed visual description of the image to generate.' },
-        path: { type: 'string', description: 'Destination file path relative to workspace root (e.g. "assets/hero.png", "icons/badge.svg").' },
-        size: { type: 'string', description: 'Dimensions in WxH format (e.g. "1024x1024", "512x512", "1280x720"). Defaults to 1024x1024.' },
-        style: { type: 'string', description: 'Optional visual style guide (e.g. "vector icon", "photorealistic", "flat illustration", "pixel art").' },
-        provider: { type: 'string', description: 'Optional explicit provider ("auto", "pollinations", "openai", "together", "openrouter", "vercel", "mock"). Defaults to "auto".' },
-        model: { type: 'string', description: 'Optional specific model identifier for the chosen provider (e.g. "dall-e-3", "flux", "turbo").' },
+        prompt: {
+          type: 'string',
+          description: 'Detailed visual description of the image to generate.',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Destination file path relative to workspace root (e.g. "assets/hero.png", "icons/badge.svg").',
+        },
+        size: {
+          type: 'string',
+          description:
+            'Dimensions in WxH format (e.g. "1024x1024", "512x512", "1280x720"). Defaults to 1024x1024.',
+        },
+        style: {
+          type: 'string',
+          description:
+            'Optional visual style guide (e.g. "vector icon", "photorealistic", "flat illustration", "pixel art").',
+        },
+        provider: {
+          type: 'string',
+          description:
+            'Optional explicit provider ("auto", "pollinations", "openai", "together", "openrouter", "vercel", "mock"). Defaults to "auto".',
+        },
+        model: {
+          type: 'string',
+          description:
+            'Optional specific model identifier for the chosen provider (e.g. "dall-e-3", "flux", "turbo").',
+        },
       },
       required: ['prompt', 'path'],
     },
@@ -358,7 +463,16 @@ const SUBAGENT_GENERAL_PROMPT =
   'Use the workspace tools as needed; write/edit/command calls may require approval. ' +
   'Return the outcome concisely, including what changed and how it was verified.';
 
-const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', 'dist-packages', '.cache', '.turbo', 'build', 'coverage']);
+const IGNORED_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'dist-packages',
+  '.cache',
+  '.turbo',
+  'build',
+  'coverage',
+]);
 const MAX_LINE_LENGTH = 2000;
 
 // Web tools: webfetch is a direct fetch; websearch delegates to Exa AI's hosted
@@ -424,7 +538,12 @@ export function parsePatch(patchText: string): PatchDirective[] {
       const kind = match[1] as 'Add File' | 'Update File' | 'Delete File' | 'Move to';
       if (kind === 'Move to') {
         const previous = directives[directives.length - 1];
-        if (previous && previous.kind === 'update' && previous.body.length === 0 && !previous.moveTo) {
+        if (
+          previous &&
+          previous.kind === 'update' &&
+          previous.body.length === 0 &&
+          !previous.moveTo
+        ) {
           previous.moveTo = match[2]!.trim();
         } else {
           directives.push({ kind: 'move', path: match[2]!.trim(), body: [], moveTo: undefined });
@@ -477,14 +596,18 @@ export function parsePatchHunks(body: string[]): { before: string[]; after: stri
 function getExaBundle(connect: McpConnector | undefined): Promise<McpToolsBundle> {
   let cached = exaBundleCaches.get(connect);
   if (!cached) {
-    const headers = process.env.MUGIL_IDE_EXA_API_KEY ? { 'x-api-key': process.env.MUGIL_IDE_EXA_API_KEY } : undefined;
+    const headers = process.env.MUGIL_IDE_EXA_API_KEY
+      ? { 'x-api-key': process.env.MUGIL_IDE_EXA_API_KEY }
+      : undefined;
     const configs: McpServerConfig[] = [
       { name: 'exa', url: EXA_MCP_URL, ...(headers ? { headers } : {}) },
     ];
-    cached = (connect ? connectMcpServers(configs, connect) : connectMcpServers(configs)).catch((err: unknown) => {
-      exaBundleCaches.delete(connect); // allow a later call to retry
-      throw err;
-    });
+    cached = (connect ? connectMcpServers(configs, connect) : connectMcpServers(configs)).catch(
+      (err: unknown) => {
+        exaBundleCaches.delete(connect); // allow a later call to retry
+        throw err;
+      },
+    );
     exaBundleCaches.set(connect, cached);
   }
   return cached;
@@ -553,8 +676,26 @@ export interface WorkspaceToolsOptions {
 
 /** Extensions whose structure `extractCodeSkeleton` can actually recognise. */
 export const SKELETON_EXTENSIONS = [
-  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py',
-  '.rs', '.go', '.java', '.c', '.h', '.cc', '.cpp', '.hpp', '.cs', '.rb', '.php', '.kt', '.swift',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.py',
+  '.rs',
+  '.go',
+  '.java',
+  '.c',
+  '.h',
+  '.cc',
+  '.cpp',
+  '.hpp',
+  '.cs',
+  '.rb',
+  '.php',
+  '.kt',
+  '.swift',
 ];
 
 /** True when a skeleton would be meaningful for this path (i.e. it is code). */
@@ -570,7 +711,9 @@ export function isSkeletonizable(filePath: string): boolean {
 function headFallback(lines: string[]): string {
   const head = lines.slice(0, 50).map((l, i) => `${i + 1}: ${l}`);
   if (lines.length > head.length) {
-    head.push(`/* … ${lines.length - head.length} of ${lines.length} lines omitted (no structural symbols found) */`);
+    head.push(
+      `/* … ${lines.length - head.length} of ${lines.length} lines omitted (no structural symbols found) */`,
+    );
   }
   return head.join('\n');
 }
@@ -605,30 +748,36 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
       const closes = (line.match(/\}/g) || []).length;
 
       // Imports / exports
-      if (trimmed.startsWith('import ') || trimmed.startsWith('export *') || trimmed.startsWith('export default')) {
+      if (
+        trimmed.startsWith('import ') ||
+        trimmed.startsWith('export *') ||
+        trimmed.startsWith('export default')
+      ) {
         out.push(`${i + 1}: ${trimmed}`);
-        braceDepth += (opens - closes);
+        braceDepth += opens - closes;
         continue;
       }
 
       // Interface / Type / Enum definitions
       if (/^(export\s+)?(type|interface|enum)\s+/.test(trimmed)) {
         out.push(`${i + 1}: ${line}`);
-        braceDepth += (opens - closes);
+        braceDepth += opens - closes;
         continue;
       }
 
       // Class / Abstract Class
       if (/^(export\s+)?(abstract\s+)?class\s+/.test(trimmed)) {
         out.push(`${i + 1}: ${line.replace(/\{.*$/, '{')}`);
-        braceDepth += (opens - closes);
+        braceDepth += opens - closes;
         continue;
       }
 
       // Function / Method declarations
       if (
         /^(export\s+)?(async\s+)?function(\s+\w+)?\s*\(/.test(trimmed) ||
-        /^(public|private|protected|static|override|async|readonly)*\s*(get\s+|set\s+)?(\w+)\s*\([^)]*\)\s*(:\s*[^{;]+)?\s*(\{|;|$)/.test(trimmed) ||
+        /^(public|private|protected|static|override|async|readonly)*\s*(get\s+|set\s+)?(\w+)\s*\([^)]*\)\s*(:\s*[^{;]+)?\s*(\{|;|$)/.test(
+          trimmed,
+        ) ||
         /^(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\([^)]*\)\s*(=>|:)/.test(trimmed)
       ) {
         if (opens > 0 && closes >= opens) {
@@ -638,7 +787,7 @@ export function extractCodeSkeleton(content: string, filePath: string): string {
         } else {
           out.push(`${i + 1}: ${trimmed}`);
         }
-        braceDepth += (opens - closes);
+        braceDepth += opens - closes;
         continue;
       }
 
@@ -736,7 +885,10 @@ export function createWorkspaceTools(
   const diagnosticsEnabled = options.diagnostics ?? false;
   const diagnosticsRunner = options.runDiagnostics ?? ((r: string) => runDiagnostics(r));
   const subagentMaxIterations = options.subagentMaxIterations ?? 4;
-  const webfetchEnabled = options.webfetchEnabled ?? (process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' && process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false');
+  const webfetchEnabled =
+    options.webfetchEnabled ??
+    (process.env.MUGIL_IDE_ENABLE_WEBFETCH !== '0' &&
+      process.env.MUGIL_IDE_ENABLE_WEBFETCH !== 'false');
   const websearchEnabled = options.websearchEnabled ?? envTruthy(process.env.MUGIL_IDE_ENABLE_EXA);
   const lspEnabled = options.lspEnabled ?? envTruthy(process.env.MUGIL_IDE_ENABLE_LSP);
   const toolCache = new Map<string, { result: string; mtimeMs?: number; rev: number }>();
@@ -854,7 +1006,8 @@ export function createWorkspaceTools(
       const slice = lines.slice(start - 1, end).slice(0, MAX_READ_LINES);
       const rendered = slice.map((line, idx) => {
         const num = start + idx;
-        const text = line.length > MAX_LINE_LENGTH ? `${line.substring(0, MAX_LINE_LENGTH)}…` : line;
+        const text =
+          line.length > MAX_LINE_LENGTH ? `${line.substring(0, MAX_LINE_LENGTH)}…` : line;
         return `${num}: ${text}`;
       });
       let out = rendered.join('\n');
@@ -1020,7 +1173,9 @@ export function createWorkspaceTools(
         formatted.push(`📁 ${file} (${hits.length} match${hits.length > 1 ? 'es' : ''}):`);
         for (const h of hits) {
           const truncated =
-            h.text.length > 200 ? `${h.text.slice(0, 200)}… (+${h.text.length - 200} chars)` : h.text;
+            h.text.length > 200
+              ? `${h.text.slice(0, 200)}… (+${h.text.length - 200} chars)`
+              : h.text;
           formatted.push(`  L${h.line}: ${truncated}`);
         }
       }
@@ -1055,7 +1210,8 @@ export function createWorkspaceTools(
 
     write_file: async (call: ToolCall): Promise<string> => {
       const args = parseToolArguments(call) as { path: string; content: string; append?: boolean };
-      if (!args.path || args.content === undefined) return 'Error: path and content parameters are required.';
+      if (!args.path || args.content === undefined)
+        return 'Error: path and content parameters are required.';
       const { target, error } = resolveInWorkspace(args.path);
       if (error) return error;
       // Snapshot the pre-write state so /undo can revert this edit.
@@ -1067,8 +1223,13 @@ export function createWorkspaceTools(
         fs.writeFileSync(target, args.content, 'utf-8');
       }
       invalidateCache();
-      const afterContent = args.append && fs.existsSync(target) ? fs.readFileSync(target, 'utf-8') : args.content;
-      const undoNote = pushEdit(root, { path: target, before, after: { content: afterContent, existed: true } });
+      const afterContent =
+        args.append && fs.existsSync(target) ? fs.readFileSync(target, 'utf-8') : args.content;
+      const undoNote = pushEdit(root, {
+        path: target,
+        before,
+        after: { content: afterContent, existed: true },
+      });
       const rel = path.relative(root, target).replace(/\\/g, '/');
       const actionLabel = args.append ? 'appended to' : 'wrote';
       return withDiagnostics(
@@ -1078,7 +1239,11 @@ export function createWorkspaceTools(
     },
 
     edit_file: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { path: string; target: string; replacement: string };
+      const args = parseToolArguments(call) as {
+        path: string;
+        target: string;
+        replacement: string;
+      };
       if (!args.path || !args.target || args.replacement === undefined) {
         return 'Error: path, target, and replacement parameters are required.';
       }
@@ -1100,9 +1265,16 @@ export function createWorkspaceTools(
       const updated = content.replace(args.target, args.replacement);
       fs.writeFileSync(target, updated, 'utf-8');
       invalidateCache();
-      const undoNote = pushEdit(root, { path: target, before, after: { content: updated, existed: true } });
+      const undoNote = pushEdit(root, {
+        path: target,
+        before,
+        after: { content: updated, existed: true },
+      });
       const rel = path.relative(root, target).replace(/\\/g, '/');
-      return withDiagnostics(`✓ Successfully edited ${rel}${undoNote ? ` (${undoNote})` : ''}`, target);
+      return withDiagnostics(
+        `✓ Successfully edited ${rel}${undoNote ? ` (${undoNote})` : ''}`,
+        target,
+      );
     },
 
     apply_patch: async (call: ToolCall): Promise<string> => {
@@ -1122,8 +1294,14 @@ export function createWorkspaceTools(
           fs.mkdirSync(path.dirname(target), { recursive: true });
           const content = d.body.join('\n') + '\n';
           fs.writeFileSync(target, content, 'utf-8');
-          const undoNote = pushEdit(root, { path: target, before, after: { content, existed: true } });
-          results.push(`✓ Added ${path.relative(root, target).replace(/\\/g, '/')}${undoNote ? ` (${undoNote})` : ''}`);
+          const undoNote = pushEdit(root, {
+            path: target,
+            before,
+            after: { content, existed: true },
+          });
+          results.push(
+            `✓ Added ${path.relative(root, target).replace(/\\/g, '/')}${undoNote ? ` (${undoNote})` : ''}`,
+          );
         } else if (d.kind === 'update') {
           const { target, error } = resolveInWorkspace(d.path);
           if (error) return error;
@@ -1162,15 +1340,25 @@ export function createWorkspaceTools(
             content = content.replace(search, hunk.after.join('\n'));
           }
           fs.writeFileSync(target, content, 'utf-8');
-          const undoNote = pushEdit(root, { path: target, before, after: { content, existed: true } });
-          results.push(`✓ Updated ${path.relative(root, target).replace(/\\/g, '/')} (${hunks.length} hunk${hunks.length === 1 ? '' : 's'})${undoNote ? ` (${undoNote})` : ''}`);
+          const undoNote = pushEdit(root, {
+            path: target,
+            before,
+            after: { content, existed: true },
+          });
+          results.push(
+            `✓ Updated ${path.relative(root, target).replace(/\\/g, '/')} (${hunks.length} hunk${hunks.length === 1 ? '' : 's'})${undoNote ? ` (${undoNote})` : ''}`,
+          );
         } else if (d.kind === 'delete') {
           const { target, error } = resolveInWorkspace(d.path);
           if (error) return error;
           if (!fs.existsSync(target)) return `Error: delete target not found: ${d.path}`;
           const before = captureFile(root, target);
           fs.rmSync(target, { force: true });
-          const undoNote = pushEdit(root, { path: target, before, after: { content: '', existed: false } });
+          const undoNote = pushEdit(root, {
+            path: target,
+            before,
+            after: { content: '', existed: false },
+          });
           results.push(`✓ Deleted ${d.path}${undoNote ? ` (${undoNote})` : ''}`);
         } else if (d.kind === 'move') {
           return 'Error: *** Move to: must follow an empty *** Update File: block (rename the updated file).';
@@ -1197,7 +1385,15 @@ export function createWorkspaceTools(
       const ext = path.extname(target);
       const stem = ext ? target.slice(0, target.length - ext.length) : target;
       const beforeByPath = new Map<string, ReturnType<typeof captureFile>>();
-      for (const candidate of [stem + ext, stem + '.png', stem + '.jpg', stem + '.jpeg', stem + '.webp', stem + '.gif', stem + '.svg']) {
+      for (const candidate of [
+        stem + ext,
+        stem + '.png',
+        stem + '.jpg',
+        stem + '.jpeg',
+        stem + '.webp',
+        stem + '.gif',
+        stem + '.svg',
+      ]) {
         if (fs.existsSync(candidate)) beforeByPath.set(candidate, captureFile(root, candidate));
       }
       try {
@@ -1235,18 +1431,25 @@ export function createWorkspaceTools(
     },
 
     run_command: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { command: string; timeout?: number; delta?: boolean };
+      const args = parseToolArguments(call) as {
+        command: string;
+        timeout?: number;
+        delta?: boolean;
+      };
       if (!args.command) return 'Error: command parameter is required.';
       // A token such as [MUGIL_SECRET_...] is only a placeholder for the model;
       // the shell needs the real value. Resolution happens here, in-process, and
       // the output is re-tokenized by the tool loop before it reaches the model.
       const command = globalSecretVault.resolve(args.command);
-      const envTimeout = process.env.MUGIL_IDE_COMMAND_TIMEOUT ? Number(process.env.MUGIL_IDE_COMMAND_TIMEOUT) : NaN;
-      const timeoutMs = typeof args.timeout === 'number' && args.timeout > 0
-        ? args.timeout
-        : Number.isFinite(envTimeout) && envTimeout > 0
-          ? Math.floor(envTimeout)
-          : 60_000;
+      const envTimeout = process.env.MUGIL_IDE_COMMAND_TIMEOUT
+        ? Number(process.env.MUGIL_IDE_COMMAND_TIMEOUT)
+        : NaN;
+      const timeoutMs =
+        typeof args.timeout === 'number' && args.timeout > 0
+          ? args.timeout
+          : Number.isFinite(envTimeout) && envTimeout > 0
+            ? Math.floor(envTimeout)
+            : 60_000;
       invalidateCache();
       return new Promise<string>((resolve) => {
         // spawn (not exec): execFile silently drops `detached`, so exec cannot
@@ -1275,16 +1478,18 @@ export function createWorkspaceTools(
             // Already gone.
           }
         };
-        const collect = (into: Buffer[]) => (chunk: Buffer): void => {
-          if (settled || killedForBuffer) return;
-          buffered += chunk.length;
-          if (buffered > MAX_BUFFER) {
-            killedForBuffer = true;
-            killTree('SIGKILL');
-            return;
-          }
-          into.push(chunk);
-        };
+        const collect =
+          (into: Buffer[]) =>
+          (chunk: Buffer): void => {
+            if (settled || killedForBuffer) return;
+            buffered += chunk.length;
+            if (buffered > MAX_BUFFER) {
+              killedForBuffer = true;
+              killTree('SIGKILL');
+              return;
+            }
+            into.push(chunk);
+          };
         child.stdout.on('data', collect(stdoutChunks));
         child.stderr.on('data', collect(stderrChunks));
         const timer = setTimeout(() => {
@@ -1329,7 +1534,9 @@ export function createWorkspaceTools(
           if (settled) return;
           settled = true;
           clearTimeout(timer);
-          resolve(compressCommandOutput(`Command failed:\n${err.message}`, { command: command }).text);
+          resolve(
+            compressCommandOutput(`Command failed:\n${err.message}`, { command: command }).text,
+          );
         });
         child.on('close', (code, signal) => finish(code, signal));
         if (options.signal) {
@@ -1351,9 +1558,10 @@ export function createWorkspaceTools(
             .filter((t) => t && typeof t.content === 'string' && t.content.trim().length > 0)
             .map((t) => ({
               content: t.content.trim(),
-              status: t.status && ['pending', 'in_progress', 'completed', 'canceled'].includes(t.status)
-                ? t.status
-                : ('pending' as const),
+              status:
+                t.status && ['pending', 'in_progress', 'completed', 'canceled'].includes(t.status)
+                  ? t.status
+                  : ('pending' as const),
             }))
         : [];
       todoStore.set(root, todos);
@@ -1373,7 +1581,9 @@ export function createWorkspaceTools(
         completed: 'x',
         canceled: '-',
       };
-      const lines = todos.map((t, i) => `  [${mark[t.status]}] ${i + 1}. ${t.content} (${t.status})`);
+      const lines = todos.map(
+        (t, i) => `  [${mark[t.status]}] ${i + 1}. ${t.content} (${t.status})`,
+      );
       return `Todo list (${todos.length}):\n${lines.join('\n')}`;
     },
 
@@ -1503,7 +1713,9 @@ export function createWorkspaceTools(
           name: EXA_TOOL_NAME,
           arguments: JSON.stringify({ query: args.query, numResults }),
         });
-        return out.length > 8000 ? `${out.slice(0, 8000)}\n… (search results truncated at 8000 chars)` : out;
+        return out.length > 8000
+          ? `${out.slice(0, 8000)}\n… (search results truncated at 8000 chars)`
+          : out;
       } catch (err: unknown) {
         return `Error: websearch failed: ${err instanceof Error ? err.message : String(err)}`;
       }
@@ -1553,10 +1765,17 @@ export function createWorkspaceTools(
     },
 
     question: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { header?: string; question: string; options?: string[] };
+      const args = parseToolArguments(call) as {
+        header?: string;
+        question: string;
+        options?: string[];
+      };
       if (!args.question) return 'Error: question parameter is required.';
       const choices = Array.isArray(args.options)
-        ? args.options.filter((o) => typeof o === 'string' && o.trim().length > 0).map((o) => o.trim()).slice(0, 6)
+        ? args.options
+            .filter((o) => typeof o === 'string' && o.trim().length > 0)
+            .map((o) => o.trim())
+            .slice(0, 6)
         : [];
       if (choices.length < 2) {
         return 'Error: provide 2-6 answer options for the user to choose from.';
@@ -1565,7 +1784,11 @@ export function createWorkspaceTools(
         return 'Error: no interactive question handler is wired (headless mode) — decide yourself or proceed with the most reasonable option.';
       }
       try {
-        const answer = await options.onQuestion({ header: args.header, question: args.question, options: choices });
+        const answer = await options.onQuestion({
+          header: args.header,
+          question: args.question,
+          options: choices,
+        });
         return `User answered: ${answer}`;
       } catch (err) {
         return `Error: question failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -1573,7 +1796,10 @@ export function createWorkspaceTools(
     },
 
     task: async (call: ToolCall): Promise<string> => {
-      const args = parseToolArguments(call) as { description: string; mode?: 'explore' | 'general' };
+      const args = parseToolArguments(call) as {
+        description: string;
+        mode?: 'explore' | 'general';
+      };
       if (!args.description) return 'Error: description parameter is required.';
       if (!options.handoff) {
         return 'Error: the task tool needs a handoff (engine) wired in to run subagents.';
@@ -1602,7 +1828,10 @@ export function createWorkspaceTools(
       });
       const result = await loop.run(
         [
-          { role: 'system', content: mode === 'explore' ? SUBAGENT_EXPLORE_PROMPT : SUBAGENT_GENERAL_PROMPT },
+          {
+            role: 'system',
+            content: mode === 'explore' ? SUBAGENT_EXPLORE_PROMPT : SUBAGENT_GENERAL_PROMPT,
+          },
           { role: 'user', content: args.description },
         ],
         {

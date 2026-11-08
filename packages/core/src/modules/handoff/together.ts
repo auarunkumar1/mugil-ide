@@ -21,7 +21,10 @@ export class TogetherClient extends OpenAiWireClient {
     });
   }
 
-  override buildBody(messages: ChatMessage[], options: ProviderCompleteOptions): Record<string, unknown> {
+  override buildBody(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Record<string, unknown> {
     const body = super.buildBody(messages, options);
     if (options.thinkingLevel && options.thinkingLevel !== 'off') {
       body.reasoning = { effort: options.thinkingLevel };

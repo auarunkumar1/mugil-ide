@@ -25,7 +25,12 @@ describe('cavemanStrategy', () => {
   });
 
   it('never rewrites code inside a fenced block', () => {
-    const code = ['```ts', '// in order to fix this, please review', 'const kind = "really";', '```'].join('\n');
+    const code = [
+      '```ts',
+      '// in order to fix this, please review',
+      'const kind = "really";',
+      '```',
+    ].join('\n');
     const prompt = `Please review this.\n\n${code}\n`;
     const { text } = cavemanStrategy(prompt);
     // The prose around the block is compressed...
@@ -231,10 +236,14 @@ describe('ponytail module', () => {
 
 describe('JSON SmartCrusher (compressJson)', () => {
   it('converts uniform object arrays to tabular format', () => {
-    const raw = JSON.stringify([
-      { id: 1, name: 'Alice', active: true },
-      { id: 2, name: 'Bob', active: false },
-    ], null, 2);
+    const raw = JSON.stringify(
+      [
+        { id: 1, name: 'Alice', active: true },
+        { id: 2, name: 'Bob', active: false },
+      ],
+      null,
+      2,
+    );
     const out = compressJson(raw);
     expect(out).toContain('[Table: 2 rows | cols: id, name, active]');
     expect(out).toContain('Alice');
@@ -261,4 +270,3 @@ describe('CCR BlobStore', () => {
     expect(store.get(id)?.size).toBe(longText.length);
   });
 });
-

@@ -21,7 +21,10 @@ const lspCall = (args: Record<string, unknown>): ToolCall => ({
 });
 
 /** Fake client recording the exact positions it received. */
-function fakeClient(output: string): { client: LspClient; calls: { op: string; line: number; character: number }[] } {
+function fakeClient(output: string): {
+  client: LspClient;
+  calls: { op: string; line: number; character: number }[];
+} {
   const calls: { op: string; line: number; character: number }[] = [];
   return {
     calls,
@@ -55,7 +58,9 @@ describe('formatLspLocations', () => {
   });
 
   it('handles a single Location, LocationLink, and null', () => {
-    expect(formatLspLocations(ROOT, { uri: uri('a.ts'), range: { start: { line: 1, character: 2 } } })).toBe('a.ts:2:3');
+    expect(
+      formatLspLocations(ROOT, { uri: uri('a.ts'), range: { start: { line: 1, character: 2 } } }),
+    ).toBe('a.ts:2:3');
     expect(
       formatLspLocations(ROOT, [
         { targetUri: uri('a.ts'), targetRange: { start: { line: 5, character: 0 } } },
@@ -129,9 +134,14 @@ describe('lsp tool', () => {
     const file = path.join(root, 'a.ts');
     fs.writeFileSync(file, 'export const x = 1;\n');
     const fake = fakeClient('a.ts:1:1\nb.ts:2:5');
-    const { toolRegistry } = createWorkspaceTools(root, { lspEnabled: true, lspConnect: async () => fake.client });
+    const { toolRegistry } = createWorkspaceTools(root, {
+      lspEnabled: true,
+      lspConnect: async () => fake.client,
+    });
 
-    const out = await toolRegistry.lsp(lspCall({ operation: 'goToDefinition', path: 'a.ts', line: 3, character: 5 }));
+    const out = await toolRegistry.lsp(
+      lspCall({ operation: 'goToDefinition', path: 'a.ts', line: 3, character: 5 }),
+    );
     expect(out).toContain('a.ts:1:1');
     expect(fake.calls).toEqual([{ op: 'goToDefinition', line: 2, character: 4 }]);
   });
@@ -140,7 +150,10 @@ describe('lsp tool', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-lsp-'));
     fs.writeFileSync(path.join(root, 'a.ts'), 'x\n');
     const fake = fakeClient('hover: string');
-    const { toolRegistry } = createWorkspaceTools(root, { lspEnabled: true, lspConnect: async () => fake.client });
+    const { toolRegistry } = createWorkspaceTools(root, {
+      lspEnabled: true,
+      lspConnect: async () => fake.client,
+    });
 
     await toolRegistry.lsp(lspCall({ operation: 'findReferences', path: 'a.ts' }));
     await toolRegistry.lsp(lspCall({ operation: 'hover', path: 'a.ts', line: 2 }));
@@ -159,13 +172,18 @@ describe('lsp tool', () => {
     expect(await toolRegistry.lsp(lspCall({ operation: 'hover', path: 'a.ts' }))).toContain(
       'MUGIL_IDE_ENABLE_LSP=1',
     );
-    expect(await toolRegistry.lsp(lspCall({ operation: 'hover' }))).toContain('path parameter is required');
+    expect(await toolRegistry.lsp(lspCall({ operation: 'hover' }))).toContain(
+      'path parameter is required',
+    );
 
     // File-not-found requires an enabled toolset (the disabled gate fires first).
-    const enabledTools = createWorkspaceTools(root, { lspEnabled: true, lspConnect: async () => fakeClient('x').client });
-    expect(await enabledTools.toolRegistry.lsp(lspCall({ operation: 'hover', path: 'missing.ts' }))).toContain(
-      'file not found',
-    );
+    const enabledTools = createWorkspaceTools(root, {
+      lspEnabled: true,
+      lspConnect: async () => fakeClient('x').client,
+    });
+    expect(
+      await enabledTools.toolRegistry.lsp(lspCall({ operation: 'hover', path: 'missing.ts' })),
+    ).toContain('file not found');
 
     const failing: LspClient = {
       goToDefinition: async () => {
@@ -175,7 +193,10 @@ describe('lsp tool', () => {
       hover: async () => 'x',
       close: async () => {},
     };
-    const tools2 = createWorkspaceTools(root, { lspEnabled: true, lspConnect: async () => failing });
+    const tools2 = createWorkspaceTools(root, {
+      lspEnabled: true,
+      lspConnect: async () => failing,
+    });
     expect(
       await tools2.toolRegistry.lsp(lspCall({ operation: 'goToDefinition', path: 'a.ts' })),
     ).toContain('connection refused');

@@ -9,10 +9,7 @@ import {
   type McpConnection,
   type McpServerConfig,
 } from '../src/modules/mcp-client/index.js';
-import {
-  defaultPolicyForMode,
-  resolveToolPermission,
-} from '../src/modules/tools/permissions.js';
+import { defaultPolicyForMode, resolveToolPermission } from '../src/modules/tools/permissions.js';
 import type { ToolCall } from '../src/types.js';
 
 describe('mcpToolName', () => {
@@ -33,9 +30,7 @@ describe('parseMcpServerConfigs', () => {
       ]),
     };
     const servers = parseMcpServerConfigs(env as NodeJS.ProcessEnv);
-    expect(servers).toEqual([
-      { name: 'fs', command: 'npx', args: ['-y', 'server-filesystem'] },
-    ]);
+    expect(servers).toEqual([{ name: 'fs', command: 'npx', args: ['-y', 'server-filesystem'] }]);
   });
 
   it('loads servers from the config file, env wins on name conflict', () => {
@@ -127,7 +122,10 @@ describe('mcpResultToString', () => {
   it('flattens text content', () => {
     expect(
       mcpResultToString({
-        content: [{ type: 'text', text: 'hello' }, { type: 'text', text: 'world' }],
+        content: [
+          { type: 'text', text: 'hello' },
+          { type: 'text', text: 'world' },
+        ],
       }),
     ).toBe('hello\nworld');
   });
@@ -158,9 +156,7 @@ describe('MCP permission prefix rules', () => {
   });
 
   it('asks for mcp_ tools in act mode', () => {
-    expect(resolveToolPermission(defaultPolicyForMode('act'), call('mcp__web__fetch'))).toBe(
-      'ask',
-    );
+    expect(resolveToolPermission(defaultPolicyForMode('act'), call('mcp__web__fetch'))).toBe('ask');
   });
 
   it('never affects non-prefixed built-in tools', () => {

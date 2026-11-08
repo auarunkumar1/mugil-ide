@@ -167,9 +167,12 @@ export class UpdateManager {
       }
     };
     void tick().catch((err) => this.onError?.(err));
-    const handle = setInterval(() => {
-      void tick().catch((err) => this.onError?.(err));
-    }, Math.max(1, options.intervalSeconds) * 1000);
+    const handle = setInterval(
+      () => {
+        void tick().catch((err) => this.onError?.(err));
+      },
+      Math.max(1, options.intervalSeconds) * 1000,
+    );
     const stop = (): void => clearInterval(handle);
     options.signal?.addEventListener('abort', stop, { once: true });
     return { stop };

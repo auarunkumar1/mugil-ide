@@ -15,7 +15,14 @@ import { createTwoFilesPatch } from 'diff';
 
 parentPort.on('message', (msg) => {
   try {
-    const patch = createTwoFilesPatch(msg.file1, msg.file2, msg.before, msg.after, msg.header1, msg.header2);
+    const patch = createTwoFilesPatch(
+      msg.file1,
+      msg.file2,
+      msg.before,
+      msg.after,
+      msg.header1,
+      msg.header2,
+    );
     parentPort.postMessage({ id: msg.id, patch });
   } catch (err) {
     parentPort.postMessage({ id: msg.id, error: err instanceof Error ? err.message : String(err) });

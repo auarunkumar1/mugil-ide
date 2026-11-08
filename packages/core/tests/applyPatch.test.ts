@@ -1,7 +1,11 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createWorkspaceTools, parsePatch, parsePatchHunks } from '../src/modules/tools/workspaceTools.js';
+import {
+  createWorkspaceTools,
+  parsePatch,
+  parsePatchHunks,
+} from '../src/modules/tools/workspaceTools.js';
 import { undoLast } from '../src/modules/undo.js';
 import type { ToolCall } from '../src/types.js';
 
@@ -9,7 +13,11 @@ function tempRoot(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-patch-'));
 }
 
-const patchCall = (patch: string): ToolCall => ({ id: 'p1', name: 'apply_patch', arguments: JSON.stringify({ patch }) });
+const patchCall = (patch: string): ToolCall => ({
+  id: 'p1',
+  name: 'apply_patch',
+  arguments: JSON.stringify({ patch }),
+});
 
 const questionCall = (args: Record<string, unknown>): ToolCall => ({
   id: 'q1',
@@ -83,7 +91,9 @@ describe('apply_patch executor', () => {
     expect(out).toContain('Updated src/a.ts');
     expect(out).toContain('Deleted src/old.ts');
 
-    expect(fs.readFileSync(path.join(root, 'src', 'new.ts'), 'utf-8')).toBe('export const b = 2;\n');
+    expect(fs.readFileSync(path.join(root, 'src', 'new.ts'), 'utf-8')).toBe(
+      'export const b = 2;\n',
+    );
     expect(fs.readFileSync(target, 'utf-8')).toBe('const x = 99;\nconst keep = true;\n');
     expect(fs.existsSync(path.join(root, 'src', 'old.ts'))).toBe(false);
   });
@@ -115,9 +125,9 @@ describe('apply_patch executor', () => {
   it('enforces workspace containment and validates input', async () => {
     const root = tempRoot();
     const { toolRegistry } = createWorkspaceTools(root);
-    expect(
-      await toolRegistry.apply_patch(patchCall('*** Add File: ../escape.txt\nx')),
-    ).toContain('outside the workspace');
+    expect(await toolRegistry.apply_patch(patchCall('*** Add File: ../escape.txt\nx'))).toContain(
+      'outside the workspace',
+    );
     expect(await toolRegistry.apply_patch(patchCall('no directives here'))).toContain(
       'empty patch',
     );
@@ -155,7 +165,11 @@ describe('question tool', () => {
       },
     });
     const out = await toolRegistry.question(
-      questionCall({ header: 'Runner', question: 'Which test runner?', options: ['jest', 'vitest'] }),
+      questionCall({
+        header: 'Runner',
+        question: 'Which test runner?',
+        options: ['jest', 'vitest'],
+      }),
     );
     expect(out).toBe('User answered: vitest');
     expect(seen).toEqual([{ question: 'Which test runner?', options: ['jest', 'vitest'] }]);
@@ -164,16 +178,16 @@ describe('question tool', () => {
   it('rejects fewer than 2 options', async () => {
     const root = tempRoot();
     const { toolRegistry } = createWorkspaceTools(root, { onQuestion: async () => 'x' });
-    const out = await toolRegistry.question(questionCall({ question: 'q?', options: ['only one'] }));
+    const out = await toolRegistry.question(
+      questionCall({ question: 'q?', options: ['only one'] }),
+    );
     expect(out).toContain('provide 2-6 answer options');
   });
 
   it('answers without hanging when no handler is wired (headless)', async () => {
     const root = tempRoot();
     const { toolRegistry } = createWorkspaceTools(root);
-    const out = await toolRegistry.question(
-      questionCall({ question: 'q?', options: ['a', 'b'] }),
-    );
+    const out = await toolRegistry.question(questionCall({ question: 'q?', options: ['a', 'b'] }));
     expect(out).toContain('no interactive question handler');
   });
 

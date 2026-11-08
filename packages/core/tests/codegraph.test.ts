@@ -83,7 +83,15 @@ describe('parseCodeFile', () => {
     const names = parseCodeFile('src/x.ts', content).symbols.map((s) => s.name);
     expect(names).toEqual(
       expect.arrayContaining([
-        'LIMIT', 'CONFIG', 'entry', 'loadRulesSync', 'bootstrap', 'walk', 'Base', 'Util', 'Mode',
+        'LIMIT',
+        'CONFIG',
+        'entry',
+        'loadRulesSync',
+        'bootstrap',
+        'walk',
+        'Base',
+        'Util',
+        'Mode',
       ]),
     );
   });
@@ -152,7 +160,14 @@ describe('buildCodeGraph', () => {
   });
   it('keeps line numbers correct with the precomputed line index', () => {
     const dir = fixture();
-    const content = ['// one', '// two', '', 'export function onLineFour() {}', '', 'export function onLineSix() {}'].join('\n');
+    const content = [
+      '// one',
+      '// two',
+      '',
+      'export function onLineFour() {}',
+      '',
+      'export function onLineSix() {}',
+    ].join('\n');
     fs.writeFileSync(path.join(dir, 'src', 'lines.ts'), content);
     invalidateCodeGraphCache();
     const graph = buildCodeGraph(dir);

@@ -828,7 +828,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           '.md': 'text/markdown; charset=utf-8',
         };
         const mime = mimeTypes[ext];
-        if (mime && (mime.startsWith('image/') || mime.startsWith('audio/') || mime.startsWith('video/') || mime === 'application/pdf')) {
+        if (
+          mime &&
+          (mime.startsWith('image/') ||
+            mime.startsWith('audio/') ||
+            mime.startsWith('video/') ||
+            mime === 'application/pdf')
+        ) {
           const buf = fs.readFileSync(resolved);
           res.writeHead(200, { 'Content-Type': mime, 'Content-Length': buf.length });
           res.end(buf);
@@ -862,7 +868,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const defaultPath = `assets/generated-${Date.now()}.png`;
         const targetPath = payload.path || defaultPath;
         const root = path.resolve(process.cwd());
-        const { resolveInsideWorkspace, generateImage, captureFile, pushEdit } = await import('@mugil-ide/core');
+        const { resolveInsideWorkspace, generateImage, captureFile, pushEdit } =
+          await import('@mugil-ide/core');
         const { target: resolved, error } = resolveInsideWorkspace(root, targetPath);
         if (error) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -874,7 +881,15 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         // so snapshot the pre-write state of every path it could land on.
         const stem = resolved.slice(0, resolved.length - path.extname(resolved).length);
         const beforeByPath = new Map<string, ReturnType<typeof captureFile>>();
-        for (const candidate of [resolved, `${stem}.png`, `${stem}.jpg`, `${stem}.jpeg`, `${stem}.webp`, `${stem}.gif`, `${stem}.svg`]) {
+        for (const candidate of [
+          resolved,
+          `${stem}.png`,
+          `${stem}.jpg`,
+          `${stem}.jpeg`,
+          `${stem}.webp`,
+          `${stem}.gif`,
+          `${stem}.svg`,
+        ]) {
           if (fs.existsSync(candidate)) beforeByPath.set(candidate, captureFile(root, candidate));
         }
 
@@ -1025,14 +1040,20 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             const beforeState = captureFile(root, fullPath);
             fs.writeFileSync(fullPath, updated, 'utf-8');
             const afterState = captureFile(root, fullPath);
-            const undoNote = pushEdit(root, { path: fullPath, before: beforeState, after: afterState });
+            const undoNote = pushEdit(root, {
+              path: fullPath,
+              before: beforeState,
+              after: afterState,
+            });
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true, applied: true, undoNote: undoNote || undefined }));
             return;
           }
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, applied: false, note: 'Hunk did not match file content' }));
+        res.end(
+          JSON.stringify({ ok: true, applied: false, note: 'Hunk did not match file content' }),
+        );
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -1220,7 +1241,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     if (url.pathname === '/api/graph/query' && req.method === 'GET') {
       try {
         const query = url.searchParams.get('q') || '';
-        const { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } = await import('@mugil-ide/core');
+        const { buildCodeGraph, invalidateCodeGraphCache, queryCodeGraph } =
+          await import('@mugil-ide/core');
         invalidateCodeGraphCache();
         const graph = buildCodeGraph(process.cwd());
         const results = queryCodeGraph(graph, query, { top: 15 });
@@ -1238,6 +1260,136 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const { discoverSkills } = await import('@mugil-ide/core');
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ skills: discoverSkills(process.cwd()) }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/skills/gallery' && req.method === 'GET') {
+      try {
+        const { CURATED_GALLERY_SKILLS, discoverSkills } = await import('@mugil-ide/core');
+        const installed = discoverSkills(process.cwd());
+        const installedMap = new Map(installed.map((s) => [s.name, s]));
+        const categoryFilter = url.searchParams.get('category')?.toLowerCase();
+
+        let list = CURATED_GALLERY_SKILLS.map((item) => {
+          const match = installedMap.get(item.id);
+          return {
+            ...item,
+            installed: Boolean(match),
+            installedTarget: match?.source,
+          };
+        });
+
+        if (categoryFilter && categoryFilter !== 'all') {
+          list = list.filter((s) => s.category.toLowerCase() === categoryFilter);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ gallery: list }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/skills/gallery/') && req.method === 'GET') {
+      try {
+        const id = decodeURIComponent(url.pathname.slice('/api/skills/gallery/'.length));
+        const { CURATED_GALLERY_SKILLS, discoverSkills } = await import('@mugil-ide/core');
+        const item = CURATED_GALLERY_SKILLS.find((s) => s.id === id);
+        if (!item) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `unknown gallery skill "${id}"` }));
+          return;
+        }
+        const installed = discoverSkills(process.cwd()).find((s) => s.name === item.id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            skill: {
+              ...item,
+              installed: Boolean(installed),
+              installedTarget: installed?.source,
+            },
+          }),
+        );
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/skills/install' && req.method === 'POST') {
+      try {
+        const json = await readJsonBody(req);
+        const type = String(json.type || 'gallery');
+        const source = String(json.source || json.id || json.url || json.path || '');
+        const target = json.target === 'global' ? 'global' : 'workspace';
+        const overwrite = Boolean(json.overwrite);
+        const name = typeof json.name === 'string' ? json.name.trim() : undefined;
+
+        if (!source) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'source (id, url, or path) is required' }));
+          return;
+        }
+
+        const { installFromGallery, installFromUrl, installFromPath } =
+          await import('@mugil-ide/core');
+
+        let result;
+        if (type === 'gallery') {
+          result = await installFromGallery(process.cwd(), source, { target, overwrite, name });
+        } else if (
+          type === 'url' ||
+          type === 'git' ||
+          source.startsWith('http://') ||
+          source.startsWith('https://')
+        ) {
+          result = await installFromUrl(process.cwd(), source, { target, overwrite, name });
+        } else if (type === 'path') {
+          result = installFromPath(process.cwd(), source, { target, overwrite, name });
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `unknown install type: "${type}"` }));
+          return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, result }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname.startsWith('/api/skills/') && req.method === 'DELETE') {
+      try {
+        const name = decodeURIComponent(url.pathname.slice('/api/skills/'.length));
+        const target = url.searchParams.get('target') === 'global' ? 'global' : 'workspace';
+        const { uninstallSkill } = await import('@mugil-ide/core');
+        const removed = uninstallSkill(process.cwd(), name, { target });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, removed, name, target }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/credits' && req.method === 'GET') {
+      try {
+        const { getCredits } = await import('@mugil-ide/core');
+        const manifest = getCredits(process.cwd());
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, ...manifest }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -1303,13 +1455,18 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const json = await readJsonBody(req);
         const { createSkill } = await import('@mugil-ide/core');
         const name = typeof json.name === 'string' ? json.name.trim() : '';
-        const file = createSkill(process.cwd(), name, typeof json.description === 'string' ? json.description : undefined, {
-          source: json.source === 'global' ? 'global' : 'workspace',
-          ...(typeof json.version === 'string' ? { version: json.version } : {}),
-          ...(typeof json.author === 'string' ? { author: json.author } : {}),
-          ...(Array.isArray(json.tags) ? { tags: json.tags.map(String) } : {}),
-          ...(Array.isArray(json.triggers) ? { triggers: json.triggers.map(String) } : {}),
-        });
+        const file = createSkill(
+          process.cwd(),
+          name,
+          typeof json.description === 'string' ? json.description : undefined,
+          {
+            source: json.source === 'global' ? 'global' : 'workspace',
+            ...(typeof json.version === 'string' ? { version: json.version } : {}),
+            ...(typeof json.author === 'string' ? { author: json.author } : {}),
+            ...(Array.isArray(json.tags) ? { tags: json.tags.map(String) } : {}),
+            ...(Array.isArray(json.triggers) ? { triggers: json.triggers.map(String) } : {}),
+          },
+        );
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, file }));
       } catch (err) {

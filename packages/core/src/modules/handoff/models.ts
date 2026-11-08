@@ -31,8 +31,13 @@ export function clearModelsCache(): void {
  */
 export async function fetchProviderModels(options: FetchModelsOptions): Promise<ModelSpec[]> {
   const { provider, apiKey, baseUrl, timeoutMs = 4000 } = options;
-  const envTtl = typeof process !== 'undefined' && process.env?.MUGIL_IDE_MODELS_CACHE_TTL ? Number(process.env.MUGIL_IDE_MODELS_CACHE_TTL) : undefined;
-  const effectiveTtl = options.cacheTtlMs ?? (envTtl !== undefined && !isNaN(envTtl) ? envTtl : DEFAULT_MODELS_CACHE_TTL_MS);
+  const envTtl =
+    typeof process !== 'undefined' && process.env?.MUGIL_IDE_MODELS_CACHE_TTL
+      ? Number(process.env.MUGIL_IDE_MODELS_CACHE_TTL)
+      : undefined;
+  const effectiveTtl =
+    options.cacheTtlMs ??
+    (envTtl !== undefined && !isNaN(envTtl) ? envTtl : DEFAULT_MODELS_CACHE_TTL_MS);
   const cacheKey = `${provider}:${baseUrl || 'default'}:${options.accountId || ''}:${apiKey ? 'auth' : 'noauth'}`;
   const cached = modelsCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < effectiveTtl) {
@@ -60,9 +65,13 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
           const list: ModelSpec[] = json.data.map((m) => {
             const costIn = m.pricing?.prompt ? Number(m.pricing.prompt) * 1_000_000 : 0;
             const costOut = m.pricing?.completion ? Number(m.pricing.completion) * 1_000_000 : 0;
-            const cacheIn = m.pricing?.input_cache_read ? Number(m.pricing.input_cache_read) * 1_000_000 : undefined;
-            const tier: ModelSpec['tier'] = costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
-            const costPerMTokCacheRead = (cacheIn !== undefined && !isNaN(cacheIn)) ? cacheIn : (costIn > 0 ? costIn * 0.1 : 0);
+            const cacheIn = m.pricing?.input_cache_read
+              ? Number(m.pricing.input_cache_read) * 1_000_000
+              : undefined;
+            const tier: ModelSpec['tier'] =
+              costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
+            const costPerMTokCacheRead =
+              cacheIn !== undefined && !isNaN(cacheIn) ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
             return {
               id: m.id,
               tier,
@@ -116,7 +125,9 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
       const ep = baseUrl || 'http://localhost:11434/v1';
       const endpointsToTry = [
         ep,
-        ep.includes('localhost') ? ep.replace('localhost', '127.0.0.1') : ep.replace('127.0.0.1', 'localhost'),
+        ep.includes('localhost')
+          ? ep.replace('localhost', '127.0.0.1')
+          : ep.replace('127.0.0.1', 'localhost'),
       ];
 
       for (const currentEp of endpointsToTry) {
@@ -152,7 +163,9 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             signal: AbortSignal.timeout(timeoutMs),
           });
           if (nativeRes.ok) {
-            const json = (await nativeRes.json()) as { models?: Array<{ name?: string; model?: string; id?: string }> };
+            const json = (await nativeRes.json()) as {
+              models?: Array<{ name?: string; model?: string; id?: string }>;
+            };
             if (json.models && Array.isArray(json.models) && json.models.length > 0) {
               const list: ModelSpec[] = json.models
                 .map((m) => m.name || m.model || m.id)
@@ -198,7 +211,12 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
         if (json.data && Array.isArray(json.data) && json.data.length > 0) {
           const list: ModelSpec[] = json.data.map((m) => ({
             id: m.id,
-            tier: m.id.includes('mini') || m.id.includes('small') ? 'cheap' : m.id.includes('o1') || m.id.includes('o3') || m.id.includes('r1') ? 'smart' : 'standard',
+            tier:
+              m.id.includes('mini') || m.id.includes('small')
+                ? 'cheap'
+                : m.id.includes('o1') || m.id.includes('o3') || m.id.includes('r1')
+                  ? 'smart'
+                  : 'standard',
             costPerMTokIn: 0,
             costPerMTokOut: 0,
             contextWindow: 128000,
@@ -222,7 +240,9 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
           signal: AbortSignal.timeout(timeoutMs),
         });
         if (res.ok) {
-          const json = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
+          const json = (await res.json()) as {
+            data?: Array<{ id: string; display_name?: string }>;
+          };
           if (json.data && Array.isArray(json.data) && json.data.length > 0) {
             const list: ModelSpec[] = json.data.map((m) => ({
               id: m.id,
@@ -271,7 +291,10 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
                 return {
                   id: m.id,
                   tier:
-                    id.includes('mini') || id.includes('small') || id.includes('flash') || id.includes('haiku')
+                    id.includes('mini') ||
+                    id.includes('small') ||
+                    id.includes('flash') ||
+                    id.includes('haiku')
                       ? 'cheap'
                       : id.includes('r1') || id.includes('thinking')
                         ? 'smart'
@@ -279,7 +302,9 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
                   costPerMTokIn: perMTok(m.pricing?.input),
                   costPerMTokOut: perMTok(m.pricing?.output),
                   contextWindow: m.context_window ?? 128000,
-                  supportsThinking: modelSupportsThinking(m.id) || (m.supported_parameters ?? []).includes('reasoning'),
+                  supportsThinking:
+                    modelSupportsThinking(m.id) ||
+                    (m.supported_parameters ?? []).includes('reasoning'),
                   supportsTools: modelSupportsTools(m.id),
                 };
               });
@@ -335,11 +360,18 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             signal: AbortSignal.timeout(timeoutMs),
           });
           if (res.ok) {
-            const json = (await res.json()) as { data?: Array<{ id: string; display_name?: string }> };
+            const json = (await res.json()) as {
+              data?: Array<{ id: string; display_name?: string }>;
+            };
             if (json.data && Array.isArray(json.data) && json.data.length > 0) {
               const list: ModelSpec[] = json.data.map((m) => ({
                 id: m.id,
-                tier: m.id.includes('turbo') || m.id.includes('small') ? 'cheap' : m.id.includes('r1') || m.id.includes('qwq') ? 'smart' : 'standard',
+                tier:
+                  m.id.includes('turbo') || m.id.includes('small')
+                    ? 'cheap'
+                    : m.id.includes('r1') || m.id.includes('qwq')
+                      ? 'smart'
+                      : 'standard',
                 costPerMTokIn: 0,
                 costPerMTokOut: 0,
                 contextWindow: 128000,

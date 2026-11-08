@@ -70,7 +70,10 @@ describe('Pipeline', () => {
       ttlSeconds: 3600,
       embedding: new LexicalEmbedding(),
     });
-    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const handoff = new HandoffManager({
+      client: client as unknown as ProviderClient,
+      models: MODELS,
+    });
     const pipeline = new Pipeline({ cache, handoff, tokenBudget: 10000 });
     const prompt = 'When is the [mock] token literal safe in prose?';
 
@@ -112,7 +115,10 @@ describe('Pipeline', () => {
         finishReason: 'stop',
       }),
     };
-    const liveHandoff = new HandoffManager({ client: liveClient as unknown as ProviderClient, models: MODELS });
+    const liveHandoff = new HandoffManager({
+      client: liveClient as unknown as ProviderClient,
+      models: MODELS,
+    });
     const livePipeline = new Pipeline({ cache, handoff: liveHandoff, tokenBudget: 10000 });
     const result = await livePipeline.ask(prompt);
     expect(result.cache.hit).toBe(false);
@@ -130,7 +136,9 @@ describe('Pipeline', () => {
     // Real input savings, measured against compressible input only.
     expect(result.savings.savedTokens).toBeGreaterThan(0);
     expect(result.savings.keptTokens).toBeGreaterThan(0);
-    expect(inputSavingsPercent(result.savings.savedTokens, result.savings.keptTokens)).toBeGreaterThan(0);
+    expect(
+      inputSavingsPercent(result.savings.savedTokens, result.savings.keptTokens),
+    ).toBeGreaterThan(0);
   });
   it('does not dilute prompt savings with the whole prompt count', async () => {
     // A live provider reports tens of thousands of prompt tokens (system prompt,
@@ -146,8 +154,15 @@ describe('Pipeline', () => {
         finishReason: 'stop',
       }),
     };
-    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
-    const cache = new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() });
+    const handoff = new HandoffManager({
+      client: client as unknown as ProviderClient,
+      models: MODELS,
+    });
+    const cache = new SmartCache({
+      backend: new MemoryBackend(),
+      ttlSeconds: 3600,
+      embedding: new LexicalEmbedding(),
+    });
     const pipeline = new Pipeline({ cache, handoff, tokenBudget: 100_000 });
     const result = await pipeline.ask(
       'Can you please fix the login bug in order to make the tests pass?',
@@ -155,7 +170,9 @@ describe('Pipeline', () => {
     );
     expect(result.usage.promptTokens).toBe(24_500);
     expect(result.savings.savedTokens).toBeGreaterThan(0);
-    expect(inputSavingsPercent(result.savings.savedTokens, result.savings.keptTokens)).toBeGreaterThan(0);
+    expect(
+      inputSavingsPercent(result.savings.savedTokens, result.savings.keptTokens),
+    ).toBeGreaterThan(0);
   });
   it('counts an exact cache hit as 100% of the compressible input saved', async () => {
     const pipeline = makePipeline();
@@ -223,7 +240,10 @@ describe('Pipeline', () => {
           finishReason: 'stop',
         }),
     };
-    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const handoff = new HandoffManager({
+      client: client as unknown as ProviderClient,
+      models: MODELS,
+    });
     const pipeline = new Pipeline({ cache, handoff, tokenBudget: 10000 });
     const events: string[] = [];
     const toolRegistry = {
@@ -274,7 +294,10 @@ describe('Pipeline', () => {
           finishReason: 'stop',
         }),
     };
-    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const handoff = new HandoffManager({
+      client: client as unknown as ProviderClient,
+      models: MODELS,
+    });
     const debuggerInstance = new StepDebugger({ enabled: true });
     const intercepted: string[] = [];
     debuggerInstance.setOnBreakpoint((bp) => {
@@ -283,7 +306,11 @@ describe('Pipeline', () => {
       debuggerInstance.resolveBreakpoint(bp.id, { action: 'skip', skipOutput: 'not run' });
     });
     const pipeline = new Pipeline({
-      cache: new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() }),
+      cache: new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
+      }),
       handoff,
       tokenBudget: 10000,
       stepDebugger: debuggerInstance,
@@ -329,9 +356,16 @@ describe('Pipeline', () => {
           finishReason: 'stop',
         }),
     };
-    const handoff = new HandoffManager({ client: client as unknown as ProviderClient, models: MODELS });
+    const handoff = new HandoffManager({
+      client: client as unknown as ProviderClient,
+      models: MODELS,
+    });
     const pipeline = new Pipeline({
-      cache: new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() }),
+      cache: new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
+      }),
       handoff,
       tokenBudget: 10000,
     });
@@ -400,7 +434,11 @@ describe('Pipeline', () => {
     } as unknown as ProviderClient;
     const handoff = new HandoffManager({ client, models: MODELS });
     const pipeline = new Pipeline({
-      cache: new SmartCache({ backend: new MemoryBackend(), ttlSeconds: 3600, embedding: new LexicalEmbedding() }),
+      cache: new SmartCache({
+        backend: new MemoryBackend(),
+        ttlSeconds: 3600,
+        embedding: new LexicalEmbedding(),
+      }),
       handoff,
       tokenBudget: 10000,
     });
@@ -411,7 +449,11 @@ describe('Pipeline', () => {
     }) as typeof fetch;
 
     await expect(
-      pipeline.ask('doomed', { noCache: true, webhooks: [{ url: 'https://hooks.example.com/e' }], webhookFetch }),
+      pipeline.ask('doomed', {
+        noCache: true,
+        webhooks: [{ url: 'https://hooks.example.com/e' }],
+        webhookFetch,
+      }),
     ).rejects.toThrow();
     await new Promise((r) => setTimeout(r, 5));
     expect(events).toContain('turn.started');
@@ -442,7 +484,15 @@ describe('Pipeline', () => {
         }),
         handoff: new HandoffManager({
           client,
-          models: [{ id: 'cheap-1', tier: 'cheap', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128_000 }],
+          models: [
+            {
+              id: 'cheap-1',
+              tier: 'cheap',
+              costPerMTokIn: 0,
+              costPerMTokOut: 0,
+              contextWindow: 128_000,
+            },
+          ],
         }),
         // Deliberately tiny: the prompt budget must NOT cap generation.
         tokenBudget: 1000,
@@ -500,10 +550,18 @@ describe('Pipeline', () => {
         }),
         handoff: new HandoffManager({ client, models: MODELS }),
       });
-      await pipeline.ask('hi', { noCache: true, maxTokens: 6000, ponytail: { outputBudget: 2000 } });
+      await pipeline.ask('hi', {
+        noCache: true,
+        maxTokens: 6000,
+        ponytail: { outputBudget: 2000 },
+      });
       expect((client.complete as jest.Mock).mock.calls[0]![1].maxTokens).toBe(2000);
 
-      await pipeline.ask('hi again', { noCache: true, maxTokens: 2000, ponytail: { outputBudget: 6000 } });
+      await pipeline.ask('hi again', {
+        noCache: true,
+        maxTokens: 2000,
+        ponytail: { outputBudget: 6000 },
+      });
       expect((client.complete as jest.Mock).mock.calls[1]![1].maxTokens).toBe(2000);
     });
 
@@ -532,7 +590,10 @@ describe('Pipeline', () => {
         ttlSeconds: 3600,
         embedding: new LexicalEmbedding(),
       });
-      const pipeline = new Pipeline({ cache, handoff: new HandoffManager({ client, models: MODELS }) });
+      const pipeline = new Pipeline({
+        cache,
+        handoff: new HandoffManager({ client, models: MODELS }),
+      });
 
       const first = await pipeline.ask('explain the retry ladder');
       expect(first.truncated).toBe(true);
@@ -575,7 +636,10 @@ describe('Pipeline', () => {
           ttlSeconds: 3600,
           embedding: new LexicalEmbedding(),
         }),
-        handoff: new HandoffManager({ client: streaming as unknown as ProviderClient, models: MODELS }),
+        handoff: new HandoffManager({
+          client: streaming as unknown as ProviderClient,
+          models: MODELS,
+        }),
       });
 
     const seen: string[] = [];
@@ -620,7 +684,10 @@ describe('Pipeline', () => {
         ttlSeconds: 3600,
         embedding: new LexicalEmbedding(),
       }),
-      handoff: new HandoffManager({ client: streaming as unknown as ProviderClient, models: MODELS }),
+      handoff: new HandoffManager({
+        client: streaming as unknown as ProviderClient,
+        models: MODELS,
+      }),
     });
 
     process.env.MUGIL_IDE_NO_STREAM = '1';

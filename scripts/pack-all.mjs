@@ -14,12 +14,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.join(root, 'dist-packages');
 
-const packages = [
-  'packages/core',
-  'packages/docs',
-  'packages/mcp',
-  'packages/cli',
-];
+const packages = ['packages/core', 'packages/docs', 'packages/mcp', 'packages/cli'];
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
@@ -37,6 +32,8 @@ for (const pkg of packages) {
 }
 
 console.log('\n✅ packed tarballs in dist-packages/:');
-for (const file of readdirSync(outDir).filter((f) => f.endsWith('.tgz')).sort()) {
+for (const file of readdirSync(outDir)
+  .filter((f) => f.endsWith('.tgz'))
+  .sort()) {
   console.log(`  ${file}`);
 }
