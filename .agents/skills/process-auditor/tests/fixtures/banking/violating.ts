@@ -1,5 +1,5 @@
 // Violating Banking: Single-sided update, float balance, direct state jump, hard delete
-export async function directTransfer(db: any, fromAcc: string, toAcc: string) {
+export async function directTransfer(db: any, fromAcc: string, _toAcc: string) {
   // Violation 1: Float balance
   const balance: float = 1200.50;
 
