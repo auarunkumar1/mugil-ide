@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 5 high-contrast designer palettes: **GitHub Dark** (Default), **Nordic (Nord)**, **OLED Dark (True Black)**, **Dracula**, and **Cyberpunk Neon**.
   - Synchronized xterm.js terminal emulator palette and CSS custom properties dynamically applied on selection.
   - Header `🎨 Theme` dropdown with persistent user preference in `localStorage`.
+- **Intuitive Folder Picker Interaction**:
+  - Single-click selection with visual highlighting (`var(--accent)`), updating selected path and summary status.
+  - Double-click (or dedicated `Open →` button) to navigate into subfolders.
+  - Background click deselects subfolder item back to current directory.
+  - Integrated subfolder creation directly inside selected or current path.
 
 ## [0.3.2] - 2026-11-08
 ### Added
