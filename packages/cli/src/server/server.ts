@@ -355,12 +355,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
 
-    // Origin check for state-changing /api/* requests
-    if (
-      url.pathname.startsWith('/api/') &&
-      req.method !== 'GET' &&
-      !isOriginAllowed(req.headers.origin)
-    ) {
+    // Origin check for /api/* requests (block untrusted origins on mutations and queries)
+    if (url.pathname.startsWith('/api/') && !isOriginAllowed(req.headers.origin)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Forbidden: invalid origin' }));
       return;
