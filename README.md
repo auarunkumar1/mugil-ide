@@ -14,25 +14,6 @@
 
 </div>
 
-> [!IMPORTANT]
-> **Direct Standalone Installers & Binary Releases on GitHub (npm Sunset Notice)**
->
-> Official distribution of Mugil IDE has migrated directly to **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**. Publishing to `npmjs.com` has been **sunset** starting with this release.
->
-> You no longer need `npm`, `node`, or any package manager installed to run Mugil IDE. Download official, self-contained click-to-run binaries and installers for your operating system:
->
-> | Platform                              | Download & Package Type         | How to Run                                                          |
-> | :------------------------------------ | :------------------------------ | :------------------------------------------------------------------ |
-> | **Windows (x64)**                     | `mugil-ide-windows-x64.exe`     | Double-click or run `.\mugil-ide-windows-x64.exe`                   |
-> | **Linux (Ubuntu / Debian / Mint)**    | `mugil-ide-linux-amd64.deb`     | Double-click to install or `sudo dpkg -i mugil-ide-linux-amd64.deb` |
-> | **Linux Universal (x64 / arm64)**     | `mugil-ide-linux-x64.tar.gz`    | Extract and run `./mugil-ide-linux-x64`                             |
-> | **macOS (Apple Silicon M1/M2/M3/M4)** | `mugil-ide-darwin-arm64.tar.gz` | Extract and run `./mugil-ide-darwin-arm64`                          |
-> | **macOS (Intel x64)**                 | `mugil-ide-darwin-x64.tar.gz`   | Extract and run `./mugil-ide-darwin-x64`                            |
->
-> 👉 **[Download the Latest Standalone Release on GitHub ↗](https://github.com/auarunkumar1/mugil-ide/releases)**
-
----
-
 <div align="center">
 
 **Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding agent harness and developer environment that runs directly in your browser. Mugil IDE wraps state-of-the-art LLMs in a full-featured harness that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
@@ -244,16 +225,19 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.4.0**, versus what is on the roadmap for **v0.5.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.4.1**, versus what is on the roadmap for **v0.5.0**:
 
-### ✅ Shipped & Ready in v0.4.0 (Current Release)
+### ✅ Shipped & Ready in v0.4.1 (Current Release)
 
 #### 📱 Remote Device Streaming & Modern Responsive UI
 
 - [x] **Remote Device Streaming via Secret Link & QR Code:** Stream live agent sessions to phones, tablets, or secondary monitors on your local network. Pure-TypeScript zero-dependency QR code generator (`packages/cli/src/server/qr.ts`) outputs vector SVG for the browser and half-block ANSI art for the terminal. Enabled with `--remote` (`-r`) or header `📱 Stream` button.
-- [x] **Multi-Client WebSocket Session Broadcaster:** Replay buffer and multi-client connection pooling (`connectedClients`) streams live thinking, agent turns, and tool executions to all connected devices simultaneously.
-- [x] **Fluid Responsive Two-Pane Layout:** Replaced rigid desktop panes with fluid, responsive flex containers and a draggable divider (`#pane-resizer`). Adapts seamlessly to arbitrary screen aspect ratios and resizing.
-- [x] **Mobile Dock Navigation:** Dedicated mobile navigation bar (`#mobile-dock`) with one-touch view switches (`Agent`, `Terminal`, `Files`, `Diff`) for screens $\le$ 768px.
+- [x] **Multi-Client WebSocket Session Broadcaster:** Dual-stack LAN IPv4/IPv6 socket binding with replay buffer and multi-client connection pooling (`connectedClients`) streams live thinking, agent turns, and tool executions to all connected devices simultaneously with automated token session authentication.
+- [x] **Three-Pane Collapsible Responsive Layout & Mobile/Tablet Architecture:** Flexible 3-pane workspace with left file explorer/graph, center conversation/terminal, and right diff/file inspection panes. On mobile screens ($\le$ 768px), side panes initialize collapsed and toggle with single-pane full-screen focus, eliminating horizontal squishing.
+- [x] **Mobile Dock & Touch Navigation:** Dedicated touch-friendly bottom dock (`#mobile-dock`) with one-touch switches (`Agent`, `Terminal`, `Files`, `Diff`, `Stream`) for phones and tablets, with iOS home indicator safe area inset handling.
+- [x] **Mobile-Optimized Header & Scrollable Dropdown Menus:** Streamlined 42px mobile header with fixed-position touch dropdowns (`z-index: 5000`) providing full access to model switches, agent modes, step debugger, theme selection, and session tools.
+- [x] **Intuitive Double-Click Folder Navigation:** File explorer folder picker supports single-click item selection with path preview, and double-click (or button) to open and enter folders.
+- [x] **Multi-Line Auto-Expanding Prompt Input:** Chat input textarea defaults to a comfortable 5-line height on desktop, expanding dynamically without truncating long multi-line instructions.
 - [x] **Modern Thinking Stream & Turn Cards:** Collapsible real-time reasoning container (`#thinking-container`) with live elapsed execution timer, pulse indicator, and token metrics. Switch between `[✨ Modern View]` and `[💻 Raw Terminal]` on the fly.
 - [x] **Multi-Theme Engine:** 5 high-contrast designer palettes (**GitHub Dark**, **Nordic Nord**, **OLED Dark True Black**, **Dracula**, and **Cyberpunk Neon**) with synchronized xterm.js terminal emulator colors and header `🎨 Theme` selector.
 
@@ -334,6 +318,23 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 
 ## 💻 Downloads & Installation
 
+> [!IMPORTANT]
+> **Direct Standalone Installers & Binary Releases on GitHub (npm Sunset Notice)**
+>
+> Official distribution of Mugil IDE has migrated directly to **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**. Publishing to `npmjs.com` has been **sunset** starting with v0.4.0+.
+>
+> You no longer need `npm`, `node`, or any package manager installed to run Mugil IDE. Download official, self-contained click-to-run binaries and installers for your operating system:
+>
+> | Platform                              | Download & Package Type         | How to Run                                                          |
+> | :------------------------------------ | :------------------------------ | :------------------------------------------------------------------ |
+> | **Windows (x64)**                     | `mugil-ide-windows-x64.exe`     | Double-click or run `.\mugil-ide-windows-x64.exe`                   |
+> | **Linux (Ubuntu / Debian / Mint)**    | `mugil-ide-linux-amd64.deb`     | Double-click to install or `sudo dpkg -i mugil-ide-linux-amd64.deb` |
+> | **Linux Universal (x64 / arm64)**     | `mugil-ide-linux-x64.tar.gz`    | Extract and run `./mugil-ide-linux-x64`                             |
+> | **macOS (Apple Silicon M1/M2/M3/M4)** | `mugil-ide-darwin-arm64.tar.gz` | Extract and run `./mugil-ide-darwin-arm64`                          |
+> | **macOS (Intel x64)**                 | `mugil-ide-darwin-x64.tar.gz`   | Extract and run `./mugil-ide-darwin-x64`                            |
+>
+> 👉 **[Download the Latest Standalone Release on GitHub ↗](https://github.com/auarunkumar1/mugil-ide/releases)**
+
 ### Option 1: Standalone Compiled Executables (Recommended)
 
 Download the standalone executable directly from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
@@ -379,16 +380,16 @@ Mugil IDE is organized as a modular TypeScript monorepo across four packages:
 
 | Package               | Purpose                                                                      | Workspace Directory | Release Tarball             |
 | :-------------------- | :--------------------------------------------------------------------------- | :------------------ | :-------------------------- |
-| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.4.0.tgz`      |
-| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.4.0.tgz` |
-| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.4.0.tgz`  |
-| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.4.0.tgz` |
+| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.4.1.tgz`      |
+| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.4.1.tgz` |
+| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.4.1.tgz`  |
+| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.4.1.tgz` |
 
 > [!NOTE]
 > **Installing Tarballs via npm:** While distribution via the public `npmjs.com` registry is sunset in favor of standalone releases, release tarballs (`.tgz`) are built via `npm run pack` and attached to each **[GitHub Release](https://github.com/auarunkumar1/mugil-ide/releases)**. To install globally using Node.js without compiling:
 >
 > ```bash
-> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.4.0/mugil-ide-0.4.0.tgz
+> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.4.1/mugil-ide-0.4.1.tgz
 > ```
 
 ---

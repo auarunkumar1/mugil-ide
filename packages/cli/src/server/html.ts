@@ -5,7 +5,7 @@ export function getWebUiHtml(): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Mugil IDE v${VERSION} — Two-Paned Autonomous Terminal & IDE</title>
   <link rel="stylesheet" href="/vendor/xterm/xterm.css" />
   <script src="/vendor/xterm/xterm.js"></script>
@@ -607,49 +607,322 @@ export function getWebUiHtml(): string {
     }
 
     @media (max-width: 768px) {
+      /* Mobile Root & Body Lock */
+      html, body {
+        height: 100% !important;
+        height: 100dvh !important;
+        overflow: hidden !important;
+        position: fixed !important;
+        width: 100% !important;
+      }
+
+      /* Compact 1-Line Header (42px) */
       header {
-        padding: 6px 10px !important;
+        height: 42px !important;
+        min-height: 42px !important;
+        max-height: 42px !important;
+        padding: 0 10px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        flex-shrink: 0 !important;
+        overflow: visible !important;
+        position: relative !important;
+        z-index: 1500 !important;
+      }
+      header > div:first-child {
+        width: 100% !important;
+        gap: 6px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        overflow: visible !important;
       }
       .logo-container {
-        font-size: 13px !important;
+        font-size: 13.5px !important;
+        font-weight: 700 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+        gap: 4px !important;
       }
-      .header-credits-bar {
+      .logo-badge, .version-badge, .update-badge, #logo-model-sub,
+      .zoom-controls, #token-savings, #session-spent,
+      .header-credits-bar,
+      #stream-session-btn,
+      button[onclick="openImageGenModal()"],
+      button[onclick="openSessionSetupModal()"],
+      #kill-server-btn {
         display: none !important;
       }
-      .hide-mobile {
-        display: none !important;
+      .controls {
+        gap: 6px !important;
+        flex-shrink: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        position: relative !important;
+        overflow: visible !important;
       }
-      /* STRICTLY NO VERTICAL STACKING: Single full-screen pane for maximum chat real estate */
+      .controls .btn {
+        padding: 4px 9px !important;
+        font-size: 11.5px !important;
+        height: 30px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        cursor: pointer !important;
+        user-select: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+
+      /* Header Dropdown Menus on Mobile */
+      .menu-dropdown {
+        position: relative !important;
+      }
+      .menu-dropdown-content {
+        position: fixed !important;
+        top: 46px !important;
+        right: 8px !important;
+        left: auto !important;
+        max-width: calc(100vw - 16px) !important;
+        min-width: 240px !important;
+        max-height: calc(100dvh - 60px) !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        z-index: 5000 !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75) !important;
+        border: 1px solid var(--border) !important;
+        background: var(--card-bg, #161b22) !important;
+        border-radius: 8px !important;
+        padding: 6px !important;
+      }
+      .menu-dropdown-content.show {
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      .menu-item-btn {
+        padding: 9px 12px !important;
+        font-size: 12px !important;
+        border-radius: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        cursor: pointer !important;
+        color: var(--text) !important;
+        background: transparent !important;
+        border: none !important;
+        width: 100% !important;
+        text-align: left !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      .menu-item-btn:active {
+        background: rgba(255, 255, 255, 0.1) !important;
+      }
+      .menu-divider {
+        height: 1px !important;
+        background: var(--border) !important;
+        margin: 4px 0 !important;
+      }
+
+      /* Workspace Layout: Absolute Full-Screen Pane Architecture */
       #workspace {
-        flex-direction: row !important;
+        flex: 1 1 0 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        width: 100% !important;
+        position: relative !important;
+        overflow: hidden !important;
       }
       .pane-resizer {
         display: none !important;
       }
       #files-pane, #chat-pane, #diff-pane {
-        flex: 1 1 100% !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
         width: 100% !important;
         height: 100% !important;
-        min-width: 0 !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
         border: none !important;
       }
       .pane.mobile-hidden {
         display: none !important;
       }
+
+      /* Chat Pane Header: Compact Clean Status Bar */
+      #chat-pane .pane-header {
+        height: 36px !important;
+        min-height: 36px !important;
+        padding: 0 10px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        flex-shrink: 0 !important;
+      }
+      #chat-pane .pane-tabs,
+      #toggle-files-btn,
+      #toggle-diff-btn,
+      .view-mode-toggle-bar {
+        display: none !important;
+      }
+      .mobile-chat-title {
+        display: block !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: var(--accent) !important;
+      }
+      .desktop-label {
+        display: none !important;
+      }
+      .mobile-label {
+        display: inline !important;
+      }
+
+      /* Turn Chips on Mobile */
+      #turn-chips {
+        padding: 2px 8px !important;
+        min-height: 26px !important;
+        max-height: 26px !important;
+        font-size: 10.5px !important;
+        border-bottom: 1px solid var(--border) !important;
+        flex-shrink: 0 !important;
+        overflow-x: auto !important;
+      }
+      .turn-chip {
+        padding: 1px 7px !important;
+        font-size: 10px !important;
+      }
+
+      /* Modern Stream & Chat Bubbles on Mobile */
+      #modern-agent-view {
+        padding: 6px 0 !important;
+        -webkit-overflow-scrolling: touch !important;
+      }
+      .chat-bubble {
+        margin: 4px 8px !important;
+        padding: 8px 12px !important;
+        font-size: 13.5px !important;
+        border-radius: 8px !important;
+      }
+      .thinking-container {
+        margin: 4px 8px !important;
+        border-radius: 8px !important;
+      }
+      .thinking-header {
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+      }
+      .thinking-body {
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        max-height: 180px !important;
+      }
+      .tool-card {
+        margin: 2px 8px !important;
+        padding: 3px 8px !important;
+        font-size: 11px !important;
+      }
+
+      /* Mobile Input Area */
+      .quick-input-container {
+        padding: 6px 10px !important;
+        gap: 4px !important;
+        flex-shrink: 0 !important;
+        background: var(--panel-bg) !important;
+        border-top: 1px solid var(--border) !important;
+      }
+      .quick-input-row {
+        display: flex !important;
+        gap: 6px !important;
+        align-items: flex-end !important;
+      }
+      .quick-input {
+        min-height: 44px !important;
+        height: 44px !important;
+        max-height: 110px !important;
+        padding: 8px 10px !important;
+        font-size: 15px !important;
+        line-height: 1.35 !important;
+        border-radius: 8px !important;
+      }
+      .quick-input-actions {
+        font-size: 10px !important;
+        display: flex !important;
+        justify-content: flex-end !important;
+      }
+      .quick-input-actions > div:first-child {
+        display: none !important;
+      }
+
+      /* Hide Desktop Status Bar on Mobile */
+      .status-bar {
+        display: none !important;
+      }
+
+      /* Sleek Bottom Dock Navigation */
       #mobile-dock {
         display: flex !important;
+        height: 52px !important;
+        min-height: 52px !important;
+        padding: 0 4px !important;
+        padding-bottom: max(4px, env(safe-area-inset-bottom)) !important;
+        background: var(--panel-bg) !important;
+        border-top: 1px solid var(--border) !important;
+        flex-shrink: 0 !important;
+        z-index: 100 !important;
       }
-      .status-bar {
+      .mobile-dock-btn {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 2px !important;
+        background: transparent !important;
+        border: none !important;
+        color: var(--text-dim) !important;
         font-size: 10px !important;
-        padding: 4px 8px !important;
+        cursor: pointer !important;
+        padding: 4px 0 !important;
+        border-radius: 6px !important;
       }
-      .status-bar > div:last-child {
-        display: none !important;
+      .mobile-dock-btn.active {
+        color: var(--accent) !important;
+        font-weight: 700 !important;
+        background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+      }
+      .mobile-dock-btn span:first-child {
+        font-size: 16px !important;
+      }
+
+      /* Modals on Mobile */
+      .modal-overlay {
+        z-index: 6000 !important;
       }
       .modal-dialog {
         width: 95vw !important;
         max-width: 95vw !important;
-        max-height: 90vh !important;
+        max-height: 85vh !important;
+        border-radius: 12px !important;
+      }
+      .modal-title-bar {
+        padding: 10px 14px !important;
+        font-size: 13px !important;
+      }
+      .modal-body {
+        padding: 12px !important;
+      }
+    }
+
+    @media (min-width: 769px) {
+      .pane.mobile-hidden {
+        display: flex !important;
       }
     }
     .pane-header {
@@ -1214,6 +1487,12 @@ export function getWebUiHtml(): string {
             <span id="mode-icon">⚡</span> <span>Agent Mode: <b id="mode-label">Act</b></span>
           </button>
           <div class="menu-divider"></div>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openSessionSetupModal();">
+            <span>🚀 Session Setup & Limits</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openRemoteStreamModal();">
+            <span>📱 Stream Session (QR Code)</span>
+          </button>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openImageGenModal();">
             <span>🖼️ Generate Image</span>
           </button>
@@ -1242,6 +1521,10 @@ export function getWebUiHtml(): string {
           <button class="menu-item-btn" onclick="closeMenuDropdown(); sendAgentCmd('/clear');">
             <span>🧹 Clear Screen</span>
           </button>
+          <div class="menu-divider"></div>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openKillServerModal();" style="color:var(--red);">
+            <span>⚠ Kill Server</span>
+          </button>
         </div>
       </div>
     </div>
@@ -1261,7 +1544,7 @@ export function getWebUiHtml(): string {
 
   <div id="workspace">
     <!-- PANE 1: File Explorer & CodeGraph (Collapsible Left Pane) -->
-    <div id="files-pane" class="pane">
+    <div id="files-pane" class="pane mobile-hidden">
       <div class="pane-header">
         <div class="pane-tabs">
           <button id="tab-files" class="tab-btn active" onclick="switchRightTab('files')">📁 Files</button>
@@ -1315,11 +1598,14 @@ export function getWebUiHtml(): string {
           <button id="tab-agent" class="tab-btn active" onclick="switchLeftTab('agent')">🤖 AI Assistant & Tools</button>
           <button id="tab-pty" class="tab-btn" onclick="switchLeftTab('pty')">💻 Shell Terminal</button>
         </div>
+        <div class="mobile-chat-title" style="display:none; font-weight:600; font-size:12.5px; color:var(--text);">
+          <span>🤖 AI Assistant & Thinking Stream</span>
+        </div>
         <div style="display:flex; gap:6px; align-items:center;">
           <button class="btn pane-toggle-btn active" id="toggle-files-btn" onclick="toggleFilesPane()" title="Toggle Files Panel">📁 Files</button>
           <button class="btn pane-toggle-btn active" id="toggle-diff-btn" onclick="toggleDiffPane()" title="Toggle Diff Viewer">🔍 Diff (<span id="diff-count">0</span>)</button>
-          <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="openModelModal()">Switch Model ▾</button>
-          <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="sendAgentCmd('/reset')">Reset Context</button>
+          <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="openModelModal()"><span class="desktop-label">Switch Model ▾</span><span class="mobile-label" style="display:none;">🧠 Model</span></button>
+          <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="sendAgentCmd('/reset')"><span class="desktop-label">Reset Context</span><span class="mobile-label" style="display:none;">↺ Clear</span></button>
         </div>
       </div>
 
@@ -1379,7 +1665,7 @@ export function getWebUiHtml(): string {
     <div id="resizer-diff" class="pane-resizer" title="Drag to resize Diff/Viewer panel"></div>
 
     <!-- PANE 3: File Viewer & Diff Viewer (Collapsible Right Pane) -->
-    <div id="diff-pane" class="pane">
+    <div id="diff-pane" class="pane mobile-hidden">
       <div class="pane-header">
         <div class="pane-tabs">
           <button id="tab-viewer" class="tab-btn" onclick="switchRightTab('viewer')">📄 File Viewer</button>
@@ -1459,6 +1745,9 @@ export function getWebUiHtml(): string {
         <p style="font-size:12px; color:var(--text-dim); margin-bottom:12px; line-height:1.4;">
           Scan the QR code with your phone or tablet on the same Wi-Fi / network to stream thinking processes and continue this session on the go.
         </p>
+        <div style="font-size:11px; color:#58a6ff; background:rgba(56,139,253,0.1); border:1px solid rgba(56,139,253,0.25); border-radius:6px; padding:6px 10px; margin-bottom:12px; text-align:left; line-height:1.4;">
+          📶 <b>Wi-Fi Check:</b> Ensure your mobile device is connected to the same local Wi-Fi router (not cellular data).
+        </div>
         <div id="qr-code-display" style="display:flex; justify-content:center; align-items:center; margin:12px auto; padding:12px; background:#ffffff; border-radius:12px; width:220px; height:220px; box-shadow:0 8px 24px rgba(0,0,0,0.3);">
           <div style="color:#000;">Loading QR Code...</div>
         </div>
@@ -2240,6 +2529,30 @@ export function getWebUiHtml(): string {
   </div>
 
   <script>
+    // Session Authentication & Token Persistence for Remote / Mobile Devices
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    if (tokenFromUrl) {
+      try { sessionStorage.setItem('mugil_token', tokenFromUrl); } catch (_) {}
+      try { localStorage.setItem('mugil_token', tokenFromUrl); } catch (_) {}
+    }
+    let activeSessionToken = tokenFromUrl;
+    if (!activeSessionToken) {
+      try { activeSessionToken = sessionStorage.getItem('mugil_token') || localStorage.getItem('mugil_token') || ''; } catch (_) {}
+    }
+
+    // Intercept fetch to automatically attach x-mugil-token header for resilience
+    const _origFetch = window.fetch;
+    window.fetch = function(input, init) {
+      if (!activeSessionToken) return _origFetch(input, init);
+      const opts = init ? { ...init } : {};
+      opts.headers = new Headers(opts.headers || (input instanceof Request ? input.headers : {}));
+      if (!opts.headers.has('x-mugil-token')) {
+        opts.headers.set('x-mugil-token', activeSessionToken);
+      }
+      return _origFetch(input, opts);
+    };
+
     // Themes Engine
     const THEMES = {
       'github-dark': {
@@ -2555,6 +2868,7 @@ export function getWebUiHtml(): string {
         filesPane.classList.add('mobile-hidden');
         diffPane.classList.add('mobile-hidden');
         switchLeftTab('agent');
+        switchAgentViewMode('modern');
       } else if (view === 'pty') {
         chatPane.classList.remove('mobile-hidden');
         filesPane.classList.add('mobile-hidden');
@@ -3107,12 +3421,20 @@ export function getWebUiHtml(): string {
       if (vDiff) vDiff.classList.toggle('active', tab === 'diff');
       if (vGraph) vGraph.classList.toggle('active', tab === 'graph');
 
-      if (tab === 'files' || tab === 'graph') {
-        toggleFilesPane(true);
-        if (tab === 'graph') loadGraph();
-      } else if (tab === 'viewer' || tab === 'diff') {
-        toggleDiffPane(true);
-        if (tab === 'diff') loadDiffs();
+      if (window.innerWidth <= 768) {
+        if (tab === 'files' || tab === 'graph') {
+          switchMobileView('files');
+        } else if (tab === 'viewer' || tab === 'diff') {
+          switchMobileView('diff');
+        }
+      } else {
+        if (tab === 'files' || tab === 'graph') {
+          toggleFilesPane(true);
+          if (tab === 'graph') loadGraph();
+        } else if (tab === 'viewer' || tab === 'diff') {
+          toggleDiffPane(true);
+          if (tab === 'diff') loadDiffs();
+        }
       }
     }
 
@@ -3278,7 +3600,8 @@ export function getWebUiHtml(): string {
 
     function connectWs() {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = \`\${protocol}//\${location.host}/ws\`;
+      const wsTokenQuery = activeSessionToken ? '?token=' + encodeURIComponent(activeSessionToken) : '';
+      const wsUrl = \`\${protocol}//\${location.host}/ws\${wsTokenQuery}\`;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
@@ -3420,6 +3743,7 @@ export function getWebUiHtml(): string {
 
     function toggleMenuDropdown(e) {
       if (e) e.stopPropagation();
+      closeThemeDropdown();
       const dd = document.getElementById('header-menu-dropdown');
       if (dd) dd.classList.toggle('show');
     }
@@ -3435,7 +3759,7 @@ export function getWebUiHtml(): string {
       if (pop) pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
     }
 
-    document.addEventListener('click', (e) => {
+    function closeAllDropdowns(e) {
       const dd = document.getElementById('header-menu-dropdown');
       const btn = document.getElementById('header-menu-btn');
       if (dd && dd.classList.contains('show')) {
@@ -3456,6 +3780,19 @@ export function getWebUiHtml(): string {
         if (!spPop.contains(e.target) && e.target !== spPill && !spPill.contains(e.target)) {
           spPop.style.display = 'none';
         }
+      }
+    }
+
+    document.addEventListener('click', closeAllDropdowns);
+    document.addEventListener('pointerdown', (e) => {
+      const dd = document.getElementById('header-menu-dropdown');
+      const tdd = document.getElementById('header-theme-dropdown');
+      const spPop = document.getElementById('savings-popover');
+      const hasOpen = (dd && dd.classList.contains('show')) ||
+                      (tdd && tdd.classList.contains('show')) ||
+                      (spPop && spPop.style.display === 'block');
+      if (hasOpen) {
+        closeAllDropdowns(e);
       }
     });
 

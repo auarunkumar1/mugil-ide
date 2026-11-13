@@ -33,14 +33,15 @@ program
   .description('Launch the modern PTY + xterm.js Web UI')
   .argument('[dir]', 'project directory path to open as workspace', '.')
   .option('-p, --port <number>', 'server port (default: random open port)')
-  .option('-h, --host <string>', 'server host', 'localhost')
-  .option('-r, --remote', 'allow streaming to devices on the local network (binds 0.0.0.0)')
+  .option('-h, --host <string>', 'server host (default: all interfaces with session token auth)')
+  .option('-r, --remote', 'allow streaming to devices on the local network (enabled by default)')
+  .option('--no-remote', 'restrict server strictly to localhost (disables LAN streaming)')
   .option('-m, --model <id>', 'initial model id')
   .option('--no-open', 'do not automatically open the browser')
   .action(
     async (
       dir: string,
-      options: { port?: string; host: string; model?: string; open?: boolean; remote?: boolean },
+      options: { port?: string; host?: string; model?: string; open?: boolean; remote?: boolean },
     ) => {
       if (dir && dir !== '.') {
         try {
@@ -271,23 +272,23 @@ program
         );
       }
     }
-    await launchUi({ host: 'localhost', open: true });
+    await launchUi({ open: true });
   });
 
 async function launchUi(options: {
   port?: string;
-  host: string;
+  host?: string;
   model?: string;
   open?: boolean;
   remote?: boolean;
 }): Promise<void> {
   installCrashGuards();
-  const isRemote = Boolean(options.remote || process.env.MUGIL_IDE_REMOTE === '1');
+  const isRemote = options.remote !== false && process.env.MUGIL_IDE_LOCAL_ONLY !== '1';
   const engine = createEngine(loadConfig());
   let shutdownUi: () => Promise<void> = async () => {};
   const server = await startIdeServer({
     port: options.port !== undefined ? Number(options.port) : undefined,
-    host: options.host && options.host !== 'localhost' ? options.host : isRemote ? '0.0.0.0' : 'localhost',
+    host: options.host,
     remote: isRemote,
     engine,
     model: options.model,
@@ -298,10 +299,10 @@ async function launchUi(options: {
   const launchUrl = server.tokenUrl || server.url;
   console.log(`\n  ${bold('☁️ Mugil IDE')} ${dim('— Token-Efficient PTY + xterm.js Interface')}`);
   console.log(`  ${green('✓')} Local:   ${bold(cyan(launchUrl))}`);
-  if (server.remoteStreamDetails?.primaryNetworkUrl) {
+  if (server.remoteStreamDetails?.primaryNetworkUrl && isRemote) {
     console.log(`  ${green('📱')} Network: ${bold(cyan(server.remoteStreamDetails.primaryNetworkUrl))}`);
-    if (isRemote && server.remoteStreamDetails.qrAnsi) {
-      console.log(`\n  ${dim('Scan QR code to stream session to phone / tablet:')}\n`);
+    if (server.remoteStreamDetails.qrAnsi) {
+      console.log(`\n  ${dim('Scan QR code to stream session to phone / tablet (same Wi-Fi):')}\n`);
       console.log(server.remoteStreamDetails.qrAnsi);
     }
   }

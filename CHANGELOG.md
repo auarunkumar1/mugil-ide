@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-13
+
+### Added
+- **Mobile Responsive Architecture & Single-Pane Navigation**:
+  - Implemented full-screen single-pane mobile layout using absolute containment (`#files-pane`, `#chat-pane`, `#diff-pane`), eliminating horizontal stacking and granting 100% viewport width to the active view on screens $\le 768\text{px}$.
+  - Side panels (`#files-pane`, `#diff-pane`) initialize with `.mobile-hidden` on mobile viewports while desktop layout automatically restores `display: flex !important` above $768\text{px}$.
+  - Added dedicated touch-friendly bottom dock (`#mobile-dock`, 52px height) with iOS home indicator safe-area padding (`env(safe-area-inset-bottom)`) for instant one-touch switching between Agent, Terminal, Files, Diff, and Stream views.
+  - Automatically switched to the full-screen file viewer when tapping any file in the mobile file explorer.
+- **Mobile Top Bar & Touch Dropdown Menus**:
+  - Eliminated top bar overflow clipping by setting `<header>` to `overflow: visible !important; position: relative !important; z-index: 1500 !important;` on mobile devices.
+  - Styled `.menu-dropdown-content` with viewport-fixed positioning (`position: fixed !important; top: 46px !important; right: 8px !important; z-index: 5000 !important; max-height: calc(100dvh - 60px) !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch !important;`).
+  - Streamlined mobile header into a clean 1-line layout (`☁️ MUGIL IDE` rainbow logo on left, `🎨 Theme ▾` and `☰ Menu ▾` on right), hiding desktop ribbon clutter and redundant stream buttons.
+  - Added full IDE controls to `#header-menu-dropdown` on mobile: Session Setup & Limits, Stream Session (QR Code), Kill Server, Switch Model, Turbo Mode, Step Debugger, Agent Mode, Generate Image, Pluggable Extensions, Accounts, Switch Workspace, Token Modules, and Credits.
+  - Added mutual closing (`toggleMenuDropdown` closes theme menu and vice-versa) and combined `pointerdown` and `click` outside touch dismissal.
+  - Raised `.modal-overlay` z-index to `6000 !important` on mobile, ensuring modals render above headers and dropdowns.
+- **Dual-Stack LAN & Loopback Socket Binding**:
+  - Node HTTP and WebSocket servers bind dual-stack across all network interfaces by default (`server.listen(port)` omitting explicit host), accepting incoming connections simultaneously from localhost (`127.0.0.1` and `::1`) and local Wi-Fi / LAN IP addresses (`192.168.x.x`).
+  - Added automated fallback binding to `0.0.0.0` for Linux kernels with IPv6 disabled (`EAFNOSUPPORT`).
+  - Exported canonical base URL (`server.url`) as `http://localhost:${port}` for browser launching while exposing detected LAN endpoints in `server.networkUrls`.
+- **Cross-Device Session Authentication & Token Resilience**:
+  - Implemented token persistence via browser `sessionStorage` and `localStorage` (`mugil_token`) on remote connected devices.
+  - Patched browser `fetch` to automatically attach the `x-mugil-token` header to all API requests on network devices.
+  - Attached token query parameter (`?token=...`) to WebSocket handshake URLs (`/ws?token=...`) to guarantee seamless reconnects on mobile browser refreshes.
+  - Configured session cookies with `SameSite=Lax` to allow LAN cross-origin navigation.
+- **File Picker Interaction Polish**:
+  - Single-click selects items with visual highlighting (`var(--accent)`), updating selected path and summary status.
+  - Double-click (or dedicated `Open →` button) opens and enters subfolders.
+
 ## [0.4.0] - 2026-11-13
 
 ### Added
@@ -566,3 +594,4 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.3.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.1
 [0.3.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.2
 [0.4.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.4.0
+[0.4.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.4.1

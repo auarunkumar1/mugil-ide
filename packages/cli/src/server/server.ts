@@ -207,9 +207,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   const diffRunner = createDiffRunner();
   const sessionToken = process.env.MUGIL_IDE_AUTH_TOKEN || crypto.randomBytes(24).toString('hex');
   const desiredPort = options.port !== undefined ? options.port : Number(process.env.PORT || 0);
-  const host =
-    options.host ||
-    (options.remote || process.env.MUGIL_IDE_REMOTE === '1' ? '0.0.0.0' : 'localhost');
+  const isRemoteEnabled = options.remote !== false && process.env.MUGIL_IDE_LOCAL_ONLY !== '1';
+  const explicitHost = options.host;
   let actualPort = 0;
 
   // Multi-device session streaming hub
@@ -378,7 +377,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       const tokenQuery = url.searchParams.get('token');
       const setCookie =
         tokenQuery && tokenQuery === sessionToken
-          ? { 'Set-Cookie': `mugil_session=${sessionToken}; HttpOnly; SameSite=Strict; Path=/` }
+          ? { 'Set-Cookie': `mugil_session=${sessionToken}; HttpOnly; SameSite=Lax; Path=/` }
           : {};
 
       res.writeHead(200, {
@@ -682,7 +681,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
     if (url.pathname === '/api/session/remote-stream' && req.method === 'GET') {
-      const details = getRemoteStreamDetails(actualPort, sessionToken, host === '0.0.0.0');
+      const details = getRemoteStreamDetails(
+        actualPort,
+        sessionToken,
+        isRemoteEnabled || explicitHost === '0.0.0.0',
+      );
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -2268,21 +2271,48 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   });
 
   return new Promise<RunningServer>((resolve, reject) => {
+    let listenRetries = 0;
+
+    const doListen = (portToUse: number) => {
+      if (explicitHost) {
+        server.listen(portToUse, explicitHost);
+      } else if (isRemoteEnabled) {
+        // Dual-stack: accepts IPv4 and IPv6 on all network interfaces
+        server.listen(portToUse);
+      } else {
+        server.listen(portToUse, 'localhost');
+      }
+    };
+
     server.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE' && options.port === undefined) {
-        // Try random available port
-        server.listen(0, host);
+      if (err.code === 'EADDRINUSE' && options.port === undefined && listenRetries === 0) {
+        listenRetries++;
+        doListen(0);
+      } else if (
+        (err.code === 'EADDRNOTAVAIL' || err.code === 'EINVAL' || err.code === 'EAFNOSUPPORT') &&
+        !explicitHost &&
+        isRemoteEnabled &&
+        listenRetries === 0
+      ) {
+        // Host kernel has IPv6 disabled, fallback to IPv4 0.0.0.0
+        listenRetries++;
+        server.listen(desiredPort, '0.0.0.0');
       } else {
         reject(err);
       }
     });
 
-    server.listen(desiredPort, host, () => {
+    server.once('listening', () => {
       const addr = server.address() as AddressInfo;
       actualPort = addr.port;
-      const url = `http://${host}:${actualPort}`;
-      const tokenUrl = `http://${host}:${actualPort}/?token=${sessionToken}`;
-      const remoteStreamDetails = getRemoteStreamDetails(actualPort, sessionToken, host === '0.0.0.0');
+      const displayHost = explicitHost || 'localhost';
+      const url = `http://${displayHost}:${actualPort}`;
+      const tokenUrl = `http://${displayHost}:${actualPort}/?token=${sessionToken}`;
+      const remoteStreamDetails = getRemoteStreamDetails(
+        actualPort,
+        sessionToken,
+        isRemoteEnabled || explicitHost === '0.0.0.0',
+      );
       resolve({
         port: actualPort,
         url,
@@ -2308,5 +2338,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           }),
       });
     });
+
+    doListen(desiredPort);
   });
 }

@@ -67,12 +67,12 @@ export function getRemoteStreamDetails(
   const networkUrls = networkIps.map((ip) => `http://${ip}:${port}/?token=${token}`);
   const primaryNetworkUrl = networkUrls[0] ?? null;
 
-  const targetUrl = primaryNetworkUrl || localUrl;
+  const targetUrl = isRemoteBound && primaryNetworkUrl ? primaryNetworkUrl : localUrl;
   const qrSvg = generateQrSvg(targetUrl, { size: 280, margin: 3 });
   const qrAnsi = generateQrAnsi(targetUrl);
 
   return {
-    enabled: isRemoteBound || networkUrls.length > 0,
+    enabled: isRemoteBound && networkUrls.length > 0,
     port,
     token,
     localUrl,
