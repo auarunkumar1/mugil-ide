@@ -2334,4 +2334,45 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       if (fs.existsSync(tmpDir)) fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it('serves /api/session/remote-stream and permits LAN origins while rejecting untrusted origins', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, remote: true });
+    try {
+      expect(server.remoteStreamDetails).toBeDefined();
+      expect(server.remoteStreamDetails?.enabled).toBe(true);
+      expect(server.remoteStreamDetails?.token).toBe(server.sessionToken);
+
+      // GET /api/session/remote-stream with valid auth
+      const res = await fetch(`${server.url}/api/session/remote-stream`);
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as {
+        token: string;
+        port: number;
+        localUrl: string;
+        qrSvg: string;
+        connectedClients: number;
+      };
+      expect(json.token).toBe(server.sessionToken);
+      expect(json.port).toBe(server.port);
+      expect(json.localUrl).toContain(server.sessionToken);
+      expect(json.qrSvg).toContain('<svg');
+      expect(typeof json.connectedClients).toBe('number');
+
+      // Request with LAN Origin header (e.g. Wi-Fi device) should succeed
+      const lanRes = await fetch(`${server.url}/api/session/remote-stream`, {
+        headers: { Origin: 'http://192.168.1.105:3000' },
+      });
+      expect(lanRes.status).toBe(200);
+
+      // Request with external/untrusted Origin header should be rejected with 403
+      const untrustedRes = await fetch(`${server.url}/api/session/remote-stream`, {
+        headers: { Origin: 'http://malicious-website.com' },
+      });
+      expect(untrustedRes.status).toBe(403);
+    } finally {
+      await server.close();
+      await engine.backend.close();
+    }
+  });
 });

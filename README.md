@@ -244,9 +244,18 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.3.2**, versus what is on the roadmap for **v0.4.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.4.0**, versus what is on the roadmap for **v0.5.0**:
 
-### ✅ Shipped & Ready in v0.3.2 (Current Release)
+### ✅ Shipped & Ready in v0.4.0 (Current Release)
+
+#### 📱 Remote Device Streaming & Modern Responsive UI
+
+- [x] **Remote Device Streaming via Secret Link & QR Code:** Stream live agent sessions to phones, tablets, or secondary monitors on your local network. Pure-TypeScript zero-dependency QR code generator (`packages/cli/src/server/qr.ts`) outputs vector SVG for the browser and half-block ANSI art for the terminal. Enabled with `--remote` (`-r`) or header `📱 Stream` button.
+- [x] **Multi-Client WebSocket Session Broadcaster:** Replay buffer and multi-client connection pooling (`connectedClients`) streams live thinking, agent turns, and tool executions to all connected devices simultaneously.
+- [x] **Fluid Responsive Two-Pane Layout:** Replaced rigid desktop panes with fluid, responsive flex containers and a draggable divider (`#pane-resizer`). Adapts seamlessly to arbitrary screen aspect ratios and resizing.
+- [x] **Mobile Dock Navigation:** Dedicated mobile navigation bar (`#mobile-dock`) with one-touch view switches (`Agent`, `Terminal`, `Files`, `Diff`) for screens $\le$ 768px.
+- [x] **Modern Thinking Stream & Turn Cards:** Collapsible real-time reasoning container (`#thinking-container`) with live elapsed execution timer, pulse indicator, and token metrics. Switch between `[✨ Modern View]` and `[💻 Raw Terminal]` on the fly.
+- [x] **Multi-Theme Engine:** 5 high-contrast designer palettes (**GitHub Dark**, **Nordic Nord**, **OLED Dark True Black**, **Dracula**, and **Cyberpunk Neon**) with synchronized xterm.js terminal emulator colors and header `🎨 Theme` selector.
 
 #### 🧠 Token Economy & Context Architecture
 
@@ -315,7 +324,7 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Universal `process-auditor` Multi-Industry Business Logic Skill:** Built-in workspace skill verifying state machine invariants, financial precision, and audit readiness across 10 verticals: ERP, Banking/FinTech, Hospital Management (HMS), Hotel PMS, Logistics/Fleet, Manufacturing, Retail POS/Grocery, Construction/Contracting, Events/Catering, and Tax/Print document compliance. Features automated heuristic scanner (`scripts/verify-business-logic.mjs`) and paired test suite (`tests/test-industry-audits.mjs`).
 - [x] **Comprehensive Test Suite:** 651 unit and integration tests passing across all packages (47 suites: 575 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
 
-### 🎯 Planned for Next Release Push (v0.4.0 Roadmap)
+### 🎯 Planned for Next Release Push (v0.5.0 Roadmap)
 
 - [ ] **Native Desktop Shell Packaging:** Optional Tauri/Electron lightweight shell wrapper alongside browser Web UI.
 - [ ] **Multi-Modal Audio & Voice Interaction:** Real-time voice input and speech streaming via local Whisper / Piper models.
@@ -370,16 +379,16 @@ Mugil IDE is organized as a modular TypeScript monorepo across four packages:
 
 | Package               | Purpose                                                                      | Workspace Directory | Release Tarball             |
 | :-------------------- | :--------------------------------------------------------------------------- | :------------------ | :-------------------------- |
-| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.3.2.tgz`      |
-| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.3.2.tgz` |
-| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.3.2.tgz`  |
-| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.3.2.tgz` |
+| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.4.0.tgz`      |
+| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.4.0.tgz` |
+| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.4.0.tgz`  |
+| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.4.0.tgz` |
 
 > [!NOTE]
 > **Installing Tarballs via npm:** While distribution via the public `npmjs.com` registry is sunset in favor of standalone releases, release tarballs (`.tgz`) are built via `npm run pack` and attached to each **[GitHub Release](https://github.com/auarunkumar1/mugil-ide/releases)**. To install globally using Node.js without compiling:
 >
 > ```bash
-> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.3.2/mugil-ide-0.3.2.tgz
+> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.4.0/mugil-ide-0.4.0.tgz
 > ```
 
 ---

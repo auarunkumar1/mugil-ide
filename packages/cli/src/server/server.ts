@@ -23,6 +23,7 @@ import { EMBEDDED_VENDOR_ASSETS } from './embeddedVendor.js';
 import { AgentRepl } from '../terminal/agentRepl.js';
 import { createPtySession, type PtyInstance } from './ptyManager.js';
 import { createDiffRunner } from './diffRunner.js';
+import { isLocalOrLanHost, getRemoteStreamDetails, type RemoteStreamDetails } from './network.js';
 
 /**
  * Resolves a vendored xterm asset. Works from both the compiled dist/ layout
@@ -182,6 +183,7 @@ function listWorkspaceFiles(
 export interface ServerOptions {
   port?: number;
   host?: string;
+  remote?: boolean;
   engine: Engine;
   model?: string;
   /** Called after `POST /api/shutdown` has been flushed to the browser. */
@@ -193,6 +195,7 @@ export interface RunningServer {
   url: string;
   tokenUrl: string;
   token: string;
+  remoteStreamDetails?: RemoteStreamDetails;
   close: () => Promise<void>;
 }
 
@@ -203,6 +206,34 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   // never blocks the event loop for other requests. Disposed in close().
   const diffRunner = createDiffRunner();
   const sessionToken = process.env.MUGIL_IDE_AUTH_TOKEN || crypto.randomBytes(24).toString('hex');
+  const desiredPort = options.port !== undefined ? options.port : Number(process.env.PORT || 0);
+  const host =
+    options.host ||
+    (options.remote || process.env.MUGIL_IDE_REMOTE === '1' ? '0.0.0.0' : 'localhost');
+  let actualPort = 0;
+
+  // Multi-device session streaming hub
+  const connectedClients = new Set<WebSocket>();
+  let replayBuffer = '';
+  const MAX_REPLAY_BYTES = 256 * 1024;
+  const appendToReplay = (chunk: string): void => {
+    replayBuffer += chunk;
+    if (replayBuffer.length > MAX_REPLAY_BYTES) {
+      replayBuffer = replayBuffer.slice(replayBuffer.length - MAX_REPLAY_BYTES);
+    }
+  };
+  const broadcastPayload = (payload: string): void => {
+    for (const client of connectedClients) {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(payload);
+        } catch {
+          // ignore broken socket
+        }
+      }
+    }
+  };
+
   const tokenDir = path.join(os.homedir(), '.config', 'mugil-ide');
   const tokenFile = path.join(tokenDir, 'session.token');
   try {
@@ -272,7 +303,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     try {
       const parsed = new URL(origin);
       const allowedHosts = new Set(['localhost', '127.0.0.1', '::1', options.host || 'localhost']);
-      return allowedHosts.has(parsed.hostname);
+      if (allowedHosts.has(parsed.hostname)) return true;
+      if (isLocalOrLanHost(parsed.hostname)) return true;
+      return false;
     } catch {
       return false;
     }
@@ -650,6 +683,17 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     if (url.pathname === '/api/status' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ provider: engine.config.provider, activeModel }));
+      return;
+    }
+    if (url.pathname === '/api/session/remote-stream' && req.method === 'GET') {
+      const details = getRemoteStreamDetails(actualPort, sessionToken, host === '0.0.0.0');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          ...details,
+          connectedClients: connectedClients.size,
+        }),
+      );
       return;
     }
     if (url.pathname === '/api/shutdown' && req.method === 'POST') {
@@ -1762,7 +1806,17 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
   });
 
   wss.on('connection', (ws: WebSocket) => {
+    connectedClients.add(ws);
     let ptySession: PtyInstance | null = null;
+
+    // Send existing stream replay buffer to newly connected client/device
+    if (replayBuffer.length > 0) {
+      try {
+        ws.send(JSON.stringify({ type: 'agent_data', data: replayBuffer }));
+      } catch {
+        // ignore
+      }
+    }
 
     // `ws` emits 'error' for frame-level violations (invalid opcode, bad UTF-8,
     // oversized frame). Unhandled, that event takes down the whole process.
@@ -1854,8 +1908,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       }
       agentThrottleNoticed = false;
     }
-    // Send data to frontend
+    // Send data to frontend and connected devices
     const sendAgentData = (data: string) => {
+      appendToReplay(data);
       if (ws.readyState !== WebSocket.OPEN) return;
       if (ws.bufferedAmount > WS_HIGH_WATERMARK) {
         if (!agentThrottleNoticed) {
@@ -1870,7 +1925,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         scheduleDrainCheck();
         return;
       }
-      safeSend(JSON.stringify({ type: 'agent_data', data }));
+      broadcastPayload(JSON.stringify({ type: 'agent_data', data }));
     };
 
     const sendPtyData = (data: string) => {
@@ -1894,34 +1949,32 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     };
 
     const sendStatus = () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'status',
-            activeModel: repl.getActiveModel(),
-            mode: repl.getMode(),
-            turboMode,
-            stepDebuggerEnabled: globalStepDebugger.isEnabled(),
-            busy: repl.isBusy,
-            stats: {
-              ...repl.stats,
-              filesModified: Array.from(repl.stats.filesModified),
-              savingsBreakdown: { ...repl.stats.savingsBreakdown },
-              optimisticTokensSaved: repl.stats.optimisticTokensSaved,
-              optimisticSavingsPct: optimisticSavingsPercent(
-                repl.stats.optimisticTokensSaved,
-                repl.stats.compressibleTokens,
-              ),
-              // Computed server-side so the terminal (/stats) and the web pill
-              // can never disagree on the denominator.
-              savingsPct: inputSavingsPercent(
-                repl.stats.tokensSaved,
-                repl.stats.compressibleTokens,
-              ),
-            },
-          }),
-        );
-      }
+      broadcastPayload(
+        JSON.stringify({
+          type: 'status',
+          activeModel: repl.getActiveModel(),
+          mode: repl.getMode(),
+          turboMode,
+          stepDebuggerEnabled: globalStepDebugger.isEnabled(),
+          busy: repl.isBusy,
+          stats: {
+            ...repl.stats,
+            filesModified: Array.from(repl.stats.filesModified),
+            savingsBreakdown: { ...repl.stats.savingsBreakdown },
+            optimisticTokensSaved: repl.stats.optimisticTokensSaved,
+            optimisticSavingsPct: optimisticSavingsPercent(
+              repl.stats.optimisticTokensSaved,
+              repl.stats.compressibleTokens,
+            ),
+            // Computed server-side so the terminal (/stats) and the web pill
+            // can never disagree on the denominator.
+            savingsPct: inputSavingsPercent(
+              repl.stats.tokensSaved,
+              repl.stats.compressibleTokens,
+            ),
+          },
+        }),
+      );
     };
 
     // A `status` frame is a snapshot of model/mode/stats — none of which change
@@ -1983,9 +2036,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           ws.close();
         },
         onTurnComplete: (turn) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'turn_complete', turn }));
-          }
+          broadcastPayload(JSON.stringify({ type: 'turn_complete', turn }));
           sendStatusNow();
         },
         onModelChange: (m, prov) => {
@@ -1997,17 +2048,15 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       {
         onQuestion: async (q) => {
           const id = ++questionSeq;
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(
-              JSON.stringify({
-                type: 'question',
-                id,
-                header: q.header,
-                question: q.question,
-                options: q.options,
-              }),
-            );
-          }
+          broadcastPayload(
+            JSON.stringify({
+              type: 'question',
+              id,
+              header: q.header,
+              question: q.question,
+              options: q.options,
+            }),
+          );
           return new Promise<string>((resolve) => {
             const timer = setTimeout(() => {
               // Never hang the tool loop on an unanswered picker.
@@ -2019,15 +2068,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         onAsk: async (call) => {
           if (turboMode) return true;
           const id = ++approvalSeq;
-          if (ws.readyState === WebSocket.OPEN) {
-            let args: string;
-            try {
-              args = JSON.stringify(JSON.parse(call.arguments), null, 2);
-            } catch {
-              args = call.arguments;
-            }
-            ws.send(JSON.stringify({ type: 'approval', id, tool: call.name, args }));
+          let args: string;
+          try {
+            args = JSON.stringify(JSON.parse(call.arguments), null, 2);
+          } catch {
+            args = call.arguments;
           }
+          broadcastPayload(JSON.stringify({ type: 'approval', id, tool: call.name, args }));
           return new Promise<boolean>((resolve) => {
             const timer = setTimeout(() => {
               // Never hang the tool loop on an unanswered approval — deny.
@@ -2117,6 +2164,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             clearTimeout(entry.timer);
             questionResolvers.delete(Number(msg.id));
             entry.resolve(String(msg.answer ?? ''));
+            broadcastPayload(JSON.stringify({ type: 'dismiss_prompts' }));
           }
         } else if (msg.type === 'set_turbo_mode') {
           turboMode = Boolean(msg.enabled);
@@ -2132,6 +2180,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             clearTimeout(entry.timer);
             approvalResolvers.delete(Number(msg.id));
             entry.resolve(msg.granted !== false);
+            broadcastPayload(JSON.stringify({ type: 'dismiss_prompts' }));
           }
         } else if (msg.type === 'set_step_debugger') {
           globalStepDebugger.setEnabled(Boolean(msg.enabled));
@@ -2199,6 +2248,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     });
 
     ws.on('close', () => {
+      connectedClients.delete(ws);
       if (activeRepl === repl) {
         activeRepl = null;
       }
@@ -2221,9 +2271,6 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     });
   });
 
-  const desiredPort = options.port !== undefined ? options.port : Number(process.env.PORT || 0);
-  const host = options.host || 'localhost';
-
   return new Promise<RunningServer>((resolve, reject) => {
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE' && options.port === undefined) {
@@ -2236,14 +2283,16 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     server.listen(desiredPort, host, () => {
       const addr = server.address() as AddressInfo;
-      const actualPort = addr.port;
+      actualPort = addr.port;
       const url = `http://${host}:${actualPort}`;
       const tokenUrl = `http://${host}:${actualPort}/?token=${sessionToken}`;
+      const remoteStreamDetails = getRemoteStreamDetails(actualPort, sessionToken, host === '0.0.0.0');
       resolve({
         port: actualPort,
         url,
         tokenUrl,
         token: sessionToken,
+        remoteStreamDetails,
         close: () =>
           new Promise<void>((res) => {
             try {

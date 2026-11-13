@@ -34,12 +34,13 @@ program
   .argument('[dir]', 'project directory path to open as workspace', '.')
   .option('-p, --port <number>', 'server port (default: random open port)')
   .option('-h, --host <string>', 'server host', 'localhost')
+  .option('-r, --remote', 'allow streaming to devices on the local network (binds 0.0.0.0)')
   .option('-m, --model <id>', 'initial model id')
   .option('--no-open', 'do not automatically open the browser')
   .action(
     async (
       dir: string,
-      options: { port?: string; host: string; model?: string; open?: boolean },
+      options: { port?: string; host: string; model?: string; open?: boolean; remote?: boolean },
     ) => {
       if (dir && dir !== '.') {
         try {
@@ -278,13 +279,16 @@ async function launchUi(options: {
   host: string;
   model?: string;
   open?: boolean;
+  remote?: boolean;
 }): Promise<void> {
   installCrashGuards();
+  const isRemote = Boolean(options.remote || process.env.MUGIL_IDE_REMOTE === '1');
   const engine = createEngine(loadConfig());
   let shutdownUi: () => Promise<void> = async () => {};
   const server = await startIdeServer({
     port: options.port !== undefined ? Number(options.port) : undefined,
-    host: options.host || 'localhost',
+    host: options.host && options.host !== 'localhost' ? options.host : isRemote ? '0.0.0.0' : 'localhost',
+    remote: isRemote,
     engine,
     model: options.model,
     // The in-browser "Kill Server" button calls POST /api/shutdown.
@@ -293,8 +297,15 @@ async function launchUi(options: {
 
   const launchUrl = server.tokenUrl || server.url;
   console.log(`\n  ${bold('☁️ Mugil IDE')} ${dim('— Token-Efficient PTY + xterm.js Interface')}`);
-  console.log(`  ${green('✓')} Running at: ${bold(cyan(launchUrl))}`);
-  console.log(`  ${dim('Press Ctrl+C to stop server.\n')}`);
+  console.log(`  ${green('✓')} Local:   ${bold(cyan(launchUrl))}`);
+  if (server.remoteStreamDetails?.primaryNetworkUrl) {
+    console.log(`  ${green('📱')} Network: ${bold(cyan(server.remoteStreamDetails.primaryNetworkUrl))}`);
+    if (isRemote && server.remoteStreamDetails.qrAnsi) {
+      console.log(`\n  ${dim('Scan QR code to stream session to phone / tablet:')}\n`);
+      console.log(server.remoteStreamDetails.qrAnsi);
+    }
+  }
+  console.log(`  ${dim('\n  Press Ctrl+C to stop server.\n')}`);
 
   let shuttingDown = false;
   const shutdown = async (): Promise<void> => {

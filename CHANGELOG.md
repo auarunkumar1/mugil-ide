@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
+### Added
+- **Remote Device Streaming via Secret Link & QR Code**:
+  - Live session streaming to phones, tablets, and secondary devices on the local network without complex port forwarding or third-party relay servers.
+  - Zero-dependency pure-TypeScript QR Code Model 2 engine (`packages/cli/src/server/qr.ts`) generating both high-contrast SVGs for browser modals and ANSI half-blocks for terminal banners.
+  - Automatic non-internal IPv4 LAN address discovery (`getLocalNetworkAddresses`) with network URL generation and session token security authentication (`?token=...`).
+  - Terminal startup banner displaying network streaming URLs and terminal ANSI QR code when launched with `mugil-ide ui --remote` (`-r`) or `MUGIL_IDE_REMOTE=1`.
+  - Header `📱 Stream` modal (`#remote-stream-modal`) showing real-time connected client count, 1-click secret link copy, and responsive QR code.
+  - Multi-client WebSocket session broadcaster (`connectedClients` set + `replayBuffer`) streaming live agent output, tool calls, thinking updates, and status updates to all connected browser sessions.
+  - `GET /api/session/remote-stream` REST endpoint returning stream connection details, active client counts, and vector QR markup.
+- **Fluid Responsive Layout & Mobile/Tablet Navigation**:
+  - Resilient responsive layout replacing fixed desktop pane widths with dynamic flex containers and a draggable divider (`#pane-resizer`).
+  - Mobile dock navigation (`#mobile-dock`) with dedicated view switches (`Agent`, `Terminal`, `Files`, `Diff`) for phone/tablet screens (`@media (max-width: 768px)`).
+  - Clean collapse mechanics preventing horizontal overflow and clipping on arbitrary browser aspect ratios.
+- **Modern Thinking Stream & Turn Cards**:
+  - Collapsible real-time reasoning container (`#thinking-container`) with live elapsed execution timer, pulse indicator, and token metrics.
+  - Modern Agent View mode (`#modern-agent-view`) rendering structured user turn cards, real-time assistant responses, and inline tool execution badges alongside raw xterm terminal toggle (`[✨ Modern View]` / `[💻 Raw Terminal]`).
+  - Auto-scroll lock with floating `↓ New Output` indicator pill when scrolled up to inspect previous turns.
+- **Multi-Theme Engine**:
+  - 5 high-contrast designer palettes: **GitHub Dark** (Default), **Nordic (Nord)**, **OLED Dark (True Black)**, **Dracula**, and **Cyberpunk Neon**.
+  - Synchronized xterm.js terminal emulator palette and CSS custom properties dynamically applied on selection.
+  - Header `🎨 Theme` dropdown with persistent user preference in `localStorage`.
+
 ## [0.3.2] - 2026-11-08
 ### Added
 - **`process-auditor` Universal Business Logic & Multi-Industry Skill**: Added a comprehensive workspace business process verification skill (`.agents/skills/process-auditor`) covering 10 distinct industry verticals:
@@ -529,3 +553,4 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 
 [0.3.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.1
 [0.3.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.2
+[0.4.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.4.0

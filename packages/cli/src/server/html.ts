@@ -30,6 +30,75 @@ export function getWebUiHtml(): string {
       --diff-del-text: #ffa198;
       --font-scale: 1;
     }
+    /* Theme Palettes */
+    [data-theme="nord"] {
+      --bg: #2e3440;
+      --panel-bg: #3b4252;
+      --card-bg: #434c5e;
+      --border: #4c566a;
+      --text: #eceff4;
+      --text-dim: #d8dee9;
+      --accent: #88c0d0;
+      --green: #a3be8c;
+      --magenta: #b48ead;
+      --yellow: #ebcb8b;
+      --red: #bf616a;
+      --diff-add: #a3be8c25;
+      --diff-add-text: #a3be8c;
+      --diff-del: #bf616a25;
+      --diff-del-text: #bf616a;
+    }
+    [data-theme="oled"] {
+      --bg: #000000;
+      --panel-bg: #0a0a0a;
+      --card-bg: #141414;
+      --border: #262626;
+      --text: #ffffff;
+      --text-dim: #888888;
+      --accent: #38bdf8;
+      --green: #22c55e;
+      --magenta: #c084fc;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --diff-add: #22c55e25;
+      --diff-add-text: #4ade80;
+      --diff-del: #ef444425;
+      --diff-del-text: #f87171;
+    }
+    [data-theme="dracula"] {
+      --bg: #282a36;
+      --panel-bg: #21222c;
+      --card-bg: #343746;
+      --border: #44475a;
+      --text: #f8f8f2;
+      --text-dim: #6272a4;
+      --accent: #bd93f9;
+      --green: #50fa7b;
+      --magenta: #ff79c6;
+      --yellow: #f1fa8c;
+      --red: #ff5555;
+      --diff-add: #50fa7b25;
+      --diff-add-text: #50fa7b;
+      --diff-del: #ff555525;
+      --diff-del-text: #ff5555;
+    }
+    [data-theme="cyberpunk"] {
+      --bg: #0f051d;
+      --panel-bg: #180936;
+      --card-bg: #261447;
+      --border: #441e7a;
+      --text: #f3e8ff;
+      --text-dim: #a78bfa;
+      --accent: #ff007f;
+      --green: #05ffa1;
+      --magenta: #d946ef;
+      --yellow: #facc15;
+      --red: #ff3366;
+      --diff-add: #05ffa125;
+      --diff-add-text: #05ffa1;
+      --diff-del: #ff336625;
+      --diff-del-text: #ff3366;
+    }
     * {
       box-sizing: border-box;
       margin: 0;
@@ -239,11 +308,12 @@ export function getWebUiHtml(): string {
       margin: 4px 0;
     }
 
-    /* Split Two-Pane Layout */
+    /* Split Two-Pane Layout & Resizer */
     #workspace {
       flex: 1;
       display: flex;
       overflow: hidden;
+      position: relative;
     }
     .pane {
       display: flex;
@@ -251,16 +321,303 @@ export function getWebUiHtml(): string {
       height: 100%;
       overflow: hidden;
       position: relative;
+      min-width: 0;
+      transition: flex 0.15s ease;
     }
     #left-pane {
       flex: 1.1;
       border-right: 1px solid var(--border);
-      min-width: 380px;
     }
     #right-pane {
       flex: 0.9;
-      min-width: 380px;
       background: var(--panel-bg);
+    }
+    #pane-resizer {
+      width: 6px;
+      margin-left: -3px;
+      margin-right: -3px;
+      background: transparent;
+      cursor: col-resize;
+      z-index: 25;
+      position: relative;
+      user-select: none;
+      transition: background 0.15s ease;
+    }
+    #pane-resizer:hover, #pane-resizer.active {
+      background: var(--accent);
+    }
+
+    /* Left Pane View Mode Toggle Bar (Modern View vs Raw Terminal) */
+    .view-mode-toggle-bar {
+      display: flex;
+      background: color-mix(in srgb, var(--panel-bg) 80%, transparent);
+      border-bottom: 1px solid var(--border);
+      padding: 3px 8px;
+      gap: 4px;
+      align-items: center;
+    }
+    .view-toggle-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-dim);
+      font-size: calc(11px * var(--font-scale));
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .view-toggle-btn:hover {
+      color: var(--text);
+      background: color-mix(in srgb, var(--card-bg) 70%, transparent);
+    }
+    .view-toggle-btn.active {
+      background: var(--card-bg);
+      color: var(--accent);
+      border-color: var(--border);
+      font-weight: 600;
+    }
+
+    /* Modern Stream / Chat & Thinking Container */
+    #modern-agent-view {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 8px 0;
+      background: var(--bg);
+    }
+    #modern-agent-view.hidden-view {
+      display: none !important;
+    }
+    .thinking-container {
+      margin: 6px 12px;
+      background: color-mix(in srgb, var(--card-bg) 60%, transparent);
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+      border-radius: 8px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .thinking-header {
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      background: color-mix(in srgb, var(--panel-bg) 70%, transparent);
+      font-size: calc(11.5px * var(--font-scale));
+      color: var(--text-dim);
+    }
+    .thinking-header:hover {
+      background: var(--card-bg);
+      color: var(--text);
+    }
+    .thinking-pulse {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      animation: brainPulse 2s infinite ease-in-out;
+    }
+    @keyframes brainPulse {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+    .thinking-title {
+      font-weight: 600;
+      color: var(--accent);
+      flex: 1;
+    }
+    .thinking-badge {
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+      color: var(--accent);
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-family: ui-monospace, monospace;
+    }
+    .thinking-chevron {
+      transition: transform 0.2s ease;
+      font-size: 10px;
+    }
+    .thinking-chevron.collapsed {
+      transform: rotate(-90deg);
+    }
+    .thinking-body {
+      padding: 8px 12px;
+      font-family: ui-monospace, SFMono-Regular, "Fira Code", monospace;
+      font-size: calc(11.5px * var(--font-scale));
+      line-height: 1.5;
+      color: var(--text-dim);
+      border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .thinking-body.collapsed {
+      display: none;
+    }
+
+    #modern-chat-stream {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 0;
+    }
+    .chat-bubble {
+      margin: 2px 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: calc(12.5px * var(--font-scale));
+      line-height: 1.5;
+    }
+    .chat-bubble.user {
+      background: color-mix(in srgb, var(--card-bg) 85%, transparent);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+    }
+    .chat-bubble.assistant {
+      background: color-mix(in srgb, var(--panel-bg) 60%, transparent);
+      border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    }
+    .chat-bubble-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+    .chat-bubble-content {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .tool-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      margin: 3px 12px;
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--card-bg) 90%, transparent);
+      border: 1px solid var(--border);
+      font-family: ui-monospace, monospace;
+      font-size: calc(11px * var(--font-scale));
+    }
+    .tool-card.running {
+      border-color: var(--yellow);
+      color: var(--yellow);
+    }
+    .tool-card.done {
+      border-color: var(--green);
+      color: var(--green);
+    }
+    .scroll-bottom-pill {
+      position: absolute;
+      bottom: 14px;
+      right: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      display: none;
+      align-items: center;
+      gap: 4px;
+      z-index: 30;
+      transition: all 0.2s;
+    }
+    .scroll-bottom-pill:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* Mobile Responsive Dock & Media Queries */
+    #mobile-dock {
+      display: none;
+      background: var(--panel-bg);
+      border-top: 1px solid var(--border);
+      height: 48px;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: space-around;
+      padding: 0 4px;
+      z-index: 100;
+    }
+    .mobile-dock-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 10px;
+      cursor: pointer;
+      padding: 4px 0;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .mobile-dock-btn.active {
+      color: var(--accent);
+      font-weight: 700;
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    @media (max-width: 768px) {
+      header {
+        padding: 6px 10px !important;
+      }
+      .logo-container {
+        font-size: 13px !important;
+      }
+      .header-credits-bar {
+        display: none !important;
+      }
+      .hide-mobile {
+        display: none !important;
+      }
+      #workspace {
+        flex-direction: column !important;
+      }
+      #pane-resizer {
+        display: none !important;
+      }
+      #left-pane, #right-pane {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        border-right: none !important;
+      }
+      .pane.mobile-hidden {
+        display: none !important;
+      }
+      #mobile-dock {
+        display: flex !important;
+      }
+      .status-bar {
+        font-size: 10px !important;
+        padding: 4px 8px !important;
+      }
+      .status-bar > div:last-child {
+        display: none !important;
+      }
+      .modal-dialog {
+        width: 95vw !important;
+        max-width: 95vw !important;
+        max-height: 90vh !important;
+      }
     }
     .pane-header {
       background: var(--panel-bg);
@@ -744,6 +1101,35 @@ export function getWebUiHtml(): string {
         <span>🖼️ Generate Image</span>
       </button>
 
+      <!-- Stream to Network Device via Secret Link & QR -->
+      <button class="btn" id="stream-session-btn" onclick="openRemoteStreamModal()" title="Stream session to phone / tablet / network device via QR code & secret link">
+        <span>📱 Stream</span>
+      </button>
+
+      <!-- Theme Selector Dropdown -->
+      <div class="menu-dropdown">
+        <button class="btn" onclick="toggleThemeDropdown(event)" id="header-theme-btn" title="Switch Theme (Nordic, OLED Dark, Dracula, Cyberpunk, GitHub Dark)">
+          <span>🎨 Theme</span> ▾
+        </button>
+        <div class="menu-dropdown-content" id="header-theme-dropdown">
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('github-dark');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#58a6ff;display:inline-block;"></span> GitHub Dark
+          </button>
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('nord');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#88c0d0;display:inline-block;"></span> Nordic (Nord)
+          </button>
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('oled');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#ffffff;border:1px solid #333;display:inline-block;"></span> OLED Dark (True Black)
+          </button>
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('dracula');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#bd93f9;display:inline-block;"></span> Dracula
+          </button>
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('cyberpunk');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#ff007f;display:inline-block;"></span> Cyberpunk Neon
+          </button>
+        </div>
+      </div>
+
       <!-- Main Action: Session Setup -->
       <button class="btn btn-primary" onclick="openSessionSetupModal()" title="Configure session budgets, limits & turbo mode">
         <span>🚀 Session Setup</span>
@@ -837,8 +1223,35 @@ export function getWebUiHtml(): string {
         <span class="turn-chip" onclick="sendAgentCmd('/history')">#1 (Session Start)</span>
       </div>
 
+      <div class="view-mode-toggle-bar">
+        <button id="view-toggle-modern" class="view-toggle-btn active" onclick="switchAgentViewMode('modern')">✨ Modern View</button>
+        <button id="view-toggle-terminal" class="view-toggle-btn" onclick="switchAgentViewMode('terminal')">💻 Raw Terminal</button>
+      </div>
+
       <div id="terminal-container">
-        <div id="agent-view" class="terminal-view active"></div>
+        <!-- Modern Rich View: Thinking Container + Structured Chat Stream -->
+        <div id="modern-agent-view">
+          <div class="thinking-container" id="thinking-container" style="display:none;">
+            <div class="thinking-header" onclick="toggleThinking()">
+              <span class="thinking-pulse">🧠</span>
+              <span class="thinking-title">Thinking Process</span>
+              <span class="thinking-badge" id="thinking-badge">0s</span>
+              <span class="thinking-chevron" id="thinking-chevron">▾</span>
+            </div>
+            <div class="thinking-body" id="thinking-body"></div>
+          </div>
+          <div id="modern-chat-stream">
+            <div class="chat-bubble assistant">
+              <div class="chat-bubble-header">
+                <span>🤖 Mugil AI Assistant</span>
+                <span style="font-size:10px; color:var(--text-dim);">Ready</span>
+              </div>
+              <div class="chat-bubble-content">Welcome to Mugil IDE. Type a prompt or command below to start building.</div>
+            </div>
+          </div>
+          <div class="scroll-bottom-pill" id="scroll-bottom-pill" onclick="scrollModernToBottom()">↓ New Output</div>
+        </div>
+        <div id="agent-view" class="terminal-view" style="display:none;"></div>
         <div id="pty-view" class="terminal-view"></div>
       </div>
 
@@ -848,6 +1261,8 @@ export function getWebUiHtml(): string {
         <button class="btn btn-primary" onclick="submitQuickInput()">Send ↵</button>
       </div>
     </div>
+
+    <div id="pane-resizer" title="Drag to resize panes"></div>
 
     <!-- RIGHT PANE: File Exploration, Diff Viewer & CodeGraph -->
     <div id="right-pane" class="pane">
@@ -928,6 +1343,54 @@ export function getWebUiHtml(): string {
     </div>
     <div>
       <span>Left: Chat & Autonomous Tools · Right: File Tree, Diffs & CodeGraph</span>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Navigation Dock (Shown on screens < 768px) -->
+  <nav id="mobile-dock">
+    <button class="mobile-dock-btn active" id="dock-agent" onclick="switchMobileView('agent')">
+      <span>🤖</span><span>Agent</span>
+    </button>
+    <button class="mobile-dock-btn" id="dock-pty" onclick="switchMobileView('pty')">
+      <span>💻</span><span>Terminal</span>
+    </button>
+    <button class="mobile-dock-btn" id="dock-files" onclick="switchMobileView('files')">
+      <span>📁</span><span>Files</span>
+    </button>
+    <button class="mobile-dock-btn" id="dock-diff" onclick="switchMobileView('diff')">
+      <span>🔍</span><span>Diffs</span>
+    </button>
+    <button class="mobile-dock-btn" id="dock-more" onclick="openRemoteStreamModal()">
+      <span>📱</span><span>Stream</span>
+    </button>
+  </nav>
+
+  <!-- Network Device Session Streaming Modal (QR Code & Secret Link) -->
+  <div class="modal-overlay" id="remote-stream-modal">
+    <div class="modal-dialog" style="max-width:480px; text-align:center;">
+      <div class="modal-title-bar">
+        <span>📱 Stream Session to Network Device</span>
+        <button class="btn" onclick="closeRemoteStreamModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px;">
+        <p style="font-size:12px; color:var(--text-dim); margin-bottom:12px; line-height:1.4;">
+          Scan the QR code with your phone or tablet on the same Wi-Fi / network to stream thinking processes and continue this session on the go.
+        </p>
+        <div id="qr-code-display" style="display:flex; justify-content:center; align-items:center; margin:12px auto; padding:12px; background:#ffffff; border-radius:12px; width:220px; height:220px; box-shadow:0 8px 24px rgba(0,0,0,0.3);">
+          <div style="color:#000;">Loading QR Code...</div>
+        </div>
+        <div style="margin:14px 0; text-align:left;">
+          <label style="font-size:11px; color:var(--text-dim); display:block; margin-bottom:4px;">Secret Session Link:</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="remote-stream-link" readonly style="flex:1; background:var(--panel-bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:11px; font-family:ui-monospace, monospace;" />
+            <button class="btn btn-primary" onclick="copyRemoteStreamLink()">📋 Copy</button>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; padding-top:10px; border-top:1px solid var(--border); font-size:11.5px;">
+          <span id="remote-device-status"><span class="dot" style="background:var(--green);"></span> Stream Ready</span>
+          <span id="remote-clients-count" style="color:var(--text-dim);">1 client connected</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1690,6 +2153,376 @@ export function getWebUiHtml(): string {
   </div>
 
   <script>
+    // Themes Engine
+    const THEMES = {
+      'github-dark': {
+        name: 'GitHub Dark',
+        xterm: {
+          background: '#0d1117',
+          foreground: '#e6edf3',
+          cursor: '#58a6ff',
+          black: '#484f58',
+          red: '#ff7b72',
+          green: '#3fb950',
+          yellow: '#d29922',
+          blue: '#58a6ff',
+          magenta: '#bc8cff',
+          cyan: '#39c5cf',
+          white: '#b1bac4',
+        }
+      },
+      'nord': {
+        name: 'Nordic (Nord)',
+        xterm: {
+          background: '#2e3440',
+          foreground: '#eceff4',
+          cursor: '#88c0d0',
+          black: '#3b4252',
+          red: '#bf616a',
+          green: '#a3be8c',
+          yellow: '#ebcb8b',
+          blue: '#81a1c1',
+          magenta: '#b48ead',
+          cyan: '#88c0d0',
+          white: '#e5e9f0',
+        }
+      },
+      'oled': {
+        name: 'OLED Dark',
+        xterm: {
+          background: '#000000',
+          foreground: '#ffffff',
+          cursor: '#38bdf8',
+          black: '#1f1f1f',
+          red: '#ef4444',
+          green: '#22c55e',
+          yellow: '#eab308',
+          blue: '#38bdf8',
+          magenta: '#c084fc',
+          cyan: '#06b6d4',
+          white: '#e5e5e5',
+        }
+      },
+      'dracula': {
+        name: 'Dracula',
+        xterm: {
+          background: '#282a36',
+          foreground: '#f8f8f2',
+          cursor: '#bd93f9',
+          black: '#21222c',
+          red: '#ff5555',
+          green: '#50fa7b',
+          yellow: '#f1fa8c',
+          blue: '#bd93f9',
+          magenta: '#ff79c6',
+          cyan: '#8be9fd',
+          white: '#f8f8f2',
+        }
+      },
+      'cyberpunk': {
+        name: 'Cyberpunk Neon',
+        xterm: {
+          background: '#0f051d',
+          foreground: '#f3e8ff',
+          cursor: '#ff007f',
+          black: '#180936',
+          red: '#ff3366',
+          green: '#05ffa1',
+          yellow: '#facc15',
+          blue: '#00f0ff',
+          magenta: '#ff007f',
+          cyan: '#00f0ff',
+          white: '#ffffff',
+        }
+      }
+    };
+
+    let currentTheme = localStorage.getItem('mugil_ide_theme') || 'github-dark';
+    if (THEMES[currentTheme]) {
+      document.documentElement.setAttribute('data-theme', currentTheme);
+    }
+
+    function setTheme(name) {
+      if (!THEMES[name]) return;
+      currentTheme = name;
+      localStorage.setItem('mugil_ide_theme', name);
+      document.documentElement.setAttribute('data-theme', name);
+      const palette = THEMES[name].xterm;
+      if (agentTerm && agentTerm.options) agentTerm.options.theme = { ...palette };
+      if (ptyTerm && ptyTerm.options) ptyTerm.options.theme = { ...palette, cursor: '#3fb950' };
+      closeThemeDropdown();
+    }
+
+    function toggleThemeDropdown(e) {
+      if (e) e.stopPropagation();
+      closeMenuDropdown();
+      const dd = document.getElementById('header-theme-dropdown');
+      if (dd) dd.classList.toggle('show');
+    }
+
+    function closeThemeDropdown() {
+      const dd = document.getElementById('header-theme-dropdown');
+      if (dd) dd.classList.remove('show');
+    }
+
+    // Modern View / Thinking Stream State
+    let agentViewMode = 'modern';
+    let isThinking = false;
+    let thinkingStartTime = 0;
+    let thinkingTimer = null;
+    let currentAssistantBubble = null;
+
+    function switchAgentViewMode(mode) {
+      agentViewMode = mode;
+      const modernBtn = document.getElementById('view-toggle-modern');
+      const terminalBtn = document.getElementById('view-toggle-terminal');
+      const modernView = document.getElementById('modern-agent-view');
+      const terminalView = document.getElementById('agent-view');
+      if (!modernBtn || !terminalBtn || !modernView || !terminalView) return;
+
+      if (mode === 'modern') {
+        modernBtn.classList.add('active');
+        terminalBtn.classList.remove('active');
+        modernView.classList.remove('hidden-view');
+        terminalView.style.display = 'none';
+        scrollModernToBottom();
+      } else {
+        modernBtn.classList.remove('active');
+        terminalBtn.classList.add('active');
+        modernView.classList.add('hidden-view');
+        terminalView.style.display = 'block';
+        if (agentFit) agentFit.fit();
+      }
+    }
+
+    function toggleThinking() {
+      const body = document.getElementById('thinking-body');
+      const chevron = document.getElementById('thinking-chevron');
+      if (!body || !chevron) return;
+      body.classList.toggle('collapsed');
+      chevron.classList.toggle('collapsed');
+    }
+
+    function scrollModernToBottom() {
+      const modernView = document.getElementById('modern-agent-view');
+      const pill = document.getElementById('scroll-bottom-pill');
+      if (modernView) {
+        modernView.scrollTop = modernView.scrollHeight;
+      }
+      if (pill) pill.style.display = 'none';
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function appendAssistantText(text) {
+      const modernChat = document.getElementById('modern-chat-stream');
+      if (!modernChat) return;
+
+      if (!currentAssistantBubble) {
+        currentAssistantBubble = document.createElement('div');
+        currentAssistantBubble.className = 'chat-bubble assistant';
+        currentAssistantBubble.innerHTML = '<div class="chat-bubble-header"><span>🤖 Assistant</span></div><div class="chat-bubble-content"></div>';
+        modernChat.appendChild(currentAssistantBubble);
+      }
+      const contentEl = currentAssistantBubble.querySelector('.chat-bubble-content');
+      if (contentEl) {
+        contentEl.textContent += text;
+      }
+      scrollModernToBottom();
+    }
+
+    function renderModernStreamChunk(rawChunk) {
+      if (!rawChunk) return;
+      const clean = rawChunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+      const modernChat = document.getElementById('modern-chat-stream');
+      const thinkingContainer = document.getElementById('thinking-container');
+      const thinkingBody = document.getElementById('thinking-body');
+      const thinkingBadge = document.getElementById('thinking-badge');
+      if (!modernChat) return;
+
+      // Detect <think> tag
+      if (clean.includes('<think>')) {
+        isThinking = true;
+        thinkingStartTime = Date.now();
+        if (thinkingContainer) thinkingContainer.style.display = 'block';
+        if (thinkingBody) thinkingBody.textContent = '';
+        if (thinkingBadge) thinkingBadge.textContent = '0.0s';
+        if (thinkingTimer) clearInterval(thinkingTimer);
+        thinkingTimer = setInterval(() => {
+          if (isThinking && thinkingBadge) {
+            thinkingBadge.textContent = ((Date.now() - thinkingStartTime) / 1000).toFixed(1) + 's';
+          }
+        }, 100);
+      }
+
+      if (isThinking) {
+        if (clean.includes('</think>')) {
+          const parts = clean.split('</think>');
+          if (thinkingBody) thinkingBody.textContent += parts[0].replace('<think>', '');
+          isThinking = false;
+          if (thinkingTimer) {
+            clearInterval(thinkingTimer);
+            thinkingTimer = null;
+          }
+          if (thinkingBadge) {
+            thinkingBadge.textContent = 'Thought for ' + ((Date.now() - thinkingStartTime) / 1000).toFixed(1) + 's';
+          }
+          if (parts[1] && parts[1].trim()) {
+            appendAssistantText(parts[1].trim());
+          }
+        } else {
+          if (thinkingBody) thinkingBody.textContent += clean.replace('<think>', '');
+        }
+        scrollModernToBottom();
+        return;
+      }
+
+      // Check if user input echo
+      if (clean.startsWith('👤') || clean.startsWith('User:') || clean.startsWith('> ') || (clean.includes('Turn #') && clean.includes('User'))) {
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble user';
+        bubble.innerHTML = '<div class="chat-bubble-header"><span>👤 You</span></div><div class="chat-bubble-content">' + escapeHtml(clean) + '</div>';
+        modernChat.appendChild(bubble);
+        currentAssistantBubble = null;
+        scrollModernToBottom();
+        return;
+      }
+
+      // Check tool calls
+      if (clean.includes('Running tool:') || clean.includes('Tool call:')) {
+        const toolCard = document.createElement('div');
+        toolCard.className = 'tool-card running';
+        toolCard.textContent = '⚡ ' + clean.trim();
+        modernChat.appendChild(toolCard);
+        scrollModernToBottom();
+        return;
+      }
+
+      if (clean.trim()) {
+        appendAssistantText(clean);
+      }
+    }
+
+    // Remote Device Stream Modal Handlers
+    async function openRemoteStreamModal() {
+      const modal = document.getElementById('remote-stream-modal');
+      if (!modal) return;
+      modal.classList.add('open');
+      const qrDisplay = document.getElementById('qr-code-display');
+      const linkInput = document.getElementById('remote-stream-link');
+      const countEl = document.getElementById('remote-clients-count');
+      try {
+        const res = await fetch('/api/session/remote-stream');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.qrSvg && qrDisplay) {
+            qrDisplay.innerHTML = data.qrSvg;
+          }
+          const link = data.primaryNetworkUrl || data.localUrl;
+          if (linkInput) linkInput.value = link;
+          if (countEl) countEl.textContent = (data.connectedClients || 1) + ' client(s) connected';
+        }
+      } catch (err) {
+        if (qrDisplay) qrDisplay.innerHTML = '<span style="color:#ff7b72;font-size:11px;">Failed to load QR code</span>';
+      }
+    }
+
+    function closeRemoteStreamModal() {
+      const modal = document.getElementById('remote-stream-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function copyRemoteStreamLink() {
+      const input = document.getElementById('remote-stream-link');
+      if (!input || !input.value) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(input.value).then(() => {
+          alert('Secret streaming link copied to clipboard!');
+        }).catch(() => {
+          input.select();
+          document.execCommand('copy');
+          alert('Secret streaming link copied to clipboard!');
+        });
+      } else {
+        input.select();
+        document.execCommand('copy');
+        alert('Secret streaming link copied to clipboard!');
+      }
+    }
+
+    // Mobile Dock View Switcher
+    function switchMobileView(view) {
+      document.querySelectorAll('.mobile-dock-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('dock-' + view);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const leftPane = document.getElementById('left-pane');
+      const rightPane = document.getElementById('right-pane');
+      if (!leftPane || !rightPane) return;
+
+      if (view === 'agent') {
+        leftPane.classList.remove('mobile-hidden');
+        rightPane.classList.add('mobile-hidden');
+        switchLeftTab('agent');
+      } else if (view === 'pty') {
+        leftPane.classList.remove('mobile-hidden');
+        rightPane.classList.add('mobile-hidden');
+        switchLeftTab('pty');
+      } else if (view === 'files') {
+        leftPane.classList.add('mobile-hidden');
+        rightPane.classList.remove('mobile-hidden');
+        switchRightTab('files');
+      } else if (view === 'diff') {
+        leftPane.classList.add('mobile-hidden');
+        rightPane.classList.remove('mobile-hidden');
+        switchRightTab('diff');
+      }
+      notifyResize();
+    }
+
+    // Split Pane Resizer
+    function initResizer() {
+      const resizer = document.getElementById('pane-resizer');
+      const leftPane = document.getElementById('left-pane');
+      const rightPane = document.getElementById('right-pane');
+      const workspace = document.getElementById('workspace');
+      if (!resizer || !leftPane || !rightPane || !workspace) return;
+
+      let isResizing = false;
+
+      resizer.addEventListener('mousedown', () => {
+        isResizing = true;
+        resizer.classList.add('active');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        const rect = workspace.getBoundingClientRect();
+        const leftWidth = e.clientX - rect.left;
+        const totalWidth = rect.width;
+        if (leftWidth > 180 && totalWidth - leftWidth > 180) {
+          const leftFlex = (leftWidth / (totalWidth - leftWidth)).toFixed(3);
+          leftPane.style.flex = leftFlex;
+          rightPane.style.flex = '1';
+          notifyResize();
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isResizing) {
+          isResizing = false;
+          resizer.classList.remove('active');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          notifyResize();
+        }
+      });
+    }
+
     let lastGeneratedFileUrl = "";
     let lastGeneratedFilePath = "";
 
@@ -1959,31 +2792,16 @@ export function getWebUiHtml(): string {
 
     function initTerminals() {
       const termFontSize = Math.round(14 * currentZoom);
+      const themeConfig = THEMES[currentTheme] || THEMES['github-dark'];
+      const activePalette = themeConfig.xterm;
       agentTerm = new Terminal({
         cursorBlink: false,
         disableStdin: true,
         fontSize: termFontSize,
         fontFamily: 'Consolas, "Fira Code", "Courier New", monospace',
         theme: {
-          background: '#0d1117',
-          foreground: '#e6edf3',
           cursor: 'transparent',
-          black: '#484f58',
-          red: '#ff7b72',
-          green: '#3fb950',
-          yellow: '#d29922',
-          blue: '#58a6ff',
-          magenta: '#bc8cff',
-          cyan: '#39c5cf',
-          white: '#b1bac4',
-          brightBlack: '#6e7681',
-          brightRed: '#ffa198',
-          brightGreen: '#56d364',
-          brightYellow: '#e3b341',
-          brightBlue: '#79c0ff',
-          brightMagenta: '#d2a8ff',
-          brightCyan: '#56d4dd',
-          brightWhite: '#ffffff'
+          ...activePalette
         }
       });
       agentFit = new FitAddon.FitAddon();
@@ -2017,9 +2835,8 @@ export function getWebUiHtml(): string {
         fontSize: termFontSize,
         fontFamily: 'Consolas, "Fira Code", "Courier New", monospace',
         theme: {
-          background: '#000000',
-          foreground: '#f0f6fc',
-          cursor: '#3fb950'
+          cursor: activePalette.green || '#3fb950',
+          ...activePalette
         }
       });
       ptyFit = new FitAddon.FitAddon();
@@ -2043,8 +2860,11 @@ export function getWebUiHtml(): string {
       });
 
       window.addEventListener('resize', () => {
-        if (activeLeftTab === 'agent') agentFit.fit();
-        else ptyFit.fit();
+        if (activeLeftTab === 'agent') {
+          if (agentViewMode === 'terminal' && agentFit) agentFit.fit();
+        } else if (ptyFit) {
+          ptyFit.fit();
+        }
         notifyResize();
       });
     }
@@ -2053,16 +2873,55 @@ export function getWebUiHtml(): string {
       activeLeftTab = tab;
       document.getElementById('tab-agent').classList.toggle('active', tab === 'agent');
       document.getElementById('tab-pty').classList.toggle('active', tab === 'pty');
-      document.getElementById('agent-view').classList.toggle('active', tab === 'agent');
-      document.getElementById('pty-view').classList.toggle('active', tab === 'pty');
+      const toggleBar = document.querySelector('.view-mode-toggle-bar');
+      if (toggleBar) toggleBar.style.display = tab === 'agent' ? 'flex' : 'none';
+
+      const modernView = document.getElementById('modern-agent-view');
+      const agentView = document.getElementById('agent-view');
+      const ptyView = document.getElementById('pty-view');
+
+      if (tab === 'agent') {
+        if (ptyView) {
+          ptyView.classList.remove('active');
+          ptyView.style.display = 'none';
+        }
+        if (agentViewMode === 'modern') {
+          if (modernView) modernView.classList.remove('hidden-view');
+          if (agentView) {
+            agentView.classList.remove('active');
+            agentView.style.display = 'none';
+          }
+          scrollModernToBottom();
+        } else {
+          if (modernView) modernView.classList.add('hidden-view');
+          if (agentView) {
+            agentView.classList.add('active');
+            agentView.style.display = 'block';
+          }
+          if (agentFit) agentFit.fit();
+        }
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.focus();
+      } else {
+        if (modernView) modernView.classList.add('hidden-view');
+        if (agentView) {
+          agentView.classList.remove('active');
+          agentView.style.display = 'none';
+        }
+        if (ptyView) {
+          ptyView.classList.add('active');
+          ptyView.style.display = 'block';
+        }
+        if (ptyFit) ptyFit.fit();
+        if (ptyTerm) ptyTerm.focus();
+      }
+
       setTimeout(() => {
         if (tab === 'agent') {
-          agentFit.fit();
-          const chatInput = document.getElementById('chat-input');
-          if (chatInput) chatInput.focus();
+          if (agentViewMode === 'terminal' && agentFit) agentFit.fit();
         } else {
-          ptyFit.fit();
-          ptyTerm.focus();
+          if (ptyFit) ptyFit.fit();
+          if (ptyTerm) ptyTerm.focus();
         }
         notifyResize();
       }, 40);
@@ -2271,11 +3130,21 @@ export function getWebUiHtml(): string {
           if (msg.type === 'agent_data') {
             agentTerm.write(msg.data);
             agentTerm.scrollToBottom();
+            renderModernStreamChunk(msg.data);
           } else if (msg.type === 'pty_data') {
             ptyTerm.write(msg.data);
             ptyTerm.scrollToBottom();
           } else if (msg.type === 'turn_complete') {
             setAgentBusy(false);
+            if (isThinking) {
+              isThinking = false;
+              if (thinkingTimer) {
+                clearInterval(thinkingTimer);
+                thinkingTimer = null;
+              }
+              const badge = document.getElementById('thinking-badge');
+              if (badge) badge.textContent = 'Thought complete (' + Math.max(1, Math.round((Date.now() - thinkingStartTime) / 1000)) + 's)';
+            }
             addTurnChip(msg.turn);
             refreshFiles();
           } else if (msg.type === 'dismiss_prompts') {
@@ -2367,6 +3236,7 @@ export function getWebUiHtml(): string {
         } catch (e) {
           agentTerm.write(event.data);
           agentTerm.scrollToBottom();
+          renderModernStreamChunk(event.data);
         }
       };
     }
@@ -2394,6 +3264,13 @@ export function getWebUiHtml(): string {
       if (dd && dd.classList.contains('show')) {
         if (!dd.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
           dd.classList.remove('show');
+        }
+      }
+      const tdd = document.getElementById('header-theme-dropdown');
+      const tbtn = document.getElementById('header-theme-btn');
+      if (tdd && tdd.classList.contains('show')) {
+        if (!tdd.contains(e.target) && e.target !== tbtn && !tbtn.contains(e.target)) {
+          tdd.classList.remove('show');
         }
       }
       const spPop = document.getElementById('savings-popover');
@@ -4464,6 +5341,9 @@ export function getWebUiHtml(): string {
 
     window.onload = async () => {
       initTerminals();
+      setTheme(currentTheme);
+      initResizer();
+      switchAgentViewMode(agentViewMode);
       void checkForAppUpdate();
       connectWs();
       await loadModels();

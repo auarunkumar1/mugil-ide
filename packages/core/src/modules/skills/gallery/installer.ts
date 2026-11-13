@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { resolveInsideWorkspace } from '../../tools/paths.js';
 import { guardedFetch } from '../../security/restrictedNet.js';
 import { globalSkillsDir, parseSkillFrontmatter } from '../index.js';
+import { VERSION } from '../../../branding.js';
 import { CURATED_GALLERY_SKILLS } from './catalog.js';
 import type { InstallResult, InstallSkillOptions, SkillTarget } from './types.js';
 
@@ -189,7 +190,7 @@ export async function installFromUrl(
   const res = await guardedFetch(rawUrl, {
     fetchFn: fetcher,
     ...(options.dnsLookupFn ? { dnsLookupFn: options.dnsLookupFn } : {}),
-    headers: { 'User-Agent': 'Mugil-IDE-Skill-Installer/0.3.2' },
+    headers: { 'User-Agent': `Mugil-IDE-Skill-Installer/${VERSION}` },
     timeoutMs: 15_000,
   });
 
