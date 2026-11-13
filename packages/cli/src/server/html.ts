@@ -2048,6 +2048,10 @@ export function getWebUiHtml(): string {
         </div>
 
         <!-- Directory Subfolders List -->
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:10.5px; color:var(--text-dim); margin-top:2px; margin-bottom:-4px;">
+          <span>Folders</span>
+          <span>Tip: Single click to select, double click or 'Open →' to open</span>
+        </div>
         <div id="dirpicker-folder-list" style="max-height:280px; min-height:180px; overflow-y:auto; background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:6px; display:flex; flex-direction:column; gap:2px;">
           <div style="color:var(--text-dim); text-align:center; padding:20px; font-size:12px;">Loading folders...</div>
         </div>
@@ -3422,9 +3426,11 @@ export function getWebUiHtml(): string {
     let dirPickerTargetInputId = '';
     let dirPickerCurrentPath = '';
     let dirPickerParentPath = null;
+    let dirPickerSelectedPath = null;
 
     async function openDirPicker(targetInputId) {
       dirPickerTargetInputId = targetInputId;
+      dirPickerSelectedPath = null;
       const targetInput = document.getElementById(targetInputId);
       const initialPath = targetInput && targetInput.value.trim() ? targetInput.value.trim() : (currentWorkspaceRoot || '');
       const modal = document.getElementById('dirpicker-modal');
@@ -3438,6 +3444,7 @@ export function getWebUiHtml(): string {
     }
 
     async function navigateDirPicker(targetPath) {
+      dirPickerSelectedPath = null;
       const pathEl = document.getElementById('dirpicker-current-path');
       const listEl = document.getElementById('dirpicker-folder-list');
       const upBtn = document.getElementById('dirpicker-up-btn');
@@ -3452,6 +3459,7 @@ export function getWebUiHtml(): string {
         const data = await res.json();
         dirPickerCurrentPath = data.current;
         dirPickerParentPath = data.parent;
+        dirPickerSelectedPath = null;
 
         if (pathEl) {
           pathEl.textContent = data.current;
@@ -3483,11 +3491,26 @@ export function getWebUiHtml(): string {
         // Render Folder List
         if (listEl) {
           listEl.innerHTML = '';
+          // Deselect folder item when clicking background of list container
+          listEl.onclick = (e) => {
+            if (e.target === listEl) {
+              dirPickerSelectedPath = null;
+              const allRows = listEl.querySelectorAll('.dirpicker-folder-row');
+              allRows.forEach(r => {
+                r.style.background = 'transparent';
+                r.style.borderColor = 'transparent';
+                r.dataset.selected = 'false';
+              });
+              if (summaryEl) summaryEl.textContent = 'Selected: ' + dirPickerCurrentPath;
+            }
+          };
+
           if (!data.dirs || data.dirs.length === 0) {
             listEl.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding:16px; font-size:11.5px;">(No subdirectories here)</div>';
           } else {
             data.dirs.forEach(d => {
               const row = document.createElement('div');
+              row.className = 'dirpicker-folder-row';
               row.style.display = 'flex';
               row.style.alignItems = 'center';
               row.style.justifyContent = 'space-between';
@@ -3496,9 +3519,20 @@ export function getWebUiHtml(): string {
               row.style.cursor = 'pointer';
               row.style.fontSize = '12px';
               row.style.color = 'var(--text)';
-              row.style.transition = 'background 0.1s';
-              row.onmouseenter = () => { row.style.background = '#161b22'; };
-              row.onmouseleave = () => { row.style.background = 'transparent'; };
+              row.style.border = '1px solid transparent';
+              row.style.transition = 'background 0.1s, border-color 0.1s';
+              row.title = 'Single click to select, double click to open';
+
+              row.onmouseenter = () => {
+                if (row.dataset.selected !== 'true') {
+                  row.style.background = '#161b22';
+                }
+              };
+              row.onmouseleave = () => {
+                if (row.dataset.selected !== 'true') {
+                  row.style.background = 'transparent';
+                }
+              };
 
               const nameSpan = document.createElement('span');
               nameSpan.innerHTML = '📁 ' + escapeHtml(d.name);
@@ -3512,6 +3546,7 @@ export function getWebUiHtml(): string {
               openBtn.className = 'btn';
               openBtn.style.fontSize = '10px';
               openBtn.style.padding = '2px 6px';
+              openBtn.title = 'Open this folder (or double-click)';
               openBtn.textContent = 'Open →';
               openBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -3519,7 +3554,26 @@ export function getWebUiHtml(): string {
               };
               row.appendChild(openBtn);
 
-              row.onclick = () => navigateDirPicker(d.path);
+              // Single click selects the folder item
+              row.onclick = () => {
+                dirPickerSelectedPath = d.path;
+                const allRows = listEl.querySelectorAll('.dirpicker-folder-row');
+                allRows.forEach(r => {
+                  r.style.background = 'transparent';
+                  r.style.borderColor = 'transparent';
+                  r.dataset.selected = 'false';
+                });
+                row.style.background = 'rgba(88, 166, 255, 0.15)';
+                row.style.borderColor = 'var(--accent, #58a6ff)';
+                row.dataset.selected = 'true';
+                if (summaryEl) summaryEl.textContent = 'Selected: ' + d.path;
+              };
+
+              // Double click opens / navigates into the folder
+              row.ondblclick = () => {
+                navigateDirPicker(d.path);
+              };
+
               listEl.appendChild(row);
             });
           }
@@ -3543,8 +3597,9 @@ export function getWebUiHtml(): string {
       const nameInp = document.getElementById('dirpicker-newfolder-name');
       const subName = nameInp ? nameInp.value.trim() : '';
       if (!subName) return;
-      const sep = dirPickerCurrentPath.indexOf('/') >= 0 ? '/' : String.fromCharCode(92);
-      const full = dirPickerCurrentPath.endsWith(sep) ? dirPickerCurrentPath + subName : dirPickerCurrentPath + sep + subName;
+      const base = dirPickerSelectedPath || dirPickerCurrentPath;
+      const sep = base.indexOf('/') >= 0 ? '/' : String.fromCharCode(92);
+      const full = base.endsWith(sep) ? base + subName : base + sep + subName;
       const targetInput = document.getElementById(dirPickerTargetInputId);
       if (targetInput) targetInput.value = full;
       if (nameInp) nameInp.value = '';
@@ -3552,9 +3607,10 @@ export function getWebUiHtml(): string {
     }
 
     function confirmDirPicker() {
+      const chosen = dirPickerSelectedPath || dirPickerCurrentPath;
       const targetInput = document.getElementById(dirPickerTargetInputId);
-      if (targetInput && dirPickerCurrentPath) {
-        targetInput.value = dirPickerCurrentPath;
+      if (targetInput && chosen) {
+        targetInput.value = chosen;
       }
       closeDirPicker();
     }
