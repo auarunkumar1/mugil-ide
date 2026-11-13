@@ -28,8 +28,9 @@ export function getLocalNetworkAddresses(): string[] {
  * Checks whether an IP or hostname is a private/local network address.
  */
 export function isLocalOrLanHost(host: string): boolean {
-  const h = host.toLowerCase().split(':')[0]; // strip port if present
-  if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0') {
+  const parts = host.toLowerCase().split(':');
+  const h = parts[0] ?? '';
+  if (!h || h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0') {
     return true;
   }
   // Check RFC 1918 Private IPv4 Ranges
@@ -64,7 +65,7 @@ export function getRemoteStreamDetails(
   const localUrl = `http://localhost:${port}/?token=${token}`;
   const networkIps = getLocalNetworkAddresses();
   const networkUrls = networkIps.map((ip) => `http://${ip}:${port}/?token=${token}`);
-  const primaryNetworkUrl = networkUrls.length > 0 ? networkUrls[0] : null;
+  const primaryNetworkUrl = networkUrls[0] ?? null;
 
   const targetUrl = primaryNetworkUrl || localUrl;
   const qrSvg = generateQrSvg(targetUrl, { size: 280, margin: 3 });

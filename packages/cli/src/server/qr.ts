@@ -47,7 +47,9 @@ const LOG_TABLE = new Uint8Array(256);
 
 function gfMultiply(x: number, y: number): number {
   if (x === 0 || y === 0) return 0;
-  return EXP_TABLE[LOG_TABLE[x] + LOG_TABLE[y]];
+  const logX = LOG_TABLE[x] ?? 0;
+  const logY = LOG_TABLE[y] ?? 0;
+  return EXP_TABLE[logX + logY] ?? 0;
 }
 
 function calculateReedSolomon(data: Uint8Array, ecLength: number): Uint8Array {
@@ -55,21 +57,25 @@ function calculateReedSolomon(data: Uint8Array, ecLength: number): Uint8Array {
   let genPoly = new Uint8Array([1]);
   for (let i = 0; i < ecLength; i++) {
     const nextPoly = new Uint8Array(genPoly.length + 1);
-    const factor = EXP_TABLE[i];
+    const factor = EXP_TABLE[i] ?? 0;
     for (let j = 0; j < genPoly.length; j++) {
-      nextPoly[j] ^= gfMultiply(genPoly[j], factor);
-      nextPoly[j + 1] ^= genPoly[j];
+      const gVal = genPoly[j] ?? 0;
+      nextPoly[j] = (nextPoly[j] ?? 0) ^ gfMultiply(gVal, factor);
+      nextPoly[j + 1] = (nextPoly[j + 1] ?? 0) ^ gVal;
     }
     genPoly = nextPoly;
   }
 
   const remainder = new Uint8Array(ecLength);
   for (let i = 0; i < data.length; i++) {
-    const factor = data[i] ^ remainder[0];
+    const factor = (data[i] ?? 0) ^ (remainder[0] ?? 0);
     for (let j = 0; j < ecLength - 1; j++) {
-      remainder[j] = remainder[j + 1] ^ gfMultiply(genPoly[ecLength - 1 - j], factor);
+      const nextRemainder = remainder[j + 1] ?? 0;
+      const polyVal = genPoly[ecLength - 1 - j] ?? 0;
+      remainder[j] = nextRemainder ^ gfMultiply(polyVal, factor);
     }
-    remainder[ecLength - 1] = gfMultiply(genPoly[0], factor);
+    const polyLead = genPoly[0] ?? 0;
+    remainder[ecLength - 1] = gfMultiply(polyLead, factor);
   }
   return remainder;
 }
@@ -107,7 +113,7 @@ export function generateQrMatrix(text: string): boolean[][] {
   pushBits(textBytes.length, spec.version <= 9 ? 8 : 16);
   // Data bytes
   for (let i = 0; i < textBytes.length; i++) {
-    pushBits(textBytes[i], 8);
+    pushBits(textBytes[i] ?? 0, 8);
   }
   // Terminator: up to 4 zero bits
   const capacityBits = spec.totalDataBytes * 8;
@@ -121,7 +127,7 @@ export function generateQrMatrix(text: string): boolean[][] {
   const padBytes = [0xec, 0x11];
   let padIdx = 0;
   while (bitStream.length < capacityBits) {
-    pushBits(padBytes[padIdx % 2], 8);
+    pushBits(padBytes[padIdx % 2] ?? 0, 8);
     padIdx++;
   }
 
@@ -130,7 +136,7 @@ export function generateQrMatrix(text: string): boolean[][] {
   for (let i = 0; i < spec.totalDataBytes; i++) {
     let byteVal = 0;
     for (let b = 0; b < 8; b++) {
-      byteVal = (byteVal << 1) | bitStream[i * 8 + b];
+      byteVal = (byteVal << 1) | (bitStream[i * 8 + b] ?? 0);
     }
     dataCodewords[i] = byteVal;
   }
@@ -158,15 +164,19 @@ export function generateQrMatrix(text: string): boolean[][] {
   const maxDataLen = Math.max(spec.group1DataBytes, spec.group2DataBytes || 0);
   for (let i = 0; i < maxDataLen; i++) {
     for (let b = 0; b < blocks.length; b++) {
-      if (i < blocks[b].length) {
-        finalCodewords.push(blocks[b][i]);
+      const block = blocks[b];
+      if (block && i < block.length) {
+        finalCodewords.push(block[i] ?? 0);
       }
     }
   }
   // Interleave EC codewords
   for (let i = 0; i < spec.ecBytesPerBlock; i++) {
     for (let b = 0; b < ecBlocks.length; b++) {
-      finalCodewords.push(ecBlocks[b][i]);
+      const ecBlock = ecBlocks[b];
+      if (ecBlock && i < ecBlock.length) {
+        finalCodewords.push(ecBlock[i] ?? 0);
+      }
     }
   }
 
@@ -175,9 +185,29 @@ export function generateQrMatrix(text: string): boolean[][] {
   const matrix: (boolean | null)[][] = Array.from({ length: N }, () => Array(N).fill(null));
   const isFunction: boolean[][] = Array.from({ length: N }, () => Array(N).fill(false));
 
-  function setModule(r: number, c: number, val: boolean) {
-    matrix[r][c] = val;
-    isFunction[r][c] = true;
+  const getM = (r: number, c: number): boolean | null => {
+    const row = matrix[r];
+    return row !== undefined ? (row[c] ?? null) : null;
+  };
+  const setM = (r: number, c: number, val: boolean | null): void => {
+    const row = matrix[r];
+    if (row !== undefined && c >= 0 && c < N) {
+      row[c] = val;
+    }
+  };
+  const getF = (r: number, c: number): boolean => {
+    const row = isFunction[r];
+    return row !== undefined ? (row[c] ?? false) : false;
+  };
+  const setF = (r: number, c: number, val: boolean): void => {
+    const row = isFunction[r];
+    if (row !== undefined && c >= 0 && c < N) {
+      row[c] = val;
+    }
+  };
+  function setModule(r: number, c: number, val: boolean): void {
+    setM(r, c, val);
+    setF(r, c, true);
   }
 
   // Finder Patterns (7x7) + Separators
@@ -188,7 +218,12 @@ export function generateQrMatrix(text: string): boolean[][] {
         const nc = startC + c;
         if (nr < 0 || nr >= N || nc < 0 || nc >= N) continue;
         if (r >= 0 && r <= 6 && c >= 0 && c <= 6) {
-          const isDark = r === 0 || r === 6 || c === 0 || c === 6 || (r >= 2 && r <= 4 && c >= 2 && c <= 4);
+          const isDark =
+            r === 0 ||
+            r === 6 ||
+            c === 0 ||
+            c === 6 ||
+            (r >= 2 && r <= 4 && c >= 2 && c <= 4);
           setModule(nr, nc, isDark);
         } else {
           setModule(nr, nc, false);
@@ -204,7 +239,7 @@ export function generateQrMatrix(text: string): boolean[][] {
   const coords = spec.alignmentPatterns;
   for (const r of coords) {
     for (const c of coords) {
-      if (matrix[r][c] !== null) continue; // Skip finders
+      if (getM(r, c) !== null) continue; // Skip finders
       for (let dr = -2; dr <= 2; dr++) {
         for (let dc = -2; dc <= 2; dc++) {
           const isDark = Math.max(Math.abs(dr), Math.abs(dc)) !== 1;
@@ -216,8 +251,8 @@ export function generateQrMatrix(text: string): boolean[][] {
 
   // Timing Patterns
   for (let i = 8; i < N - 8; i++) {
-    if (matrix[6][i] === null) setModule(6, i, i % 2 === 0);
-    if (matrix[i][6] === null) setModule(i, 6, i % 2 === 0);
+    if (getM(6, i) === null) setModule(6, i, i % 2 === 0);
+    if (getM(i, 6) === null) setModule(i, 6, i % 2 === 0);
   }
 
   // Dark module
@@ -225,12 +260,12 @@ export function generateQrMatrix(text: string): boolean[][] {
 
   // Reserve Format Info Area
   for (let i = 0; i < 9; i++) {
-    if (matrix[8][i] === null) isFunction[8][i] = true;
-    if (matrix[i][8] === null) isFunction[i][8] = true;
+    if (getM(8, i) === null) setF(8, i, true);
+    if (getM(i, 8) === null) setF(i, 8, true);
   }
   for (let i = 0; i < 8; i++) {
-    if (matrix[8][N - 1 - i] === null) isFunction[8][N - 1 - i] = true;
-    if (matrix[N - 1 - i][8] === null) isFunction[N - 1 - i][8] = true;
+    if (getM(8, N - 1 - i) === null) setF(8, N - 1 - i, true);
+    if (getM(N - 1 - i, 8) === null) setF(N - 1 - i, 8, true);
   }
 
   // 4. Place Data Bits
@@ -251,9 +286,9 @@ export function generateQrMatrix(text: string): boolean[][] {
 
     for (const r of rows) {
       for (const c of [right, right - 1]) {
-        if (!isFunction[r][c]) {
-          const bit = bitIdx < dataBits.length ? dataBits[bitIdx++] : 0;
-          matrix[r][c] = bit === 1;
+        if (!getF(r, c)) {
+          const bit = bitIdx < dataBits.length ? (dataBits[bitIdx++] ?? 0) : 0;
+          setM(r, c, bit === 1);
         }
       }
     }
@@ -263,9 +298,9 @@ export function generateQrMatrix(text: string): boolean[][] {
   // 5. Mask Pattern 0: (row + col) % 2 === 0
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
-      if (!isFunction[r][c]) {
+      if (!getF(r, c)) {
         if ((r + c) % 2 === 0) {
-          matrix[r][c] = !matrix[r][c];
+          setM(r, c, !getM(r, c));
         }
       }
     }
@@ -274,14 +309,14 @@ export function generateQrMatrix(text: string): boolean[][] {
   // Format String: Level M (00) + Mask 0 (000) = 00000 -> 0x0000 -> BCH code: 0x4a17 ^ mask 0x5412 = 0x1e05
   // Format info bits for Level M, Mask 0: 0x1e05 (binary 001111000000101)
   const formatBits = [0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1];
-  for (let i = 0; i < 6; i++) matrix[8][i] = formatBits[i] === 1;
-  matrix[8][7] = formatBits[6] === 1;
-  matrix[8][8] = formatBits[7] === 1;
-  matrix[7][8] = formatBits[8] === 1;
-  for (let i = 9; i < 15; i++) matrix[14 - i][8] = formatBits[i] === 1;
+  for (let i = 0; i < 6; i++) setM(8, i, (formatBits[i] ?? 0) === 1);
+  setM(8, 7, (formatBits[6] ?? 0) === 1);
+  setM(8, 8, (formatBits[7] ?? 0) === 1);
+  setM(7, 8, (formatBits[8] ?? 0) === 1);
+  for (let i = 9; i < 15; i++) setM(14 - i, 8, (formatBits[i] ?? 0) === 1);
 
-  for (let i = 0; i < 7; i++) matrix[N - 1 - i][8] = formatBits[i] === 1;
-  for (let i = 7; i < 15; i++) matrix[8][N - 15 + i] = formatBits[i] === 1;
+  for (let i = 0; i < 7; i++) setM(N - 1 - i, 8, (formatBits[i] ?? 0) === 1);
+  for (let i = 7; i < 15; i++) setM(8, N - 15 + i, (formatBits[i] ?? 0) === 1);
 
   return matrix.map((row) => row.map((cell) => cell === true));
 }
@@ -301,8 +336,10 @@ export function generateQrSvg(text: string, options: QrOptions = {}): string {
   const rects: string[] = [];
 
   for (let r = 0; r < N; r++) {
+    const row = matrix[r];
+    if (!row) continue;
     for (let c = 0; c < N; c++) {
-      if (matrix[r][c]) {
+      if (row[c]) {
         rects.push(`<rect x="${c + margin}" y="${r + margin}" width="1" height="1" fill="${darkColor}"/>`);
       }
     }
@@ -326,8 +363,11 @@ export function generateQrAnsi(text: string): string {
   const total = N + margin * 2;
   const full: boolean[][] = Array.from({ length: total }, () => Array(total).fill(false));
   for (let r = 0; r < N; r++) {
+    const mRow = matrix[r];
+    const fRow = full[r + margin];
+    if (!mRow || !fRow) continue;
     for (let c = 0; c < N; c++) {
-      full[r + margin][c + margin] = matrix[r][c];
+      fRow[c + margin] = mRow[c] ?? false;
     }
   }
 
@@ -336,8 +376,10 @@ export function generateQrAnsi(text: string): string {
   for (let r = 0; r < total; r += 2) {
     let line = '  ';
     for (let c = 0; c < total; c++) {
-      const top = full[r][c];
-      const bot = r + 1 < total ? full[r + 1][c] : false;
+      const topRow = full[r];
+      const botRow = r + 1 < total ? full[r + 1] : undefined;
+      const top = topRow !== undefined ? (topRow[c] ?? false) : false;
+      const bot = botRow !== undefined ? (botRow[c] ?? false) : false;
       if (top && bot) {
         line += ' '; // Inverted for dark terminal background
       } else if (top && !bot) {
