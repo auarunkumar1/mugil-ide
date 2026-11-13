@@ -12,16 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Remote Device Streaming via Secret Link & QR Code**:
   - Live session streaming to phones, tablets, and secondary devices on the local network without complex port forwarding or third-party relay servers.
-  - Zero-dependency pure-TypeScript QR Code Model 2 engine (`packages/cli/src/server/qr.ts`) generating both high-contrast SVGs for browser modals and ANSI half-blocks for terminal banners.
+  - Zero-dependency pure-TypeScript ISO/IEC 18004 Model 2 QR Code engine (`packages/cli/src/server/qr.ts`) generating both high-contrast SVGs for browser modals and ANSI half-blocks for terminal banners. Fully verified against iOS/Android camera scanners with standard Level M format BCH polynomial masking and alignment patterns.
   - Automatic non-internal IPv4 LAN address discovery (`getLocalNetworkAddresses`) with network URL generation and session token security authentication (`?token=...`).
   - Terminal startup banner displaying network streaming URLs and terminal ANSI QR code when launched with `mugil-ide ui --remote` (`-r`) or `MUGIL_IDE_REMOTE=1`.
   - Header `📱 Stream` modal (`#remote-stream-modal`) showing real-time connected client count, 1-click secret link copy, and responsive QR code.
   - Multi-client WebSocket session broadcaster (`connectedClients` set + `replayBuffer`) streaming live agent output, tool calls, thinking updates, and status updates to all connected browser sessions.
   - `GET /api/session/remote-stream` REST endpoint returning stream connection details, active client counts, and vector QR markup.
-- **Fluid Responsive Layout & Mobile/Tablet Navigation**:
-  - Resilient responsive layout replacing fixed desktop pane widths with dynamic flex containers and a draggable divider (`#pane-resizer`).
+- **Three-Pane Collapsible Responsive Layout & Mobile/Tablet Navigation**:
+  - 3-pane flexible layout dividing the workspace into:
+    - Left Sidebar (`#files-pane`): File Explorer and CodeGraph, collapsible via header `[📁 Files]` toggle or internal `[✕]`.
+    - Center Pane (`#chat-pane`): AI Assistant conversation cards, thinking stream, terminal, and user input; smoothly expands to 100% of workspace when side panels are collapsed.
+    - Right Sidebar (`#diff-pane`): File Viewer & Diff Viewer with auto-uncollapse on file selection or diff generation, collapsible via header `[🔍 Diff]` toggle or internal `[✕]`.
+  - Resilient draggable divider handles (`#resizer-files`, `#resizer-diff`) with minimum width boundaries.
   - Mobile dock navigation (`#mobile-dock`) with dedicated view switches (`Agent`, `Terminal`, `Files`, `Diff`) for phone/tablet screens (`@media (max-width: 768px)`).
-  - Clean collapse mechanics preventing horizontal overflow and clipping on arbitrary browser aspect ratios.
+  - Strictly prevents vertical stacking on mobile screens: side panels start collapsed, granting the Chat view 100% screen real estate, with each panel occupying 100% viewport width when active.
+- **Multi-Line Prompt Textarea**:
+  - Increased prompt input height to comfortable 5-6 lines (`#chat-input` textarea, min-height 92px) with auto-resizing.
+  - Pressing `Enter` submits the prompt; pressing `Shift+Enter` inserts clean newlines for complex multi-line instructions.
 - **Modern Thinking Stream & Turn Cards**:
   - Collapsible real-time reasoning container (`#thinking-container`) with live elapsed execution timer, pulse indicator, and token metrics.
   - Modern Agent View mode (`#modern-agent-view`) rendering structured user turn cards, real-time assistant responses, and inline tool execution badges alongside raw xterm terminal toggle (`[✨ Modern View]` / `[💻 Raw Terminal]`).

@@ -308,10 +308,11 @@ export function getWebUiHtml(): string {
       margin: 4px 0;
     }
 
-    /* Split Two-Pane Layout & Resizer */
+    /* Three-Pane Collapsible Layout & Resizers */
     #workspace {
       flex: 1;
       display: flex;
+      flex-direction: row;
       overflow: hidden;
       position: relative;
     }
@@ -322,17 +323,35 @@ export function getWebUiHtml(): string {
       overflow: hidden;
       position: relative;
       min-width: 0;
-      transition: flex 0.15s ease;
+      transition: flex 0.15s ease, width 0.15s ease;
     }
-    #left-pane {
-      flex: 1.1;
+    /* Left Pane: Files & CodeGraph */
+    #files-pane {
+      width: 250px;
+      flex: 0 0 250px;
       border-right: 1px solid var(--border);
-    }
-    #right-pane {
-      flex: 0.9;
       background: var(--panel-bg);
     }
-    #pane-resizer {
+    #files-pane.collapsed {
+      display: none !important;
+    }
+    /* Center Main Pane: AI Assistant & Terminal */
+    #chat-pane {
+      flex: 1 1 0;
+      min-width: 0;
+      background: var(--bg);
+    }
+    /* Right Pane: Diff & File Viewer */
+    #diff-pane {
+      width: 420px;
+      flex: 0 0 420px;
+      border-left: 1px solid var(--border);
+      background: var(--panel-bg);
+    }
+    #diff-pane.collapsed {
+      display: none !important;
+    }
+    .pane-resizer {
       width: 6px;
       margin-left: -3px;
       margin-right: -3px;
@@ -343,8 +362,20 @@ export function getWebUiHtml(): string {
       user-select: none;
       transition: background 0.15s ease;
     }
-    #pane-resizer:hover, #pane-resizer.active {
+    .pane-resizer:hover, .pane-resizer.active {
       background: var(--accent);
+    }
+    .pane-toggle-btn {
+      padding: 2px 8px !important;
+      font-size: 11px !important;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+    .pane-toggle-btn.active {
+      background: color-mix(in srgb, var(--accent) 18%, transparent) !important;
+      border-color: var(--accent) !important;
+      color: var(--accent) !important;
+      font-weight: 600;
     }
 
     /* Left Pane View Mode Toggle Bar (Modern View vs Raw Terminal) */
@@ -588,17 +619,19 @@ export function getWebUiHtml(): string {
       .hide-mobile {
         display: none !important;
       }
+      /* STRICTLY NO VERTICAL STACKING: Single full-screen pane for maximum chat real estate */
       #workspace {
-        flex-direction: column !important;
+        flex-direction: row !important;
       }
-      #pane-resizer {
+      .pane-resizer {
         display: none !important;
       }
-      #left-pane, #right-pane {
+      #files-pane, #chat-pane, #diff-pane {
         flex: 1 1 100% !important;
         width: 100% !important;
+        height: 100% !important;
         min-width: 0 !important;
-        border-right: none !important;
+        border: none !important;
       }
       .pane.mobile-hidden {
         display: none !important;
@@ -688,26 +721,48 @@ export function getWebUiHtml(): string {
     .terminal-view.active { display: block; }
     .xterm { height: 100%; }
 
-    /* Quick Chat Input Bar */
+    /* Quick Chat Input Area (5-6 Lines Multi-line) */
     .quick-input-container {
-      background: #161b22;
+      background: var(--panel-bg);
       border-top: 1px solid var(--border);
       padding: 8px 12px;
       display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .quick-input-row {
+      display: flex;
       gap: 8px;
-      align-items: center;
+      align-items: flex-end;
     }
     .quick-input {
       flex: 1;
-      background: #0d1117;
+      background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 7px 11px;
+      padding: 8px 12px;
       border-radius: 6px;
       font-size: calc(13px * var(--font-scale));
+      font-family: inherit;
+      line-height: 1.45;
+      min-height: 92px; /* 5 to 6 lines height */
+      max-height: 220px;
+      resize: vertical;
       outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .quick-input:focus { border-color: var(--accent); }
+    .quick-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .quick-input-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
     .btn-stop {
       background: #3d1418;
       border-color: #f8514988;
@@ -1205,14 +1260,64 @@ export function getWebUiHtml(): string {
   </header>
 
   <div id="workspace">
-    <!-- LEFT PANE: Chat, Conversations & Terminal -->
-    <div id="left-pane" class="pane">
+    <!-- PANE 1: File Explorer & CodeGraph (Collapsible Left Pane) -->
+    <div id="files-pane" class="pane">
+      <div class="pane-header">
+        <div class="pane-tabs">
+          <button id="tab-files" class="tab-btn active" onclick="switchRightTab('files')">📁 Files</button>
+          <button id="tab-graph" class="tab-btn" onclick="switchRightTab('graph')">🌳 Graph</button>
+        </div>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="refreshRightPane()" title="Refresh files">↻</button>
+          <button class="btn" onclick="toggleFilesPane(false)" title="Collapse File Panel" style="padding:2px 6px; font-size:11px;">✕</button>
+        </div>
+      </div>
+
+      <!-- View 1: File Explorer -->
+      <div id="view-files" class="right-view active">
+        <div class="file-explorer-container">
+          <div style="padding:6px 10px; background:#11151c; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:11px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;" id="explorer-root-label" title="Current Workspace Root">Root: .</div>
+            <button class="btn" style="padding:2px 7px; font-size:10.5px;" onclick="openWorkspaceModal()" title="Change Project Workspace Folder">📂 Switch</button>
+          </div>
+          <div class="search-box">
+            <input type="text" class="search-input" id="file-search" placeholder="Search workspace files..." oninput="filterFiles(this.value)" />
+          </div>
+          <div class="file-tree" id="file-tree-list">
+            <div style="color:var(--text-dim); padding:8px;">Loading workspace files...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- View 2: CodeGraph -->
+      <div id="view-graph" class="right-view">
+        <div class="graph-stats-bar" id="graph-stats-bar">
+          <span class="graph-stat-pill">Files: <b id="g-files">-</b></span>
+          <span class="graph-stat-pill">Symbols: <b id="g-symbols">-</b></span>
+          <span class="graph-stat-pill">Imports: <b id="g-imports">-</b></span>
+          <span class="graph-stat-pill">Calls: <b id="g-calls">-</b></span>
+        </div>
+        <div class="search-box">
+          <input type="text" class="search-input" id="graph-search" placeholder="Search functions, classes in codebase..." oninput="searchGraph(this.value)" />
+        </div>
+        <div class="graph-symbols-list" id="graph-symbols-list">
+          <div style="color:var(--text-dim); padding:8px;">Analyzing codebase knowledge graph...</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="resizer-files" class="pane-resizer" title="Drag to resize File panel"></div>
+
+    <!-- PANE 2: Chat, Conversations & Terminal (Center Main Pane) -->
+    <div id="chat-pane" class="pane">
       <div class="pane-header">
         <div class="pane-tabs">
           <button id="tab-agent" class="tab-btn active" onclick="switchLeftTab('agent')">🤖 AI Assistant & Tools</button>
           <button id="tab-pty" class="tab-btn" onclick="switchLeftTab('pty')">💻 Shell Terminal</button>
         </div>
-        <div style="display:flex; gap:6px;">
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="btn pane-toggle-btn active" id="toggle-files-btn" onclick="toggleFilesPane()" title="Toggle Files Panel">📁 Files</button>
+          <button class="btn pane-toggle-btn active" id="toggle-diff-btn" onclick="toggleDiffPane()" title="Toggle Diff Viewer">🔍 Diff (<span id="diff-count">0</span>)</button>
           <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="openModelModal()">Switch Model ▾</button>
           <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="sendAgentCmd('/reset')">Reset Context</button>
         </div>
@@ -1255,44 +1360,38 @@ export function getWebUiHtml(): string {
         <div id="pty-view" class="terminal-view"></div>
       </div>
 
+      <!-- Multi-Line Prompt Input (5-6 Lines Height) -->
       <div class="quick-input-container">
-        <input type="text" class="quick-input" id="chat-input" placeholder="Type prompt or command (/models, /undo, /stats, /help)..." onkeydown="handleQuickInput(event)" />
-        <button class="btn btn-stop" id="stop-btn" onclick="stopAgentTurn()" title="Stop the running turn (Esc)" style="display:none;">■ Stop</button>
-        <button class="btn btn-primary" onclick="submitQuickInput()">Send ↵</button>
+        <div class="quick-input-row">
+          <textarea class="quick-input" id="chat-input" rows="5" placeholder="Type prompt or command (/models, /undo, /stats, /help)..." onkeydown="handleQuickInput(event)"></textarea>
+          <div style="display:flex; flex-direction:column; gap:6px; align-self:flex-end;">
+            <button class="btn btn-stop" id="stop-btn" onclick="stopAgentTurn()" title="Stop the running turn (Esc)" style="display:none; padding:8px 12px;">■ Stop</button>
+            <button class="btn btn-primary" onclick="submitQuickInput()" style="padding:8px 14px; font-weight:600;">Send ↵</button>
+          </div>
+        </div>
+        <div class="quick-input-actions">
+          <span>Tip: <b>Enter</b> to send · <b>Shift+Enter</b> for new line</span>
+          <span style="font-size:10px; opacity:0.8;">Mugil IDE</span>
+        </div>
       </div>
     </div>
 
-    <div id="pane-resizer" title="Drag to resize panes"></div>
+    <div id="resizer-diff" class="pane-resizer" title="Drag to resize Diff/Viewer panel"></div>
 
-    <!-- RIGHT PANE: File Exploration, Diff Viewer & CodeGraph -->
-    <div id="right-pane" class="pane">
+    <!-- PANE 3: File Viewer & Diff Viewer (Collapsible Right Pane) -->
+    <div id="diff-pane" class="pane">
       <div class="pane-header">
         <div class="pane-tabs">
-          <button id="tab-files" class="tab-btn active" onclick="switchRightTab('files')">📁 File Explorer</button>
           <button id="tab-viewer" class="tab-btn" onclick="switchRightTab('viewer')">📄 File Viewer</button>
-          <button id="tab-diff" class="tab-btn" onclick="switchRightTab('diff')">🔍 Diff Viewer (<span id="diff-count">0</span>)</button>
-          <button id="tab-graph" class="tab-btn" onclick="switchRightTab('graph')">🌳 CodeGraph</button>
+          <button id="tab-diff" class="tab-btn active" onclick="switchRightTab('diff')">🔍 Diff Viewer (<span id="diff-count-badge">0</span>)</button>
         </div>
-        <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="refreshRightPane()">↻ Refresh</button>
-      </div>
-
-      <!-- View 1: File Explorer -->
-      <div id="view-files" class="right-view active">
-        <div class="file-explorer-container">
-          <div style="padding:6px 10px; background:#11151c; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-            <div style="font-size:11px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;" id="explorer-root-label" title="Current Workspace Root">Root: .</div>
-            <button class="btn" style="padding:2px 7px; font-size:10.5px;" onclick="openWorkspaceModal()" title="Change Project Workspace Folder">📂 Switch Folder</button>
-          </div>
-          <div class="search-box">
-            <input type="text" class="search-input" id="file-search" placeholder="Search workspace files..." oninput="filterFiles(this.value)" />
-          </div>
-          <div class="file-tree" id="file-tree-list">
-            <div style="color:var(--text-dim); padding:8px;">Loading workspace files...</div>
-          </div>
+        <div style="display:flex; gap:4px; align-items:center;">
+          <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="refreshRightPane()">↻ Refresh</button>
+          <button class="btn" onclick="toggleDiffPane(false)" title="Collapse Diff Panel" style="padding:2px 6px; font-size:11px;">✕</button>
         </div>
       </div>
 
-      <!-- View 2: Code / File Viewer -->
+      <!-- View 1: Code / File Viewer -->
       <div id="view-viewer" class="right-view">
         <div class="code-viewer-container">
           <div class="code-header">
@@ -1303,30 +1402,14 @@ export function getWebUiHtml(): string {
         </div>
       </div>
 
-      <!-- View 3: Diff Viewer -->
-      <div id="view-diff" class="right-view">
+      <!-- View 2: Diff Viewer -->
+      <div id="view-diff" class="right-view active">
         <div class="code-viewer-container">
           <div class="code-header">
             <strong id="diff-file-title">No Modified Files</strong>
             <button class="btn btn-undo" onclick="triggerUndo()">Revert Last Edit</button>
           </div>
           <div class="code-content" id="diff-content">// Tool edit modifications and file diffs will appear here in real-time</div>
-        </div>
-      </div>
-
-      <!-- View 4: CodeGraph -->
-      <div id="view-graph" class="right-view">
-        <div class="graph-stats-bar" id="graph-stats-bar">
-          <span class="graph-stat-pill">Files: <b id="g-files">-</b></span>
-          <span class="graph-stat-pill">Symbols: <b id="g-symbols">-</b></span>
-          <span class="graph-stat-pill">Imports: <b id="g-imports">-</b></span>
-          <span class="graph-stat-pill">Calls: <b id="g-calls">-</b></span>
-        </div>
-        <div class="search-box">
-          <input type="text" class="search-input" id="graph-search" placeholder="Search functions, classes, interfaces in codebase..." oninput="searchGraph(this.value)" />
-        </div>
-        <div class="graph-symbols-list" id="graph-symbols-list">
-          <div style="color:var(--text-dim); padding:8px;">Analyzing codebase knowledge graph...</div>
         </div>
       </div>
     </div>
@@ -2456,75 +2539,146 @@ export function getWebUiHtml(): string {
       }
     }
 
-    // Mobile Dock View Switcher
+    // Mobile Dock View Switcher (Single Full-Screen Pane, No Vertical Stacking)
     function switchMobileView(view) {
       document.querySelectorAll('.mobile-dock-btn').forEach(btn => btn.classList.remove('active'));
       const activeBtn = document.getElementById('dock-' + view);
       if (activeBtn) activeBtn.classList.add('active');
 
-      const leftPane = document.getElementById('left-pane');
-      const rightPane = document.getElementById('right-pane');
-      if (!leftPane || !rightPane) return;
+      const filesPane = document.getElementById('files-pane');
+      const chatPane = document.getElementById('chat-pane');
+      const diffPane = document.getElementById('diff-pane');
+      if (!filesPane || !chatPane || !diffPane) return;
 
       if (view === 'agent') {
-        leftPane.classList.remove('mobile-hidden');
-        rightPane.classList.add('mobile-hidden');
+        chatPane.classList.remove('mobile-hidden');
+        filesPane.classList.add('mobile-hidden');
+        diffPane.classList.add('mobile-hidden');
         switchLeftTab('agent');
       } else if (view === 'pty') {
-        leftPane.classList.remove('mobile-hidden');
-        rightPane.classList.add('mobile-hidden');
+        chatPane.classList.remove('mobile-hidden');
+        filesPane.classList.add('mobile-hidden');
+        diffPane.classList.add('mobile-hidden');
         switchLeftTab('pty');
       } else if (view === 'files') {
-        leftPane.classList.add('mobile-hidden');
-        rightPane.classList.remove('mobile-hidden');
+        filesPane.classList.remove('mobile-hidden');
+        filesPane.classList.remove('collapsed');
+        chatPane.classList.add('mobile-hidden');
+        diffPane.classList.add('mobile-hidden');
         switchRightTab('files');
       } else if (view === 'diff') {
-        leftPane.classList.add('mobile-hidden');
-        rightPane.classList.remove('mobile-hidden');
+        diffPane.classList.remove('mobile-hidden');
+        diffPane.classList.remove('collapsed');
+        chatPane.classList.add('mobile-hidden');
+        filesPane.classList.add('mobile-hidden');
         switchRightTab('diff');
       }
       notifyResize();
     }
 
-    // Split Pane Resizer
+    // Toggle Panes on Desktop/Tablet
+    function toggleFilesPane(forceOpen) {
+      const pane = document.getElementById('files-pane');
+      const resizer = document.getElementById('resizer-files');
+      const btn = document.getElementById('toggle-files-btn');
+      if (!pane) return;
+      const willCollapse = forceOpen === true ? false : (forceOpen === false ? true : !pane.classList.contains('collapsed'));
+      pane.classList.toggle('collapsed', willCollapse);
+      if (resizer) resizer.style.display = willCollapse ? 'none' : '';
+      if (btn) btn.classList.toggle('active', !willCollapse);
+      notifyResize();
+    }
+
+    function toggleDiffPane(forceOpen) {
+      const pane = document.getElementById('diff-pane');
+      const resizer = document.getElementById('resizer-diff');
+      const btn = document.getElementById('toggle-diff-btn');
+      if (!pane) return;
+      const willCollapse = forceOpen === true ? false : (forceOpen === false ? true : !pane.classList.contains('collapsed'));
+      pane.classList.toggle('collapsed', willCollapse);
+      if (resizer) resizer.style.display = willCollapse ? 'none' : '';
+      if (btn) btn.classList.toggle('active', !willCollapse);
+      notifyResize();
+    }
+
+    // Split Panes Resizers (Files and Diff panels)
     function initResizer() {
-      const resizer = document.getElementById('pane-resizer');
-      const leftPane = document.getElementById('left-pane');
-      const rightPane = document.getElementById('right-pane');
+      const resizerFiles = document.getElementById('resizer-files');
+      const resizerDiff = document.getElementById('resizer-diff');
+      const filesPane = document.getElementById('files-pane');
+      const diffPane = document.getElementById('diff-pane');
       const workspace = document.getElementById('workspace');
-      if (!resizer || !leftPane || !rightPane || !workspace) return;
+      if (!workspace) return;
 
-      let isResizing = false;
+      if (resizerFiles && filesPane) {
+        let isResizingFiles = false;
+        resizerFiles.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          isResizingFiles = true;
+          resizerFiles.classList.add('active');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+        });
 
-      resizer.addEventListener('mousedown', () => {
-        isResizing = true;
-        resizer.classList.add('active');
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-      });
+        window.addEventListener('mousemove', (e) => {
+          if (!isResizingFiles) return;
+          const rect = workspace.getBoundingClientRect();
+          const newW = e.clientX - rect.left;
+          if (newW >= 160 && newW <= rect.width * 0.45) {
+            filesPane.style.width = newW + 'px';
+            filesPane.style.flex = '0 0 ' + newW + 'px';
+            notifyResize();
+          }
+        });
 
-      window.addEventListener('mousemove', (e) => {
-        if (!isResizing) return;
-        const rect = workspace.getBoundingClientRect();
-        const leftWidth = e.clientX - rect.left;
-        const totalWidth = rect.width;
-        if (leftWidth > 180 && totalWidth - leftWidth > 180) {
-          const leftFlex = (leftWidth / (totalWidth - leftWidth)).toFixed(3);
-          leftPane.style.flex = leftFlex;
-          rightPane.style.flex = '1';
-          notifyResize();
-        }
-      });
+        window.addEventListener('mouseup', () => {
+          if (isResizingFiles) {
+            isResizingFiles = false;
+            resizerFiles.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            notifyResize();
+          }
+        });
+      }
 
-      window.addEventListener('mouseup', () => {
-        if (isResizing) {
-          isResizing = false;
-          resizer.classList.remove('active');
-          document.body.style.cursor = '';
-          document.body.style.userSelect = '';
-          notifyResize();
-        }
-      });
+      if (resizerDiff && diffPane) {
+        let isResizingDiff = false;
+        resizerDiff.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          isResizingDiff = true;
+          resizerDiff.classList.add('active');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+          if (!isResizingDiff) return;
+          const rect = workspace.getBoundingClientRect();
+          const newW = rect.right - e.clientX;
+          if (newW >= 200 && newW <= rect.width * 0.55) {
+            diffPane.style.width = newW + 'px';
+            diffPane.style.flex = '0 0 ' + newW + 'px';
+            notifyResize();
+          }
+        });
+
+        window.addEventListener('mouseup', () => {
+          if (isResizingDiff) {
+            isResizingDiff = false;
+            resizerDiff.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            notifyResize();
+          }
+        });
+      }
+
+      // Check mobile viewport on load: start with Files and Diff panes hidden
+      if (window.innerWidth <= 768) {
+        if (filesPane) filesPane.classList.add('mobile-hidden');
+        if (diffPane) diffPane.classList.add('mobile-hidden');
+      }
     }
 
     let lastGeneratedFileUrl = "";
@@ -2933,18 +3087,33 @@ export function getWebUiHtml(): string {
 
     function switchRightTab(tab) {
       activeRightTab = tab;
-      document.getElementById('tab-files').classList.toggle('active', tab === 'files');
-      document.getElementById('tab-viewer').classList.toggle('active', tab === 'viewer');
-      document.getElementById('tab-diff').classList.toggle('active', tab === 'diff');
-      document.getElementById('tab-graph').classList.toggle('active', tab === 'graph');
+      const tabFiles = document.getElementById('tab-files');
+      const tabViewer = document.getElementById('tab-viewer');
+      const tabDiff = document.getElementById('tab-diff');
+      const tabGraph = document.getElementById('tab-graph');
 
-      document.getElementById('view-files').classList.toggle('active', tab === 'files');
-      document.getElementById('view-viewer').classList.toggle('active', tab === 'viewer');
-      document.getElementById('view-diff').classList.toggle('active', tab === 'diff');
-      document.getElementById('view-graph').classList.toggle('active', tab === 'graph');
+      if (tabFiles) tabFiles.classList.toggle('active', tab === 'files');
+      if (tabViewer) tabViewer.classList.toggle('active', tab === 'viewer');
+      if (tabDiff) tabDiff.classList.toggle('active', tab === 'diff');
+      if (tabGraph) tabGraph.classList.toggle('active', tab === 'graph');
 
-      if (tab === 'graph') loadGraph();
-      if (tab === 'diff') loadDiffs();
+      const vFiles = document.getElementById('view-files');
+      const vViewer = document.getElementById('view-viewer');
+      const vDiff = document.getElementById('view-diff');
+      const vGraph = document.getElementById('view-graph');
+
+      if (vFiles) vFiles.classList.toggle('active', tab === 'files');
+      if (vViewer) vViewer.classList.toggle('active', tab === 'viewer');
+      if (vDiff) vDiff.classList.toggle('active', tab === 'diff');
+      if (vGraph) vGraph.classList.toggle('active', tab === 'graph');
+
+      if (tab === 'files' || tab === 'graph') {
+        toggleFilesPane(true);
+        if (tab === 'graph') loadGraph();
+      } else if (tab === 'viewer' || tab === 'diff') {
+        toggleDiffPane(true);
+        if (tab === 'diff') loadDiffs();
+      }
     }
 
     function notifyResize() {
@@ -2967,7 +3136,8 @@ export function getWebUiHtml(): string {
     }
 
     function handleQuickInput(e) {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
         submitQuickInput();
       }
     }
@@ -3232,7 +3402,10 @@ export function getWebUiHtml(): string {
               if (spRate) spRate.textContent = '~' + optPct + '%';
               if (msg.stats.filesModified) {
                 modifiedFiles = msg.stats.filesModified;
-                document.getElementById('diff-count').textContent = modifiedFiles.length;
+                const dcEl = document.getElementById('diff-count');
+                if (dcEl) dcEl.textContent = modifiedFiles.length;
+                const dcbEl = document.getElementById('diff-count-badge');
+                if (dcbEl) dcbEl.textContent = modifiedFiles.length;
                 if (modifiedFiles.length > 0) renderDiffSummary(modifiedFiles);
               }
             }
@@ -3848,7 +4021,10 @@ export function getWebUiHtml(): string {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         const diffs = data.diffs || [];
-        document.getElementById('diff-count').textContent = diffs.length;
+        const dcEl2 = document.getElementById('diff-count');
+        if (dcEl2) dcEl2.textContent = diffs.length;
+        const dcbEl2 = document.getElementById('diff-count-badge');
+        if (dcbEl2) dcbEl2.textContent = diffs.length;
         document.getElementById('diff-file-title').textContent = diffs.length > 0
           ? 'Modified Files (' + diffs.length + ')'
           : 'No Modified Files';
