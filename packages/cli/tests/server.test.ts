@@ -2341,7 +2341,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     try {
       expect(server.remoteStreamDetails).toBeDefined();
       expect(server.remoteStreamDetails?.enabled).toBe(true);
-      expect(server.remoteStreamDetails?.token).toBe(server.sessionToken);
+      expect(server.remoteStreamDetails?.token).toBe(server.token);
 
       // GET /api/session/remote-stream with valid auth
       const res = await fetch(`${server.url}/api/session/remote-stream`);
@@ -2353,9 +2353,9 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         qrSvg: string;
         connectedClients: number;
       };
-      expect(json.token).toBe(server.sessionToken);
+      expect(json.token).toBe(server.token);
       expect(json.port).toBe(server.port);
-      expect(json.localUrl).toContain(server.sessionToken);
+      expect(json.localUrl).toContain(server.token);
       expect(json.qrSvg).toContain('<svg');
       expect(typeof json.connectedClients).toBe('number');
 
