@@ -2335,7 +2335,7 @@ export function getWebUiHtml(): string {
 
     function renderModernStreamChunk(rawChunk) {
       if (!rawChunk) return;
-      const clean = rawChunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+      const clean = rawChunk.replace(/\\x1b\\[[0-9;]*[a-zA-Z]/g, '');
       const modernChat = document.getElementById('modern-chat-stream');
       const thinkingContainer = document.getElementById('thinking-container');
       const thinkingBody = document.getElementById('thinking-body');
