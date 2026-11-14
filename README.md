@@ -310,9 +310,13 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 
 ### 🎯 Planned for Next Release Push (v0.5.0 Roadmap)
 
-- [ ] **Native Desktop Shell Packaging:** Optional Tauri/Electron lightweight shell wrapper alongside browser Web UI.
 - [ ] **Multi-Modal Audio & Voice Interaction:** Real-time voice input and speech streaming via local Whisper / Piper models.
 - [ ] **Autonomous Git PR Automation:** Direct GitHub PR generation with multi-file diff explanations and automated test reports.
+- [ ] **Self-Hosted Team Collaboration Hub:** Multi-user session sharing with role-based pair programming locks over WebRTC.
+
+> [!TIP]
+> **Pure Browser IDE Architecture & Philosophy**
+> Mugil IDE is proudly browser-first, mobile-ready, and OS-agnostic. We deliberately reject heavy desktop wrappers (Electron / Tauri) in favor of zero-install, instant-launch web accessibility. Any device with a modern browser—from desktop workstations to tablets and smartphones—can access the complete agent terminal, diff viewer, and workspace.
 
 ---
 

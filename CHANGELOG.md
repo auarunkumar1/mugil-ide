@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-14
+
+### Added
+- **`grounded-craft` Anti-Runaway & "Lazy Smart" Engineering Skill**:
+  - Implemented the `grounded-craft` skill bundled in the Curated Skill Gallery (`CURATED_GALLERY_SKILLS`) for optional 1-click workspace installation and pre-installed in `.agents/skills/grounded-craft/`.
+  - **Thinking Model Runaway Defense**: Implemented strict convergence protocols targeting reasoning models (DeepSeek Flash, DeepSeek-R1, MiniMax, MiMo) to stop unbounded meta-cognitive loops and hour-long reflection stalls during code audits and feature additions.
+  - **The "Lazy Smart" Senior Developer Persona**: Anchored the agent in customer-first utility, anti-ivory-tower ("anti-ponytail") engineering, minimal moving parts, and exploring battle-tested open-source prior art before reinventing the wheel.
+  - **Senior Developer Drift Nudge Engine**: Added real-time trajectory monitoring with standardized alerts (`[Senior Nudge: Scope Drift]`, `[Senior Nudge: Wheel Reinvention]`, `[Senior Nudge: Over-engineering]`, `[Senior Nudge: Orphan UI Control]`) to keep development strictly on the agreed path.
+  - **Zero-Orphan UI Invariants**: Mandated 5-point semantic contracts across all interactive controls (buttons, inputs, selects, modals) ensuring every element has concrete customer meaning, controlled bindings, client-side validation, and a 4-state visual lifecycle (`idle`, `loading/disabled`, `success`, `error`).
+  - **Compact Contract First**: Enforced concise ~60–150 token contract specifications mapping UI triggers to registered backend API routes before generating code, curbing token bloat and eliminating multi-turn repair thrashing.
+  - **Automated Static Verification Scanner**: Added zero-dependency static analysis tool (`scripts/verify-grounded-craft.mjs`) and 7-test suite (`tests/test-grounded-craft.mjs`) detecting dead buttons (`() => {}`, `console.log`, `alert()`), orphan inputs, unwired client fetch calls, and unmounted Express/FastAPI routers.
+
+### Changed
+- **Pure Browser IDE Philosophy & Roadmap Alignment**:
+  - Dropped Native Desktop Shell Packaging (Tauri/Electron) from the roadmap in `README.md`, firmly establishing Mugil IDE's core architecture as a lightweight, mobile-ready, OS-agnostic pure browser IDE accessible instantly on Linux, macOS, Windows, iOS, and Android.
+
+
 ## [0.4.1] - 2026-11-13
 
 ### Added
