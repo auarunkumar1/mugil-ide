@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **`grounded-craft` Anti-Runaway & "Lazy Smart" Engineering Skill**:
-  - Implemented the `grounded-craft` skill bundled in the Curated Skill Gallery (`CURATED_GALLERY_SKILLS`) for optional 1-click workspace installation and pre-installed in `.agents/skills/grounded-craft/`.
+  - Implemented the `grounded-craft` skill bundled in the Curated Skill Gallery (`CURATED_GALLERY_SKILLS`) for optional 1-click workspace installation via the Web UI or CLI.
   - **Thinking Model Runaway Defense**: Implemented strict convergence protocols targeting reasoning models (DeepSeek Flash, DeepSeek-R1, MiniMax, MiMo) to stop unbounded meta-cognitive loops and hour-long reflection stalls during code audits and feature additions.
   - **The "Lazy Smart" Senior Developer Persona**: Anchored the agent in customer-first utility, anti-ivory-tower ("anti-ponytail") engineering, minimal moving parts, and exploring battle-tested open-source prior art before reinventing the wheel.
   - **Senior Developer Drift Nudge Engine**: Added real-time trajectory monitoring with standardized alerts (`[Senior Nudge: Scope Drift]`, `[Senior Nudge: Wheel Reinvention]`, `[Senior Nudge: Over-engineering]`, `[Senior Nudge: Orphan UI Control]`) to keep development strictly on the agreed path.
