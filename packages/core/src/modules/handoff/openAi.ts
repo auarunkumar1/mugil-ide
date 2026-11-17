@@ -9,13 +9,14 @@ export interface OpenAiClientOptions {
   apiKey?: string;
   baseUrl?: string;
   headers?: Record<string, string>;
+  providerName?: string;
 }
 
 export class OpenAiClient extends OpenAiWireClient {
   constructor(options: OpenAiClientOptions = {}) {
     const baseUrl = options.baseUrl ?? 'https://api.openai.com/v1';
     super({
-      providerName: 'openai',
+      providerName: options.providerName ?? 'openai',
       baseUrl,
       apiKey: options.apiKey,
       missingEnvVar: 'OPENAI_API_KEY',

@@ -236,6 +236,8 @@ function sanitizeStats(stats: unknown): SessionStats | null {
             yagni: num((s.savingsBreakdown as Record<string, unknown>).yagni),
             cache: num((s.savingsBreakdown as Record<string, unknown>).cache),
             mcp: num((s.savingsBreakdown as Record<string, unknown>).mcp),
+            toolPruning: num((s.savingsBreakdown as Record<string, unknown>).toolPruning),
+            hybridRecon: num((s.savingsBreakdown as Record<string, unknown>).hybridRecon),
           }
         : undefined,
     optimisticTokensSaved:

@@ -269,7 +269,7 @@ export const WORKSPACE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'todoread',
     description:
-      'Read the current task list. Returns the todos written by todowrite, or a hint to create one. Call this at the start of a multi-step task to see what is left.',
+      'Read the current task list. Returns active session todos from todowrite, or scans the workspace for task/todo/audit files (e.g. TODO.md, broken-placeholder-links.md). Call this to inspect pending tasks or unfinished work.',
     parameters: {
       type: 'object',
       properties: {},
@@ -1535,19 +1535,148 @@ export function createWorkspaceTools(
 
     todoread: async (_call: ToolCall): Promise<string> => {
       const todos = todoStore.get(root) ?? [];
-      if (todos.length === 0) {
-        return '(no todos yet — use todowrite to create a task list for multi-step work)';
+      if (todos.length > 0) {
+        const mark: Record<TodoItem['status'], string> = {
+          pending: ' ',
+          in_progress: '~',
+          completed: 'x',
+          canceled: '-',
+        };
+        const lines = todos.map(
+          (t, i) => `  [${mark[t.status]}] ${i + 1}. ${t.content} (${t.status})`,
+        );
+        return `Todo list (${todos.length}):\n${lines.join('\n')}`;
       }
-      const mark: Record<TodoItem['status'], string> = {
-        pending: ' ',
-        in_progress: '~',
-        completed: 'x',
-        canceled: '-',
+
+      // If active session list is empty, scan workspace for disk files (e.g. broken-placeholder-links.md, TODO.md)
+      const skipDirs = new Set([
+        '.git',
+        '.mugil',
+        '.claude',
+        '.gemini',
+        'node_modules',
+        'dist',
+        'build',
+        '.cache',
+        'coverage',
+        '.idea',
+        '.vscode',
+        'tests',
+        'test',
+      ]);
+      const foundFiles: Array<{ name: string; fullPath: string; lineCount: number; preview: string }> = [];
+
+      const isDocFile = (filename: string): boolean => {
+        const lower = filename.toLowerCase();
+        if (
+          lower.includes('.test.') ||
+          lower.includes('.spec.') ||
+          lower.endsWith('.test.ts') ||
+          lower.endsWith('.test.js') ||
+          lower.endsWith('.spec.ts') ||
+          lower.endsWith('.spec.js')
+        ) {
+          return false;
+        }
+        return (
+          lower.endsWith('.md') ||
+          lower.endsWith('.markdown') ||
+          lower.endsWith('.txt') ||
+          lower.endsWith('.org') ||
+          lower === 'todo' ||
+          lower === 'tasks'
+        );
       };
-      const lines = todos.map(
-        (t, i) => `  [${mark[t.status]}] ${i + 1}. ${t.content} (${t.status})`,
-      );
-      return `Todo list (${todos.length}):\n${lines.join('\n')}`;
+
+      const scanDir = (dir: string, depth: number) => {
+        if (depth > 2) return;
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              if (!skipDirs.has(entry.name) && !entry.name.startsWith('.')) {
+                scanDir(path.join(dir, entry.name), depth + 1);
+              }
+            } else if (entry.isFile() && isDocFile(entry.name)) {
+              const nameLower = entry.name.toLowerCase();
+              if (
+                nameLower.includes('todo') ||
+                nameLower.includes('task') ||
+                nameLower.includes('broken') ||
+                nameLower.includes('audit') ||
+                nameLower.includes('plan') ||
+                nameLower.includes('roadmap') ||
+                nameLower.includes('fixme') ||
+                nameLower.includes('checklist')
+              ) {
+                const fullPath = path.join(dir, entry.name);
+                const relPath = path.relative(root, fullPath);
+                try {
+                  const text = fs.readFileSync(fullPath, 'utf8');
+                  const lines = text.split(/\r?\n/);
+                  const preview = lines.slice(0, 100).join('\n');
+                  foundFiles.push({ name: relPath, fullPath, lineCount: lines.length, preview });
+                } catch {
+                  // ignore unreadable files
+                }
+              }
+            }
+          }
+        } catch {
+          // ignore directory read errors
+        }
+      };
+
+      scanDir(root, 0);
+
+      let readmeSection: string | undefined;
+      const readmePath = path.join(root, 'README.md');
+      if (fs.existsSync(readmePath)) {
+        try {
+          const readmeText = fs.readFileSync(readmePath, 'utf8');
+          const placeholderMatch = readmeText.match(
+            /##\s+(?:Placeholders|TODO|Pending|Tasks|Roadmap)[^\n]*\n([\s\S]*?)(?=\n##|\s*$)/i,
+          );
+          if (placeholderMatch && placeholderMatch[0]) {
+            readmeSection = placeholderMatch[0].trim().slice(0, 2000);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (foundFiles.length > 0 || readmeSection) {
+        const sections: string[] = [];
+        sections.push('(no todos yet in active session — use todowrite to create an active list)');
+        sections.push('Found workspace task/audit files on disk:');
+        for (const f of foundFiles) {
+          sections.push(`- ${f.name} (${f.lineCount} lines)`);
+        }
+        if (readmeSection) {
+          sections.push('- README.md (contains pending/placeholders section)');
+        }
+        sections.push('');
+
+        for (const f of foundFiles.slice(0, 3)) {
+          sections.push(`--- ${f.name} ---`);
+          sections.push(f.preview);
+          if (f.lineCount > 100) {
+            sections.push(`... (${f.lineCount - 100} more lines; use read_file("${f.name}") to read full file)`);
+          }
+          sections.push('');
+        }
+
+        if (readmeSection) {
+          sections.push('--- README.md (Pending / Placeholders section) ---');
+          sections.push(readmeSection);
+          sections.push('');
+        }
+
+        sections.push('Inspect these pending points to answer the user or use todowrite to initialize an active tracking list.');
+        return sections.join('\n');
+      }
+
+      return '(no todos yet — use todowrite to create a task list for multi-step work)';
     },
 
     skill: async (call: ToolCall): Promise<string> => {

@@ -31,11 +31,44 @@ export interface ProjectContextFile {
 
 /** Builds the environment context block for the system prompt. */
 export function buildEnvironmentContext(cwd: string = process.cwd()): string {
+  const resolved = path.resolve(cwd);
   const parts: string[] = [
-    `Working directory: ${path.resolve(cwd)}`,
+    `Working directory: ${resolved}`,
     `Platform: ${os.platform()} (${os.release()})`,
     `Today's date: ${new Date().toDateString()}`,
   ];
+
+  try {
+    const entries = fs.readdirSync(resolved, { withFileTypes: true });
+    const topFiles = entries
+      .filter((e) => !e.name.startsWith('.') && e.name !== 'node_modules' && e.name !== 'dist' && e.name !== 'coverage')
+      .map((e) => (e.isDirectory() ? `${e.name}/` : e.name))
+      .slice(0, 50);
+
+    if (topFiles.length > 0) {
+      parts.push(`Top-level workspace files & directories:\n${topFiles.join(', ')}`);
+    }
+
+    // Explicitly scan for known todo or planning markdown files in root
+    const todoFiles = entries
+      .filter(
+        (e) =>
+          e.isFile() &&
+          /(^|[^a-z0-9])(todo|todos|roadmap|tasks|pending|plan)([^a-z0-9]|$)/i.test(e.name) &&
+          e.name.endsWith('.md'),
+      )
+      .map((e) => e.name)
+      .sort((a, b) => a.localeCompare(b));
+
+    if (todoFiles.length > 0) {
+      parts.push(`Workspace Todo / Planning Markdown Files: ${todoFiles.join(', ')}`);
+    } else {
+      parts.push('Workspace Todo / Planning Markdown Files: None in root directory (use list_files or search_code to inspect subdirectories).');
+    }
+  } catch {
+    /* ignore read errors on virtual or inaccessible roots */
+  }
+
   for (const { file, content } of findProjectContextFiles(cwd)) {
     parts.push(`Project context file (${path.basename(file)}):\n${content}`);
   }

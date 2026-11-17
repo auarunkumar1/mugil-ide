@@ -227,7 +227,7 @@ describe('sessions', () => {
       compressibleTokens: 150,
       estimatedCost: 0.005,
       filesModified: ['src/index.ts'],
-      savingsBreakdown: { caveman: 50, yagni: 800, cache: 300, mcp: 120 },
+      savingsBreakdown: { caveman: 50, yagni: 800, cache: 300, mcp: 120, toolPruning: 0, hybridRecon: 0 },
       optimisticTokensSaved: 1270,
     };
     saveSession([entry(1)], statsFile, stats);

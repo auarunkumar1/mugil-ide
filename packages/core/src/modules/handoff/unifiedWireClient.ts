@@ -18,6 +18,7 @@ export type UnifiedProviderKind =
   | 'cloudflare'
   | 'ollama'
   | 'lmstudio'
+  | 'llamacpp'
   | 'custom';
 
 export interface UnifiedWireClientOptions {
@@ -37,6 +38,7 @@ const DEFAULT_BASE_URLS: Record<UnifiedProviderKind, string> = {
   cloudflare: 'https://api.cloudflare.com/client/v4/ai/v1',
   ollama: 'http://localhost:11434/v1',
   lmstudio: 'http://localhost:1234/v1',
+  llamacpp: 'http://127.0.0.1:8080/v1',
   custom: 'http://localhost:11434/v1',
 };
 
@@ -49,6 +51,7 @@ const DEFAULT_ENV_VARS: Record<UnifiedProviderKind, string> = {
   cloudflare: 'CLOUDFLARE_API_KEY',
   ollama: '',
   lmstudio: '',
+  llamacpp: '',
   custom: '',
 };
 

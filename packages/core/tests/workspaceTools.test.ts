@@ -320,6 +320,23 @@ describe('Workspace Tools', () => {
     expect(after).toContain('no todos yet');
   });
 
+  it('todoread discovers workspace task/audit files when in-memory list is empty', async () => {
+    const brokenPath = path.join(root, 'broken-placeholder-links.md');
+    fs.writeFileSync(
+      brokenPath,
+      '# Link Audit\n22 occurrences of broken href="#" links\nSuggested fix: add privacy.html',
+    );
+    try {
+      const readCall: ToolCall = { id: 't_disk', name: 'todoread', arguments: '{}' };
+      const readRes = await toolRegistry.todoread(readCall);
+      expect(readRes).toContain('broken-placeholder-links.md');
+      expect(readRes).toContain('22 occurrences of broken href="#" links');
+      expect(readRes).toContain('Suggested fix: add privacy.html');
+    } finally {
+      if (fs.existsSync(brokenPath)) fs.unlinkSync(brokenPath);
+    }
+  });
+
   it('read_skeleton extracts code outline and signatures', async () => {
     const tsCode = `
 import { foo } from './foo';

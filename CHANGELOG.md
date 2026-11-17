@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-17
+
+### Added
+- **Built-in Offline Local AI Runtime (`llama.cpp` Engine)**:
+  - Vendored pinned upstream `llama.cpp` release (`b12451`) with automated platform detection, SHA256 checksum verification, and atomic extraction for `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`, and `win-x64` under `~/.mugil-ide/llamacpp/bin/`.
+  - Zero external dependencies: run local LLMs completely offline on CPU or GPU without needing Ollama, LM Studio, Python, or Docker.
+  - Curated model catalog featuring laptop-friendly coding sweet spots: `Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf` (~986 MB, fast CPU execution) and `Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf` (~4.7 GB).
+  - Custom GGUF importer: place any `.gguf` model into `~/.mugil-ide/llamacpp/models/` for immediate discovery and 1-click activation.
+  - Added CLI subcommands: `mugil-ide llamacpp status`, `download`, `start`, `stop`, and `import`.
+- **Local GGUF Model Manager Modal & Storage Controls**:
+  - Interactive Web UI modal (`📦 Manage GGUF Models`) in the top navigation ribbon and mobile header dropdown.
+  - Real-time disk space tracking, active server status badge, and live download progress bars.
+  - Complete lifecycle management: 1-click **Download**, **Load / Activate**, **Stop Server**, and **Delete Model** (with automatic active-process safety gates and storage reclamation).
+- **Hybrid Local Coder + Cloud Auditor Architecture**:
+  - Intelligent dual-brain orchestration: execute file searches, skeleton extraction, and initial code edits offline via local `llama.cpp` at \$0 cost, while handing off high-order architectural planning and multi-file code reviews to cloud reasoning models.
+  - Dynamic tool bundle pruning (`pruneToolsForLocalModel`): trims tool schemas to fit within conservative 4k/8k context windows on laptop hardware.
+  - Small-model system prompt hardening: eliminates conversational apologies and disclaimers (`"As an AI developed by..."`), keeping small models strictly anchored to workspace tools and coding tasks.
+- **Robust Multi-Vector Process Supervision**:
+  - Multi-vector process discovery (`findRunningLlamaPids`): queries Linux `/proc/<pid>/comm` and `/proc/<pid>/cmdline` (handling NUL byte separators), `pgrep -x llama-server` on Linux/macOS, and `tasklist` on Windows.
+  - Guaranteed synchronous process termination on `POST /api/shutdown`, `Ctrl+C` (`SIGINT`), `SIGTERM`, `SIGHUP`, `SIGQUIT`, and Node `exit` / `beforeExit`.
+  - Startup deduplication (`activeStartup`): eliminates race conditions where rapid model switching or concurrent REPL requests previously spawned competing background server processes.
+- **Balanced JSON Tool Extraction**:
+  - Zero-regex balanced JSON parser (`findBalancedJsonObject`) in `packages/core/src/modules/handoff/toolExtractor.ts`.
+  - Reliably parses and executes nested tool calls emitted as raw text by small local models, preventing malformed tool call failures.
+- **Vintage CRT and High-Contrast Day Themes**:
+  - **Day / Light (Day White)**: High-contrast light palette with uniform styling across inputs, dropdowns, directory tree, modals, and diff views.
+  - **CRT Amber / Phosphor (Vintage CRT)**: Nostalgic amber phosphor CRT aesthetic with terminal styling.
+- **Browser Launch Single-Instance Hygiene**:
+  - Added single-instance browser launch guard (`hasOpenedBrowser`) preventing duplicate tab spawns on startup.
+
 ## [0.4.2] - 2026-11-14
 
 ### Added

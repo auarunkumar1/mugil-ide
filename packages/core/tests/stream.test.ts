@@ -66,6 +66,22 @@ describe('parseOpenAiSse', () => {
     expect(out.toolCalls[0]!.arguments).toBe('{"path":"a.ts"}');
   });
 
+  it('suppresses textual tool call code blocks from onDelta while extracting toolCalls', async () => {
+    const stream = streamFromChunks([
+      'data: {"choices":[{"delta":{"content":"Let me check."}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"\\n```json\\n{\\"name\\": "}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"\\"todoread\\", \\"arguments\\": {}}\\n```"}}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const deltas: string[] = [];
+    const out = await parseOpenAiSse(stream, { onDelta: (t) => deltas.push(t) });
+
+    expect(deltas.join('').trim()).toBe('Let me check.');
+    expect(out.toolCalls).toHaveLength(1);
+    expect(out.toolCalls[0]!.name).toBe('todoread');
+    expect(out.finishReason).toBe('tool_calls');
+  });
+
   it('captures reasoning_content deltas separately', async () => {
     const stream = streamFromChunks([
       'data: {"choices":[{"delta":{"reasoning_content":"think"}}]}\n\n',

@@ -11,11 +11,13 @@ import {
   loadUserEnvIntoProcess,
   readUserEnv,
   userEnvPath,
+  llamacpp,
 } from '@mugil-ide/core';
 import { runOnce } from './run.js';
 import { startIdeServer } from './server/server.js';
 import { PROVIDERS, maskKey } from './providers.js';
 import { bold, cyan, green, dim } from './terminal/ansi.js';
+import { createShutdownHandler } from './shutdown.js';
 
 loadUserEnvIntoProcess();
 
@@ -259,6 +261,153 @@ program
     }
   });
 
+const llamacppCmd = program
+  .command('llamacpp')
+  .description('Manage built-in local llama.cpp runtime and weights');
+
+llamacppCmd
+  .command('status')
+  .description('Show status of llama-server and hardware probe')
+  .option('--json', 'output status as JSON')
+  .action(async (opts) => {
+    const hw = await llamacpp.probeHardware();
+    const isInst = llamacpp.isInstalled();
+    const status = llamacpp.LlamaServerManager.instance().status();
+    const models = await llamacpp.listInstalledModels();
+    if (opts.json) {
+      console.log(JSON.stringify({ status, hardware: hw, binaryInstalled: isInst, models }, null, 2));
+      return;
+    }
+    console.log(`\n  ${bold('Built-in Local AI (llama.cpp)')}`);
+    console.log(`  State:      ${status.state === 'running' ? green('● running') : dim('○ stopped')}`);
+    if (status.baseUrl) console.log(`  Endpoint:   ${cyan(status.baseUrl)}`);
+    if (status.modelPath) console.log(`  Model:      ${dim(status.modelPath)}`);
+    console.log(`  Binary:     ${isInst ? green('installed') : dim('not installed')}`);
+    console.log(`  Hardware:   ${hw.totalRamGb} GB RAM · ${hw.cpuCores} cores · GPU: ${hw.gpu} (${hw.vramGb ?? 0} GB VRAM)`);
+    console.log(`  Models:     ${models.length} installed in ${llamacpp.modelsDir()}\n`);
+  });
+
+llamacppCmd
+  .command('install-binary')
+  .description('Download and vendor pinned llama.cpp binary')
+  .option('--variant <variant>', 'cpu | cuda | vulkan', 'cpu')
+  .action(async (opts) => {
+    console.log(`\n  Downloading and unpacking vendored llama.cpp (b${llamacpp.LLAMA_CPP_BUILD}-${opts.variant})...`);
+    const bin = await llamacpp.ensureLlamaServerBinary({
+      variant: opts.variant,
+      onProgress: (p) => {
+        if (p.phase === 'download') process.stdout.write(`\r  Downloading: ${p.percent ?? 0}%`);
+        if (p.phase === 'extract') process.stdout.write(`\r  Extracting libraries and binary...`);
+      },
+    });
+    console.log(`\n  ${green('✓')} Binary ready at: ${bin}\n`);
+  });
+
+llamacppCmd
+  .command('pull <catalogId>')
+  .description('Download model weights from catalog')
+  .action(async (catalogId: string) => {
+    const model = llamacpp.MODEL_CATALOG.find((m) => m.id === catalogId);
+    if (!model) {
+      console.error(`\n  Unknown catalog id: "${catalogId}". Available models:\n`);
+      for (const m of llamacpp.MODEL_CATALOG) {
+        console.log(`    - ${bold(m.id)} (${m.label}, ${(m.sizeBytes / 1e9).toFixed(2)} GB)`);
+      }
+      process.exit(1);
+    }
+    const dest = path.join(llamacpp.modelsDir(), model.hfFile);
+    console.log(`\n  Downloading ${model.label} to ${dest}...`);
+    await llamacpp.downloadFile({
+      url: llamacpp.downloadUrl(model),
+      dest,
+      sha256: model.sha256,
+      onProgress: (p) => {
+        process.stdout.write(`\r  Progress: ${p.percent ?? 0}% (${((p.received ?? 0) / 1e6).toFixed(1)} MB)`);
+      },
+    });
+    console.log(`\n  ${green('✓')} Successfully downloaded ${model.label} (${model.hfFile})\n`);
+  });
+
+llamacppCmd
+  .command('list')
+  .description('List installed .gguf models')
+  .option('--json', 'output list as JSON')
+  .action(async (opts) => {
+    const models = await llamacpp.listInstalledModels();
+    if (opts.json) {
+      console.log(JSON.stringify(models, null, 2));
+      return;
+    }
+    console.log(`\n  Installed models in ${llamacpp.modelsDir()}:`);
+    if (models.length === 0) {
+      console.log(`    (none installed. Run 'mugil-ide llamacpp pull <catalogId>' or place .gguf files there)`);
+    } else {
+      for (const m of models) {
+        console.log(`    - ${bold(m.file)} (${(m.sizeBytes / 1e9).toFixed(2)} GB)`);
+      }
+    }
+    console.log('');
+  });
+
+llamacppCmd
+  .command('start <modelOrId>')
+  .description('Start llama-server with the specified model')
+  .option('-p, --port <number>', 'loopback port (default: 8080-8199 auto)')
+  .option('-c, --ctx <number>', 'context window size', '8192')
+  .action(async (modelOrId: string, opts) => {
+    await llamacpp.reapStaleProcess();
+    const mgr = llamacpp.LlamaServerManager.instance();
+    let modelPath = modelOrId;
+    const cat = llamacpp.MODEL_CATALOG.find((m) => m.id === modelOrId);
+    if (cat) modelPath = path.join(llamacpp.modelsDir(), cat.hfFile);
+    if (!path.isAbsolute(modelPath)) modelPath = path.join(llamacpp.modelsDir(), modelPath);
+
+    console.log(`\n  Starting llama-server for: ${modelPath}...`);
+    const status = await mgr.start({
+      modelPath,
+      port: opts.port ? Number(opts.port) : undefined,
+      ctx: opts.ctx ? Number(opts.ctx) : 8192,
+    });
+    console.log(`  ${green('✓')} llama-server is running on: ${bold(cyan(status.baseUrl || ''))}`);
+    console.log(`  ${dim('Press Ctrl+C to stop.')}\n`);
+
+    const onStop = async () => {
+      console.log('\n  Stopping llama-server...');
+      await mgr.stop();
+      await llamacpp.reapStaleProcess();
+      process.exit(0);
+    };
+    process.on('exit', () => {
+      mgr.killSync();
+    });
+    process.on('beforeExit', () => {
+      mgr.killSync();
+    });
+    process.on('SIGINT', onStop);
+    process.on('SIGTERM', onStop);
+    process.on('SIGHUP', onStop);
+    process.on('SIGQUIT', onStop);
+    await new Promise<void>(() => {});
+  });
+
+llamacppCmd
+  .command('stop')
+  .description('Stop running llama-server')
+  .action(async () => {
+    const mgr = llamacpp.LlamaServerManager.instance();
+    await mgr.stop();
+    await llamacpp.reapStaleProcess();
+    console.log(`\n  ${green('✓')} Stopped llama-server.\n`);
+  });
+
+llamacppCmd
+  .command('rm <file>')
+  .description('Delete an installed model file')
+  .action(async (file: string) => {
+    await llamacpp.deleteInstalledModel(file);
+    console.log(`\n  ${green('✓')} Removed model: ${file}\n`);
+  });
+
 // Default behavior when invoked without arguments: launch UI
 program
   .argument('[dir]', 'project directory path to open as workspace', '.')
@@ -275,6 +424,48 @@ program
     await launchUi({ open: true });
   });
 
+let hasOpenedBrowser = false;
+
+async function openBrowser(url: string): Promise<void> {
+  if (hasOpenedBrowser) return;
+  hasOpenedBrowser = true;
+
+  const { spawn } = await import('node:child_process');
+
+  if (process.platform === 'darwin') {
+    const child = spawn('open', [url], { detached: true, stdio: 'ignore' });
+    child.unref();
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    const child = spawn('cmd.exe', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' });
+    child.unref();
+    return;
+  }
+
+  // Linux: Use gio open first to prevent double-tab issues with Flatpak/Chromium browsers (e.g. Brave)
+  try {
+    const child = spawn('gio', ['open', url], { detached: true, stdio: 'ignore' });
+    child.on('error', () => {
+      try {
+        const fallback = spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+        fallback.unref();
+      } catch {
+        /* ignore */
+      }
+    });
+    child.unref();
+  } catch {
+    try {
+      const fallback = spawn('xdg-open', [url], { detached: true, stdio: 'ignore' });
+      fallback.unref();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 async function launchUi(options: {
   port?: string;
   host?: string;
@@ -283,6 +474,15 @@ async function launchUi(options: {
   remote?: boolean;
 }): Promise<void> {
   installCrashGuards();
+  await llamacpp.reapStaleProcess();
+  const llama = llamacpp.LlamaServerManager.instance();
+  process.on('exit', () => {
+    llama.killSync();
+  });
+  process.on('beforeExit', () => {
+    llama.killSync();
+  });
+
   const isRemote = options.remote !== false && process.env.MUGIL_IDE_LOCAL_ONLY !== '1';
   const engine = createEngine(loadConfig());
   let shutdownUi: () => Promise<void> = async () => {};
@@ -308,42 +508,35 @@ async function launchUi(options: {
   }
   console.log(`  ${dim('\n  Press Ctrl+C to stop server.\n')}`);
 
-  let shuttingDown = false;
-  const shutdown = async (): Promise<void> => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    console.log('\n  Shutting down server...');
-    try {
-      await server.close();
-      await engine.backend.close();
-    } finally {
-      // node-pty on Windows leaks its named-pipe sockets on kill(); exit
-      // explicitly so shutdown always terminates cleanly.
-      process.exit(0);
-    }
-  };
+  const shutdown = createShutdownHandler({
+    stopLlama: () => {
+      console.log('\n  Stopping local LLM server...');
+      return llama.stop();
+    },
+    closeServer: () => {
+      console.log('  Shutting down server...');
+      return server.close();
+    },
+    closeBackend: () => engine.backend.close(),
+    exit: (code) => process.exit(code),
+  });
 
   shutdownUi = shutdown;
 
   if (options.open !== false) {
     try {
-      const { exec } = await import('node:child_process');
-      const startCmd =
-        process.platform === 'win32'
-          ? `start ${launchUrl}`
-          : process.platform === 'darwin'
-            ? `open ${launchUrl}`
-            : `xdg-open ${launchUrl}`;
-      exec(startCmd);
+      await openBrowser(launchUrl);
     } catch {
       // ignore
     }
   }
 
-  // Keep alive until SIGINT/SIGTERM (shutdown() terminates the process).
+  // Keep alive until SIGINT/SIGTERM/SIGHUP/SIGQUIT (shutdown() terminates the process).
   await new Promise<void>(() => {
     process.on('SIGINT', () => void shutdown());
     process.on('SIGTERM', () => void shutdown());
+    process.on('SIGHUP', () => void shutdown());
+    process.on('SIGQUIT', () => void shutdown());
   });
 }
 

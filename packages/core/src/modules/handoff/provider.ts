@@ -7,6 +7,7 @@ import type {
 } from '../../types.js';
 import { countTokens } from '../../token/tokenizer.js';
 import { parseOpenAiSse, type StreamedCompletion, type StreamHandlers } from './stream.js';
+import { extractTextualToolCalls } from './toolExtractor.js';
 
 export interface ProviderCompleteOptions {
   model: string;
@@ -38,7 +39,14 @@ export interface ProviderCompleteOptions {
  * Returns undefined when neither is requested, so callers can omit the key.
  */
 export function requestSignal(options: ProviderCompleteOptions): AbortSignal | undefined {
-  const timeout = options.timeoutMs ?? DEFAULT_COMPLETION_TIMEOUT_MS;
+  const isLocalModel = options.model?.endsWith('.gguf');
+  const envTimeout =
+    process.env.MUGIL_IDE_COMPLETION_TIMEOUT_MS && Number(process.env.MUGIL_IDE_COMPLETION_TIMEOUT_MS) > 0
+      ? Number(process.env.MUGIL_IDE_COMPLETION_TIMEOUT_MS)
+      : undefined;
+  // Local models running on laptop CPU require significantly more time for long turns
+  const defaultTimeout = envTimeout ?? (isLocalModel ? 900_000 : DEFAULT_COMPLETION_TIMEOUT_MS);
+  const timeout = options.timeoutMs ?? defaultTimeout;
   const timeoutSignal =
     Number.isFinite(timeout) && timeout > 0 ? AbortSignal.timeout(timeout) : undefined;
   const external = options.signal;
@@ -53,7 +61,10 @@ export function requestSignal(options: ProviderCompleteOptions): AbortSignal | u
  * Generous enough that a long reasoning turn still completes, tight enough
  * that a dead connection surfaces as an error instead of an infinite wait.
  */
-export const DEFAULT_COMPLETION_TIMEOUT_MS = 300_000;
+export const DEFAULT_COMPLETION_TIMEOUT_MS =
+  process.env.MUGIL_IDE_COMPLETION_TIMEOUT_MS && Number(process.env.MUGIL_IDE_COMPLETION_TIMEOUT_MS) > 0
+    ? Number(process.env.MUGIL_IDE_COMPLETION_TIMEOUT_MS)
+    : 600_000;
 
 /** True when a rejection is an abort (user cancel or timeout), not a real failure. */
 export function isAbortError(err: unknown): boolean {
@@ -144,6 +155,7 @@ export function toOpenAiMessages(messages: ChatMessage[]): Array<Record<string, 
  */
 export interface ProviderClient {
   readonly mock: boolean;
+  readonly providerName?: string;
   complete(messages: ChatMessage[], options: ProviderCompleteOptions): Promise<CompletionResult>;
   /**
    * Optional streaming completion.
@@ -314,6 +326,10 @@ export class OpenAiWireClient implements ProviderClient {
   readonly mock: boolean;
   protected readonly config: OpenAiWireConfig;
 
+  get providerName(): string {
+    return this.config.providerName;
+  }
+
   constructor(config: OpenAiWireConfig) {
     this.config = config;
     const isLocal = config.isLocalEndpoint ? config.isLocalEndpoint() : false;
@@ -460,13 +476,21 @@ export class OpenAiWireClient implements ProviderClient {
     );
     let content = split.content;
     const thinking = split.thinking;
-    const toolCalls: ToolCall[] = (message?.tool_calls ?? [])
+    let toolCalls: ToolCall[] = (message?.tool_calls ?? [])
       .filter((tc) => Boolean(tc?.function?.name))
       .map((tc) => ({
         id: tc.id ?? '',
         name: tc.function!.name!,
         arguments: tc.function!.arguments ?? '{}',
       }));
+
+    if (toolCalls.length === 0) {
+      const extracted = extractTextualToolCalls(content);
+      if (extracted.toolCalls.length > 0) {
+        toolCalls = extracted.toolCalls;
+        content = extracted.cleanContent;
+      }
+    }
     if (
       content.trim().length === 0 &&
       toolCalls.length === 0 &&

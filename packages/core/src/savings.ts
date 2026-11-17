@@ -18,13 +18,15 @@ export function inputSavingsPercent(savedTokens: number, keptTokens: number): nu
   return Math.round((Math.max(0, savedTokens) / total) * 100);
 }
 
-/** Returns a fresh zeroed breakdown across all 4 optimization levels. */
+/** Returns a fresh zeroed breakdown across all optimization levels. */
 export function defaultSavingsBreakdown(): SavingsBreakdown {
   return {
     caveman: 0,
     yagni: 0,
     cache: 0,
     mcp: 0,
+    toolPruning: 0,
+    hybridRecon: 0,
   };
 }
 
@@ -38,11 +40,14 @@ export function sumSavingsBreakdowns(
     yagni: (a?.yagni ?? 0) + (b?.yagni ?? 0),
     cache: (a?.cache ?? 0) + (b?.cache ?? 0),
     mcp: (a?.mcp ?? 0) + (b?.mcp ?? 0),
+    toolPruning: (a?.toolPruning ?? 0) + (b?.toolPruning ?? 0),
+    hybridRecon: (a?.hybridRecon ?? 0) + (b?.hybridRecon ?? 0),
   };
 }
 
 /**
- * Computes optimistic total saved tokens across Caveman, YAGNI, Cache, and MCP.
+ * Computes optimistic total saved tokens across Caveman, YAGNI, Cache, MCP,
+ * Tool Pruning, and Hybrid Recon.
  * If baseSaved is higher than the sum, the larger of the two is used.
  */
 export function optimisticSavingsTotal(
@@ -54,7 +59,9 @@ export function optimisticSavingsTotal(
     (breakdown.caveman ?? 0) +
     (breakdown.yagni ?? 0) +
     (breakdown.cache ?? 0) +
-    (breakdown.mcp ?? 0);
+    (breakdown.mcp ?? 0) +
+    (breakdown.toolPruning ?? 0) +
+    (breakdown.hybridRecon ?? 0);
   return Math.max(baseSaved, sum);
 }
 
@@ -63,4 +70,20 @@ export function optimisticSavingsPercent(optimisticSaved: number, keptTokens: nu
   const total = optimisticSaved + keptTokens;
   if (!Number.isFinite(total) || total <= 0) return 0;
   return Math.round((Math.max(0, optimisticSaved) / total) * 100);
+}
+
+/**
+ * Normalized session efficiency percentage reflecting true financial savings.
+ * (DirectSaved + AvoidedRecon) / (DirectSaved + AvoidedRecon + ActualBilledTokens)
+ * Strictly bounded between 0% and 99% (or 100% on pure zero-bill cache/local runs).
+ */
+export function calculateSessionEfficiency(
+  directSaved: number,
+  avoidedTokens: number,
+  actualBilledTokens = 0,
+): number {
+  const totalSaved = Math.max(0, directSaved) + Math.max(0, avoidedTokens);
+  const totalTheoretical = totalSaved + Math.max(0, actualBilledTokens);
+  if (!Number.isFinite(totalTheoretical) || totalTheoretical <= 0) return 0;
+  return Math.min(100, Math.round((totalSaved / totalTheoretical) * 100));
 }

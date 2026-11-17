@@ -56,4 +56,22 @@ describe('buildEnvironmentContext', () => {
     expect(ctx).toContain('truncated at 100000 chars');
     fs.rmSync(file);
   });
+
+  it('scans top-level workspace files and detects root todo/planning markdown files', () => {
+    const testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-ctx-todo-'));
+    try {
+      fs.writeFileSync(path.join(testDir, 'package.json'), '{}');
+      fs.writeFileSync(path.join(testDir, 'TODO.md'), '# Pending Tasks\n- task 1');
+      fs.writeFileSync(path.join(testDir, 'HYBRID_LLAMACPP_MASTER_PLAN.md'), '# Master Plan');
+
+      const ctx = buildEnvironmentContext(testDir);
+      expect(ctx).toContain('Top-level workspace files & directories');
+      expect(ctx).toContain('package.json');
+      expect(ctx).toContain('TODO.md');
+      expect(ctx).toContain('HYBRID_LLAMACPP_MASTER_PLAN.md');
+      expect(ctx).toContain('Workspace Todo / Planning Markdown Files: HYBRID_LLAMACPP_MASTER_PLAN.md, TODO.md');
+    } finally {
+      fs.rmSync(testDir, { recursive: true, force: true });
+    }
+  });
 });

@@ -13,6 +13,7 @@ export function getWebUiHtml(): string {
   <script src="/vendor/xterm/addon-web-links.js"></script>
   <style>
     :root {
+      color-scheme: dark;
       --bg: #0d1117;
       --panel-bg: #161b22;
       --card-bg: #21262d;
@@ -99,30 +100,390 @@ export function getWebUiHtml(): string {
       --diff-del: #ff336625;
       --diff-del-text: #ff3366;
     }
+    [data-theme="day"] {
+      color-scheme: light;
+      --bg: #f6f8fa;
+      --panel-bg: #ffffff;
+      --card-bg: #f1f3f5;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-dim: #656d76;
+      --accent: #0969da;
+      --green: #1a7f37;
+      --magenta: #8250df;
+      --yellow: #9a6700;
+      --red: #cf222e;
+      --diff-add: #dafbe1;
+      --diff-add-text: #1a7f37;
+      --diff-del: #ffebe9;
+      --diff-del-text: #cf222e;
+    }
+    [data-theme="day"] * {
+      scrollbar-color: #d0d7de #f6f8fa;
+    }
+    [data-theme="day"] ::-webkit-scrollbar-track {
+      background: #f6f8fa;
+    }
+    [data-theme="day"] ::-webkit-scrollbar-thumb {
+      background: #d0d7de;
+      border-color: #f6f8fa;
+    }
+    [data-theme="day"] ::-webkit-scrollbar-thumb:hover {
+      background: #afb8c1;
+    }
+    [data-theme="day"] ::-webkit-scrollbar-corner {
+      background: #f6f8fa;
+    }
+    [data-theme="day"] select {
+      color-scheme: light;
+      background-color: #ffffff !important;
+      color: #1f2328 !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] select option {
+      background-color: #ffffff !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] input,
+    [data-theme="day"] textarea {
+      color-scheme: light;
+      background-color: #ffffff !important;
+      color: #1f2328 !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .menu-dropdown-content,
+    [data-theme="day"] .modal-dialog {
+      background: #ffffff !important;
+      color: #1f2328 !important;
+      border-color: #d0d7de !important;
+      box-shadow: 0 12px 32px rgba(140, 149, 159, 0.25) !important;
+    }
+    [data-theme="day"] .menu-item-btn {
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .menu-item-btn:hover {
+      background: #f1f3f5 !important;
+    }
+    [data-theme="day"] .btn {
+      background: #f6f8fa;
+      color: #1f2328;
+      border-color: #d0d7de;
+    }
+    [data-theme="day"] .btn:hover {
+      background: #eaeef2;
+    }
+    [data-theme="day"] .btn-primary {
+      background: #1f883d !important;
+      color: #ffffff !important;
+      border-color: #1a7f37 !important;
+    }
+    [data-theme="day"] .chat-bubble-assistant {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .chat-bubble-user {
+      background: #ddf4ff !important;
+      border-color: #54aeff !important;
+      color: #0969da !important;
+    }
+    [data-theme="day"] .chat-bubble-content {
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] #workspace,
+    [data-theme="day"] #files-pane,
+    [data-theme="day"] #code-pane,
+    [data-theme="day"] #diff-pane,
+    [data-theme="day"] #graph-pane,
+    [data-theme="day"] #browser-pane,
+    [data-theme="day"] #chat-pane {
+      background: #f6f8fa !important;
+    }
+    [data-theme="day"] #terminal-container,
+    [data-theme="day"] .terminal-view {
+      background: #ffffff !important;
+    }
+    [data-theme="day"] .view-mode-toggle-bar {
+      background: #ffffff !important;
+      border-bottom-color: #d0d7de !important;
+    }
+    [data-theme="day"] .view-toggle-btn {
+      background: #f6f8fa;
+      color: #656d76;
+      border-color: #d0d7de;
+    }
+    [data-theme="day"] .view-toggle-btn.active {
+      background: #ffffff;
+      color: #0969da;
+      border-color: #0969da;
+    }
+    [data-theme="day"] .turn-chips {
+      background: #ffffff !important;
+      border-bottom-color: #d0d7de !important;
+    }
+    [data-theme="day"] .turn-chip {
+      background: #f1f3f5 !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .turn-chip:hover {
+      background: #eaeef2 !important;
+      border-color: #0969da !important;
+      color: #0969da !important;
+    }
+    [data-theme="day"] .search-box {
+      background: #ffffff !important;
+      border-bottom-color: #d0d7de !important;
+    }
+    [data-theme="day"] .search-input {
+      background: #f6f8fa !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .file-tree {
+      background: #ffffff !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .tree-node {
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .tree-node:hover {
+      background: #eaeef2 !important;
+    }
+    [data-theme="day"] .tree-node.selected {
+      background: #ddf4ff !important;
+      color: #0969da !important;
+    }
+    [data-theme="day"] .code-viewer-container {
+      background: #f6f8fa !important;
+    }
+    [data-theme="day"] .code-header {
+      background: #ffffff !important;
+      border-bottom-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .code-content {
+      background: #ffffff !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .graph-stats-bar {
+      background: #ffffff !important;
+      border-bottom-color: #d0d7de !important;
+      color: #656d76 !important;
+    }
+    [data-theme="day"] .graph-stat-pill {
+      background: #f1f3f5 !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .symbol-card {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .symbol-header strong {
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .modal-tabs {
+      background: #f6f8fa !important;
+      border-bottom-color: #d0d7de !important;
+    }
+    [data-theme="day"] .modal-tab-btn {
+      color: #656d76 !important;
+    }
+    [data-theme="day"] .modal-tab-btn.active {
+      background: #ffffff !important;
+      color: #0969da !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .modal-item-card {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .modal-item-card:hover {
+      background: #f1f3f5 !important;
+    }
+    [data-theme="day"] .modal-item-card.active {
+      background: #dafbe1 !important;
+      border-color: #1a7f37 !important;
+    }
+    [data-theme="day"] .provider-row {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .input-field {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .welcome-topo-card {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .welcome-topo-card:hover {
+      background: #f1f3f5 !important;
+    }
+    [data-theme="day"] .welcome-topo-card.active {
+      background: #ddf4ff !important;
+      border-color: #0969da !important;
+    }
+    [data-theme="day"] .engine-topo-btn {
+      background: #f6f8fa !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .engine-topo-btn:hover {
+      background: #eaeef2 !important;
+    }
+    [data-theme="day"] .engine-topo-btn.active {
+      background: #ddf4ff !important;
+      border-color: #0969da !important;
+      color: #0969da !important;
+    }
+    [data-theme="day"] #header-engine-explainer {
+      background: #f1f3f5 !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] #header-local-model-select,
+    [data-theme="day"] #header-cloud-model-select {
+      background: #ffffff !important;
+      border-color: #d0d7de !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] pre,
+    [data-theme="day"] code {
+      background-color: #f1f3f5 !important;
+      color: #1f2328 !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .thinking-container {
+      background: #f1f3f5 !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] .thinking-header {
+      background: #eaeef2 !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .thinking-body {
+      background: #f6f8fa !important;
+      color: #1f2328 !important;
+    }
+    [data-theme="day"] .status-bar {
+      background: #ffffff !important;
+      border-top-color: #d0d7de !important;
+      color: #656d76 !important;
+    }
+    [data-theme="day"] .quick-input-container {
+      background: #ffffff !important;
+      border-top-color: #d0d7de !important;
+    }
+    [data-theme="day"] .quick-input {
+      background: #ffffff !important;
+      color: #1f2328 !important;
+      border-color: #d0d7de !important;
+    }
+    [data-theme="day"] [style*="background:#11151c"],
+    [data-theme="day"] [style*="background:#161b22"],
+    [data-theme="day"] [style*="background:#0d1117"],
+    [data-theme="day"] [style*="background:#21262d"],
+    [data-theme="day"] [style*="background:#1e1e1e"],
+    [data-theme="day"] [style*="background:#1c2128"],
+    [data-theme="day"] [style*="background:#010409"],
+    [data-theme="day"] [style*="background: #11151c"],
+    [data-theme="day"] [style*="background: #161b22"],
+    [data-theme="day"] [style*="background: #0d1117"],
+    [data-theme="day"] [style*="background: #21262d"],
+    [data-theme="day"] [style*="background: #1e1e1e"],
+    [data-theme="day"] [style*="background: #1c2128"],
+    [data-theme="day"] [style*="background: #010409"] {
+      background: #f1f3f5 !important;
+      color: #1f2328 !important;
+      border-color: #d0d7de !important;
+    }
+
+    [data-theme="crt"] {
+      color-scheme: dark;
+      --bg: #070d07;
+      --panel-bg: #030803;
+      --card-bg: #0a130a;
+      --border: #143514;
+      --text: #33ff33;
+      --text-dim: #1ea81e;
+      --accent: #00ff66;
+      --green: #33ff33;
+      --magenta: #ffb000;
+      --yellow: #ffd700;
+      --red: #ff3333;
+      --diff-add: #00ff6625;
+      --diff-add-text: #33ff33;
+      --diff-del: #ff333325;
+      --diff-del-text: #ff5555;
+    }
+    [data-theme="crt"] #workspace,
+    [data-theme="crt"] .xterm,
+    [data-theme="crt"] .chat-bubble-content {
+      text-shadow: 0 0 5px rgba(51, 255, 51, 0.45);
+    }
+    [data-theme="crt"] #terminal-pane,
+    [data-theme="crt"] #agent-view {
+      position: relative;
+    }
+    [data-theme="crt"] #terminal-pane::after,
+    [data-theme="crt"] #agent-view::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%);
+      z-index: 10;
+      background-size: 100% 4px;
+      pointer-events: none;
+      opacity: 0.65;
+    }
+    [data-theme="crt"] .btn {
+      border-color: #1ea81e;
+      color: #33ff33;
+    }
+    [data-theme="crt"] .btn-primary {
+      background: rgba(0, 255, 102, 0.15) !important;
+      border-color: #00ff66 !important;
+      color: #00ff66 !important;
+      box-shadow: 0 0 8px rgba(0, 255, 102, 0.3);
+    }
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       scrollbar-width: thin;
-      scrollbar-color: #30363d #0d1117;
+      scrollbar-color: var(--border) var(--bg);
     }
     ::-webkit-scrollbar {
       width: 8px;
       height: 8px;
     }
     ::-webkit-scrollbar-track {
-      background: #0d1117;
+      background: var(--bg);
     }
     ::-webkit-scrollbar-thumb {
-      background: #30363d;
+      background: var(--border);
       border-radius: 4px;
-      border: 1px solid #0d1117;
+      border: 1px solid var(--bg);
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: #484f58;
+      background: var(--text-dim);
     }
     ::-webkit-scrollbar-corner {
-      background: #0d1117;
+      background: var(--bg);
+    }
+    select {
+      color-scheme: dark;
+      background-color: var(--card-bg, #161b22) !important;
+      color: var(--text, #c9d1d9) !important;
+      border: 1px solid var(--border, #30363d) !important;
+    }
+    select option {
+      background-color: var(--card-bg, #161b22) !important;
+      color: var(--text, #c9d1d9) !important;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -230,7 +591,29 @@ export function getWebUiHtml(): string {
     .controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .zoom-controls {
+      flex-shrink: 0;
+    }
+    .ribbon-btn-secondary {
+      white-space: nowrap;
+    }
+    @media (max-width: 1400px) {
+      .ribbon-btn-text {
+        display: none !important;
+      }
+    }
+    @media (max-width: 1200px) {
+      .ribbon-btn-secondary {
+        display: none !important;
+      }
+    }
+    @media (max-width: 990px) {
+      .metric-pill#session-spent {
+        display: none !important;
+      }
     }
     .btn {
       background: var(--card-bg);
@@ -271,7 +654,7 @@ export function getWebUiHtml(): string {
       position: absolute;
       right: 0;
       top: calc(100% + 4px);
-      background: #161b22;
+      background: var(--panel-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -300,7 +683,53 @@ export function getWebUiHtml(): string {
       transition: background 0.15s;
     }
     .menu-item-btn:hover {
-      background: #21262d;
+      background: var(--card-bg);
+    }
+
+    .welcome-topo-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      width: 100%;
+      text-align: left;
+    }
+    .welcome-topo-card:hover {
+      border-color: var(--accent);
+      background: var(--panel-bg);
+    }
+    .welcome-topo-card.active {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.12);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+    .engine-topo-btn {
+      padding: 6px 8px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--border);
+      background: var(--card-bg, #161b22);
+      border-radius: 5px;
+      cursor: pointer;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .engine-topo-btn:hover {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.08);
+    }
+    .engine-topo-btn.active {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.18);
+      color: var(--accent);
+      font-weight: 600;
     }
     .menu-divider {
       height: 1px;
@@ -960,12 +1389,12 @@ export function getWebUiHtml(): string {
       gap: 6px;
       overflow-x: auto;
       padding: 5px 10px;
-      background: #11151c;
+      background: var(--panel-bg);
       border-bottom: 1px solid var(--border);
       font-size: calc(11.5px * var(--font-scale));
     }
     .turn-chip {
-      background: #161b22;
+      background: var(--card-bg);
       border: 1px solid var(--border);
       padding: 2px 9px;
       border-radius: 12px;
@@ -982,7 +1411,7 @@ export function getWebUiHtml(): string {
     #terminal-container {
       flex: 1;
       position: relative;
-      background: #000;
+      background: var(--bg);
       overflow: hidden;
     }
     .terminal-view {
@@ -1074,12 +1503,12 @@ export function getWebUiHtml(): string {
     .search-box {
       padding: 8px 12px;
       border-bottom: 1px solid var(--border);
-      background: #11151c;
+      background: var(--panel-bg);
       flex-shrink: 0;
     }
     .search-input {
       width: 100%;
-      background: #0d1117;
+      background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
       padding: 6px 10px;
@@ -1120,7 +1549,7 @@ export function getWebUiHtml(): string {
       user-select: none;
       flex-shrink: 0;
     }
-    .tree-node:hover { background: #21262d; }
+    .tree-node:hover { background: var(--card-bg); }
     .tree-node.selected { background: #1f6feb33; color: var(--accent); }
 
     /* Code & Diff Viewer */
@@ -1131,11 +1560,11 @@ export function getWebUiHtml(): string {
       overflow: hidden;
       height: 100%;
       min-height: 0;
-      background: #0d1117;
+      background: var(--bg);
     }
     .code-header {
       padding: 6px 12px;
-      background: #161b22;
+      background: var(--panel-bg);
       border-bottom: 1px solid var(--border);
       font-size: calc(12.5px * var(--font-scale));
       display: flex;
@@ -1158,7 +1587,7 @@ export function getWebUiHtml(): string {
     /* CodeGraph Tab */
     .graph-stats-bar {
       padding: 8px 12px;
-      background: #11151c;
+      background: var(--panel-bg);
       border-bottom: 1px solid var(--border);
       display: flex;
       gap: 12px;
@@ -1168,7 +1597,7 @@ export function getWebUiHtml(): string {
       flex-shrink: 0;
     }
     .graph-stat-pill {
-      background: #21262d;
+      background: var(--card-bg);
       padding: 2px 6px;
       border-radius: 4px;
       border: 1px solid var(--border);
@@ -1184,7 +1613,7 @@ export function getWebUiHtml(): string {
       gap: 8px;
     }
     .symbol-card {
-      background: #0d1117;
+      background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 8px 10px;
@@ -1232,7 +1661,7 @@ export function getWebUiHtml(): string {
       align-items: center;
       justify-content: center;
     }
-    #account-modal, #welcome-modal, #model-modal {
+    #account-modal, #welcome-modal, #model-modal, #gguf-manager-modal {
       z-index: 2000;
     }
     #question-modal, #approval-modal {
@@ -1265,7 +1694,7 @@ export function getWebUiHtml(): string {
     }
     .modal-tabs {
       display: flex;
-      background: #11151c;
+      background: var(--panel-bg);
       border-bottom: 1px solid var(--border);
       padding: 6px 12px;
       gap: 6px;
@@ -1294,7 +1723,7 @@ export function getWebUiHtml(): string {
       gap: 8px;
     }
     .modal-item-card {
-      background: #0d1117;
+      background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 10px 12px;
@@ -1306,7 +1735,7 @@ export function getWebUiHtml(): string {
     }
     .modal-item-card:hover {
       border-color: var(--accent);
-      background: #161b22;
+      background: var(--panel-bg);
     }
     .modal-item-card.active {
       border-color: var(--green);
@@ -1316,14 +1745,14 @@ export function getWebUiHtml(): string {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      background: #0d1117;
+      background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 12px;
     }
     .input-field {
       width: 100%;
-      background: #161b22;
+      background: var(--bg);
       border: 1px solid var(--border);
       color: var(--text);
       padding: 6px 10px;
@@ -1374,13 +1803,13 @@ export function getWebUiHtml(): string {
 </head>
 <body>
   <header>
-    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:16px;">
-      <div class="logo-container">
-        <span>☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
-        <span class="logo-badge">TOKEN EFFICIENT</span>
-        <a class="version-badge" id="app-version" href="https://github.com/auarunkumar1/mugil-ide/releases/tag/v${VERSION}" target="_blank" rel="noopener noreferrer" title="Mugil IDE version ${VERSION} — view release notes">v${VERSION}</a>
+    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:10px;">
+      <div class="logo-container" style="min-width:0; flex-shrink:1;">
+        <span style="flex-shrink:0;">☁️ <span class="shimmer-logo">MUGIL IDE</span></span>
+        <span class="logo-badge" style="flex-shrink:0;">TOKEN EFFICIENT</span>
+        <a class="version-badge" id="app-version" href="https://github.com/auarunkumar1/mugil-ide/releases/tag/v${VERSION}" target="_blank" rel="noopener noreferrer" title="Mugil IDE version ${VERSION} — view release notes" style="flex-shrink:0;">v${VERSION}</a>
         <a class="update-badge" id="version-update" href="#" target="_blank" rel="noopener noreferrer" title="" aria-label="Update available">⬆ update</a>
-        <span id="logo-model-sub" style="font-size:11px; color:var(--text-dim); font-weight:normal; margin-left:6px; white-space:nowrap;">Active: <b id="sub-active-model" style="color:var(--accent);">Detecting...</b></span>
+        <span id="logo-model-sub" style="font-size:11px; color:var(--text-dim); font-weight:normal; margin-left:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;" title="Active model">Active: <b id="sub-active-model" style="color:var(--accent);">Detecting...</b></span>
       </div>
 
     <div class="controls">
@@ -1409,6 +1838,14 @@ export function getWebUiHtml(): string {
               <span>🔌 <b>MCP & Tools</b> (RTK & Truncation):</span>
               <span id="sp-mcp" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
             </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>✂️ <b>Tool Pruning</b> (Schema Reduction):</span>
+              <span id="sp-toolpruning" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span>🧭 <b>Hybrid Recon</b> (Local CodeGraph):</span>
+              <span id="sp-hybridrecon" style="color:var(--accent, #58a6ff); font-family:monospace;">0 tok</span>
+            </div>
           </div>
           <div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--border, #30363d); color:var(--text-dim, #8b949e); font-size:10px;">
             Real compressed: <span id="sp-real" style="color:var(--text, #c9d1d9);">0 tok</span> · Overall efficiency: <span id="sp-rate" style="color:var(--green, #3fb950); font-weight:bold;">~0%</span>
@@ -1425,29 +1862,40 @@ export function getWebUiHtml(): string {
       </div>
 
       <!-- Image & Media Generator -->
-      <button class="btn" onclick="openImageGenModal()" title="Generate AI images & visual assets">
-        <span>🖼️ Generate Image</span>
+      <button class="btn ribbon-btn-secondary" onclick="openImageGenModal()" title="Generate AI images & visual assets">
+        <span>🖼️</span><span class="ribbon-btn-text" style="margin-left:2px;">Generate Image</span>
       </button>
 
       <!-- Stream to Network Device via Secret Link & QR -->
-      <button class="btn" id="stream-session-btn" onclick="openRemoteStreamModal()" title="Stream session to phone / tablet / network device via QR code & secret link">
-        <span>📱 Stream</span>
+      <button class="btn ribbon-btn-secondary" id="stream-session-btn" onclick="openRemoteStreamModal()" title="Stream session to phone / tablet / network device via QR code & secret link">
+        <span>📱</span><span class="ribbon-btn-text" style="margin-left:2px;">Stream</span>
+      </button>
+
+      <!-- GGUF Models Manager -->
+      <button class="btn ribbon-btn-secondary" id="header-btn-manage-gguf" onclick="openGgufManagerModal()" title="Manage downloaded GGUF models: download laptop-friendly models (1.5B/3B), delete unused weights, and view storage">
+        <span>📦</span><span class="ribbon-btn-text" style="margin-left:2px;">Local GGUF</span>
       </button>
 
       <!-- Theme Selector Dropdown -->
       <div class="menu-dropdown">
-        <button class="btn" onclick="toggleThemeDropdown(event)" id="header-theme-btn" title="Switch Theme (Nordic, OLED Dark, Dracula, Cyberpunk, GitHub Dark)">
+        <button class="btn" onclick="toggleThemeDropdown(event)" id="header-theme-btn" title="Switch Theme (GitHub Dark, Day / White, CRT Retro, Nordic, OLED, Dracula, Cyberpunk)">
           <span>🎨 Theme</span> ▾
         </button>
         <div class="menu-dropdown-content" id="header-theme-dropdown">
           <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('github-dark');">
             <span style="width:10px;height:10px;border-radius:50%;background:#58a6ff;display:inline-block;"></span> GitHub Dark
           </button>
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('day');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#ffffff;border:1px solid #d0d7de;display:inline-block;"></span> ☀️ Day / White (Light)
+          </button>
+          <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('crt');">
+            <span style="width:10px;height:10px;border-radius:50%;background:#33ff33;box-shadow:0 0 4px #33ff33;display:inline-block;"></span> 📺 CRT Retro (Phosphor)
+          </button>
           <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('nord');">
             <span style="width:10px;height:10px;border-radius:50%;background:#88c0d0;display:inline-block;"></span> Nordic (Nord)
           </button>
           <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('oled');">
-            <span style="width:10px;height:10px;border-radius:50%;background:#ffffff;border:1px solid #333;display:inline-block;"></span> OLED Dark (True Black)
+            <span style="width:10px;height:10px;border-radius:50%;background:#000000;border:1px solid #333;display:inline-block;"></span> OLED Dark (True Black)
           </button>
           <button class="menu-item-btn" onclick="closeThemeDropdown(); setTheme('dracula');">
             <span style="width:10px;height:10px;border-radius:50%;background:#bd93f9;display:inline-block;"></span> Dracula
@@ -1456,6 +1904,89 @@ export function getWebUiHtml(): string {
             <span style="width:10px;height:10px;border-radius:50%;background:#ff007f;display:inline-block;"></span> Cyberpunk Neon
           </button>
         </div>
+      </div>
+
+      <!-- Unified AI Engine & Topology Controller -->
+      <div class="menu-dropdown" id="header-engine-dropdown-wrap">
+        <button class="btn" onclick="toggleEngineDropdown(event)" id="header-engine-btn" title="AI Engine & Topology: Configure Local, Cloud, and Hybrid Execution" style="font-size:11.5px; padding:4px 10px; display:flex; align-items:center; gap:6px; white-space:nowrap; border-color:rgba(88,166,255,0.3); background:rgba(88,166,255,0.06);">
+          <span id="header-engine-icon" style="font-size:13px;">⚡</span>
+          <span id="header-engine-topo" style="font-weight:600;">Auto</span>
+          <span style="color:var(--border); margin:0 1px;">|</span>
+          <span id="header-engine-model" style="color:var(--accent); max-width:140px; overflow:hidden; text-overflow:ellipsis;">Detecting...</span>
+          <span style="font-size:9px; opacity:0.7;">▾</span>
+        </button>
+        <div class="menu-dropdown-content" id="header-engine-dropdown" style="min-width:320px; padding:12px; flex-direction:column; gap:10px;">
+          <!-- Section 1: Mode / Topology -->
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Operational Mode</span>
+            <span id="header-engine-mode-status" style="font-size:10.5px; color:var(--accent); font-weight:600;">⚡ Adaptive Auto</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <button class="btn engine-topo-btn active" id="etopo-auto" onclick="setExecutionTopology('auto');">
+              <span>⚡ Auto</span>
+            </button>
+            <button class="btn engine-topo-btn" id="etopo-hybrid-orchestrated" onclick="setExecutionTopology('hybrid-orchestrated');">
+              <span>🔄 Hybrid</span>
+            </button>
+            <button class="btn engine-topo-btn" id="etopo-local-only" onclick="setExecutionTopology('local-only');">
+              <span>💻 Local Only</span>
+            </button>
+            <button class="btn engine-topo-btn" id="etopo-cloud-only" onclick="setExecutionTopology('cloud-only');">
+              <span>☁️ Cloud Only</span>
+            </button>
+          </div>
+
+          <!-- Topology dynamic explanation pill -->
+          <div id="header-engine-explainer" style="font-size:10.5px; color:var(--text-dim); background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:6px 8px; line-height:1.4;">
+            Local model handles discovery, tasks & tools; cloud synthesizes heavy code when keys are configured.
+          </div>
+
+          <div style="border-top:1px solid var(--border); margin:2px 0;"></div>
+
+          <!-- Section 2: Active Engines & Models -->
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:600; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px;">Configured Engines</span>
+            <button class="btn" style="padding:2px 6px; font-size:10.5px;" onclick="closeEngineDropdown(); openModelModal();">Manage All ↗</button>
+          </div>
+
+          <!-- Local Engine row with Direct Selector -->
+          <div style="display:flex; flex-direction:column; gap:6px; background:#11151c; border:1px solid var(--border); border-radius:6px; padding:8px 10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span id="engine-local-status-dot" style="width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block;"></span>
+                <span style="font-size:11px; font-weight:600; color:var(--text);">Local Model (100% Offline)</span>
+              </div>
+              <div style="display:flex; gap:4px;">
+                <button class="btn btn-primary" style="padding:2px 6px; font-size:10px;" onclick="closeEngineDropdown(); openGgufManagerModal();">⚙️ Manage</button>
+                <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="closeEngineDropdown(); openGgufPicker('header');">📁 Pick .gguf</button>
+                <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="closeEngineDropdown(); openModelModal(); switchModelModalTab('local');">Browse ↗</button>
+              </div>
+            </div>
+            <select id="header-local-model-select" onchange="onHeaderLocalModelChange(this.value)" style="width:100%; background:#161b22; border:1px solid var(--border); color:var(--text); font-size:11px; padding:4px 6px; border-radius:4px;">
+              <option value="">Scanning local models...</option>
+            </select>
+          </div>
+
+          <!-- Cloud Engine row with Direct Selector -->
+          <div style="display:flex; flex-direction:column; gap:6px; background:#11151c; border:1px solid var(--border); border-radius:6px; padding:8px 10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span id="engine-cloud-status-dot" style="width:8px; height:8px; border-radius:50%; background:var(--accent); display:inline-block;"></span>
+                <span style="font-size:11px; font-weight:600; color:var(--text);">Cloud API (Online)</span>
+              </div>
+              <button class="btn" style="padding:2px 6px; font-size:10px;" onclick="closeEngineDropdown(); openAccountModal();">Keys ↗</button>
+            </div>
+            <select id="header-cloud-model-select" onchange="onHeaderCloudModelChange(this.value)" style="width:100%; background:#161b22; border:1px solid var(--border); color:var(--text); font-size:11px; padding:4px 6px; border-radius:4px;">
+              <option value="">Scanning cloud models...</option>
+            </select>
+          </div>
+        </div>
+        <select id="topology-select" style="display:none;" onchange="setExecutionTopology(this.value)">
+          <option value="auto">Mode: ⚡ Auto</option>
+          <option value="hybrid-orchestrated">Mode: 🔄 Hybrid Orchestrated</option>
+          <option value="local-only">Mode: 💻 Local-Only (llama.cpp)</option>
+          <option value="cloud-only">Mode: ☁️ Cloud-Only (Status Quo)</option>
+        </select>
       </div>
 
       <!-- Main Action: Session Setup -->
@@ -1489,6 +2020,9 @@ export function getWebUiHtml(): string {
           <div class="menu-divider"></div>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openSessionSetupModal();">
             <span>🚀 Session Setup & Limits</span>
+          </button>
+          <button class="menu-item-btn" onclick="closeMenuDropdown(); openWelcomeModal();">
+            <span>📦 Built-in Local AI (llama.cpp)</span>
           </button>
           <button class="menu-item-btn" onclick="closeMenuDropdown(); openRemoteStreamModal();">
             <span>📱 Stream Session (QR Code)</span>
@@ -1766,12 +2300,123 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- Dedicated GGUF Model Manager Modal (Local Models, Catalog Downloads, Deletion) -->
+  <div class="modal-overlay" id="gguf-manager-modal">
+    <div class="modal-dialog" style="max-width:740px; max-height:88vh; display:flex; flex-direction:column;">
+      <div class="modal-title-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span>📦 Local GGUF Model Manager (llama.cpp)</span>
+          <span id="gmm-engine-badge" style="font-size:10.5px; padding:2px 8px; border-radius:12px; font-weight:600; background:rgba(63,185,80,0.15); color:var(--green); border:1px solid rgba(63,185,80,0.3);">● Ready</span>
+        </div>
+        <button class="btn" onclick="closeGgufManagerModal()">✕</button>
+      </div>
+
+      <!-- Scrollable modal body -->
+      <div class="modal-body" style="padding:16px 20px; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
+        
+        <!-- Hardware & Laptop Advisory -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:18px;">💻</span>
+              <div>
+                <div style="font-size:12.5px; font-weight:600; color:var(--text);">Hardware Detection</div>
+                <div id="gmm-hw-info" style="font-size:11px; color:var(--text-dim);">Scanning CPU & Memory...</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn" id="gmm-server-toggle-btn" onclick="toggleLlamaServerState()" style="font-size:11px; padding:3px 8px;">🔄 Server Control</button>
+              <button class="btn btn-primary" onclick="openGgufPicker(&apos;gmm-manager&apos;);" style="font-size:11px; padding:3px 8px;">📁 Import Local .gguf</button>
+            </div>
+          </div>
+          <!-- Laptop Speed Tip -->
+          <div style="margin-top:10px; background:rgba(88,166,255,0.08); border:1px solid rgba(88,166,255,0.25); border-radius:6px; padding:8px 10px; font-size:11.5px; line-height:1.45; color:var(--text);">
+            <strong style="color:var(--accent);">⚡ Laptop Performance Recommendation:</strong> 
+            7B models (~4.7 GB) run at 2–5 tok/s on laptop CPUs and can trigger generation timeouts on long turns.
+            We strongly recommend <b>1.5B or 3B models</b> (<b>15–30 tok/s</b>, ~1 GB download), which are specially trained for fast tool calls, file scouting, and coding on laptops!
+          </div>
+        </div>
+
+        <!-- Download in Progress Card (hidden until active download) -->
+        <div id="gmm-download-banner" style="display:none; background:rgba(63,185,80,0.08); border:1px solid rgba(63,185,80,0.3); border-radius:8px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <strong id="gmm-dl-title" style="font-size:12px; color:var(--green);">⬇️ Downloading Model Weights...</strong>
+            <span id="gmm-dl-percent" style="font-size:11px; font-weight:bold; color:var(--green);">0%</span>
+          </div>
+          <div style="height:8px; background:var(--card-bg); border-radius:4px; overflow:hidden; border:1px solid var(--border); margin-bottom:6px;">
+            <div id="gmm-dl-fill" style="width:0%; height:100%; background:linear-gradient(90deg, #238636, #2ea043); transition:width 0.3s ease;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:10.5px; color:var(--text-dim);">
+            <span id="gmm-dl-status">Connecting to model repository...</span>
+            <span id="gmm-dl-bytes"></span>
+          </div>
+        </div>
+
+        <!-- Section 1: Installed GGUF Models on Disk -->
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div>
+              <strong style="font-size:13px; color:var(--text);">💾 Installed GGUF Models (<span id="gmm-installed-count">0</span>)</strong>
+              <div style="font-size:11px; color:var(--text-dim);">Weights stored in <code style="font-size:10px;">~/.config/mugil-ide/models/</code></div>
+            </div>
+            <button class="btn" onclick="refreshGgufManagerData()" style="font-size:10.5px; padding:3px 8px;">🔄 Refresh</button>
+          </div>
+          <div id="gmm-installed-list" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="color:var(--text-dim); text-align:center; padding:16px;">Scanning installed models...</div>
+          </div>
+        </div>
+
+        <!-- Section 2: Catalog of Recommended Models -->
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div>
+              <strong style="font-size:13px; color:var(--text);">⬇️ Recommended Models for Download</strong>
+              <div style="font-size:11px; color:var(--text-dim);">One-click download with automated verification & local quantization</div>
+            </div>
+          </div>
+
+          <!-- Group A: Laptop Friendly -->
+          <div style="font-size:11px; font-weight:600; color:var(--green); text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 6px 0;">
+            ⚡ Fast & Laptop Optimized (CPU 15–35 tok/s)
+          </div>
+          <div id="gmm-catalog-laptop-list" style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <!-- Group B: Workstation / Heavy -->
+          <div style="font-size:11px; font-weight:600; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; margin:8px 0 6px 0;">
+            🚀 Workstation & Discrete GPU (4–7+ GB)
+          </div>
+          <div id="gmm-catalog-gpu-list" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Section 3: Custom Download by URL -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <strong style="font-size:12px; color:var(--text); display:block; margin-bottom:4px;">🌐 Download Custom GGUF from URL</strong>
+          <div style="font-size:11px; color:var(--text-dim); margin-bottom:8px;">
+            Paste any direct Hugging Face resolve URL or HTTPS .gguf link to download it directly into your local library.
+          </div>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="gmm-custom-url" placeholder="https://huggingface.co/.../resolve/main/model.gguf" style="flex:1; background:var(--panel-bg); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:6px; font-size:11px;" />
+            <button class="btn btn-primary" onclick="downloadCustomGgufUrl()" style="white-space:nowrap; padding:6px 12px; font-size:11px;">⬇ Download</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- Model Selector Modal with Unmixed Local & Cloud Tabs -->
   <div class="modal-overlay" id="model-modal">
     <div class="modal-dialog">
       <div class="modal-title-bar">
         <span>Select Available Model</span>
-        <button class="btn" onclick="closeModelModal()">✕</button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="btn btn-primary" onclick="closeModelModal(); openGgufManagerModal();" style="font-size:11px; padding:3px 9px;">⬇️ Download Models ↗</button>
+          <button class="btn" onclick="closeModelModal()">✕</button>
+        </div>
       </div>
       <div class="modal-tabs">
         <button class="modal-tab-btn active" id="mtab-local" onclick="switchModelModalTab('local')">🟢 Local Models (<span id="local-count">0</span>)</button>
@@ -1809,7 +2454,50 @@ export function getWebUiHtml(): string {
       </div>
       <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:14px;">
         <div style="font-size:13px; color:var(--text); line-height:1.5;">
-          No AI provider or API keys are currently configured. Connect a cloud provider or local offline AI to enable autonomous coding:
+          Configure your operational mode and connect your AI provider or local offline engine:
+        </div>
+
+        <!-- Step 1: Choose Operational Mode / Topology -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong style="color:var(--text); font-size:12.5px;">1️⃣ Select Operational Mode (Topology)</strong>
+            <span style="font-size:11px; color:var(--accent); font-weight:600;">Switchable anytime</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div class="welcome-topo-card active" id="welcome-topo-auto" onclick="setExecutionTopology('auto')">
+              <span style="font-size:20px;">⚡</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Auto (Recommended)</div>
+                <div style="font-size:10.5px; color:var(--text-dim);">Smart routing: local scouting + cloud synthesis</div>
+              </div>
+            </div>
+            <div class="welcome-topo-card" id="welcome-topo-hybrid-orchestrated" onclick="setExecutionTopology('hybrid-orchestrated')">
+              <span style="font-size:20px;">🔄</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Hybrid Orchestrated</div>
+                <div style="font-size:10.5px; color:var(--text-dim);">Dual-model: local SLM + cloud LLM coder</div>
+              </div>
+            </div>
+            <div class="welcome-topo-card" id="welcome-topo-local-only" onclick="setExecutionTopology('local-only')">
+              <span style="font-size:20px;">💻</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Local Only</div>
+                <div style="font-size:10.5px; color:var(--text-dim);">100% offline & free on your hardware ($0)</div>
+              </div>
+            </div>
+            <div class="welcome-topo-card" id="welcome-topo-cloud-only" onclick="setExecutionTopology('cloud-only')">
+              <span style="font-size:20px;">☁️</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Cloud Only</div>
+                <div style="font-size:10.5px; color:var(--text-dim);">Direct cloud API execution (Status Quo)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="color:var(--text); font-size:12.5px;">2️⃣ Connect Engines According to Selected Mode</strong>
+          <span style="font-size:11px; color:var(--text-dim);">Cloud key, local model, or both</span>
         </div>
 
         <!-- Option 1: Cloud API Key -->
@@ -1842,10 +2530,57 @@ export function getWebUiHtml(): string {
             <strong style="color:var(--green); font-size:13px;">🟢 Local AI (100% Offline & Free)</strong>
             <span style="font-size:11px; color:var(--green); font-weight:600;">No API key needed</span>
           </div>
-          <div style="font-size:11.5px; color:var(--text-dim); margin-top:4px;">
-            Connect to a running local model server (Ollama or LM Studio).
+
+          <!-- Section 2A: Discovered / Installed GGUF Models on Disk -->
+          <div id="welcome-installed-container" style="display:none; background:rgba(46,160,67,0.08); border:1px solid rgba(46,160,67,0.3); border-radius:6px; padding:10px; margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <strong style="font-size:12px; color:var(--green);">📦 Installed / Downloaded Models Detected:</strong>
+              <span id="welcome-installed-count" style="font-size:10.5px; color:var(--green); font-weight:600;">Ready on disk</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <select id="welcome-installed-select" style="flex:1; background:var(--bg-elevated); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:5px 8px; font-size:11.5px;">
+              </select>
+              <button class="btn btn-primary" id="welcome-installed-btn" style="padding:4px 12px; font-size:11px;" onclick="useWelcomeInstalledModel()">▶ Use Model</button>
+            </div>
           </div>
-          <div style="display:flex; gap:8px; margin-top:10px;">
+
+          <!-- Section 2B: Browse custom .gguf model from disk -->
+          <div style="margin-top:8px;">
+            <button class="btn" style="width:100%; justify-content:center; padding:7px 10px; font-size:11.5px; border-color:rgba(88,166,255,0.4);" onclick="openGgufPicker('welcome')">
+              📁 Select / Browse Custom .gguf Model from Disk ↗
+            </button>
+          </div>
+
+          <!-- Section 2C: Built-in llama.cpp (download catalog model) -->
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:10px; margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="font-size:12px; color:var(--text-dim);">⬇ Or download recommended model:</strong>
+              <span id="welcome-hw-badge" style="font-size:10.5px; color:var(--text-dim);">Scanning hardware...</span>
+            </div>
+            <div style="display:flex; gap:6px; margin-top:8px;">
+              <select id="welcome-llamacpp-select" style="flex:1; background:var(--bg-elevated); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 6px; font-size:11px;">
+                <option value="qwen2.5-coder-1.5b-q4km">Qwen2.5 Coder 1.5B (0.98 GB · Recommended for laptops)</option>
+                <option value="qwen2.5-coder-7b-q4km">Qwen2.5 Coder 7B (4.36 GB · Balanced)</option>
+                <option value="qwen3-coder-30b-a3b-q4km">Qwen3 Coder 30B MoE (17.28 GB · Workstations)</option>
+              </select>
+              <button class="btn btn-primary" id="welcome-llamacpp-btn" style="padding:4px 10px; font-size:11px;" onclick="handleWelcomeLlamaAction()">Download & Start</button>
+            </div>
+            <div id="welcome-llamacpp-progress" style="display:none; margin-top:8px;">
+              <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+                <span id="welcome-llamacpp-phase" style="color:var(--text-dim);">Preparing...</span>
+                <span id="welcome-llamacpp-bytes" style="color:var(--accent); font-weight:600;">0%</span>
+              </div>
+              <div style="background:var(--bg-elevated); height:6px; border-radius:3px; overflow:hidden;">
+                <div id="welcome-llamacpp-fill" style="width:0%; height:100%; background:var(--green); transition:width 0.2s;"></div>
+              </div>
+              <div id="welcome-llamacpp-status" style="display:none; font-size:10.5px; color:var(--text-dim); margin-top:4px;"></div>
+            </div>
+          </div>
+
+          <div style="font-size:11.5px; color:var(--text-dim); margin-top:10px;">
+            Or connect to a running local model server (Ollama or LM Studio):
+          </div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
             <button class="btn" style="flex:1; justify-content:center; padding:8px 12px;" onclick="testAndSaveLocalAi('ollama', 'http://localhost:11434/v1')">
               🦙 Connect Ollama (localhost:11434)
             </button>
@@ -1874,7 +2609,7 @@ export function getWebUiHtml(): string {
       <div class="modal-body" style="padding:16px 20px; gap:14px;">
         <div style="font-size:28px; text-align:center; color:var(--yellow);" aria-hidden="true">⚠</div>
         <div class="kill-warning" style="text-align:center;">
-          This <b>stops the Mugil IDE server process</b>.
+          This <b>stops the Mugil IDE server and its local model server (llama.cpp)</b>.
         </div>
         <ul style="color:var(--text-dim); font-size:12px; line-height:1.6; margin:0; padding-left:18px;">
           <li>The browser UI and WebSocket connection will disconnect.</li>
@@ -1894,7 +2629,7 @@ export function getWebUiHtml(): string {
     <div style="font-size:36px;" aria-hidden="true">⏻</div>
     <div style="font-size:16px; font-weight:600; color:var(--text);">Server stopped</div>
     <div style="font-size:12.5px; color:var(--text-dim); max-width:420px; line-height:1.6;">
-      The Mugil IDE backend has exited. You can close this tab. Start it again with <code style="color:var(--accent);">mugil-ide</code>.
+      The Mugil IDE backend and the local llama.cpp server have exited. You can close this tab. Start it again with <code style="color:var(--accent);">mugil-ide</code>.
     </div>
   </div>
 
@@ -1970,22 +2705,89 @@ export function getWebUiHtml(): string {
         <button class="btn" onclick="closeSessionSetupModal()">✕</button>
       </div>
       <div class="modal-body" style="padding:16px 20px; display:flex; flex-direction:column; gap:16px; overflow-y:auto;">
-        <div>
+        <!-- Operational Mode / Topology Selector inside Setup -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:0;">⚡ Operational Topology / Mode:</label>
+            <span id="setup-topology-status" style="font-size:11px; color:var(--accent); font-weight:600;">⚡ Adaptive Auto</span>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div class="welcome-topo-card active" id="setup-topo-auto" onclick="setExecutionTopology('auto')">
+              <span style="font-size:18px;">⚡</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Auto (Recommended)</div>
+                <div style="font-size:10px; color:var(--text-dim);">Smart routing: local scouting + cloud synthesis</div>
+              </div>
+            </div>
+            <div class="welcome-topo-card" id="setup-topo-hybrid-orchestrated" onclick="setExecutionTopology('hybrid-orchestrated')">
+              <span style="font-size:18px;">🔄</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Hybrid Orchestrated</div>
+                <div style="font-size:10px; color:var(--text-dim);">Dual-model: local SLM + cloud synthesis</div>
+              </div>
+            </div>
+            <div class="welcome-topo-card" id="setup-topo-local-only" onclick="setExecutionTopology('local-only')">
+              <span style="font-size:18px;">💻</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Local Only</div>
+                <div style="font-size:10px; color:var(--text-dim);">100% offline & free on your hardware ($0)</div>
+              </div>
+            </div>
+            <div class="welcome-topo-card" id="setup-topo-cloud-only" onclick="setExecutionTopology('cloud-only')">
+              <span style="font-size:18px;">☁️</span>
+              <div>
+                <div style="font-size:12px; font-weight:600; color:var(--text);">Cloud Only</div>
+                <div style="font-size:10px; color:var(--text-dim);">Direct online cloud API execution (Status Quo)</div>
+              </div>
+            </div>
+          </div>
+          <div id="setup-topology-explainer" style="font-size:10.5px; color:var(--text-dim); margin-top:8px; line-height:1.4;">
+            Local model handles discovery, tasks & tools; cloud synthesizes heavy code when keys are configured.
+          </div>
+        </div>
+
+        <!-- Section: Local Offline AI Model Selector -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:0;">Active Model & Provider:</label>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:14px;">💻</span>
+              <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:0;" for="setup-local-model-select">Local AI Engine (100% Offline · $0 API tokens):</label>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="btn btn-primary" onclick="openGgufPicker('setup');" style="font-size:10.5px; padding:2px 8px;">📁 Browse Custom GGUF...</button>
+              <button type="button" class="btn" onclick="openWelcomeModal();" style="font-size:10.5px; padding:2px 8px; color:var(--green);">📦 Download / Manage ↗</button>
+            </div>
+          </div>
+          <select id="setup-local-model-select" onchange="onSetupLocalModelChange()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12.5px; font-family:inherit;">
+            <option value="">Scanning installed local models...</option>
+          </select>
+          <div id="setup-local-model-badge" style="margin-top:6px; font-size:11px; color:var(--text-dim); display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+            <span id="setup-local-status" style="color:var(--green); font-weight:600;">🟢 Local Model</span>
+            <span id="setup-local-details" style="color:var(--text-dim);">Ready on disk</span>
+          </div>
+        </div>
+
+        <!-- Section: Cloud Online AI Model Selector -->
+        <div style="background:#11151c; border:1px solid var(--border); border-radius:6px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:14px;">☁️</span>
+              <label style="font-size:12px; font-weight:600; color:var(--text); margin-bottom:0;" for="setup-cloud-model-select">Cloud AI Model (Online API):</label>
+            </div>
             <button type="button" class="btn" onclick="openAccountModal();" style="font-size:10.5px; padding:2px 8px; color:var(--accent);">🔑 Manage API Keys</button>
           </div>
-          <select id="setup-model-select" onchange="onSetupModelChange()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:13px; font-family:inherit;">
-            <option value="">Loading models...</option>
+          <select id="setup-cloud-model-select" onchange="onSetupCloudModelChange()" style="width:100%; background:#0d1117; border:1px solid var(--border); color:var(--text); padding:7px 10px; border-radius:6px; font-size:12.5px; font-family:inherit;">
+            <option value="">Loading cloud models...</option>
           </select>
-          <div id="setup-model-badge" style="margin-top:6px; font-size:11px; color:var(--text-dim); display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
-            <span id="setup-model-provider" style="color:var(--accent);">Provider: Auto</span>
-            <span id="setup-model-context" style="color:var(--text-dim);">Context: 128k</span>
-            <span id="setup-model-pricing" style="color:var(--green); font-weight:600;">Pricing: Detecting...</span>
+          <select id="setup-model-select" style="display:none;"></select>
+          <div id="setup-cloud-model-badge" style="margin-top:6px; font-size:11px; color:var(--text-dim); display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+            <span id="setup-cloud-provider" style="color:var(--accent);">Provider: Cloud</span>
+            <span id="setup-cloud-context" style="color:var(--text-dim);">Context: 128k</span>
+            <span id="setup-cloud-pricing" style="color:var(--green); font-weight:600;">Pricing: Detecting...</span>
           </div>
           <div id="setup-no-keys-banner" style="display:none; margin-top:8px; padding:8px 12px; background:#f851491a; border:1px solid #f8514966; border-radius:6px; font-size:11.5px; color:#ff7b72;">
-            ⚠ No API keys or local AI servers configured. Responses will run in mock mode.
-            <a href="javascript:void(0)" onclick="openWelcomeModal();" style="color:var(--accent); font-weight:600; text-decoration:underline; margin-left:6px;">Connect AI Provider ↗</a>
+            ⚠ No cloud API keys configured. Cloud turns will run in mock mode.
+            <a href="javascript:void(0)" onclick="openAccountModal();" style="color:var(--accent); font-weight:600; text-decoration:underline; margin-left:6px;">Configure API Keys ↗</a>
           </div>
         </div>
 
@@ -2448,6 +3250,50 @@ export function getWebUiHtml(): string {
     </div>
   </div>
 
+  <!-- GGUF Model Browser & Picker Modal -->
+  <div class="modal-overlay" id="ggufpicker-modal" style="z-index:10001;">
+    <div class="modal-dialog" style="max-width:620px; max-height:85vh; display:flex; flex-direction:column;">
+      <div class="modal-title-bar">
+        <span>📦 Select Local GGUF Model File</span>
+        <button class="btn" onclick="closeGgufPicker()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:14px 18px; display:flex; flex-direction:column; gap:12px; overflow-y:auto;">
+        <div style="font-size:12px; color:var(--text-dim); line-height:1.4;">
+          Browse your filesystem to select any user-downloaded <code style="color:var(--green);">.gguf</code> model file. It will be loaded and started with the built-in offline engine.
+        </div>
+        <!-- Shortcuts -->
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <span style="font-size:11px; color:var(--text-dim); font-weight:600;">Shortcuts:</span>
+          <div id="ggufpicker-shortcuts" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+        </div>
+
+        <!-- Current Path Navigation Bar -->
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn" id="ggufpicker-up-btn" onclick="ggufPickerGoUp()" title="Go up to parent folder" style="padding:5px 10px; font-size:12px;">⬆ Up</button>
+          <div id="ggufpicker-current-path" style="flex:1; font-family:monospace; font-size:11.5px; background:#0d1117; padding:6px 10px; border-radius:6px; border:1px solid var(--border); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--accent);"></div>
+          <button class="btn" onclick="refreshGgufPicker()" title="Refresh directory" style="padding:5px 10px; font-size:12px;">🔄</button>
+        </div>
+
+        <!-- Directory & GGUF Models List -->
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:10.5px; color:var(--text-dim); margin-top:2px; margin-bottom:-4px;">
+          <span>Folders & .gguf Models</span>
+          <span>Click a .gguf file to select</span>
+        </div>
+        <div id="ggufpicker-items-list" style="max-height:280px; min-height:180px; overflow-y:auto; background:#0d1117; border:1px solid var(--border); border-radius:6px; padding:6px; display:flex; flex-direction:column; gap:3px;">
+          <div style="color:var(--text-dim); text-align:center; padding:20px; font-size:12px;">Scanning folders and models...</div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+          <span style="font-size:11px; color:var(--green); font-weight:600;" id="ggufpicker-selected-summary">No .gguf model selected yet</span>
+          <div style="display:flex; gap:8px;">
+            <button class="btn" onclick="closeGgufPicker()">Cancel</button>
+            <button class="btn btn-primary" id="ggufpicker-confirm-btn" onclick="confirmGgufPicker()" disabled>✓ Load & Use Model</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Image Generation Modal -->
   <div class="modal-overlay" id="image-gen-modal">
     <div class="modal-dialog" style="max-width:580px;">
@@ -2634,6 +3480,38 @@ export function getWebUiHtml(): string {
           cyan: '#00f0ff',
           white: '#ffffff',
         }
+      },
+      'day': {
+        name: 'Day / White (Light)',
+        xterm: {
+          background: '#ffffff',
+          foreground: '#1f2328',
+          cursor: '#0969da',
+          black: '#24292f',
+          red: '#cf222e',
+          green: '#1a7f37',
+          yellow: '#9a6700',
+          blue: '#0969da',
+          magenta: '#8250df',
+          cyan: '#1b7c83',
+          white: '#ffffff',
+        }
+      },
+      'crt': {
+        name: 'CRT Retro (Phosphor)',
+        xterm: {
+          background: '#070d07',
+          foreground: '#33ff33',
+          cursor: '#33ff33',
+          black: '#001a00',
+          red: '#ff3333',
+          green: '#33ff33',
+          yellow: '#ffd700',
+          blue: '#00ffcc',
+          magenta: '#ffb000',
+          cyan: '#33ffff',
+          white: '#e6ffe6',
+        }
       }
     };
 
@@ -2648,14 +3526,16 @@ export function getWebUiHtml(): string {
       localStorage.setItem('mugil_ide_theme', name);
       document.documentElement.setAttribute('data-theme', name);
       const palette = THEMES[name].xterm;
+      const cursorColor = name === 'day' ? '#0969da' : (name === 'crt' ? '#33ff33' : '#3fb950');
       if (agentTerm && agentTerm.options) agentTerm.options.theme = { ...palette };
-      if (ptyTerm && ptyTerm.options) ptyTerm.options.theme = { ...palette, cursor: '#3fb950' };
+      if (ptyTerm && ptyTerm.options) ptyTerm.options.theme = { ...palette, cursor: cursorColor };
       closeThemeDropdown();
     }
 
     function toggleThemeDropdown(e) {
       if (e) e.stopPropagation();
       closeMenuDropdown();
+      closeEngineDropdown();
       const dd = document.getElementById('header-theme-dropdown');
       if (dd) dd.classList.toggle('show');
     }
@@ -2665,12 +3545,26 @@ export function getWebUiHtml(): string {
       if (dd) dd.classList.remove('show');
     }
 
+    function toggleEngineDropdown(e) {
+      if (e) e.stopPropagation();
+      closeMenuDropdown();
+      closeThemeDropdown();
+      const dd = document.getElementById('header-engine-dropdown');
+      if (dd) dd.classList.toggle('show');
+    }
+
+    function closeEngineDropdown() {
+      const dd = document.getElementById('header-engine-dropdown');
+      if (dd) dd.classList.remove('show');
+    }
+
     // Modern View / Thinking Stream State
     let agentViewMode = 'modern';
     let isThinking = false;
     let thinkingStartTime = 0;
     let thinkingTimer = null;
     let currentAssistantBubble = null;
+    let currentIsLocalEngine = false;
 
     function switchAgentViewMode(mode) {
       agentViewMode = mode;
@@ -2723,7 +3617,11 @@ export function getWebUiHtml(): string {
       if (!currentAssistantBubble) {
         currentAssistantBubble = document.createElement('div');
         currentAssistantBubble.className = 'chat-bubble assistant';
-        currentAssistantBubble.innerHTML = '<div class="chat-bubble-header"><span>🤖 Assistant</span></div><div class="chat-bubble-content"></div>';
+        const isLoc = currentIsLocalEngine;
+        const engineBadge = isLoc
+          ? '<span style="font-size:10px; background:rgba(63,185,80,0.15); color:var(--green); border:1px solid rgba(63,185,80,0.3); border-radius:10px; padding:1px 6px; margin-left:6px; font-weight:600;">💻 Local Engine</span>'
+          : '<span style="font-size:10px; background:rgba(88,166,255,0.15); color:var(--accent); border:1px solid rgba(88,166,255,0.3); border-radius:10px; padding:1px 6px; margin-left:6px; font-weight:600;">☁️ Online Cloud</span>';
+        currentAssistantBubble.innerHTML = '<div class="chat-bubble-header" style="display:flex; align-items:center; justify-content:space-between;"><div><span>🤖 Assistant</span>' + engineBadge + '</div><span style="font-size:10px; color:var(--text-dim);">' + escapeHtml(activeModelId || '') + '</span></div><div class="chat-bubble-content"></div>';
         modernChat.appendChild(currentAssistantBubble);
       }
       const contentEl = currentAssistantBubble.querySelector('.chat-bubble-content');
@@ -3608,6 +4506,8 @@ export function getWebUiHtml(): string {
         document.getElementById('status-dot').style.background = '#3fb950';
         document.getElementById('connection-status').textContent = 'Connected';
         notifyResize();
+        const savedTopo = localStorage.getItem('mugil_topology') || 'auto';
+        ws.send(JSON.stringify({ type: 'set_topology', topology: savedTopo }));
       };
 
       ws.onclose = () => {
@@ -3628,9 +4528,81 @@ export function getWebUiHtml(): string {
             agentTerm.write(msg.data);
             agentTerm.scrollToBottom();
             renderModernStreamChunk(msg.data);
+          } else if (msg.type === 'workspace_changed') {
+            if (msg.root) {
+              currentWorkspaceRoot = msg.root;
+              const wsBadge = document.getElementById('setup-workspace-current-badge');
+              if (wsBadge) wsBadge.textContent = msg.root;
+              const curDisplay = document.getElementById('current-workspace-display');
+              if (curDisplay) curDisplay.textContent = msg.root;
+              refreshFiles();
+              if (typeof activeRightTab !== 'undefined' && activeRightTab === 'graph') {
+                try { loadGraph(); } catch (e) { /* ignore */ }
+              }
+            }
           } else if (msg.type === 'pty_data') {
             ptyTerm.write(msg.data);
             ptyTerm.scrollToBottom();
+          } else if (msg.type === 'llamacpp_progress') {
+            const fill = document.getElementById('welcome-llamacpp-fill');
+            const prog = document.getElementById('welcome-llamacpp-progress');
+            const phase = document.getElementById('welcome-llamacpp-phase');
+            const bytes = document.getElementById('welcome-llamacpp-bytes');
+            const status = document.getElementById('welcome-llamacpp-status');
+            const btn = document.getElementById('welcome-llamacpp-btn');
+
+            // GGUF Manager Modal elements
+            const gmmBanner = document.getElementById('gmm-download-banner');
+            const gmmFill = document.getElementById('gmm-dl-fill');
+            const gmmPercent = document.getElementById('gmm-dl-percent');
+            const gmmStatus = document.getElementById('gmm-dl-status');
+            const gmmBytes = document.getElementById('gmm-dl-bytes');
+            const gmmTitle = document.getElementById('gmm-dl-title');
+
+            if (gmmBanner) gmmBanner.style.display = 'block';
+            if (gmmTitle && msg.fileName) gmmTitle.textContent = '⬇️ Downloading ' + msg.fileName + '...';
+            if (gmmFill && typeof msg.percent === 'number') {
+              gmmFill.style.width = Math.min(100, Math.max(0, msg.percent)) + '%';
+            }
+            if (gmmPercent && typeof msg.percent === 'number') {
+              gmmPercent.textContent = msg.percent + '%';
+            }
+            if (gmmStatus) {
+              gmmStatus.textContent = msg.status === 'verifying' ? 'Verifying SHA-256 checksum...' : (msg.status || 'Downloading...');
+            }
+            if (gmmBytes && msg.received && msg.total) {
+              const recGb = (msg.received / (1024 * 1024 * 1024)).toFixed(2);
+              const totGb = (msg.total / (1024 * 1024 * 1024)).toFixed(2);
+              gmmBytes.textContent = recGb + ' / ' + totGb + ' GB';
+            }
+
+            if (prog) prog.style.display = 'block';
+            if (fill && typeof msg.percent === 'number') {
+              fill.style.width = Math.min(100, Math.max(0, msg.percent)) + '%';
+            }
+            if (msg.phase === 'binary') {
+              if (phase) phase.textContent = 'Downloading llama-server binary...';
+              if (bytes && typeof msg.percent === 'number') bytes.textContent = msg.percent + '%';
+            } else if (msg.phase === 'download') {
+              if (phase) phase.textContent = msg.status === 'verifying' ? 'Verifying SHA-256 checksum...' : 'Downloading model weights...';
+              if (bytes) {
+                if (msg.received && msg.total) {
+                  const recGb = (msg.received / (1024 * 1024 * 1024)).toFixed(2);
+                  const totGb = (msg.total / (1024 * 1024 * 1024)).toFixed(2);
+                  bytes.textContent = recGb + ' / ' + totGb + ' GB (' + (msg.percent ?? 0) + '%)';
+                } else if (typeof msg.percent === 'number') {
+                  bytes.textContent = msg.percent + '%';
+                }
+              }
+              if (btn && typeof msg.percent === 'number') {
+                btn.textContent = msg.status === 'verifying' ? 'Verifying...' : ('Downloading ' + msg.percent + '%');
+              }
+              if (status && msg.status && msg.status !== 'downloading' && msg.status !== 'complete') {
+                status.style.display = 'block';
+                status.style.color = msg.status.includes('interrupted') || msg.status.includes('stalled') || msg.status.includes('Resuming') ? 'var(--yellow)' : 'var(--text-dim)';
+                status.textContent = msg.status;
+              }
+            }
           } else if (msg.type === 'turn_complete') {
             setAgentBusy(false);
             if (isThinking) {
@@ -3642,6 +4614,10 @@ export function getWebUiHtml(): string {
               const badge = document.getElementById('thinking-badge');
               if (badge) badge.textContent = 'Thought complete (' + Math.max(1, Math.round((Date.now() - thinkingStartTime) / 1000)) + 's)';
             }
+            if (msg.turn && msg.turn.isLocal !== undefined) {
+              currentIsLocalEngine = Boolean(msg.turn.isLocal);
+            }
+            currentAssistantBubble = null;
             addTurnChip(msg.turn);
             refreshFiles();
           } else if (msg.type === 'dismiss_prompts') {
@@ -3666,6 +4642,9 @@ export function getWebUiHtml(): string {
             showApproval(msg);
           } else if (msg.type === 'status') {
             if (msg.busy !== undefined) setAgentBusy(msg.busy);
+            if (msg.topology) {
+              updateTopologyUi(msg.topology);
+            }
             if (msg.turboMode !== undefined) {
               updateTurboUI(msg.turboMode);
             }
@@ -3677,6 +4656,23 @@ export function getWebUiHtml(): string {
               const subEl = document.getElementById('sub-active-model');
               if (subEl) subEl.textContent = msg.activeModel;
               document.getElementById('header-active-model').textContent = msg.activeModel;
+              const engModelEl = document.getElementById('header-engine-model');
+              if (engModelEl) engModelEl.textContent = msg.activeModel;
+              const isLoc = Boolean(msg.isLocal);
+              currentIsLocalEngine = isLoc;
+              const locDot = document.getElementById('engine-local-status-dot');
+              const cldDot = document.getElementById('engine-cloud-status-dot');
+              if (isLoc) {
+                if (locDot) locDot.style.background = 'var(--green)';
+                if (cldDot) cldDot.style.background = '#484f58';
+                const hl = document.getElementById('header-local-model-select');
+                if (hl && hl.value !== msg.activeModel) hl.value = msg.activeModel;
+              } else {
+                if (cldDot) cldDot.style.background = 'var(--accent)';
+                if (locDot) locDot.style.background = '#484f58';
+                const hc = document.getElementById('header-cloud-model-select');
+                if (hc && hc.value !== msg.activeModel) hc.value = msg.activeModel;
+              }
               const modeLabel = msg.mode === 'plan' ? 'plan' : 'act';
               document.getElementById('status-model').textContent = 'Model: ' + msg.activeModel + ' · Mode: ' + modeLabel;
               updateModeUI(msg.mode);
@@ -3700,13 +4696,13 @@ export function getWebUiHtml(): string {
                 ? msg.stats.savingsPct
                 : (saved + kept > 0 ? Math.round((saved / (saved + kept)) * 100) : 0);
 
-              const bd = msg.stats.savingsBreakdown || { caveman: 0, yagni: 0, cache: 0, mcp: 0 };
+              const bd = msg.stats.savingsBreakdown || { caveman: 0, yagni: 0, cache: 0, mcp: 0, toolPruning: 0, hybridRecon: 0 };
               const formatK = (n) => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
 
               const savingsPill = document.getElementById('token-savings');
               if (savingsPill) {
                 savingsPill.textContent = 'Savings: ~' + optPct + '% (~' + formatK(optSaved) + ' tok)';
-                savingsPill.title = 'Optimistic savings: ~' + optSaved.toLocaleString() + ' tok (~' + optPct + '% reduction) across Caveman, YAGNI, Cache, and MCP. Click for breakdown.';
+                savingsPill.title = 'Optimistic savings: ~' + optSaved.toLocaleString() + ' tok (~' + optPct + '% reduction) across Caveman, YAGNI, Cache, MCP, Tool Pruning, and Hybrid Recon. Click for breakdown.';
               }
 
               const popTotal = document.getElementById('savings-popover-total');
@@ -3719,6 +4715,10 @@ export function getWebUiHtml(): string {
               if (spCache) spCache.textContent = (bd.cache || 0).toLocaleString() + ' tok';
               const spMcp = document.getElementById('sp-mcp');
               if (spMcp) spMcp.textContent = (bd.mcp || 0).toLocaleString() + ' tok';
+              const spToolPruning = document.getElementById('sp-toolpruning');
+              if (spToolPruning) spToolPruning.textContent = (bd.toolPruning || 0).toLocaleString() + ' tok';
+              const spHybridRecon = document.getElementById('sp-hybridrecon');
+              if (spHybridRecon) spHybridRecon.textContent = (bd.hybridRecon || 0).toLocaleString() + ' tok';
               const spReal = document.getElementById('sp-real');
               if (spReal) spReal.textContent = saved.toLocaleString() + ' tok';
               const spRate = document.getElementById('sp-rate');
@@ -3744,6 +4744,7 @@ export function getWebUiHtml(): string {
     function toggleMenuDropdown(e) {
       if (e) e.stopPropagation();
       closeThemeDropdown();
+      closeEngineDropdown();
       const dd = document.getElementById('header-menu-dropdown');
       if (dd) dd.classList.toggle('show');
     }
@@ -3774,6 +4775,13 @@ export function getWebUiHtml(): string {
           tdd.classList.remove('show');
         }
       }
+      const edd = document.getElementById('header-engine-dropdown');
+      const ebtn = document.getElementById('header-engine-btn');
+      if (edd && edd.classList.contains('show')) {
+        if (!edd.contains(e.target) && e.target !== ebtn && !ebtn.contains(e.target)) {
+          edd.classList.remove('show');
+        }
+      }
       const spPop = document.getElementById('savings-popover');
       const spPill = document.getElementById('token-savings');
       if (spPop && spPop.style.display === 'block') {
@@ -3787,9 +4795,11 @@ export function getWebUiHtml(): string {
     document.addEventListener('pointerdown', (e) => {
       const dd = document.getElementById('header-menu-dropdown');
       const tdd = document.getElementById('header-theme-dropdown');
+      const edd = document.getElementById('header-engine-dropdown');
       const spPop = document.getElementById('savings-popover');
       const hasOpen = (dd && dd.classList.contains('show')) ||
                       (tdd && tdd.classList.contains('show')) ||
+                      (edd && edd.classList.contains('show')) ||
                       (spPop && spPop.style.display === 'block');
       if (hasOpen) {
         closeAllDropdowns(e);
@@ -3914,11 +4924,14 @@ export function getWebUiHtml(): string {
       const container = document.getElementById('turn-chips');
       const chip = document.createElement('span');
       chip.className = 'turn-chip';
-      chip.textContent = '#' + turn.id + ' ' + (turn.prompt.length > 20 ? turn.prompt.slice(0, 20) + '…' : turn.prompt);
+      const isLoc = turn.isLocal ?? false;
+      const icon = isLoc ? '💻' : '☁️';
+      chip.textContent = icon + ' #' + turn.id + ' ' + (turn.prompt.length > 20 ? turn.prompt.slice(0, 20) + '…' : turn.prompt);
+      chip.title = (isLoc ? '💻 Local Engine' : '☁️ Online Cloud') + ' (' + (turn.model || '') + ')';
       chip.onclick = () => {
         switchRightTab('diff');
-        document.getElementById('diff-file-title').textContent = 'Turn #' + turn.id + ' Summary';
-        document.getElementById('diff-content').textContent = \`Prompt: \${turn.prompt}\n\nModel: \${turn.model}\nTokens: \${turn.tokens.total}\nTools Called: \${turn.toolsCalled.length}\nModified Files: \${turn.filesModified.join(', ') || 'none'}\n\nResponse:\n\${turn.response}\`;
+        document.getElementById('diff-file-title').textContent = 'Turn #' + turn.id + ' Summary (' + (isLoc ? '💻 Local' : '☁️ Online') + ')';
+        document.getElementById('diff-content').textContent = \`Prompt: \${turn.prompt}\n\nExecution Engine: \${isLoc ? '💻 Local Offline' : '☁️ Online Cloud'} (\${turn.provider || 'default'})\nModel: \${turn.model}\nTopology: \${turn.topology || 'auto'}\nTokens: \${turn.tokens.total} (saved: \${turn.tokens.saved})\nTools Called: \${turn.toolsCalled.length}\nModified Files: \${turn.filesModified.join(', ') || 'none'}\n\nResponse:\n\${turn.response}\`;
       };
       container.appendChild(chip);
     }
@@ -4123,6 +5136,267 @@ export function getWebUiHtml(): string {
         targetInput.value = chosen;
       }
       closeDirPicker();
+    }
+
+    // GGUF Model Browser & File Picker
+    let ggufPickerTargetContext = 'setup';
+    let ggufPickerCurrentPath = '';
+    let ggufPickerParentPath = null;
+    let ggufPickerSelectedFile = null;
+
+    async function openGgufPicker(context) {
+      ggufPickerTargetContext = context || 'setup';
+      ggufPickerSelectedFile = null;
+      const modal = document.getElementById('ggufpicker-modal');
+      if (modal) modal.classList.add('open');
+      const sum = document.getElementById('ggufpicker-selected-summary');
+      if (sum) {
+        sum.textContent = 'No .gguf model selected yet';
+        sum.style.color = 'var(--text-dim)';
+      }
+      const confirmBtn = document.getElementById('ggufpicker-confirm-btn');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '✓ Load & Use Model';
+      }
+      await navigateGgufPicker('');
+    }
+
+    function closeGgufPicker() {
+      const modal = document.getElementById('ggufpicker-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    async function navigateGgufPicker(targetPath) {
+      ggufPickerSelectedFile = null;
+      const pathEl = document.getElementById('ggufpicker-current-path');
+      const listEl = document.getElementById('ggufpicker-items-list');
+      const upBtn = document.getElementById('ggufpicker-up-btn');
+      const shortcutsEl = document.getElementById('ggufpicker-shortcuts');
+      const summaryEl = document.getElementById('ggufpicker-selected-summary');
+      const confirmBtn = document.getElementById('ggufpicker-confirm-btn');
+      if (confirmBtn) confirmBtn.disabled = true;
+      if (listEl) listEl.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding:20px; font-size:12px;">Scanning folders and models...</div>';
+
+      try {
+        const url = '/api/fs/browse?filter=gguf' + (targetPath ? '&path=' + encodeURIComponent(targetPath) : '');
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to load folder');
+        const data = await res.json();
+        ggufPickerCurrentPath = data.current;
+        ggufPickerParentPath = data.parent;
+
+        if (pathEl) {
+          pathEl.textContent = data.current;
+          pathEl.title = data.current;
+        }
+
+        if (upBtn) {
+          upBtn.disabled = !data.parent;
+          upBtn.style.opacity = data.parent ? '1' : '0.4';
+          upBtn.style.cursor = data.parent ? 'pointer' : 'default';
+        }
+
+        // Render Shortcuts
+        if (shortcutsEl && data.shortcuts) {
+          shortcutsEl.innerHTML = '';
+          data.shortcuts.forEach((sc) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.style.padding = '2px 8px';
+            btn.style.fontSize = '10.5px';
+            btn.textContent = sc.label;
+            if (sc.path === data.current) {
+              btn.style.borderColor = 'var(--accent)';
+              btn.style.color = 'var(--accent)';
+            }
+            btn.onclick = () => navigateGgufPicker(sc.path);
+            shortcutsEl.appendChild(btn);
+          });
+        }
+
+        // Render List: Folders + GGUF Files
+        if (listEl) {
+          listEl.innerHTML = '';
+          const hasDirs = data.dirs && data.dirs.length > 0;
+          const hasFiles = data.files && data.files.length > 0;
+
+          if (!hasDirs && !hasFiles) {
+            listEl.innerHTML = '<div style="color:var(--text-dim); text-align:center; padding:20px; font-size:11.5px;">No folders or .gguf models found in this location.</div>';
+            return;
+          }
+
+          // 1. Folders
+          if (hasDirs) {
+            data.dirs.forEach((d) => {
+              const row = document.createElement('div');
+              row.className = 'ggufpicker-folder-row';
+              row.style.display = 'flex';
+              row.style.alignItems = 'center';
+              row.style.justifyContent = 'space-between';
+              row.style.padding = '5px 8px';
+              row.style.borderRadius = '4px';
+              row.style.cursor = 'pointer';
+              row.style.fontSize = '12px';
+              row.style.color = 'var(--text)';
+              row.style.border = '1px solid transparent';
+              row.style.transition = 'background 0.1s';
+
+              const left = document.createElement('div');
+              left.style.display = 'flex';
+              left.style.alignItems = 'center';
+              left.style.gap = '8px';
+              left.style.overflow = 'hidden';
+              left.style.textOverflow = 'ellipsis';
+              left.style.whiteSpace = 'nowrap';
+              left.innerHTML = '<span style="font-size:14px;">📁</span> <span>' + escapeHtml(d.name) + '</span>';
+              row.appendChild(left);
+
+              const openBtn = document.createElement('button');
+              openBtn.className = 'btn';
+              openBtn.style.padding = '2px 6px';
+              openBtn.style.fontSize = '10px';
+              openBtn.textContent = 'Open →';
+              openBtn.onclick = (e) => {
+                e.stopPropagation();
+                navigateGgufPicker(d.path);
+              };
+              row.appendChild(openBtn);
+
+              row.onclick = () => navigateGgufPicker(d.path);
+              listEl.appendChild(row);
+            });
+          }
+
+          // 2. GGUF Files
+          if (hasFiles) {
+            data.files.forEach((f) => {
+              const row = document.createElement('div');
+              row.className = 'ggufpicker-file-row';
+              row.style.display = 'flex';
+              row.style.alignItems = 'center';
+              row.style.justifyContent = 'space-between';
+              row.style.padding = '6px 8px';
+              row.style.borderRadius = '4px';
+              row.style.cursor = 'pointer';
+              row.style.fontSize = '12px';
+              row.style.background = 'rgba(46,160,67,0.06)';
+              row.style.border = '1px solid rgba(46,160,67,0.25)';
+              row.style.transition = 'all 0.1s';
+
+              const left = document.createElement('div');
+              left.style.display = 'flex';
+              left.style.alignItems = 'center';
+              left.style.gap = '8px';
+              left.style.overflow = 'hidden';
+              left.style.textOverflow = 'ellipsis';
+              left.style.whiteSpace = 'nowrap';
+              const sizeGb = f.sizeBytes ? (f.sizeBytes / 1e9).toFixed(2) + ' GB' : '';
+              left.innerHTML = '<span style="font-size:14px;">📦</span> <strong style="color:var(--text);">' + escapeHtml(f.name) + '</strong> <span style="font-size:10.5px; color:var(--green); font-weight:600;">(' + sizeGb + ')</span>';
+              row.appendChild(left);
+
+              const badge = document.createElement('span');
+              badge.style.fontSize = '10px';
+              badge.style.padding = '1px 6px';
+              badge.style.borderRadius = '3px';
+              badge.style.background = 'rgba(46,160,67,0.2)';
+              badge.style.color = 'var(--green)';
+              badge.style.fontWeight = 'bold';
+              badge.textContent = 'GGUF';
+              row.appendChild(badge);
+
+              row.onclick = () => {
+                ggufPickerSelectedFile = f;
+                const allRows = listEl.querySelectorAll('.ggufpicker-file-row');
+                allRows.forEach(r => {
+                  r.style.background = 'rgba(46,160,67,0.06)';
+                  r.style.borderColor = 'rgba(46,160,67,0.25)';
+                });
+                row.style.background = 'rgba(46,160,67,0.25)';
+                row.style.borderColor = 'var(--green)';
+                if (summaryEl) {
+                  summaryEl.textContent = 'Selected: ' + f.name + ' (' + sizeGb + ')';
+                  summaryEl.style.color = 'var(--green)';
+                }
+                if (confirmBtn) confirmBtn.disabled = false;
+              };
+
+              row.ondblclick = () => {
+                ggufPickerSelectedFile = f;
+                confirmGgufPicker();
+              };
+
+              listEl.appendChild(row);
+            });
+          }
+        }
+      } catch (err) {
+        if (listEl) {
+          listEl.innerHTML = '<div style="color:var(--red); text-align:center; padding:16px; font-size:11.5px;">Error loading folder: ' + escapeHtml(err.message) + '</div>';
+        }
+      }
+    }
+
+    function ggufPickerGoUp() {
+      if (ggufPickerParentPath) {
+        navigateGgufPicker(ggufPickerParentPath);
+      }
+    }
+
+    function refreshGgufPicker() {
+      navigateGgufPicker(ggufPickerCurrentPath);
+    }
+
+    async function confirmGgufPicker() {
+      if (!ggufPickerSelectedFile) return;
+      const f = ggufPickerSelectedFile;
+      const confirmBtn = document.getElementById('ggufpicker-confirm-btn');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Starting server...';
+      }
+      try {
+        await fetch('/api/llamacpp/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: f.path }),
+        }).catch(() => ({}));
+
+        const startRes = await fetch('/api/llamacpp/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: f.path, file: f.name }),
+        });
+
+        if (!startRes.ok) {
+          const errData = await startRes.json().catch(() => ({}));
+          throw new Error(errData.error || ('HTTP ' + startRes.status + ' during model startup'));
+        }
+
+        await selectModel(f.name, 'llamacpp');
+        await loadModels();
+        populateSetupModels();
+        closeGgufPicker();
+
+        const setupLocal = document.getElementById('setup-local-model-select');
+        if (setupLocal) {
+          setupLocal.value = f.name;
+          onSetupLocalModelChange();
+        }
+
+        const headLocal = document.getElementById('header-local-model-select');
+        if (headLocal) {
+          headLocal.value = f.name;
+        }
+
+        alert('✓ Local model loaded successfully: ' + f.name);
+      } catch (e) {
+        alert('Failed to load GGUF model: ' + e.message);
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = '✓ Load & Use Model';
+        }
+      }
     }
 
     function switchModalWorkspaceTab(tab) {
@@ -4374,11 +5648,11 @@ export function getWebUiHtml(): string {
         diffContent.innerHTML = '';
         diffs.forEach((d) => {
           const card = document.createElement('div');
-          card.style.cssText = 'border:1px solid var(--border); border-radius:6px; margin-bottom:16px; overflow:hidden; background:#0d1117;';
+          card.style.cssText = 'border:1px solid var(--border); border-radius:6px; margin-bottom:16px; overflow:hidden; background:var(--card-bg);';
 
           const actionColor = d.action === 'created' ? 'var(--green)' : d.action === 'deleted' ? 'var(--red)' : 'var(--accent)';
           const header = document.createElement('div');
-          header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:#161b22; border-bottom:1px solid var(--border);';
+          header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--panel-bg); border-bottom:1px solid var(--border);';
           const titleDiv = document.createElement('div');
           titleDiv.innerHTML = '<strong style="color:var(--text)">📄 ' + escapeHtml(d.rel) + '</strong> <span style="font-size:10px; padding:1px 6px; border-radius:3px; font-weight:bold; background:#1f6feb33; color:' + actionColor + '; text-transform:uppercase;">' + escapeHtml(d.action) + '</span>';
           header.appendChild(titleDiv);
@@ -4391,7 +5665,7 @@ export function getWebUiHtml(): string {
           card.appendChild(header);
 
           const pre = document.createElement('pre');
-          pre.style.cssText = 'margin:0; padding:8px 0; font-family:Consolas, monospace; font-size:11.5px; line-height:1.45; overflow-x:auto; background:#0d1117;';
+          pre.style.cssText = 'margin:0; padding:8px 0; font-family:Consolas, monospace; font-size:11.5px; line-height:1.45; overflow-x:auto; background:var(--bg); color:var(--text);';
 
           if (d.binary) {
             const row = document.createElement('div');
@@ -4619,7 +5893,24 @@ export function getWebUiHtml(): string {
       container.innerHTML = '';
       if (models.length === 0) {
         const msg = activeModelTab === 'local'
-          ? '<div style="color:var(--text-dim); text-align:center; padding:24px;">No running local LLM found (Ollama or LM Studio).<br><br><button class="btn btn-primary" onclick="openAccountModal()">Configure Local Port / URL ↗</button></div>'
+          ? '<div style="text-align:center; padding:20px 14px;">'
+            + '<div style="background:var(--card-bg); border:1px solid var(--border); border-radius:8px; padding:16px; max-width:440px; margin:0 auto; text-align:left;">'
+            + '<div style="display:flex; justify-content:space-between; align-items:center;">'
+            + '<strong style="font-size:13px; color:var(--accent);">📦 Built-in Local Model (llama.cpp)</strong>'
+            + '<span style="font-size:10.5px; color:var(--green); font-weight:600;">100% Offline & Free</span>'
+            + '</div>'
+            + '<p style="font-size:11.5px; color:var(--text-dim); margin:8px 0 12px 0; line-height:1.4;">'
+            + 'No Ollama or LM Studio needed. Mugil IDE detects your laptop hardware and suggests the optimal quantized model automatically.'
+            + '</p>'
+            + '<button class="btn btn-primary" style="width:100%; justify-content:center; padding:8px 12px;" onclick="closeModelModal(); openWelcomeModal();">'
+            + '⚡ Setup Suggested Local Model ↗'
+            + '</button>'
+            + '</div>'
+            + '<div style="font-size:11px; color:var(--text-dim); margin-top:16px;">'
+            + 'Already running Ollama or LM Studio?'
+            + '<button class="btn" style="display:inline-flex; margin-left:6px; padding:3px 8px; font-size:10.5px;" onclick="closeModelModal(); openAccountModal();">Configure Port ↗</button>'
+            + '</div>'
+            + '</div>'
           : activeModelTab === 'cloud'
             ? '<div style="color:var(--text-dim); text-align:center; padding:24px;">No configured cloud models found.<br><br><button class="btn btn-primary" onclick="openAccountModal()">Add API Key in Accounts ↗</button></div>'
             : '<div style="color:var(--text-dim); text-align:center; padding:24px;">No active local or cloud models found.<br><br><button class="btn btn-primary" onclick="openAccountModal()">Configure in Accounts & Keys ↗</button></div>';
@@ -4627,27 +5918,51 @@ export function getWebUiHtml(): string {
         return;
       }
 
-      models.forEach(m => {
+      if (activeModelTab === 'local') {
+        const topBar = document.createElement('div');
+        topBar.style.cssText = 'background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:10px 12px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;';
+        topBar.innerHTML = '<div style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:wrap; gap:8px;">'
+          + '<div>'
+          + '<div style="font-weight:600; font-size:12.5px; color:var(--green);">💻 Local GGUF Engine (llama.cpp)</div>'
+          + '<div style="font-size:11px; color:var(--text-dim);">100% offline models with zero API costs</div>'
+          + '</div>'
+          + '<div style="display:flex; gap:6px;">'
+          + '<button class="btn btn-primary" onclick="closeModelModal(); openGgufManagerModal();" style="font-size:11px; padding:4px 10px;">⚙️ Manage & Download GGUFs ↗</button>'
+          + '<button class="btn" onclick="closeModelModal(); openGgufPicker(&apos;model-modal&apos;);" style="font-size:11px; padding:4px 10px;">📁 Import .gguf</button>'
+          + '<button class="btn" onclick="loadModels();" style="font-size:11px; padding:4px 8px;">🔄 Rescan</button>'
+          + '</div>'
+          + '</div>';
+        container.appendChild(topBar);
+      }
+
+      models.forEach(function(m) {
         const card = document.createElement('div');
         const isActive = m.id === activeModelId;
         card.className = 'modal-item-card' + (isActive ? ' active' : '');
         const toolsBadge = m.supportsTools ? '<span style="color:var(--accent); font-size:10px; font-weight:bold;">[Tools]</span>' : '';
         const thinkBadge = m.supportsThinking ? '<span style="color:var(--magenta); font-size:10px; font-weight:bold;">[Thinking]</span>' : '';
+        const sizeBadge = m.sizeBytes ? '<span style="color:var(--green); font-size:10px; font-weight:bold;">[' + (m.sizeBytes / 1e9).toFixed(2) + ' GB]</span>' : '';
         const providerBadge = m.isLocal
           ? '<span style="color:var(--green); font-size:10px; font-weight:bold;">[Local · Free]</span>'
-          : \`<span style="color:var(--text-dim); font-size:10px;">[\${escapeHtml(m.provider || 'cloud')}]</span>\`;
-        const activeBadge = isActive ? '<span style="color:var(--green); font-weight:bold; font-size:11px;">● Active</span>' : '<button class="btn btn-primary" style="padding:2px 8px; font-size:10px;">Select</button>';
+          : '<span style="color:var(--text-dim); font-size:10px;">[' + escapeHtml(m.provider || 'cloud') + ']</span>';
+        const activeBadge = isActive ? '<span style="color:var(--green); font-weight:bold; font-size:11px;">● Active</span>' : '<button class="btn btn-primary" style="padding:2px 8px; font-size:10px;">Select & Run</button>';
+        const isLocalGguf = m.provider === 'llamacpp' || (m.isLocal && m.id && m.id.endsWith('.gguf'));
+        const sizeStr = m.sizeBytes ? (m.sizeBytes / 1e9).toFixed(2) + ' GB' : '';
+        const delBtnHtml = isLocalGguf
+          ? '<button class="btn" style="padding:2px 8px; font-size:10px; margin-left:6px; color:var(--red); border-color:rgba(207,34,46,0.35); background:transparent;" title="Permanently delete this model file from disk" onclick="event.stopPropagation(); deleteGgufModelPrompt(&apos;' + escapeHtml(m.id) + '&apos;, &apos;' + sizeStr + '&apos;);">🗑 Delete</button>'
+          : '';
         
-        card.onclick = () => selectModel(m.id, m.provider);
-        card.innerHTML = \`
-          <div>
-            <div style="font-weight:600; font-size:13px; color:var(--text);">\${escapeHtml(m.id)}</div>
-            <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">
-              \${providerBadge} · Tier: <span style="text-transform:capitalize;">\${escapeHtml(m.tier || 'standard')}</span> · \${toolsBadge} \${thinkBadge}
-            </div>
-          </div>
-          <div>\${activeBadge}</div>
-        \`;
+        card.onclick = function() { selectModel(m.id, m.provider); };
+        card.innerHTML = '<div>'
+          + '<div style="font-weight:600; font-size:13px; color:var(--text);">' + escapeHtml(m.id) + '</div>'
+          + '<div style="font-size:11px; color:var(--text-dim); margin-top:2px;">'
+          + providerBadge + ' ' + sizeBadge + ' · Tier: <span style="text-transform:capitalize;">' + escapeHtml(m.tier || 'standard') + '</span> · ' + toolsBadge + ' ' + thinkBadge
+          + '</div>'
+          + '</div>'
+          + '<div style="display:flex; align-items:center;">'
+          + activeBadge
+          + delBtnHtml
+          + '</div>';
         container.appendChild(card);
       });
     }
@@ -4673,6 +5988,8 @@ export function getWebUiHtml(): string {
         document.getElementById('header-active-model').textContent = modelId;
         const subEl = document.getElementById('sub-active-model');
         if (subEl) subEl.textContent = modelId;
+        const engModelEl = document.getElementById('header-engine-model');
+        if (engModelEl) engModelEl.textContent = modelId;
         document.getElementById('status-model').textContent = 'Model: ' + modelId;
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'set_model', model: modelId, provider }));
@@ -4760,6 +6077,531 @@ export function getWebUiHtml(): string {
           st.style.color = 'var(--red)';
           st.textContent = '⚠ Connection failed: ' + e.message;
         }
+      }
+    }
+
+    const TOPOLOGY_LABELS = {
+      'auto': '⚡ Auto',
+      'hybrid-orchestrated': '🔄 Hybrid',
+      'local-only': '💻 Local',
+      'cloud-only': '☁️ Cloud',
+    };
+
+    const TOPOLOGY_EXPLAINERS = {
+      'auto': 'Local model handles discovery, tasks & tools ($0); cloud synthesizes heavy code when keys are configured.',
+      'hybrid-orchestrated': 'Dual-model pipeline: local SLM plans & scours code, cloud LLM synthesizes and audits (up to 90% savings).',
+      'local-only': '100% offline & free on your machine: no API keys or cloud tokens used.',
+      'cloud-only': 'Direct cloud API execution (Status Quo) for all turns and tools.',
+    };
+
+    function updateTopologyUi(val) {
+      if (!val) val = 'auto';
+      const normVal = val === 'hybrid' ? 'hybrid-orchestrated' : val === 'local' ? 'local-only' : val === 'cloud' ? 'cloud-only' : val;
+
+      const iconEl = document.getElementById('header-engine-icon');
+      const topoEl = document.getElementById('header-engine-topo');
+      const statusEl = document.getElementById('header-engine-mode-status');
+      const explainerEl = document.getElementById('header-engine-explainer');
+      const setupStatusEl = document.getElementById('setup-topology-status');
+      const setupExplainerEl = document.getElementById('setup-topology-explainer');
+
+      const icons = { 'auto': '⚡', 'hybrid-orchestrated': '🔄', 'local-only': '💻', 'cloud-only': '☁️' };
+      const names = { 'auto': 'Auto', 'hybrid-orchestrated': 'Hybrid', 'local-only': 'Local', 'cloud-only': 'Cloud' };
+      const longNames = {
+        'auto': '⚡ Adaptive Auto',
+        'hybrid-orchestrated': '🔄 Hybrid Orchestrated',
+        'local-only': '💻 100% Local Offline',
+        'cloud-only': '☁️ Cloud Only (Status Quo)',
+      };
+
+      if (iconEl) iconEl.textContent = icons[normVal] || '⚡';
+      if (topoEl) topoEl.textContent = names[normVal] || 'Auto';
+      if (statusEl) statusEl.textContent = longNames[normVal] || '⚡ Adaptive Auto';
+      if (explainerEl) explainerEl.textContent = TOPOLOGY_EXPLAINERS[normVal] || '';
+      if (setupStatusEl) setupStatusEl.textContent = longNames[normVal] || '⚡ Adaptive Auto';
+      if (setupExplainerEl) setupExplainerEl.textContent = TOPOLOGY_EXPLAINERS[normVal] || '';
+
+      ['auto', 'hybrid-orchestrated', 'local-only', 'cloud-only'].forEach(function(m) {
+        const btn = document.getElementById('etopo-' + m);
+        if (btn) {
+          if (m === normVal) btn.classList.add('active');
+          else btn.classList.remove('active');
+        }
+        const wCard = document.getElementById('welcome-topo-' + m);
+        if (wCard) {
+          if (m === normVal) wCard.classList.add('active');
+          else wCard.classList.remove('active');
+        }
+        const sCard = document.getElementById('setup-topo-' + m);
+        if (sCard) {
+          if (m === normVal) sCard.classList.add('active');
+          else sCard.classList.remove('active');
+        }
+      });
+
+      const select = document.getElementById('topology-select');
+      if (select) select.value = normVal;
+    }
+
+    function initExecutionTopology() {
+      const saved = localStorage.getItem('mugil_topology') || 'auto';
+      updateTopologyUi(saved);
+    }
+
+    function setExecutionTopology(val) {
+      localStorage.setItem('mugil_topology', val);
+      updateTopologyUi(val);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'set_topology', topology: val }));
+      }
+    }
+
+    async function loadLlamaHardwareInfo() {
+      try {
+        const res = await fetch('/api/llamacpp/status');
+        if (res.ok) {
+          const data = await res.json();
+          const badge = document.getElementById('welcome-hw-badge');
+          if (badge && data.hardware) {
+            badge.textContent = data.hardware.totalRamGb + ' GB RAM · ' + data.hardware.cpuCores + ' cores · ' + String(data.hardware.gpu).toUpperCase();
+          }
+          if (data.recommended && data.recommended.length > 0) {
+            const select = document.getElementById('welcome-llamacpp-select');
+            if (select) {
+              select.innerHTML = data.recommended.map(function(m) {
+                const isDownloaded = data.models && data.models.some(function(inst) {
+                  return inst.file.toLowerCase().includes(m.id.toLowerCase()) || m.id.toLowerCase().includes(inst.file.toLowerCase().replace('.gguf', ''));
+                });
+                const dlBadge = isDownloaded ? ' · ✓ Downloaded' : '';
+                return '<option value="' + m.id + '">' + (m.label || m.name || m.id) + ' (' + (m.sizeBytes / 1e9).toFixed(1) + ' GB' + dlBadge + ')</option>';
+              }).join('');
+            }
+          }
+          if (data.models && data.models.length > 0) {
+            const btn = document.getElementById('welcome-llamacpp-btn');
+            if (btn && data.status?.state !== 'running') {
+              btn.textContent = '▶ Start Local Engine';
+              btn.disabled = false;
+            }
+          }
+          if (data.status?.state === 'running') {
+            const btn = document.getElementById('welcome-llamacpp-btn');
+            if (btn) {
+              btn.textContent = '✓ Running';
+              btn.disabled = true;
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function handleWelcomeLlamaAction() {
+      const btn = document.getElementById('welcome-llamacpp-btn');
+      const select = document.getElementById('welcome-llamacpp-select');
+      const prog = document.getElementById('welcome-llamacpp-progress');
+      const fill = document.getElementById('welcome-llamacpp-fill');
+      const phase = document.getElementById('welcome-llamacpp-phase');
+      const bytes = document.getElementById('welcome-llamacpp-bytes');
+      const status = document.getElementById('welcome-llamacpp-status');
+      if (!btn || !select) return;
+
+      const catalogId = select.value;
+      btn.disabled = true;
+      btn.textContent = 'Setting up...';
+      if (prog) prog.style.display = 'block';
+      if (fill) fill.style.width = '0%';
+      if (phase) phase.textContent = 'Checking llama-server binary...';
+      if (bytes) bytes.textContent = '';
+      if (status) { status.style.display = 'none'; status.textContent = ''; }
+
+      try {
+        // Step 1: Ensure binary
+        if (phase) phase.textContent = 'Installing llama-server binary...';
+        const binRes = await fetch('/api/llamacpp/install-binary', { method: 'POST' });
+        if (!binRes.ok) {
+          const errData = await binRes.json().catch(() => ({}));
+          throw new Error(errData.error || ('HTTP ' + binRes.status + ' during binary install'));
+        }
+
+        // Step 2: Download weights (with resume support)
+        if (fill) fill.style.width = '0%';
+        if (phase) phase.textContent = 'Downloading model weights...';
+        if (bytes) bytes.textContent = '';
+        if (status) { status.style.display = 'none'; status.textContent = ''; }
+        btn.textContent = 'Downloading...';
+        const dlRes = await fetch('/api/llamacpp/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ catalogId }),
+        });
+        if (!dlRes.ok) {
+          const errData = await dlRes.json().catch(() => ({}));
+          throw new Error(errData.error || ('HTTP ' + dlRes.status + ' during model download'));
+        }
+
+        // Step 3: Start server
+        if (fill) fill.style.width = '100%';
+        if (phase) phase.textContent = 'Starting llama.cpp server...';
+        if (bytes) bytes.textContent = 'Loading weights...';
+        btn.textContent = 'Starting...';
+        const startRes = await fetch('/api/llamacpp/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ catalogId }),
+        });
+
+        if (startRes.ok) {
+          btn.textContent = '✓ Ready';
+          if (phase) phase.textContent = 'Local model ready!';
+          if (bytes) bytes.textContent = '100%';
+          const startData = await startRes.json().catch(() => ({}));
+          const targetModel = startData.model || catalogId;
+          await selectModel(targetModel, 'llamacpp');
+          await loadModels();
+          populateSetupModels();
+          setTimeout(() => closeWelcomeModal(), 900);
+        } else {
+          const err = await startRes.json().catch(() => ({}));
+          const errMsg = err.error || 'Unknown error';
+          if (status) {
+            status.style.display = 'block';
+            status.style.color = 'var(--red)';
+            status.textContent = errMsg;
+          }
+          alert('Failed to start llama.cpp: ' + errMsg);
+          btn.disabled = false;
+          btn.textContent = 'Start';
+        }
+      } catch (e) {
+        if (status) {
+          status.style.display = 'block';
+          status.style.color = 'var(--red)';
+          status.textContent = 'Setup failed: ' + e.message;
+        }
+        alert('Setup failed: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Retry Setup';
+      }
+    }
+
+    // Local GGUF Model Manager Modal & Operations
+    async function openGgufManagerModal() {
+      closeModelModal();
+      closeWelcomeModal();
+      closeAccountModal();
+      const modal = document.getElementById('gguf-manager-modal');
+      if (modal) modal.classList.add('open');
+      await refreshGgufManagerData();
+    }
+
+    function closeGgufManagerModal() {
+      const modal = document.getElementById('gguf-manager-modal');
+      if (modal) modal.classList.remove('open');
+      loadModels();
+      populateSetupModels();
+    }
+
+    async function refreshGgufManagerData() {
+      try {
+        const res = await fetch('/api/llamacpp/status');
+        if (res.ok) {
+          const data = await res.json();
+          // Hardware probe
+          const hw = data.hardware;
+          const hwEl = document.getElementById('gmm-hw-info');
+          if (hwEl) {
+            hwEl.textContent = hw
+              ? (hw.totalRamGb + ' GB RAM · ' + hw.cpuCores + ' CPU cores · GPU: ' + String(hw.gpu).toUpperCase() + (hw.vramGb ? ' (' + hw.vramGb + ' GB VRAM)' : ''))
+              : 'Hardware probe ready';
+          }
+          // Server state & toggle button
+          const isRunning = data.status && data.status.state === 'running';
+          const badge = document.getElementById('gmm-engine-badge');
+          if (badge) {
+            badge.textContent = isRunning ? ('● Running (Port ' + (data.status.port || 8080) + ')') : '○ Stopped';
+            badge.style.color = isRunning ? 'var(--green)' : 'var(--text-dim)';
+            badge.style.borderColor = isRunning ? 'rgba(63,185,80,0.4)' : 'var(--border)';
+            badge.style.background = isRunning ? 'rgba(63,185,80,0.15)' : 'transparent';
+          }
+          const sbtn = document.getElementById('gmm-server-toggle-btn');
+          if (sbtn) {
+            sbtn.textContent = isRunning ? '■ Stop Engine' : '▶ Start Engine';
+            sbtn.style.color = isRunning ? 'var(--red)' : 'var(--green)';
+          }
+
+          renderGgufInstalledList(data);
+          renderGgufCatalogList(data);
+        }
+      } catch (err) {
+        console.error('Failed to load GGUF status:', err);
+      }
+    }
+
+    function renderGgufInstalledList(data) {
+      const container = document.getElementById('gmm-installed-list');
+      const countEl = document.getElementById('gmm-installed-count');
+      if (!container) return;
+
+      const models = data.models || [];
+      if (countEl) countEl.textContent = String(models.length);
+
+      if (models.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:18px; color:var(--text-dim); background:var(--card-bg); border-radius:6px; border:1px dashed var(--border); font-size:12px;">'
+          + 'No .gguf model files installed yet. Download a recommended laptop model below, or import an existing file.'
+          + '</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      models.forEach(function(m) {
+        const sizeGb = (m.sizeBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        const isLoaded = data.status && data.status.state === 'running' && data.status.modelPath && data.status.modelPath.endsWith(m.file);
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--card-bg); border:1px solid ' + (isLoaded ? 'var(--green)' : 'var(--border)') + '; border-radius:6px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;';
+        
+        const left = document.createElement('div');
+        left.innerHTML = '<div style="font-weight:600; font-size:12.5px; color:var(--text); word-break:break-all;">' + escapeHtml(m.file) + '</div>'
+          + '<div style="font-size:11px; color:var(--text-dim); margin-top:3px; display:flex; align-items:center; gap:8px;">'
+          + '<span style="color:var(--accent); font-weight:600;">' + sizeGb + '</span>'
+          + '<span>·</span>'
+          + (isLoaded
+              ? '<span style="color:var(--green); font-weight:600; display:flex; align-items:center; gap:4px;"><span style="width:7px; height:7px; border-radius:50%; background:var(--green); display:inline-block;"></span> Currently Running & Loaded</span>'
+              : '<span style="color:var(--text-dim);">○ Available on Disk</span>')
+          + '</div>';
+
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex; align-items:center; gap:6px;';
+
+        if (isLoaded) {
+          right.innerHTML = '<span style="font-size:11px; color:var(--green); font-weight:600; padding:3px 8px; border:1px solid var(--green); border-radius:4px;">✓ Loaded</span>';
+        } else {
+          const actBtn = document.createElement('button');
+          actBtn.className = 'btn btn-primary';
+          actBtn.style.cssText = 'font-size:11px; padding:4px 10px;';
+          actBtn.textContent = '▶ Load & Activate';
+          actBtn.onclick = function() { loadAndActivateGgufModel(m.file); };
+          right.appendChild(actBtn);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn';
+        delBtn.style.cssText = 'font-size:11px; padding:4px 8px; color:var(--red); border-color:rgba(207,34,46,0.3);';
+        delBtn.innerHTML = '🗑 Delete';
+        delBtn.title = 'Permanently delete this GGUF file to reclaim disk space';
+        delBtn.onclick = function() { deleteGgufModelPrompt(m.file, sizeGb); };
+        right.appendChild(delBtn);
+
+        card.appendChild(left);
+        card.appendChild(right);
+        container.appendChild(card);
+      });
+    }
+
+    function renderGgufCatalogList(data) {
+      const laptopContainer = document.getElementById('gmm-catalog-laptop-list');
+      const gpuContainer = document.getElementById('gmm-catalog-gpu-list');
+      if (!laptopContainer || !gpuContainer) return;
+
+      const catalog = data.catalog || [];
+      const installed = data.models || [];
+
+      laptopContainer.innerHTML = '';
+      gpuContainer.innerHTML = '';
+
+      catalog.forEach(function(m) {
+        const sizeGb = (m.sizeBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        const isDownloaded = installed.some(function(inst) {
+          return inst.file === m.hfFile || inst.file.toLowerCase().includes(m.id.toLowerCase());
+        });
+
+        const isLaptopFriendly = m.paramsB <= 3;
+        const targetContainer = isLaptopFriendly ? laptopContainer : gpuContainer;
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background:var(--card-bg); border:1px solid var(--border); border-radius:6px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; gap:8px;';
+
+        const speedBadge = m.paramsB <= 1.5
+          ? '<span style="color:var(--green); font-size:10px; font-weight:600;">⚡ Ultra Fast CPU (25–35 tok/s)</span>'
+          : m.paramsB <= 3
+            ? '<span style="color:var(--green); font-size:10px; font-weight:600;">⚡ Fast Laptop Sweet Spot (15–20 tok/s)</span>'
+            : '<span style="color:var(--accent); font-size:10px; font-weight:600;">🚀 Heavy · High RAM/GPU (2–5 tok/s on CPU)</span>';
+
+        let actionHtml = '';
+        if (isDownloaded) {
+          actionHtml = '<div style="display:flex; justify-content:space-between; align-items:center;">'
+            + '<span style="color:var(--green); font-size:11px; font-weight:600;">✓ Installed</span>'
+            + '<div style="display:flex; gap:4px;">'
+            + '<button class="btn btn-primary" onclick="loadAndActivateGgufModel(&apos;' + escapeHtml(m.hfFile) + '&apos;)" style="padding:2px 8px; font-size:10.5px;">Load ↗</button>'
+            + '<button class="btn" style="padding:2px 6px; font-size:10.5px; color:var(--red); border-color:rgba(207,34,46,0.3);" title="Delete model file" onclick="deleteGgufModelPrompt(&apos;' + escapeHtml(m.hfFile) + '&apos;, &apos;' + sizeGb + '&apos;)">🗑</button>'
+            + '</div>'
+            + '</div>';
+        } else {
+          actionHtml = '<button class="btn" id="btn-dl-' + m.id + '" onclick="startDownloadCatalogModel(&apos;' + m.id + '&apos;)" style="width:100%; justify-content:center; padding:4px 8px; font-size:11px; color:var(--accent); border-color:rgba(88,166,255,0.4);">'
+            + '⬇ Download (' + sizeGb + ')'
+            + '</button>';
+        }
+
+        card.innerHTML = '<div>'
+          + '<div style="display:flex; justify-content:space-between; align-items:flex-start;">'
+          + '<strong style="font-size:12px; color:var(--text);">' + escapeHtml(m.label || m.id) + '</strong>'
+          + '<span style="font-size:10.5px; color:var(--accent); font-weight:600;">' + sizeGb + '</span>'
+          + '</div>'
+          + '<div style="margin:4px 0 2px 0;">' + speedBadge + '</div>'
+          + '<div style="font-size:10.5px; color:var(--text-dim);">' + (m.supportsTools ? '✓ Tool calling' : 'No tools') + ' · ' + (m.contextWindow / 1000).toFixed(0) + 'k ctx · ' + m.quant + '</div>'
+          + '</div>'
+          + '<div>' + actionHtml + '</div>';
+
+        targetContainer.appendChild(card);
+      });
+    }
+
+    async function deleteGgufModelPrompt(file, sizeStr) {
+      if (!confirm('Are you sure you want to permanently delete: ' + file + ' (' + sizeStr + ')?\\n\\nThis will free disk space immediately.')) {
+        return;
+      }
+      try {
+        const res = await fetch('/api/llamacpp/models', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: file }),
+        });
+        if (res.ok) {
+          await refreshGgufManagerData();
+          await loadModels();
+          populateSetupModels();
+        } else {
+          const err = await res.json().catch(function() { return {}; });
+          alert('Failed to delete model: ' + (err.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Failed to delete model: ' + e.message);
+      }
+    }
+
+    async function startDownloadCatalogModel(catalogId) {
+      const btn = document.getElementById('btn-dl-' + catalogId);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Starting download...';
+      }
+      const banner = document.getElementById('gmm-download-banner');
+      if (banner) banner.style.display = 'block';
+
+      try {
+        const res = await fetch('/api/llamacpp/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ catalogId: catalogId }),
+        });
+        if (res.ok) {
+          const result = await res.json();
+          alert('✓ Model download completed: ' + result.file);
+          await refreshGgufManagerData();
+          await loadModels();
+          populateSetupModels();
+          if (confirm('Model downloaded successfully! Would you like to load and activate it now?')) {
+            await loadAndActivateGgufModel(result.file);
+          }
+        } else {
+          const err = await res.json().catch(function() { return {}; });
+          alert('Download failed: ' + (err.error || 'Server error'));
+        }
+      } catch (e) {
+        alert('Download failed: ' + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Retry Download';
+        }
+      }
+    }
+
+    async function downloadCustomGgufUrl() {
+      const input = document.getElementById('gmm-custom-url');
+      if (!input || !input.value.trim()) {
+        alert('Please enter a valid HTTP or HTTPS download URL for the .gguf file.');
+        return;
+      }
+      const url = input.value.trim();
+      const banner = document.getElementById('gmm-download-banner');
+      if (banner) banner.style.display = 'block';
+
+      try {
+        const res = await fetch('/api/llamacpp/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url }),
+        });
+        if (res.ok) {
+          const result = await res.json();
+          alert('✓ Custom model downloaded successfully: ' + result.file);
+          input.value = '';
+          await refreshGgufManagerData();
+          await loadModels();
+          populateSetupModels();
+          if (confirm('Model downloaded! Would you like to load and activate it now?')) {
+            await loadAndActivateGgufModel(result.file);
+          }
+        } else {
+          const err = await res.json().catch(function() { return {}; });
+          alert('Download failed: ' + (err.error || 'Server error'));
+        }
+      } catch (e) {
+        alert('Download failed: ' + e.message);
+      }
+    }
+
+    async function loadAndActivateGgufModel(file) {
+      try {
+        const res = await fetch('/api/llamacpp/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: file }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const targetModel = data.model || file;
+          await selectModel(targetModel, 'llamacpp');
+          await refreshGgufManagerData();
+          await loadModels();
+          populateSetupModels();
+        } else {
+          const err = await res.json().catch(function() { return {}; });
+          alert('Failed to start llama-server with ' + file + ': ' + (err.error || 'Error'));
+        }
+      } catch (e) {
+        alert('Failed to start model: ' + e.message);
+      }
+    }
+
+    async function toggleLlamaServerState() {
+      try {
+        const statusRes = await fetch('/api/llamacpp/status');
+        if (!statusRes.ok) return;
+        const statusData = await statusRes.json();
+        const isRunning = statusData.status && statusData.status.state === 'running';
+
+        if (isRunning) {
+          await fetch('/api/llamacpp/stop', { method: 'POST' });
+        } else {
+          const models = statusData.models || [];
+          if (models.length === 0) {
+            alert('No .gguf models installed yet to start server. Download a model below first.');
+            return;
+          }
+          await fetch('/api/llamacpp/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: models[0].file }),
+          });
+        }
+        await refreshGgufManagerData();
+        await loadModels();
+      } catch (e) {
+        alert('Failed to toggle server state: ' + e.message);
       }
     }
 
@@ -5081,48 +6923,204 @@ export function getWebUiHtml(): string {
     }
 
     function populateSetupModels() {
-      const select = document.getElementById('setup-model-select');
-      if (!select) return;
-      select.innerHTML = '';
-      const list = (allAvailableModels && allAvailableModels.length > 0) ? allAvailableModels : [
-        { id: activeModelId || 'openrouter/auto', provider: 'openrouter', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 }
-      ];
-      list.forEach((m) => {
-        const opt = document.createElement('option');
-        opt.value = m.id;
-        const providerName = m.providerLabel || m.provider || (m.isLocal ? 'Local' : 'Cloud');
-        const costStr = m.isLocal
-          ? 'Free · $0.00'
-          : (m.costPerMTokIn || m.costPerMTokOut)
-            ? '$' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out'
-            : 'Catalog default';
-        opt.textContent = '[' + providerName + '] ' + m.id + ' (' + costStr + ')';
-        if (m.id === activeModelId) opt.selected = true;
-        select.appendChild(opt);
+      // 1. Populate Local Models select (Setup modal & Header dropdown)
+      const localSelect = document.getElementById('setup-local-model-select');
+      const headerLocalSelect = document.getElementById('header-local-model-select');
+      const localList = (availableLocalModels && availableLocalModels.length > 0) ? availableLocalModels : [];
+
+      [localSelect, headerLocalSelect].forEach((sel) => {
+        if (!sel) return;
+        sel.innerHTML = '';
+        if (localList.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No local models downloaded yet';
+          sel.appendChild(opt);
+        } else {
+          localList.forEach((m) => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            const sizeGb = m.sizeBytes ? ' (' + (m.sizeBytes / 1e9).toFixed(1) + ' GB)' : '';
+            opt.textContent = '🟢 ' + (m.name || m.id) + sizeGb + ' · Free $0';
+            if (m.id === activeModelId || (activeModelId && activeModelId.includes(m.id))) {
+              opt.selected = true;
+            }
+            sel.appendChild(opt);
+          });
+        }
+        const browseOpt = document.createElement('option');
+        browseOpt.value = '__browse__';
+        browseOpt.textContent = '📁 Browse custom .gguf file from disk...';
+        sel.appendChild(browseOpt);
       });
-      onSetupModelChange();
+
+      // 1B. Populate Welcome modal installed models
+      const welcomeInstSelect = document.getElementById('welcome-installed-select');
+      const welcomeInstContainer = document.getElementById('welcome-installed-container');
+      const welcomeInstCount = document.getElementById('welcome-installed-count');
+      if (welcomeInstSelect && welcomeInstContainer) {
+        if (localList.length > 0) {
+          welcomeInstContainer.style.display = 'block';
+          if (welcomeInstCount) welcomeInstCount.textContent = localList.length + ' model' + (localList.length > 1 ? 's' : '') + ' ready';
+          welcomeInstSelect.innerHTML = '';
+          localList.forEach((m) => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            const sizeGb = m.sizeBytes ? ' (' + (m.sizeBytes / 1e9).toFixed(1) + ' GB)' : '';
+            opt.textContent = (m.name || m.id) + sizeGb;
+            if (m.id === activeModelId || (activeModelId && activeModelId.includes(m.id))) {
+              opt.selected = true;
+            }
+            welcomeInstSelect.appendChild(opt);
+          });
+        } else {
+          welcomeInstContainer.style.display = 'none';
+        }
+      }
+
+      // 2. Populate Cloud Models select (Setup modal & Header dropdown)
+      const cloudSelect = document.getElementById('setup-cloud-model-select');
+      const headerCloudSelect = document.getElementById('header-cloud-model-select');
+      const cloudList = (availableCloudModels && availableCloudModels.length > 0) ? availableCloudModels : [
+        { id: 'openrouter/auto', provider: 'openrouter', costPerMTokIn: 0, costPerMTokOut: 0, contextWindow: 128000 }
+      ];
+
+      [cloudSelect, headerCloudSelect].forEach((sel) => {
+        if (!sel) return;
+        sel.innerHTML = '';
+        cloudList.forEach((m) => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          const costStr = (m.costPerMTokIn || m.costPerMTokOut)
+            ? ' ($' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out)'
+            : '';
+          opt.textContent = '☁️ ' + m.id + costStr;
+          if (m.id === activeModelId) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      });
+
+      // 3. Fallback compatibility for setup-model-select
+      const setupModelSelect = document.getElementById('setup-model-select');
+      if (setupModelSelect) {
+        setupModelSelect.innerHTML = '';
+        const allList = (allAvailableModels && allAvailableModels.length > 0) ? allAvailableModels : [...localList, ...cloudList];
+        allList.forEach((m) => {
+          const opt = document.createElement('option');
+          opt.value = m.id;
+          opt.textContent = m.id;
+          if (m.id === activeModelId) opt.selected = true;
+          setupModelSelect.appendChild(opt);
+        });
+      }
+
+      onSetupLocalModelChange();
+      onSetupCloudModelChange();
+    }
+
+    async function onSetupLocalModelChange() {
+      const select = document.getElementById('setup-local-model-select');
+      if (!select || !select.value) return;
+      if (select.value === '__browse__') {
+        openGgufPicker('setup');
+        return;
+      }
+      const chosenId = select.value;
+      const m = (availableLocalModels || []).find((x) => x.id === chosenId);
+      const statEl = document.getElementById('setup-local-status');
+      const detailEl = document.getElementById('setup-local-details');
+      if (statEl) statEl.textContent = '🟢 Ready on disk (100% Offline · $0 tokens)';
+      if (detailEl && m) {
+        detailEl.textContent = (m.name || m.id) + (m.sizeBytes ? ' · ' + (m.sizeBytes / 1e9).toFixed(1) + ' GB GGUF' : '');
+      }
+      const headerLocal = document.getElementById('header-local-model-select');
+      if (headerLocal && headerLocal.value !== chosenId) headerLocal.value = chosenId;
+    }
+
+    async function onHeaderLocalModelChange(val) {
+      if (!val) return;
+      if (val === '__browse__') {
+        openGgufPicker('header');
+        return;
+      }
+      await selectModel(val, 'llamacpp');
+      const setupLocal = document.getElementById('setup-local-model-select');
+      if (setupLocal) setupLocal.value = val;
+      onSetupLocalModelChange();
+    }
+
+    async function useWelcomeInstalledModel() {
+      const select = document.getElementById('welcome-installed-select');
+      const btn = document.getElementById('welcome-installed-btn');
+      if (!select || !select.value) return;
+      const modelId = select.value;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Starting...';
+      }
+      try {
+        await selectModel(modelId, 'llamacpp');
+        const startRes = await fetch('/api/llamacpp/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: modelId }),
+        });
+        if (startRes.ok) {
+          if (btn) btn.textContent = '✓ Ready';
+          await loadModels();
+          populateSetupModels();
+          setTimeout(() => closeWelcomeModal(), 600);
+        } else {
+          const err = await startRes.json().catch(() => ({}));
+          alert('Failed to start model: ' + (err.error || 'Unknown error'));
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '▶ Use Model';
+          }
+        }
+      } catch (e) {
+        alert('Failed to activate model: ' + e.message);
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = '▶ Use Model';
+        }
+      }
+    }
+
+    async function onSetupCloudModelChange() {
+      const select = document.getElementById('setup-cloud-model-select');
+      if (!select || !select.value) return;
+      const chosenId = select.value;
+      const m = (availableCloudModels || []).find((x) => x.id === chosenId);
+      const provEl = document.getElementById('setup-cloud-provider');
+      const ctxEl = document.getElementById('setup-cloud-context');
+      const priceEl = document.getElementById('setup-cloud-pricing');
+      if (m) {
+        if (provEl) provEl.textContent = 'Provider: ' + (m.providerLabel || m.provider || 'Cloud');
+        if (ctxEl) ctxEl.textContent = 'Context: ' + ((m.contextWindow || 128000) / 1000).toFixed(0) + 'k tokens';
+        if (priceEl) {
+          priceEl.textContent = (m.costPerMTokIn || m.costPerMTokOut)
+            ? '$' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out per 1M'
+            : 'Catalog default pricing';
+        }
+      }
+      const headerCloud = document.getElementById('header-cloud-model-select');
+      if (headerCloud && headerCloud.value !== chosenId) headerCloud.value = chosenId;
+      updateCostEstimate();
+    }
+
+    async function onHeaderCloudModelChange(val) {
+      if (!val) return;
+      const m = (availableCloudModels || []).find((x) => x.id === val);
+      await selectModel(val, m ? m.provider : 'openrouter');
+      const setupCloud = document.getElementById('setup-cloud-model-select');
+      if (setupCloud) setupCloud.value = val;
+      onSetupCloudModelChange();
     }
 
     function onSetupModelChange() {
-      const select = document.getElementById('setup-model-select');
-      if (!select) return;
-      const chosenId = select.value;
-      const m = (allAvailableModels || []).find((x) => x.id === chosenId);
-      const provEl = document.getElementById('setup-model-provider');
-      const ctxEl = document.getElementById('setup-model-context');
-      const priceEl = document.getElementById('setup-model-pricing');
-      if (m) {
-        if (provEl) provEl.textContent = 'Provider: ' + (m.providerLabel || m.provider || (m.isLocal ? 'Local' : 'Cloud'));
-        if (ctxEl) ctxEl.textContent = 'Context: ' + ((m.contextWindow || 128000) / 1000).toFixed(0) + 'k tokens';
-        if (priceEl) {
-          priceEl.textContent = m.isLocal
-            ? 'Free · Local model'
-            : (m.costPerMTokIn || m.costPerMTokOut)
-              ? '$' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out per 1M'
-              : 'Standard catalog pricing';
-        }
-      }
-      updateCostEstimate();
+      onSetupLocalModelChange();
+      onSetupCloudModelChange();
     }
 
     function onTurboCheckboxChange() {
@@ -5134,8 +7132,8 @@ export function getWebUiHtml(): string {
     }
 
     function updateCostEstimate() {
-      const select = document.getElementById('setup-model-select');
-      const chosenId = select ? select.value : activeModelId;
+      const cloudSelect = document.getElementById('setup-cloud-model-select');
+      const chosenId = cloudSelect && cloudSelect.value ? cloudSelect.value : activeModelId;
       const m = (allAvailableModels || []).find((x) => x.id === chosenId);
       const budgetInput = document.getElementById('setup-history-budget');
       const maxOutputInput = document.getElementById('setup-max-output');
@@ -5197,8 +7195,6 @@ export function getWebUiHtml(): string {
     }
 
     async function applySessionSetup() {
-      const select = document.getElementById('setup-model-select');
-      const chosenModel = select ? select.value : activeModelId;
       const budget = Number(document.getElementById('setup-history-budget').value) || 64000;
       const maxOutput = Number(document.getElementById('setup-max-output').value) || 32768;
       const maxToolIters = Number(document.getElementById('setup-max-tool-iters')?.value || 40);
@@ -5216,10 +7212,38 @@ export function getWebUiHtml(): string {
         await applySetupWorkspaceFolder(isCreate);
       }
 
-      // 2. Update model if changed
-      if (chosenModel && chosenModel !== activeModelId) {
-        const m = (allAvailableModels || []).find((x) => x.id === chosenModel);
-        await selectModel(chosenModel, m ? m.provider : undefined);
+      // 2. Select appropriate model based on active topology
+      const currentTopo = localStorage.getItem('mugil_topology') || 'auto';
+      const localSel = document.getElementById('setup-local-model-select');
+      const cloudSel = document.getElementById('setup-cloud-model-select');
+      let targetModel = activeModelId;
+      let targetProvider = undefined;
+
+      if (currentTopo === 'local-only') {
+        if (localSel && localSel.value) {
+          targetModel = localSel.value;
+          targetProvider = 'llamacpp';
+        }
+      } else if (currentTopo === 'cloud-only') {
+        if (cloudSel && cloudSel.value) {
+          targetModel = cloudSel.value;
+          const m = (availableCloudModels || []).find((x) => x.id === targetModel);
+          targetProvider = m ? m.provider : 'openrouter';
+        }
+      } else {
+        // Auto / Hybrid: if local model is chosen and available, activate it; otherwise cloud
+        if (localSel && localSel.value) {
+          targetModel = localSel.value;
+          targetProvider = 'llamacpp';
+        } else if (cloudSel && cloudSel.value) {
+          targetModel = cloudSel.value;
+          const m = (availableCloudModels || []).find((x) => x.id === targetModel);
+          targetProvider = m ? m.provider : 'openrouter';
+        }
+      }
+
+      if (targetModel) {
+        await selectModel(targetModel, targetProvider);
       }
 
       // 2. Save config limits
@@ -5520,7 +7544,7 @@ export function getWebUiHtml(): string {
         const assets = [];
         if (skill.hasScripts) assets.push('📜 scripts');
         if (skill.hasReferences) assets.push('📚 references');
-        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22;">'
+        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:var(--card-bg);">'
           + '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
           + '<strong style="font-size:12.5px;">' + escHtml(skill.name) + '</strong>'
           + '<div style="display:flex; gap:6px; align-items:center;">'
@@ -5707,7 +7731,7 @@ export function getWebUiHtml(): string {
           ? '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; background:#23863633; color:var(--green);">✓ Installed (' + escHtml(item.installedTarget || 'workspace') + ')</span>'
           : '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; background:#1f6feb22; color:var(--accent);">Ready to Pick</span>';
 
-        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22; display:flex; flex-direction:column; gap:6px;">'
+        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:var(--card-bg); display:flex; flex-direction:column; gap:6px;">'
           + '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
           + '<div><strong style="font-size:12.5px;">' + escHtml(item.name) + '</strong> <span style="font-size:10.5px; color:var(--text-dim);">(' + escHtml(item.id) + ')</span></div>'
           + '<div style="display:flex; gap:6px; align-items:center;">'
@@ -5893,7 +7917,7 @@ export function getWebUiHtml(): string {
 
       container.innerHTML = records.map((r) => {
         const instBadge = r.installed ? '<span style="font-size:10px; padding:2px 8px; border-radius:10px; font-weight:bold; background:#23863633; color:var(--green);">✓ Installed</span>' : '';
-        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:#161b22; display:flex; flex-direction:column; gap:4px;">'
+        return '<div style="border:1px solid var(--border); border-radius:6px; padding:12px; background:var(--card-bg); display:flex; flex-direction:column; gap:4px;">'
           + '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">'
           + '<strong style="font-size:12.5px;">' + escHtml(r.name) + '</strong>'
           + '<div style="display:flex; gap:6px; align-items:center;">'
@@ -5912,6 +7936,8 @@ export function getWebUiHtml(): string {
       initTerminals();
       setTheme(currentTheme);
       initResizer();
+      initExecutionTopology();
+      void loadLlamaHardwareInfo();
       switchAgentViewMode(agentViewMode);
       void checkForAppUpdate();
       connectWs();

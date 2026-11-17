@@ -33,6 +33,12 @@ export interface ChatMessage {
 export type ModelTier = 'cheap' | 'standard' | 'smart';
 export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high';
 
+export type ExecutionTopology =
+  | 'auto'
+  | 'hybrid-orchestrated'
+  | 'local-only'
+  | 'cloud-only';
+
 /** Cost figures are USD per 1M tokens, used for routing and budget decisions. */
 export interface ModelSpec {
   id: string;
@@ -102,6 +108,8 @@ export interface SavingsBreakdown {
   yagni: number;
   cache: number;
   mcp: number;
+  toolPruning: number;
+  hybridRecon: number;
 }
 
 export interface InputSavings {

@@ -1,6 +1,6 @@
 {
   "name": "@mugil-ide/docs",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "MD Generator \u2014 automated, periodic markdown documentation for a project",
   "keywords": [
     "documentation",
@@ -32,10 +32,10 @@
     "pretypecheck": "npm run build -w @mugil-ide/core",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "jest --runInBand"
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
   },
   "dependencies": {
-    "@mugil-ide/core": "0.4.2"
+    "@mugil-ide/core": "0.5.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

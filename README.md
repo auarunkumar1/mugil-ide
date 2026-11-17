@@ -7,7 +7,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 651 Passing](https://img.shields.io/badge/tests-651%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
+[![Tests: 710 Passing](https://img.shields.io/badge/tests-710%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![MCP: Supported](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![TypeScript: 5.x](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
@@ -18,7 +18,7 @@
 
 **Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding agent harness and developer environment that runs directly in your browser. Mugil IDE wraps state-of-the-art LLMs in a full-featured harness that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
 
-Works seamlessly with **free local models** (Ollama, LM Studio) and **state-of-the-art cloud intelligence** (OpenRouter, Anthropic Claude 3.7 Sonnet, OpenAI, DeepSeek, and Vercel AI).
+Featuring a **built-in offline local AI runtime (`llama.cpp`)** with automated GGUF model management, seamless compatibility with **external local daemons** (Ollama, LM Studio), and **state-of-the-art cloud intelligence** (DeepSeek, Anthropic Claude 3.7 Sonnet, OpenAI, and Vercel AI) in a **hybrid local coder + cloud auditor** architecture.
 
 <p align="center">
   <a href="#-quick-start"><b>⚡ Quick Start</b></a> •
@@ -63,14 +63,19 @@ npm install
 npm start
 ```
 
-### Option 3: 100% Free & Local AI (No API keys or cloud accounts needed)
+### Option 3: 100% Offline Local AI with Built-in llama.cpp (No Cloud, No API Keys, No Third-Party Daemons)
 
-Mugil IDE includes 1-click auto-connect for local models. If you have [Ollama](https://ollama.com) installed:
+Mugil IDE includes a built-in `llama.cpp` runtime that downloads and runs local GGUF models directly on your CPU or GPU:
 
 ```bash
-ollama run qwen2.5-coder:7b
-# Launch Mugil IDE — it automatically detects Ollama at localhost:11434 with zero configuration!
+# Download a lightweight, laptop-friendly local coder (Qwen2.5-Coder-1.5B ~986MB):
+mugil-ide llamacpp download qwen2.5-coder-1.5b
+
+# Or simply start Mugil IDE and manage GGUF models directly in the browser via "📦 Manage GGUF Models" in the menu!
+mugil-ide
 ```
+
+Mugil IDE also automatically detects existing local daemons (Ollama at `localhost:11434` or LM Studio at `localhost:1234`) with zero configuration.
 
 ---
 
@@ -225,9 +230,24 @@ flowchart LR
 
 ## 🚀 What's Shipped Today vs. Next Release
 
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.4.1**, versus what is on the roadmap for **v0.5.0**:
+We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.5.0**, versus what is on the roadmap for **v0.6.0**:
 
-### ✅ Shipped & Ready in v0.4.1 (Current Release)
+### ✅ Shipped & Ready in v0.5.0 (Current Release)
+
+#### ⚡ Built-in Offline Local AI (llama.cpp Engine) & Hybrid Architecture
+
+- [x] **Zero-Config llama.cpp Engine Runtime:** Vendored pinned upstream `llama.cpp` release (`b12451`) with automated OS detection, SHA256 checksum verification, and atomic extraction for `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`, and `win-x64` under `~/.mugil-ide/llamacpp/bin/`. Runs local GGUF models directly on CPU or GPU with zero third-party dependencies (no Ollama, LM Studio, Python, or Docker required).
+- [x] **Curated GGUF Model Catalog & Custom Importer:** Includes laptop-optimized coding sweet spots: `Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf` (~986 MB, fast CPU execution on laptops) and `Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf` (~4.7 GB). Drop any `.gguf` file into `~/.mugil-ide/llamacpp/models/` for immediate discovery.
+- [x] **Full CLI Local AI Lifecycle Commands:** `mugil-ide llamacpp status`, `download <preset>`, `start [preset]`, `stop`, and `import <file>`.
+- [x] **Web UI Model Manager & Storage Controls:** Interactive Web UI modal (`📦 Manage GGUF Models`) in the top navigation ribbon and mobile header dropdown with live disk space tracking, active server status badge, download progress, 1-click **Download**, **Load / Activate**, **Stop Server**, and **Delete Model** with safe process verification and disk reclamation.
+- [x] **Hybrid Local Coder + Cloud Auditor Architecture:** Dual-brain workflow executing file searches, symbol inspection, and rapid local drafting offline via `llama.cpp` at \$0 cost, handing off complex architectural reviews and multi-file refactoring to cloud models.
+- [x] **Dynamic Tool Pruning & Context Optimization:** Automatically prunes unnecessary tool schemas (`pruneToolsForLocalModel`) to fit within compact 4k/8k context windows on local laptop hardware.
+- [x] **Small-Model System Prompt Hardening:** Suppresses conversational disclaimers (`"As an AI developed by..."`) and strictly anchors local models to workspace tools and direct code output.
+- [x] **Robust Multi-Vector Process Supervision:** Multi-vector process discovery (`findRunningLlamaPids`) querying Linux `/proc/<pid>/comm` and `/proc/<pid>/cmdline` (handling NUL byte separators), `pgrep -x llama-server` on Linux/macOS, and `tasklist` on Windows. Synchronously terminates background server processes on `POST /api/shutdown`, `Ctrl+C`, `SIGTERM`, `SIGHUP`, `SIGQUIT`, and Node `exit` / `beforeExit`.
+- [x] **Startup Collision Deduplication:** In-flight startup deduplication (`activeStartup`) prevents race conditions where rapid model switches or REPL interactions previously spawned competing background server processes.
+- [x] **Balanced JSON Tool Extraction:** Zero-regex balanced JSON parser (`findBalancedJsonObject`) in `packages/core/src/modules/handoff/toolExtractor.ts` reliably extracts and executes nested tool calls emitted as raw text by small local models.
+- [x] **Day & Vintage CRT Themes:** High-contrast **Day / Light (Day White)** theme with uniform contrast across all inputs, selects, headers, modals, and diff views; plus nostalgic **CRT Amber / Phosphor (Vintage CRT)** theme.
+- [x] **Browser Launch Single-Instance Hygiene:** Single-instance browser launch guard (`hasOpenedBrowser`) prevents duplicate browser tab spawns on server start.
 
 #### 📱 Remote Device Streaming & Modern Responsive UI
 
@@ -306,9 +326,9 @@ We believe in complete transparency. Here is a clear breakdown of what is fully 
 - [x] **Dedicated Open-Source Credits & Attributions Page:** Dedicated `📜 Open Source Credits & Attributions` UI modal in the main menu and CLI `/credits` command honoring original authors, canonical repositories, and licenses for agent skills, core modules (Caveman, RTK, Ponytail, OpenCode, CodeGraph, etc.), and libraries. Shipped with complete 21-entry `ATTRIBUTIONS.md`.
 - [x] **Skills Security Hardening & Containment (v0.3.2):** Symlink escape prevention (`containedSkillFile`), non-builtin provenance tagging (`[workspace skill]` / `[global skill]`) with untrusted content warnings, prompt trigger character budget limit (12,000 chars across all matched skills), SSRF-guarded gallery/URL downloads (`guardedFetch` with private IP/metadata block and redirect re-checks), non-markdown body rejection, filtered local directory copying (`copySkillDir`), config-clobber guard, and re-install overwrite confirmation prompts.
 - [x] **Universal `process-auditor` Multi-Industry Business Logic Skill:** Built-in workspace skill verifying state machine invariants, financial precision, and audit readiness across 10 verticals: ERP, Banking/FinTech, Hospital Management (HMS), Hotel PMS, Logistics/Fleet, Manufacturing, Retail POS/Grocery, Construction/Contracting, Events/Catering, and Tax/Print document compliance. Features automated heuristic scanner (`scripts/verify-business-logic.mjs`) and paired test suite (`tests/test-industry-audits.mjs`).
-- [x] **Comprehensive Test Suite:** 651 unit and integration tests passing across all packages (47 suites: 575 core, 57 cli, 10 docs, 9 mcp), hermetic by default.
+- [x] **Comprehensive Test Suite:** 710 unit and integration tests passing across all packages (53 suites: 623 core, 68 cli, 10 docs, 9 mcp), hermetic by default.
 
-### 🎯 Planned for Next Release Push (v0.5.0 Roadmap)
+### 🎯 Planned for Next Release Push (v0.6.0 Roadmap)
 
 - [ ] **Multi-Modal Audio & Voice Interaction:** Real-time voice input and speech streaming via local Whisper / Piper models.
 - [ ] **Autonomous Git PR Automation:** Direct GitHub PR generation with multi-file diff explanations and automated test reports.

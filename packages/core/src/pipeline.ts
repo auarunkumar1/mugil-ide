@@ -2,6 +2,7 @@ import type {
   AskResult,
   CacheLookupResult,
   ChatMessage,
+  ExecutionTopology,
   HandoffOptions,
   InputSavings,
   PipelineEvent,
@@ -19,11 +20,15 @@ import {
 } from './modules/ponytail/index.js';
 import { refinePrompt, type RefineOptions } from './refine.js';
 import { countTokens } from './token/tokenizer.js';
+import { defaultSavingsBreakdown } from './savings.js';
 import type { HandoffManager } from './modules/handoff/index.js';
 import { ToolLoop, type ToolLoopResult, type ToolRegistry } from './modules/tool-loop/index.js';
 import { globalStepDebugger, type StepDebugger } from './modules/tool-loop/stepDebugger.js';
 import { fireWebhooks, parseWebhookConfigs, type WebhookConfig } from './modules/webhooks.js';
 import { globalSecretVault } from './modules/security/secretVault.js';
+import * as path from 'node:path';
+import { executePreflight, pruneToolSchemas, determineActiveBundles } from './modules/hybrid/index.js';
+import type { LlamaServerManager } from './modules/llamacpp/server.js';
 
 export interface PipelineOptions {
   cache: SmartCache;
@@ -92,6 +97,10 @@ export interface AskOptions extends HandoffOptions {
     toolCalls: number;
     usage: Usage;
   }) => number | Promise<number>;
+  /** Execution topology. 'cloud-only' guarantees 100% status quo with zero local pre-flight. */
+  topology?: ExecutionTopology;
+  workspaceDir?: string;
+  llamaManager?: LlamaServerManager;
 }
 
 const DEFAULT_SYSTEM_PROMPT =
@@ -246,7 +255,7 @@ export class Pipeline {
     const savings: InputSavings = {
       savedTokens: cavemanSaved,
       keptTokens: options.noRefine ? 0 : refine.refinedTokens,
-      breakdown: { caveman: cavemanSaved, yagni: 0, cache: 0, mcp: 0 },
+      breakdown: { ...defaultSavingsBreakdown(), caveman: cavemanSaved },
       optimisticSavedTokens: cavemanSaved,
     };
 
@@ -298,10 +307,9 @@ export class Pipeline {
           savedTokens: refine.refinedTokens,
           keptTokens: 0,
           breakdown: {
+            ...defaultSavingsBreakdown(),
             caveman: cavemanSaved,
-            yagni: 0,
             cache: refine.refinedTokens + countTokens(cacheLookup.entry.response),
-            mcp: 0,
           },
           optimisticSavedTokens:
             refine.refinedTokens + countTokens(cacheLookup.entry.response) + cavemanSaved,
@@ -344,6 +352,93 @@ export class Pipeline {
       systemParts.push(ponytailInstruction());
     }
 
+    // 2.5 Hybrid Pre-Flight Orchestration (Strictly bypassed if topology is 'cloud-only' or tools absent)
+    let effectiveTools = options.tools;
+    const isCloudOnly = options.topology === 'cloud-only';
+    const isHybrid = options.topology === 'hybrid-orchestrated';
+    const isLocalTopology = options.topology === 'local-only';
+    const isAuto = !options.topology || options.topology === 'auto';
+    const providerName = this.handoff.currentClient.providerName ?? '';
+    const isLocalProvider = ['llamacpp', 'ollama', 'lmstudio', 'local'].includes(providerName);
+
+    // In auto topology, engage hybrid preflight if cloud model is active AND local llama-server is running
+    const shouldEngageHybrid =
+      !isCloudOnly &&
+      hasTools &&
+      (isHybrid || (isAuto && !isLocalProvider && (options.llamaManager?.isRunning() ?? false)));
+
+    if (shouldEngageHybrid) {
+      try {
+        const preflight = await executePreflight({
+          workspaceDir: options.workspaceDir || process.cwd(),
+          prompt,
+          allTools: options.tools || [],
+          llamaManager: options.llamaManager,
+        });
+
+        // Dynamic tool pruning
+        const pruneResult = pruneToolSchemas(options.tools || [], preflight.activeBundles);
+        effectiveTools = pruneResult.tools;
+
+        // Context capsule injection into system parts
+        if (preflight.capsule.contextSnippet || preflight.capsule.openDoorContract) {
+          systemParts.push(
+            [
+              '### Dense Context Capsule (Pre-Flight Discovery)',
+              preflight.capsule.contextSnippet,
+              preflight.capsule.openDoorContract,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          );
+        }
+
+        // Accumulate tool pruning and hybrid recon savings
+        const pt = pruneResult.prunedTokens;
+        const hr = preflight.capsule.estimatedSavings.hybridRecon;
+        savings.savedTokens += pt + hr;
+        if (savings.breakdown) {
+          savings.breakdown.toolPruning = (savings.breakdown.toolPruning ?? 0) + pt;
+          savings.breakdown.hybridRecon = (savings.breakdown.hybridRecon ?? 0) + hr;
+        }
+        savings.optimisticSavedTokens =
+          (savings.optimisticSavedTokens ?? savings.savedTokens) + pt + hr;
+      } catch {
+        /* fallback gracefully if hybrid preflight fails */
+      }
+    } else if (!isCloudOnly && hasTools && (isLocalTopology || isLocalProvider) && effectiveTools) {
+      // For local models on CPU, prune unused tool bundles to prevent multi-thousand token prompts
+      const activeBundles = determineActiveBundles(prompt);
+      const pruneResult = pruneToolSchemas(effectiveTools, activeBundles);
+      effectiveTools = pruneResult.tools;
+      const pt = pruneResult.prunedTokens;
+      savings.savedTokens += pt;
+      if (savings.breakdown) {
+        savings.breakdown.toolPruning = (savings.breakdown.toolPruning ?? 0) + pt;
+      }
+    }
+
+    // Local Orchestrator Directive: minimize writing full code locally, act as scout/orchestrator
+    if (!isCloudOnly && (isHybrid || isLocalTopology || isLocalProvider)) {
+      const activeWs = path.resolve(options.workspaceDir || process.cwd());
+      systemParts.push(
+        [
+          '### Local Orchestrator & Scout Directive',
+          'You are Mugil IDE, an autonomous local coding engine running offline via llama.cpp.',
+          'You are NOT an online cloud model and NOT developed by Anthropic, OpenAI, or Google.',
+          'You have DIRECT access to inspect, read, search, and edit files in the user\'s local workspace through your tools.',
+          `ACTIVE WORKSPACE ROOT: ${activeWs}`,
+          '',
+          'CRITICAL WORKSPACE GROUNDING RULES:',
+          '1. NEVER claim you cannot see the workspace or files. You have tools specifically to inspect and read them.',
+          '2. When the user asks about workspace files, pending tasks, project status, or todo files, your FIRST action MUST be to invoke your tools (such as list_files, read_file, search_code, or todoread) to verify what actually exists on disk. Do NOT respond with generic disclaimers or recite from unverified chat history.',
+          '3. Operate strictly within the active workspace root. Never hallucinate or carry over files from other projects.',
+          '4. MINIMIZE writing voluminous code implementations locally. Instead, inspect files, formulate precise steps, discover pending tasks, and orchestrate tools efficiently.',
+          '5. When a tool finishes, ALWAYS synthesize the tool results into a clear and direct answer. Never output raw tags like <tool_response> and never end your turn with just the raw tool confirmation message.',
+        ].join('\n'),
+      );
+    }
+
     const messages: ChatMessage[] = [];
     const system = systemParts.filter((p) => p.trim().length > 0).join('\n\n');
     if (system.trim().length > 0) messages.push({ role: 'system', content: system });
@@ -356,7 +451,7 @@ export class Pipeline {
     const historyTokens = options.history
       ? options.history.reduce((acc, m) => acc + countTokens(m.content), 0)
       : 0;
-    const toolsTokens = options.tools ? countTokens(JSON.stringify(options.tools)) : 0;
+    const toolsTokens = effectiveTools ? countTokens(JSON.stringify(effectiveTools)) : 0;
     const totalPromptTokens = refine.refinedTokens + systemTokens + historyTokens + toolsTokens;
 
     const outputBudget = ponytailOutputBudget(ponytailOpts);
@@ -435,7 +530,7 @@ export class Pipeline {
             emit({ type: 'thinking', text, streamed: streamed === true }),
         }).run(messages, {
           ...options,
-          tools: options.tools!,
+          tools: effectiveTools!,
           registry: options.toolRegistry ?? {},
           maxTokens,
         })
@@ -465,6 +560,10 @@ export class Pipeline {
           savings.breakdown.mcp += toolSavings.breakdown.mcp;
           savings.breakdown.cache += toolSavings.breakdown.cache;
           savings.breakdown.caveman += toolSavings.breakdown.caveman;
+          savings.breakdown.toolPruning =
+            (savings.breakdown.toolPruning ?? 0) + (toolSavings.breakdown.toolPruning ?? 0);
+          savings.breakdown.hybridRecon =
+            (savings.breakdown.hybridRecon ?? 0) + (toolSavings.breakdown.hybridRecon ?? 0);
         }
         savings.optimisticSavedTokens =
           (savings.optimisticSavedTokens ?? savings.savedTokens) +

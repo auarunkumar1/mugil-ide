@@ -57,6 +57,13 @@ export const PROVIDERS: ProviderDef[] = [
     url: 'https://opencode.ai/auth',
   },
   {
+    id: 'llamacpp',
+    label: 'Built-in Local AI (llama.cpp — no API key required)',
+    keyVar: 'LLAMACPP_BASE_URL',
+    url: 'http://127.0.0.1:8080/v1',
+    custom: true,
+  },
+  {
     id: 'ollama',
     label: 'Ollama (Local LLM — no API key required)',
     keyVar: 'OLLAMA_BASE_URL',

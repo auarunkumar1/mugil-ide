@@ -1,6 +1,6 @@
 {
   "name": "@mugil-ide/core",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Token Efficiency Manager, Smart Cache, Auto Handoff, Signature Stripper",
   "keywords": [
     "ai",
@@ -34,7 +34,7 @@
     "prepack": "npm run clean && npm run build",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "jest --runInBand"
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",

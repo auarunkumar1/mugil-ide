@@ -272,6 +272,18 @@ export const DEFAULT_LMSTUDIO_MODELS: ModelSpec[] = [
   },
 ];
 
+/** Default llama.cpp ladder. */
+export const DEFAULT_LLAMACPP_MODELS: ModelSpec[] = [
+  {
+    id: 'mugil',
+    tier: 'standard',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 8192,
+    supportsTools: true,
+  },
+];
+
 /** Default Local OpenAI endpoint ladder. */
 export const DEFAULT_LOCAL_MODELS: ModelSpec[] = [
   {
@@ -519,10 +531,11 @@ export type CompletionProvider =
   | 'vercel'
   | 'cloudflare'
   | 'together'
-  | 'opencode';
+  | 'opencode'
+  | 'llamacpp';
 
 export interface AppConfig {
-  /** The provider the engine talks to (OpenRouter primary; else OpenAI/Anthropic/Ollama/LM Studio/Local/Vercel/Cloudflare/Together). */
+  /** The provider the engine talks to (OpenRouter primary; else OpenAI/Anthropic/Ollama/LM Studio/Local/Vercel/Cloudflare/Together/llama.cpp). */
   provider: CompletionProvider;
   openRouterApiKey?: string;
   openRouterBaseUrl: string;
@@ -533,6 +546,10 @@ export interface AppConfig {
   ollamaBaseUrl: string;
   lmstudioBaseUrl: string;
   localBaseUrl: string;
+  llamacppBaseUrl: string;
+  llamacppModelPath?: string;
+  llamacppCtx?: number;
+  llamacppGpuLayers?: number;
   vercelApiKey?: string;
   vercelBaseUrl: string;
   cloudflareApiKey?: string;
@@ -639,10 +656,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   // Provider resolution: OpenRouter is primary; AI_PROVIDER overrides.
   const requested = (merged.AI_PROVIDER ?? '').toLowerCase();
   const provider: CompletionProvider =
-    requested === 'ollama'
-      ? 'ollama'
-      : requested === 'lmstudio'
-        ? 'lmstudio'
+    requested === 'llamacpp'
+      ? 'llamacpp'
+      : requested === 'ollama'
+        ? 'ollama'
+        : requested === 'lmstudio'
+          ? 'lmstudio'
         : requested === 'local'
           ? 'local'
           : requested === 'openai'
@@ -674,7 +693,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
                                     : 'openrouter';
 
   const rawModels =
-    provider === 'openai'
+    provider === 'llamacpp'
+      ? parseModels(merged.LLAMACPP_MODELS, DEFAULT_LLAMACPP_MODELS)
+      : provider === 'openai'
       ? parseModels(merged.OPENAI_MODELS, DEFAULT_OPENAI_MODELS)
       : provider === 'anthropic'
         ? parseModels(merged.ANTHROPIC_MODELS, DEFAULT_ANTHROPIC_MODELS)
@@ -728,6 +749,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     ollamaBaseUrl: merged.OLLAMA_BASE_URL || 'http://localhost:11434/v1',
     lmstudioBaseUrl: merged.LMSTUDIO_BASE_URL || 'http://localhost:1234/v1',
     localBaseUrl: merged.LOCAL_BASE_URL || 'http://localhost:8000/v1',
+    llamacppBaseUrl: merged.LLAMACPP_BASE_URL || 'http://127.0.0.1:8080/v1',
+    llamacppModelPath: merged.LLAMACPP_MODEL_PATH || undefined,
+    llamacppCtx: merged.LLAMACPP_CTX ? parseInt(merged.LLAMACPP_CTX, 10) : 8192,
+    llamacppGpuLayers: merged.LLAMACPP_GPU_LAYERS !== undefined ? parseInt(merged.LLAMACPP_GPU_LAYERS, 10) : undefined,
     vercelApiKey,
     vercelBaseUrl: merged.VERCEL_BASE_URL || 'https://ai-gateway.vercel.sh/v1',
     cloudflareApiKey,

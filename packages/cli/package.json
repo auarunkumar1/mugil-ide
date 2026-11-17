@@ -1,6 +1,6 @@
 {
   "name": "mugil-ide",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "type": "module",
   "description": "Token-efficient Mugil IDE web IDE server (browser xterm.js UI + PTY + headless one-shot mode)",
   "keywords": [
@@ -41,13 +41,13 @@
     "build": "tsc -p tsconfig.json && node scripts/vendor-xterm.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "npm run build",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit",
     "smoke:question-picker": "npm run build && node scripts/smoke-question-picker.mjs",
     "smoke:diff-viewer": "npm run build && node scripts/smoke-diff-viewer.mjs"
   },
   "dependencies": {
-    "@mugil-ide/core": "0.4.2",
-    "@mugil-ide/docs": "0.4.2",
+    "@mugil-ide/core": "0.5.0",
+    "@mugil-ide/docs": "0.5.0",
     "@xterm/addon-fit": "0.10.0",
     "@xterm/addon-web-links": "0.11.0",
     "@xterm/xterm": "5.5.0",

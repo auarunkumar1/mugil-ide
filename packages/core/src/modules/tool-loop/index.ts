@@ -28,6 +28,7 @@ import { streamCompletion, type StreamHandlers } from '../handoff/stream.js';
 import { compressCommandOutput } from '../rtk/index.js';
 import { globalBlobStore } from '../tools/blobStore.js';
 import { globalSecretVault } from '../security/secretVault.js';
+import { defaultSavingsBreakdown } from '../../savings.js';
 import { countTokens } from '../../token/tokenizer.js';
 import {
   StepDebugger,
@@ -189,7 +190,7 @@ export class ToolLoop {
     const savings: InputSavings = {
       savedTokens: 0,
       keptTokens: 0,
-      breakdown: { caveman: 0, yagni: 0, cache: 0, mcp: 0 },
+      breakdown: defaultSavingsBreakdown(),
       optimisticSavedTokens: 0,
     };
     // A model that keeps re-issuing a call the gate refused spends a full
@@ -311,11 +312,36 @@ export class ToolLoop {
     toolCalls: number,
     savings: InputSavings,
   ): Promise<ToolLoopResult> {
-    if (completion.content.trim().length > 0) {
+    const rawContent = completion.content.trim();
+    const isToolEcho =
+      toolCalls > 0 &&
+      (rawContent.startsWith('<tool_response') ||
+        rawContent.startsWith('</tool_response') ||
+        (rawContent.startsWith('<') &&
+          (rawContent.includes('tool_') ||
+            (rawContent.length < 120 &&
+              messages.some(
+                (m) =>
+                  m.role === 'tool' &&
+                  m.content.trim().length > 0 &&
+                  (rawContent === `<${m.content.trim()}` || rawContent.includes(m.content.trim())),
+              )))) ||
+        messages.some(
+          (m) =>
+            m.role === 'tool' &&
+            m.content.trim().length > 0 &&
+            (rawContent === `<${m.content.trim()}` ||
+              ((m.content.trim().startsWith('✓') ||
+                m.content.trim().toLowerCase().includes('task list')) &&
+                rawContent === m.content.trim())),
+        ));
+
+    if (rawContent.length > 0 && !isToolEcho) {
       return { ...completion, usage, toolCalls, savings };
     }
-    const retryPrompt =
-      'Your previous response was empty. Provide your final answer now without calling any tools.';
+    const retryPrompt = isToolEcho
+      ? 'The tool operations completed. Based on the tool results above, provide your complete and direct answer to the user\'s original request now without calling any tools or echoing tool response tags.'
+      : 'Your previous response was empty. Provide your final answer now without calling any tools.';
     // Append to the last message when it is a user message so providers that
     // forbid consecutive same-role messages (Anthropic) still accept the retry.
     const retryMessages = [...messages];

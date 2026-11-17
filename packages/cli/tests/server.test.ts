@@ -1903,6 +1903,56 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
     }
   });
 
+  it('broadcasts workspace_changed over WebSocket and switches REPL workspace when switching workspace', async () => {
+    const origCwd = process.cwd();
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, port: 0 });
+    const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'mugil-ws-ws-test-'));
+    const ws = new WebSocket(`ws://localhost:${server.port}/ws`);
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('ws open timeout')), 3000);
+        ws.on('open', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        ws.on('error', reject);
+      });
+
+      const messagePromise = new Promise<{ type: string; root: string }>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('workspace_changed timeout')), 4000);
+        ws.on('message', (data) => {
+          try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === 'workspace_changed') {
+              clearTimeout(timer);
+              resolve(msg);
+            }
+          } catch {
+            // ignore non-json
+          }
+        });
+      });
+
+      const switchRes = await fetch(`${server.url}/api/workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: tmpBase }),
+      });
+      expect(switchRes.status).toBe(200);
+
+      const wsMsg = await messagePromise;
+      expect(wsMsg.type).toBe('workspace_changed');
+      expect(path.resolve(wsMsg.root)).toBe(path.resolve(tmpBase));
+    } finally {
+      ws.close();
+      process.chdir(origCwd);
+      if (fs.existsSync(tmpBase)) fs.rmSync(tmpBase, { recursive: true, force: true });
+      await server.close();
+    }
+  });
+
   it('handles GET and POST /api/debugger', async () => {
     const engine = createEngine(loadConfig());
     const server = await startIdeServer({ engine, port: 0 });
@@ -2370,6 +2420,37 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         headers: { Origin: 'http://malicious-website.com' },
       });
       expect(untrustedRes.status).toBe(403);
+    } finally {
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
+  it('GET /api/llamacpp/status returns manager status, hardware, and catalog', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    try {
+      const res = await fetch(`${server.url}/api/llamacpp/status`);
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(json.status).toBeDefined();
+      expect(json.hardware).toBeDefined();
+      expect(Array.isArray(json.catalog)).toBe(true);
+      expect(json.catalog.length).toBeGreaterThan(0);
+    } finally {
+      await server.close();
+      await engine.backend.close();
+    }
+  });
+
+  it('GET /api/llamacpp/models returns installed models list', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine });
+    try {
+      const res = await fetch(`${server.url}/api/llamacpp/models`);
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as any;
+      expect(Array.isArray(json)).toBe(true);
     } finally {
       await server.close();
       await engine.backend.close();

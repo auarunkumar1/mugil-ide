@@ -345,6 +345,7 @@ export {
   sumSavingsBreakdowns,
   optimisticSavingsTotal,
   optimisticSavingsPercent,
+  calculateSessionEfficiency,
 } from './savings.js';
 export { getTokenizer, countTokens } from './token/tokenizer.js';
 export type { Tokenizer } from './token/tokenizer.js';
@@ -405,11 +406,14 @@ export {
   DEFAULT_OLLAMA_MODELS,
   DEFAULT_LMSTUDIO_MODELS,
   DEFAULT_LOCAL_MODELS,
+  DEFAULT_LLAMACPP_MODELS,
   DEFAULT_VERCEL_MODELS,
   DEFAULT_CLOUDFLARE_MODELS,
   DEFAULT_TOGETHER_MODELS,
   DEFAULT_OPENCODE_MODELS,
 } from './config.js';
+export * as llamacpp from './modules/llamacpp/index.js';
+export * as hybrid from './modules/hybrid/index.js';
 export { fetchProviderModels } from './modules/handoff/models.js';
 export type { FetchModelsOptions } from './modules/handoff/models.js';
 export { resolveFileContext, type ResolveContextResult } from './contextResolver.js';
@@ -433,6 +437,7 @@ export type {
   CacheEntry,
   AskResult,
   PipelineEvent,
+  ExecutionTopology,
 } from './types.js';
 
 /** Builds a fully-wired engine from the environment. */
@@ -489,17 +494,24 @@ export type Engine = ReturnType<typeof createEngine>;
 
 /** Picks the completion client for the configured provider. */
 function createClient(config: AppConfig): ProviderClient {
+  if (config.provider === 'llamacpp') {
+    return new OpenAiClient({
+      apiKey: 'llamacpp',
+      baseUrl: config.llamacppBaseUrl || 'http://127.0.0.1:8080/v1',
+      providerName: 'llamacpp',
+    });
+  }
   if (config.provider === 'ollama') {
-    return new OpenAiClient({ apiKey: 'ollama', baseUrl: config.ollamaBaseUrl });
+    return new OpenAiClient({ apiKey: 'ollama', baseUrl: config.ollamaBaseUrl, providerName: 'ollama' });
   }
   if (config.provider === 'lmstudio') {
-    return new OpenAiClient({ apiKey: 'lm-studio', baseUrl: config.lmstudioBaseUrl });
+    return new OpenAiClient({ apiKey: 'lm-studio', baseUrl: config.lmstudioBaseUrl, providerName: 'lmstudio' });
   }
   if (config.provider === 'local') {
-    return new OpenAiClient({ apiKey: 'local', baseUrl: config.localBaseUrl });
+    return new OpenAiClient({ apiKey: 'local', baseUrl: config.localBaseUrl, providerName: 'local' });
   }
   if (config.provider === 'openai') {
-    return new OpenAiClient({ apiKey: config.openaiApiKey, baseUrl: config.openaiBaseUrl });
+    return new OpenAiClient({ apiKey: config.openaiApiKey, baseUrl: config.openaiBaseUrl, providerName: 'openai' });
   }
   if (config.provider === 'anthropic') {
     return new AnthropicClient({

@@ -12,6 +12,7 @@
 import { countTokens } from './token/tokenizer.js';
 import { cavemanStrategy } from './modules/caveman/index.js';
 import { rtkStrategy } from './modules/rtk/index.js';
+import { defaultSavingsBreakdown } from './savings.js';
 import type { InputSavings } from './types.js';
 
 export interface ConversationTurn {
@@ -95,7 +96,7 @@ export function budgetConversationHistory(
   const compressionSavings: InputSavings = {
     savedTokens: 0,
     keptTokens: 0,
-    breakdown: { caveman: 0, yagni: 0, cache: 0, mcp: 0 },
+    breakdown: defaultSavingsBreakdown(),
     optimisticSavedTokens: 0,
   };
   let tokens = 0;

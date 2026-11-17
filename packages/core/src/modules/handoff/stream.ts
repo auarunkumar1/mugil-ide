@@ -15,6 +15,7 @@
  */
 import type { ChatMessage, HandoffOptions, ToolCall } from '../../types.js';
 import type { HandoffManager, HandoffResult } from './index.js';
+import { extractTextualToolCalls, StreamToolFilter } from './toolExtractor.js';
 
 export interface StreamHandlers {
   /**
@@ -190,6 +191,7 @@ export async function parseOpenAiSse(
   let usage: StreamedCompletion['usage'];
   let model: string | undefined;
   const splitter = new StreamThinkSplitter();
+  const toolFilter = new StreamToolFilter();
   // Tool call fragments arrive keyed by `index`; arguments accumulate across
   // frames and only form valid JSON once complete.
   const partial = new Map<number, { id: string; name: string; args: string }>();
@@ -226,7 +228,7 @@ export async function parseOpenAiSse(
         delta.content,
         (c) => {
           content += c;
-          handlers.onDelta?.(c, true);
+          toolFilter.process(c, (text) => handlers.onDelta?.(text, true));
         },
         (t) => {
           thinking += t;
@@ -247,18 +249,28 @@ export async function parseOpenAiSse(
   splitter.flush(
     (c) => {
       content += c;
-      handlers.onDelta?.(c, true);
+      toolFilter.process(c, (text) => handlers.onDelta?.(text, true));
     },
     (t) => {
       thinking += t;
       handlers.onThinking?.(t, true);
     },
   );
+  toolFilter.flush((text) => handlers.onDelta?.(text, true));
 
-  const toolCalls: ToolCall[] = [...partial.entries()]
+  let toolCalls: ToolCall[] = [...partial.entries()]
     .sort((a, b) => a[0] - b[0])
     .filter(([, v]) => v.name.length > 0)
     .map(([, v]) => ({ id: v.id, name: v.name, arguments: v.args || '{}' }));
+
+  if (toolCalls.length === 0) {
+    const extracted = extractTextualToolCalls(content);
+    if (extracted.toolCalls.length > 0) {
+      toolCalls = extracted.toolCalls;
+      content = extracted.cleanContent;
+      finishReason = 'tool_calls';
+    }
+  }
 
   return { content, thinking, toolCalls, finishReason, usage, model };
 }

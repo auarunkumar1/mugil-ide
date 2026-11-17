@@ -276,12 +276,60 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
     'openrouter/auto';
   let probedModelsCache: Array<any> = [];
   let activeRepl: AgentRepl | null = null;
-  const updateActiveModel = (newModel: string, newProvider?: string) => {
+  const activeRepls = new Set<AgentRepl>();
+  const updateActiveModel = async (newModel: string, newProvider?: string) => {
     activeModel = newModel;
-    const providerToSet = newProvider || engine.config.provider;
+    let providerToSet = newProvider;
+    if (!providerToSet) {
+      if (newModel.endsWith('.gguf') || newModel.toLowerCase().includes('qwen2.5-coder')) {
+        providerToSet = 'llamacpp';
+      } else if (newModel.startsWith('openrouter/') || newModel.startsWith('deepseek/')) {
+        providerToSet = 'openrouter';
+      } else if (newModel.startsWith('openai/')) {
+        providerToSet = 'openai';
+      } else if (newModel.startsWith('anthropic/')) {
+        providerToSet = 'anthropic';
+      } else {
+        providerToSet = engine.config.provider;
+      }
+    }
+
     if (providerToSet && providerToSet !== engine.config.provider) {
       engine.reconfigure({ ...engine.config, provider: providerToSet as any });
     }
+
+    // Auto-start llama-server if a local llamacpp model is selected
+    if (providerToSet === 'llamacpp' || newModel.endsWith('.gguf')) {
+      try {
+        const { llamacpp } = await import('@mugil-ide/core');
+        const mgr = llamacpp.LlamaServerManager.instance();
+        if (!mgr.isRunning()) {
+          const installed = await llamacpp.listInstalledModels();
+          const target = installed.find((m) => m.file === newModel) || installed[0];
+          if (target) {
+            const status = await mgr.start({ modelPath: target.path });
+            const baseUrl = status.baseUrl || mgr.status().baseUrl || 'http://127.0.0.1:8080/v1';
+            engine.reconfigure({
+              ...engine.config,
+              provider: 'llamacpp',
+              llamacppBaseUrl: baseUrl,
+            });
+          }
+        } else {
+          const currentBaseUrl = mgr.status().baseUrl;
+          if (currentBaseUrl && currentBaseUrl !== engine.config.llamacppBaseUrl) {
+            engine.reconfigure({
+              ...engine.config,
+              provider: 'llamacpp',
+              llamacppBaseUrl: currentBaseUrl,
+            });
+          }
+        }
+      } catch {
+        /* non-blocking */
+      }
+    }
+
     if (activeRepl && probedModelsCache.length > 0) {
       activeRepl.setAvailableModels(probedModelsCache);
     }
@@ -490,6 +538,66 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             }))
             .catch(() => ({ isLocal: true, models: [] })),
 
+          // Probe built-in llama.cpp: check running server AND list installed .gguf models on disk
+          (async () => {
+            try {
+              const { llamacpp } = await import('@mugil-ide/core');
+              const isRunning = llamacpp.LlamaServerManager.instance().isRunning();
+              const installed = await llamacpp.listInstalledModels();
+              const modelsMap = new Map<string, any>();
+
+              if (isRunning) {
+                try {
+                  const m = await fetchProviderModels({
+                    provider: 'llamacpp',
+                    baseUrl:
+                      llamacpp.LlamaServerManager.instance().status().baseUrl ||
+                      engine.config.llamacppBaseUrl ||
+                      'http://127.0.0.1:8080/v1',
+                    timeoutMs: 1500,
+                  });
+                  for (const r of m || []) {
+                    modelsMap.set(r.id, {
+                      ...r,
+                      provider: 'llamacpp',
+                      isLocal: true,
+                      providerLabel: 'Built-in Local AI (llama.cpp)',
+                      installed: true,
+                      running: true,
+                    });
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }
+
+              for (const inst of installed) {
+                const label = inst.file.replace(/\.gguf$/i, '');
+                if (!modelsMap.has(inst.file)) {
+                  modelsMap.set(inst.file, {
+                    id: inst.file,
+                    name: label,
+                    provider: 'llamacpp',
+                    isLocal: true,
+                    providerLabel: 'Built-in Local AI (llama.cpp)',
+                    installed: true,
+                    running: isRunning,
+                    sizeBytes: inst.sizeBytes,
+                    path: inst.path,
+                    contextWindow: 32768,
+                  });
+                }
+              }
+
+              return {
+                isLocal: true,
+                models: Array.from(modelsMap.values()),
+              };
+            } catch {
+              return { isLocal: true, models: [] };
+            }
+          })(),
+
           openRouterKey
             ? fetchProviderModels({
                 provider: 'openrouter',
@@ -696,6 +804,13 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       return;
     }
     if (url.pathname === '/api/shutdown' && req.method === 'POST') {
+      try {
+        const { llamacpp } = await import('@mugil-ide/core');
+        await llamacpp.LlamaServerManager.instance().stop();
+        await llamacpp.reapStaleProcess();
+      } catch {
+        /* best-effort cleanup */
+      }
       // Auth (session token) and Origin checks above already gate this to the
       // owning browser tab. Flush the response before stopping the server so
       // the UI can show a "stopped" state instead of a network error.
@@ -715,20 +830,39 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       try {
         const os = await import('os');
         const queryPath = url.searchParams.get('path');
+        const filter = url.searchParams.get('filter');
         let targetDir = queryPath ? path.resolve(queryPath) : process.cwd();
         if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
           targetDir = os.homedir();
         }
 
         const entries: Array<{ name: string; path: string }> = [];
+        const files: Array<{ name: string; path: string; sizeBytes: number; isGguf?: boolean }> = [];
         try {
           const dirEntries = fs.readdirSync(targetDir, { withFileTypes: true });
           for (const d of dirEntries) {
             if (d.isDirectory() && !d.name.startsWith('.')) {
               entries.push({ name: d.name, path: path.join(targetDir, d.name) });
+            } else if ((d.isFile() || d.isSymbolicLink()) && !d.name.startsWith('.')) {
+              if (filter === 'gguf' && d.name.toLowerCase().endsWith('.gguf')) {
+                try {
+                  const st = fs.statSync(path.join(targetDir, d.name));
+                  if (st.isFile()) {
+                    files.push({
+                      name: d.name,
+                      path: path.join(targetDir, d.name),
+                      sizeBytes: st.size,
+                      isGguf: true,
+                    });
+                  }
+                } catch {
+                  /* ignore stat error */
+                }
+              }
             }
           }
           entries.sort((a, b) => a.name.localeCompare(b.name));
+          files.sort((a, b) => a.name.localeCompare(b.name));
         } catch {
           // ignore permission errors
         }
@@ -737,11 +871,14 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const hasParent = parent !== targetDir;
 
         // Quick shortcuts
+        const { llamacpp } = await import('@mugil-ide/core');
+        const mugilModels = llamacpp.modelsDir();
         const shortcuts: Array<{ label: string; path: string }> = [
           { label: 'Home', path: os.homedir() },
-          { label: 'Desktop', path: path.join(os.homedir(), 'Desktop') },
-          { label: 'Documents', path: path.join(os.homedir(), 'Documents') },
           { label: 'Downloads', path: path.join(os.homedir(), 'Downloads') },
+          { label: 'Documents', path: path.join(os.homedir(), 'Documents') },
+          { label: 'Desktop', path: path.join(os.homedir(), 'Desktop') },
+          { label: 'Mugil Models', path: mugilModels },
         ].filter((s) => fs.existsSync(s.path));
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -750,6 +887,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             current: targetDir,
             parent: hasParent ? parent : null,
             dirs: entries,
+            files,
             shortcuts,
           }),
         );
@@ -786,6 +924,14 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           }
           if (fs.existsSync(target) && fs.statSync(target).isDirectory()) {
             process.chdir(target);
+            for (const r of activeRepls) {
+              try {
+                r.switchWorkspace(target);
+              } catch {
+                // ignore
+              }
+            }
+            broadcastPayload(JSON.stringify({ type: 'workspace_changed', root: process.cwd() }));
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: true, root: process.cwd(), created }));
             return;
@@ -1188,6 +1334,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           'ANTHROPIC_BASE_URL',
           'OLLAMA_BASE_URL',
           'LMSTUDIO_BASE_URL',
+          'LLAMACPP_BASE_URL',
           'VERCEL_BASE_URL',
           'CLOUDFLARE_BASE_URL',
           'TOGETHER_BASE_URL',
@@ -1238,6 +1385,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           if (baseVar === 'CLOUDFLARE_BASE_URL') engine.config.cloudflareBaseUrl = baseUrl;
           if (baseVar === 'TOGETHER_BASE_URL') engine.config.togetherBaseUrl = baseUrl;
           if (baseVar === 'OPENCODE_BASE_URL') engine.config.opencodeBaseUrl = baseUrl;
+          if (baseVar === 'LLAMACPP_BASE_URL') engine.config.llamacppBaseUrl = baseUrl;
         }
         if (provider) {
           toSave.AI_PROVIDER = provider;
@@ -1258,6 +1406,232 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, savedFile }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/status' && req.method === 'GET') {
+      try {
+        const { llamacpp } = await import('@mugil-ide/core');
+        const mgr = llamacpp.LlamaServerManager.instance();
+        const hardware = await llamacpp.probeHardware();
+        const installed = llamacpp.isInstalled();
+        const models = await llamacpp.listInstalledModels();
+        const recommended = llamacpp.recommendModels(hardware);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            status: mgr.status(),
+            hardware,
+            binaryInstalled: installed,
+            models,
+            catalog: llamacpp.MODEL_CATALOG,
+            recommended,
+          }),
+        );
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/install-binary' && req.method === 'POST') {
+      try {
+        const { llamacpp } = await import('@mugil-ide/core');
+        const bin = await llamacpp.ensureLlamaServerBinary({
+          onProgress: (p) => {
+            broadcastPayload(
+              JSON.stringify({
+                type: 'llamacpp_progress',
+                phase: p.phase,
+                percent: p.percent,
+              }),
+            );
+          },
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, path: bin }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/download' && req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const catalogId = body.catalogId;
+        const customUrl = body.url;
+        const { llamacpp } = await import('@mugil-ide/core');
+        let dest: string;
+        let dlUrl: string;
+        let sha256: string | undefined;
+        let fileName: string;
+
+        if (customUrl) {
+          dlUrl = customUrl;
+          fileName = body.fileName || path.basename(new URL(customUrl).pathname) || 'custom-model.gguf';
+          if (!fileName.endsWith('.gguf')) fileName += '.gguf';
+          dest = path.join(llamacpp.modelsDir(), fileName);
+        } else {
+          const model = llamacpp.MODEL_CATALOG.find((m) => m.id === catalogId);
+          if (!model) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: `Unknown model catalog id: ${catalogId}` }));
+            return;
+          }
+          dest = path.join(llamacpp.modelsDir(), model.hfFile);
+          dlUrl = llamacpp.downloadUrl(model);
+          sha256 = model.sha256;
+          fileName = model.hfFile;
+        }
+
+        await llamacpp.downloadFile({
+          url: dlUrl,
+          dest,
+          sha256,
+          onProgress: (p) => {
+            broadcastPayload(
+              JSON.stringify({
+                type: 'llamacpp_progress',
+                phase: 'download',
+                percent: p.percent,
+                received: p.received,
+                total: p.total,
+                status: p.status,
+                fileName,
+              }),
+            );
+          },
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, file: fileName, path: dest }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/start' && req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const { llamacpp, writeUserEnv } = await import('@mugil-ide/core');
+        let modelPath = body.file || body.path;
+        if (body.catalogId) {
+          const cat = llamacpp.MODEL_CATALOG.find((m) => m.id === body.catalogId);
+          if (cat) modelPath = path.join(llamacpp.modelsDir(), cat.hfFile);
+        }
+        if (!modelPath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing model file or catalogId' }));
+          return;
+        }
+        if (path.isAbsolute(modelPath) && fs.existsSync(modelPath)) {
+          try {
+            await llamacpp.importCustomModel(modelPath);
+          } catch {
+            /* ignore import error and proceed */
+          }
+        } else if (!path.isAbsolute(modelPath)) {
+          modelPath = path.join(llamacpp.modelsDir(), modelPath);
+        }
+        const mgr = llamacpp.LlamaServerManager.instance();
+        const status = await mgr.start({
+          modelPath,
+          ctx: body.ctx,
+          gpuLayers: body.gpuLayers,
+          port: body.port,
+        });
+        engine.config.provider = 'llamacpp';
+        engine.config.llamacppBaseUrl = status.baseUrl || 'http://127.0.0.1:8080/v1';
+        const modelFileName = path.basename(modelPath);
+        activeModel = modelFileName;
+        if (activeRepl) {
+          activeRepl.setActiveModel(modelFileName, 'llamacpp');
+        }
+        writeUserEnv({
+          AI_PROVIDER: 'llamacpp',
+          MUGIL_IDE_MODEL: modelFileName,
+          LLAMACPP_BASE_URL: engine.config.llamacppBaseUrl,
+        });
+        engine.reconfigure(engine.config);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, status, model: modelFileName }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/stop' && req.method === 'POST') {
+      try {
+        const { llamacpp, writeUserEnv } = await import('@mugil-ide/core');
+        const mgr = llamacpp.LlamaServerManager.instance();
+        await mgr.stop();
+        await llamacpp.reapStaleProcess();
+        engine.config.provider = 'openrouter';
+        writeUserEnv({ AI_PROVIDER: 'openrouter' });
+        engine.reconfigure(engine.config);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, status: mgr.status() }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/models' && req.method === 'GET') {
+      try {
+        const { llamacpp } = await import('@mugil-ide/core');
+        const models = await llamacpp.listInstalledModels();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(models));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/models' && req.method === 'DELETE') {
+      try {
+        const body = await readJsonBody(req);
+        const { llamacpp } = await import('@mugil-ide/core');
+        const mgr = llamacpp.LlamaServerManager.instance();
+        const status = mgr.status();
+        if (status.state === 'running' && status.modelPath && status.modelPath.endsWith(body.file)) {
+          await mgr.stop();
+        }
+        await llamacpp.deleteInstalledModel(body.file);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, file: body.file }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/llamacpp/import' && req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        if (!body.path || typeof body.path !== 'string') {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing model file path' }));
+          return;
+        }
+        const { llamacpp } = await import('@mugil-ide/core');
+        const imported = await llamacpp.importCustomModel(body.path, body.mode || 'symlink');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, model: imported }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -1952,7 +2326,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         JSON.stringify({
           type: 'status',
           activeModel: repl.getActiveModel(),
+          isLocal: repl.isModelLocal(repl.getActiveModel()),
+          provider: engine.config.provider,
           mode: repl.getMode(),
+          topology: repl.getTopology(),
           turboMode,
           stepDebuggerEnabled: globalStepDebugger.isEnabled(),
           busy: repl.isBusy,
@@ -2042,6 +2419,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           updateActiveModel(m, prov);
           sendStatusNow();
         },
+        onWorkspaceChange: (wsRoot) => {
+          broadcastPayload(JSON.stringify({ type: 'workspace_changed', root: wsRoot }));
+        },
       },
       activeModel,
       {
@@ -2085,6 +2465,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
       },
     );
     activeRepl = repl;
+    activeRepls.add(repl);
 
     if (probedModelsCache.length > 0) {
       repl.setAvailableModels(probedModelsCache);
@@ -2140,7 +2521,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         if (msg.type === 'set_model') {
           const newModel = String(msg.model);
           repl.setActiveModel(newModel, msg.provider);
-          updateActiveModel(newModel, msg.provider);
+          await updateActiveModel(newModel, msg.provider);
           sendAgentData(
             `\r\n\x1b[32m✓\x1b[0m Active model changed to: \x1b[1m\x1b[36m${newModel}\x1b[0m${engine.config.provider ? ` \x1b[2m(${engine.config.provider})\x1b[0m` : ''}\r\n\r\n`,
           );
@@ -2157,6 +2538,12 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           );
           repl.printPrompt();
           sendStatusNow();
+        } else if (msg.type === 'set_topology') {
+          const topo = String(msg.topology);
+          if (topo === 'auto' || topo === 'hybrid-orchestrated' || topo === 'local-only' || topo === 'cloud-only') {
+            repl.setTopology(topo);
+            sendStatusNow();
+          }
         } else if (msg.type === 'question_answer') {
           const entry = questionResolvers.get(Number(msg.id));
           if (entry) {
@@ -2248,8 +2635,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     ws.on('close', () => {
       connectedClients.delete(ws);
+      activeRepls.delete(repl);
       if (activeRepl === repl) {
-        activeRepl = null;
+        activeRepl = activeRepls.values().next().value ?? null;
       }
       clearStatusTimer();
       if (drainTimer) {
@@ -2319,23 +2707,29 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         tokenUrl,
         token: sessionToken,
         remoteStreamDetails,
-        close: () =>
-          new Promise<void>((res) => {
-            try {
-              if (fs.existsSync(tokenFile) && fs.readFileSync(tokenFile, 'utf8') === sessionToken) {
-                fs.unlinkSync(tokenFile);
-              }
-            } catch {
-              // best-effort cleanup
+        close: async () => {
+          try {
+            if (fs.existsSync(tokenFile) && fs.readFileSync(tokenFile, 'utf8') === sessionToken) {
+              fs.unlinkSync(tokenFile);
             }
-            wss.close();
-            diffRunner.dispose();
-            // Terminate and close all active and idle sockets so server.close()
-            // exits immediately without waiting on pooled client connections.
-            (server as any).closeAllConnections?.();
-            server.closeIdleConnections?.();
-            server.close(() => res());
-          }),
+          } catch {
+            // best-effort cleanup
+          }
+          try {
+            const { llamacpp } = await import('@mugil-ide/core');
+            await llamacpp.LlamaServerManager.instance().stop();
+            await llamacpp.reapStaleProcess();
+          } catch {
+            // best-effort cleanup
+          }
+          wss.close();
+          diffRunner.dispose();
+          // Terminate and close all active and idle sockets so server.close()
+          // exits immediately without waiting on pooled client connections.
+          (server as any).closeAllConnections?.();
+          server.closeIdleConnections?.();
+          await new Promise<void>((res) => server.close(() => res()));
+        },
       });
     });
 

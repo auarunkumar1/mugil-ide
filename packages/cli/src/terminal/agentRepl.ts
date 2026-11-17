@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type {
   Engine,
   ChatMessage,
@@ -9,6 +11,7 @@ import type {
   McpToolsBundle,
   SessionEntry,
   SessionStats,
+  ExecutionTopology,
 } from '@mugil-ide/core';
 import {
   fetchProviderModels,
@@ -49,11 +52,13 @@ import {
   renderConversationForSummary,
   saveSession,
   loadSessionFile,
+  sessionFilePath,
   listSessions,
   clearSession,
   namedSessionPath,
   loadMode,
   saveMode,
+  llamacpp,
   DEFAULT_OPENROUTER_MODELS,
   DEFAULT_OPENAI_MODELS,
   DEFAULT_ANTHROPIC_MODELS,
@@ -86,6 +91,7 @@ export interface ReplIO {
   onExit?: () => void;
   onTurnComplete?: (turn: SessionTurn) => void;
   onModelChange?: (model: string, provider?: string) => void;
+  onWorkspaceChange?: (workspace: string) => void;
 }
 
 export interface SessionTurn {
@@ -97,22 +103,28 @@ export interface SessionTurn {
   tokens: { prompt: number; completion: number; total: number; saved: number };
   toolsCalled: Array<{ name: string; args: any; result?: string; ok?: boolean }>;
   filesModified: string[];
+  isLocal?: boolean;
+  provider?: string;
+  topology?: ExecutionTopology;
 }
 
 /**
  * Act mode: the agent is expected to carry work out on disk, not describe it.
  */
 const ACT_MODE_INSTRUCTION =
-  'You are an autonomous coding agent with access to tools. When the user asks to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. Do not just describe what you would do — do it using your tools. Do not stop at planning. Read if you need context, then immediately execute the changes using your tools. Never return a plan or todo list without also executing the work.';
+  'You are an autonomous coding agent operating inside the user\'s active workspace with direct tool access. ' +
+  'You have direct real-time access to inspect and modify local files through your tools; NEVER claim you cannot see the workspace or files. ' +
+  'When the user asks questions about the workspace, files, pending tasks, or project status, ALWAYS inspect the workspace files first using your exploration tools (list_files, read_file, search_code, todoread) rather than guessing or reciting from memory. ' +
+  'You must only report files and tasks that actually exist on disk in the current workspace. ' +
+  'When asked to create, modify, or delete files, use the appropriate tools (write_file, edit_file, apply_patch, run_command) to make the actual changes on disk. ' +
+  'Do not just describe what you would do — do it using your tools. Do not stop at planning. Read if you need context, then immediately execute the changes using your tools. Never return a plan or todo list without also executing the work.';
 
-/**
- * Plan mode: read-only. The permission layer denies writes and commands, so
- * asking for them wastes a full model round-trip per attempt and produces a
- * confusing denial in the transcript. The agent's job here is to produce a
- * plan the user can approve, and to gather whatever context it needs first.
- */
 const PLAN_MODE_INSTRUCTION =
-  'You are a planning agent in READ-ONLY plan mode. Use the read tools (read_file, read_skeleton, list_files, search_code, codegraph, lsp, skill, webfetch, websearch) and todowrite to gather context and build a plan. ' +
+  'You are a planning agent in READ-ONLY plan mode operating inside the user\'s active workspace with direct tool access. ' +
+  'You have direct real-time access to inspect local files through your tools; NEVER claim you cannot see the workspace or files. ' +
+  'When asked about the project or pending tasks, ALWAYS inspect the workspace first using your exploration tools (list_files, read_file, search_code, todoread) to verify what actually exists on disk. ' +
+  'Only reference files and tasks physically present in this workspace. ' +
+  'Use the read tools (read_file, read_skeleton, list_files, search_code, codegraph, lsp, skill, webfetch, websearch) and todowrite to gather context and build a plan. ' +
   'Do NOT call write_file, edit_file, apply_patch or run_command — they are denied by policy in this mode, and asking again just wastes tokens. ' +
   'Deliver: (1) the files and symbols you found, with file:line references, (2) a concrete ordered plan of the changes to make, (3) any risks, unknowns or decisions you need the user to make. ' +
   'Be specific enough that the work can be executed mechanically. Do not write placeholder code — describe the changes instead.';
@@ -154,6 +166,7 @@ export class AgentRepl {
   private options: AgentReplOptions;
   private activeModel: string;
   private mode: 'plan' | 'act' = 'act';
+  private topology: ExecutionTopology = (process.env.MUGIL_IDE_TOPOLOGY as ExecutionTopology) || 'auto';
   /** Abort handle for the turn currently in flight; null when idle. */
   private turnAbort: AbortController | null = null;
   private isProcessing = false;
@@ -230,6 +243,54 @@ export class AgentRepl {
 
   public setMode(mode: 'plan' | 'act'): void {
     this.mode = mode;
+  }
+
+  public getTopology(): ExecutionTopology {
+    return this.topology;
+  }
+
+  public setTopology(topology: ExecutionTopology): void {
+    this.topology = topology;
+  }
+
+  public getWorkspace(): string {
+    return process.cwd();
+  }
+
+  public switchWorkspace(newWorkspace: string): void {
+    const resolved = path.resolve(newWorkspace);
+    if (path.resolve(process.cwd()) !== resolved) {
+      try {
+        process.chdir(resolved);
+      } catch (err) {
+        this.io.write(
+          `\r\n  ${red('✗')} Failed to switch directory to ${bold(resolved)}: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+        );
+        return;
+      }
+    }
+    // Auto-save current session before switching if there are turns
+    if (this.messageHistory.length > 0) {
+      this.autoSaveSession();
+    }
+    // Reset message history & stats for clean workspace boundary
+    this.messageHistory = [];
+    this.turns = [];
+    this.stats = AgentRepl.defaultStats();
+
+    // Switch to target workspace session if one exists
+    const file = sessionFilePath(process.env, resolved);
+    const resumed = loadSessionFile(file);
+    if (resumed.entries.length > 0) {
+      this.restoreSessionEntries(resumed.entries);
+      this.restoreSessionStats(resumed.stats);
+    }
+
+    this.io.write(
+      `\r\n  📂 ${bold(cyan('Active workspace:'))} ${bold(resolved)}\r\n` +
+      `  ${dim(`Restored ${resumed.entries.length} turn${resumed.entries.length === 1 ? '' : 's'} for this workspace.`)}\r\n\r\n`,
+    );
+    this.io.onWorkspaceChange?.(resolved);
   }
 
   /**
@@ -437,6 +498,35 @@ export class AgentRepl {
         break;
       }
 
+      case 'topology': {
+        const top = argStr.trim().toLowerCase();
+        const valid: Record<string, ExecutionTopology> = {
+          auto: 'auto',
+          hybrid: 'hybrid-orchestrated',
+          'hybrid-orchestrated': 'hybrid-orchestrated',
+          local: 'local-only',
+          'local-only': 'local-only',
+          cloud: 'cloud-only',
+          'cloud-only': 'cloud-only',
+        };
+        if (!top) {
+          this.io.write(
+            `\r\n  ${dim('Current Execution Topology:')} ${bold(cyan(this.topology))}\r\n  ${dim('Available options:')} ${cyan('auto')}, ${cyan('hybrid')}, ${cyan('local')}, ${cyan('cloud')}\r\n  ${dim('Usage:')} ${cyan('/topology <auto | hybrid | local | cloud>')}\r\n\r\n`,
+          );
+        } else if (valid[top]) {
+          this.setTopology(valid[top]);
+          process.env.MUGIL_IDE_TOPOLOGY = valid[top];
+          this.io.write(
+            `\r\n  ${green('✓')} Execution Topology changed to: ${bold(cyan(valid[top]))}\r\n\r\n`,
+          );
+        } else {
+          this.io.write(
+            `\r\n  ${red('✗')} Invalid topology "${top}". Choose one of: ${cyan('auto')}, ${cyan('hybrid')}, ${cyan('local')}, ${cyan('cloud')}\r\n\r\n`,
+          );
+        }
+        break;
+      }
+
       case 'clear':
       case 'cls':
         this.io.write(ANSI.clearScreen);
@@ -558,6 +648,27 @@ export class AgentRepl {
         await this.compactConversation();
         break;
 
+      case 'workspace':
+      case 'cd':
+        if (!argStr) {
+          this.io.write(
+            `\r\n  ${dim('Active workspace:')} ${bold(cyan(process.cwd()))}\r\n` +
+            `  ${dim('Usage:')} ${cyan('/workspace <directory path>')}\r\n\r\n`,
+          );
+        } else {
+          try {
+            const target = path.resolve(argStr);
+            if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+              this.io.write(`\r\n  ${red('✗')} Directory does not exist: ${bold(target)}\r\n\r\n`);
+            } else {
+              this.switchWorkspace(target);
+            }
+          } catch (err) {
+            this.io.write(`\r\n  ${red('✗')} Failed to switch workspace: ${err instanceof Error ? err.message : String(err)}\r\n\r\n`);
+          }
+        }
+        break;
+
       case 'reset':
         this.messageHistory = [];
         this.turns = [];
@@ -594,6 +705,7 @@ export class AgentRepl {
       `  ${cyan('/plan')}                 ${dim('Plan mode — read-only: writes/edits/commands denied')}`,
       `  ${cyan('/act')}                  ${dim('Act mode — asks before writes/edits/commands')}`,
       `  ${cyan('/turbo [on|off]')}       ${dim('Turbo mode — autonomous execution without user prompts')}`,
+      `  ${cyan('/topology [mode]')}       ${dim('Switch execution topology: auto, hybrid, local, or cloud')}`,
       `  ${cyan('/compact')}              ${dim('Summarize the conversation so far and continue from the summary')}`,
       `  ${cyan('/session <name>')}       ${dim('Save the conversation under a name')}`,
       `  ${cyan('/sessions')}             ${dim('List saved named sessions')}`,
@@ -609,6 +721,7 @@ export class AgentRepl {
       `  ${cyan('/credits')}              ${dim('View open-source credits, authors and upstream licenses')}`,
       `  ${cyan('/skill-create <name>')}   ${dim('Scaffold a new workspace skill under .mugil/skills')}`,
       `  ${cyan('/undo')}                 ${dim('Undo last file change made by tool execution')}`,
+      `  ${cyan('/workspace [dir]')}       ${dim('Show or change active workspace directory')}`,
       `  ${cyan('/history')}              ${dim('View prompt history in current session')}`,
       `  ${cyan('/reset')}                ${dim('Clear conversation context history')}`,
       `  ${cyan('/clear')}                ${dim('Clear terminal screen')}`,
@@ -656,6 +769,26 @@ export class AgentRepl {
         }
       } catch {
         // ignore — LM Studio not reachable, continue to other providers
+      }
+
+      // 2.5 Built-in Local AI (llama.cpp) - only if running
+      try {
+        const { llamacpp } = await import('@mugil-ide/core');
+        if (llamacpp.LlamaServerManager.instance().isRunning()) {
+          const lc = await fetchProviderModels({
+            provider: 'llamacpp',
+            baseUrl:
+              llamacpp.LlamaServerManager.instance().status().baseUrl ||
+              this.engine.config.llamacppBaseUrl ||
+              'http://127.0.0.1:8080/v1',
+            timeoutMs: 1500,
+          });
+          if (lc && lc.length > 0) {
+            lc.forEach((m) => allFound.push({ ...m, provider: 'llamacpp', isLocal: true }));
+          }
+        }
+      } catch {
+        // ignore
       }
 
       // 3. Probe every cloud provider with a configured key (parity with the
@@ -792,7 +925,9 @@ export class AgentRepl {
       `    ${dim('├─')} 🦴 ${bold('Caveman')} ${dim('(Prompt & History):')}   ${cyan(`${bd.caveman.toLocaleString()} tok`)}`,
       `    ${dim('├─')} ⚡ ${bold('YAGNI')} ${dim('(AST Skeletons & Code):')}  ${cyan(`${bd.yagni.toLocaleString()} tok`)}`,
       `    ${dim('├─')} 💾 ${bold('Cache')} ${dim('(Exact/Semantic Hits):')}   ${cyan(`${bd.cache.toLocaleString()} tok`)}`,
-      `    ${dim('└─')} 🔌 ${bold('MCP & Tools')} ${dim('(RTK & Chunking):')}  ${cyan(`${bd.mcp.toLocaleString()} tok`)}`,
+      `    ${dim('├─')} 🔌 ${bold('MCP & Tools')} ${dim('(RTK & Chunking):')}  ${cyan(`${bd.mcp.toLocaleString()} tok`)}`,
+      `    ${dim('├─')} ✂️  ${bold('Tool Pruning')} ${dim('(Schema Omission):')}   ${cyan(`${(bd.toolPruning ?? 0).toLocaleString()} tok`)}`,
+      `    ${dim('└─')} 🌐 ${bold('Hybrid Recon')} ${dim('(Local CodeGraph):')}   ${cyan(`${(bd.hybridRecon ?? 0).toLocaleString()} tok`)}`,
       `  ${dim('Smart Cache Hits:')}   ${yellow(s.cacheHits)}${cm ? dim(` (lookups: ${cm.lookups}, hit rate: ${cm.hitRatePct}%)`) : ''}`,
       `  ${dim('Files Modified:')}     ${cyan(s.filesModified.size)} ${dim(Array.from(s.filesModified).join(', ') || '(none)')}`,
       '',
@@ -1310,6 +1445,35 @@ export class AgentRepl {
     return undefined;
   }
 
+  /** Checks whether a model or provider runs locally on the user machine or via online cloud. */
+  public isModelLocal(modelId: string, provider?: string): boolean {
+    const mid = (modelId || '').toLowerCase();
+    // Known cloud prefixes are always cloud models
+    if (
+      mid.startsWith('deepseek/') ||
+      mid.startsWith('openrouter/') ||
+      mid.startsWith('anthropic/') ||
+      mid.startsWith('openai/') ||
+      mid.startsWith('together/') ||
+      mid.startsWith('groq/') ||
+      mid.startsWith('google/') ||
+      mid.startsWith('meta-llama/') ||
+      mid.startsWith('mistralai/')
+    ) {
+      return false;
+    }
+
+    const prov = (provider || this.engine.config.provider || '').toLowerCase();
+    if (['llamacpp', 'ollama', 'lmstudio', 'local'].includes(prov)) return true;
+    if (mid.includes('gguf') || mid.includes('qwen') || mid.includes('llama') || mid.includes('coder-') || mid === 'local') {
+      const meta = this.resolveModelMeta(modelId);
+      if (meta && meta.isLocal !== undefined) return meta.isLocal;
+      return true;
+    }
+    const meta = this.resolveModelMeta(modelId);
+    return Boolean(meta?.isLocal);
+  }
+
   /** Restores persisted session metrics (no-op when the file had none). */
   private restoreSessionStats(stats: SessionStats | null): void {
     if (!stats) return;
@@ -1422,7 +1586,15 @@ export class AgentRepl {
           turnsForBudget.push({ prompt: u.content, response: a.content });
         }
       }
-      const historyBudget = getHistoryBudget();
+      const activeMod = this.getActiveModel();
+      const isLlama =
+        this.engine.config.provider === 'llamacpp' ||
+        activeMod.endsWith('.gguf') ||
+        this.isModelLocal(activeMod);
+      // For local models running on CPU/local hardware, cap conversation history budget to 1,500 tokens
+      // to prevent 40+ second CPU prompt-processing stalls and context dilution from old cloud turns.
+      const rawBudget = getHistoryBudget();
+      const historyBudget = isLlama ? Math.min(rawBudget, 1_500) : rawBudget;
       const budgeted = budgetConversationHistory(turnsForBudget, historyBudget, {
         compactOlderTurns: true,
       });
@@ -1449,12 +1621,48 @@ export class AgentRepl {
         .filter((b) => b.trim().length > 0)
         .join('\n\n');
 
+      // If dispatching with llamacpp or a .gguf local model, ensure llama-server is running
+      if (isLlama) {
+        try {
+          const mgr = llamacpp.LlamaServerManager.instance();
+          if (!mgr.isRunning()) {
+            const installed = await llamacpp.listInstalledModels();
+            const target = installed.find((m) => m.file === activeMod) || installed[0];
+            if (target) {
+              this.io.write(`  ${dim('⚡ Auto-starting local llama-server for')} ${cyan(target.file)}...\r\n`);
+              const status = await mgr.start({ modelPath: target.path });
+              const baseUrl = status.baseUrl || mgr.status().baseUrl || 'http://127.0.0.1:8080/v1';
+              this.engine.reconfigure({
+                ...this.engine.config,
+                provider: 'llamacpp',
+                llamacppBaseUrl: baseUrl,
+              });
+            }
+          } else {
+            const currentBaseUrl = mgr.status().baseUrl;
+            if (currentBaseUrl && currentBaseUrl !== this.engine.config.llamacppBaseUrl) {
+              this.engine.reconfigure({
+                ...this.engine.config,
+                provider: 'llamacpp',
+                llamacppBaseUrl: currentBaseUrl,
+              });
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.io.write(`  ${red('⚠ Failed to auto-start local llama-server:')} ${msg}\r\n`);
+        }
+      }
+
       const result = await this.engine.pipeline.ask(prompt, {
         preferredModel: this.getActiveModel(),
         history: budgetedHistory,
         systemPrompt: contextBlocks,
         tools: allTools,
         toolRegistry: allRegistry,
+        topology: this.topology,
+        workspaceDir: process.cwd(),
+        llamaManager: llamacpp.LlamaServerManager.instance(),
         permission,
         maxToolIterations: getMaxToolIterations(),
         thinkingLevel: getThinkingLevel(),
@@ -1484,7 +1692,18 @@ export class AgentRepl {
             if (event.stage === 'refine') {
               this.io.write(`  ${dim('⚡ Refining prompt tokens...')}\r\n`);
             } else if (event.stage === 'handoff') {
-              this.io.write(`  ${dim('⚡ Requesting model...')}\r\n`);
+              const activeMod = this.getActiveModel();
+              const isLocal = this.isModelLocal(activeMod);
+              if (isLocal) {
+                this.io.write(
+                  `  ${green('💻 [Local Engine]')} ${dim('Dispatching to')} ${bold(cyan(activeMod))} ${dim('(offline · llama.cpp)')}...\r\n`,
+                );
+              } else {
+                const prov = this.engine.config.provider || 'cloud';
+                this.io.write(
+                  `  ${magenta('☁️ [Online Cloud]')} ${dim('Dispatching to')} ${bold(cyan(activeMod))} ${dim(`(${prov} · online API)`)}...\r\n`,
+                );
+              }
             }
           } else if (event.type === 'refined') {
             if (event.refine.savingsPct > 0) {
@@ -1637,6 +1856,8 @@ export class AgentRepl {
               yagni: 0,
               cache: budgeted.compressionSavings.keptTokens,
               mcp: 0,
+              toolPruning: 0,
+              hybridRecon: 0,
             },
             optimisticSavedTokens:
               budgeted.compressionSavings.savedTokens + budgeted.compressionSavings.keptTokens,
@@ -1647,18 +1868,31 @@ export class AgentRepl {
       this.stats.tokensSaved += turnTokensSaved;
       this.stats.compressibleTokens += Math.max(0, turnCompressible);
 
-      // Accumulate multi-level breakdown across Caveman, YAGNI, Cache, and MCP
+      // Accumulate multi-level breakdown across Caveman, YAGNI, Cache, MCP, Tool Pruning, and Hybrid Recon
       const histBd = historySavings.breakdown ?? {
         caveman: historySavings.savedTokens,
         yagni: 0,
         cache: 0,
         mcp: 0,
+        toolPruning: 0,
+        hybridRecon: 0,
       };
-      const resBd = result.savings.breakdown ?? { caveman: 0, yagni: 0, cache: 0, mcp: 0 };
+      const resBd = result.savings.breakdown ?? {
+        caveman: 0,
+        yagni: 0,
+        cache: 0,
+        mcp: 0,
+        toolPruning: 0,
+        hybridRecon: 0,
+      };
       this.stats.savingsBreakdown.caveman += (resBd.caveman ?? 0) + (histBd.caveman ?? 0);
       this.stats.savingsBreakdown.yagni += (resBd.yagni ?? 0) + (histBd.yagni ?? 0);
       this.stats.savingsBreakdown.cache += (resBd.cache ?? 0) + (histBd.cache ?? 0);
       this.stats.savingsBreakdown.mcp += (resBd.mcp ?? 0) + (histBd.mcp ?? 0);
+      this.stats.savingsBreakdown.toolPruning =
+        (this.stats.savingsBreakdown.toolPruning ?? 0) + (resBd.toolPruning ?? 0) + (histBd.toolPruning ?? 0);
+      this.stats.savingsBreakdown.hybridRecon =
+        (this.stats.savingsBreakdown.hybridRecon ?? 0) + (resBd.hybridRecon ?? 0) + (histBd.hybridRecon ?? 0);
 
       // Ponytail YAGNI minimal code avoidance (~50% of completion tokens generated)
       const ponytailAvoided = Math.floor(result.usage.completionTokens * 0.5);
@@ -1668,7 +1902,9 @@ export class AgentRepl {
         this.stats.savingsBreakdown.caveman +
         this.stats.savingsBreakdown.yagni +
         this.stats.savingsBreakdown.cache +
-        this.stats.savingsBreakdown.mcp;
+        this.stats.savingsBreakdown.mcp +
+        this.stats.savingsBreakdown.toolPruning +
+        this.stats.savingsBreakdown.hybridRecon;
 
       // Add to multi-turn memory
       this.messageHistory.push({ role: 'user', content: prompt });
@@ -1736,8 +1972,11 @@ export class AgentRepl {
       }
 
       // Turn Footer
+      const isLocal = this.isModelLocal(result.model);
+      const engineTag = isLocal ? green('💻 Local') : magenta('☁️ Online');
+      const elapsedSec = (elapsed / 1000).toFixed(1);
       this.io.write(
-        `\r\n${dim(`[${result.model} · ${result.usage.totalTokens} tok · ${elapsed}ms · ${toolsCalled.length} tools]`)}\r\n`,
+        `\r\n${dim(`[${engineTag} (${result.model}) · ${result.usage.totalTokens} tok · ${elapsedSec}s · ${toolsCalled.length} tools]`)}\r\n`,
       );
       if (result.truncated) {
         this.io.write(
@@ -1760,6 +1999,9 @@ export class AgentRepl {
         },
         toolsCalled,
         filesModified: filesModifiedThisTurn,
+        isLocal,
+        provider: this.engine.config.provider,
+        topology: this.topology,
       };
 
       this.turns.push(turnObj);
@@ -1783,9 +2025,17 @@ export class AgentRepl {
           this.io.write(`\r\n${yellow('■ Turn cancelled.')}\r\n\r\n`);
         }
       } else {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const isTimeout = errMsg.toLowerCase().includes('timeout');
         this.io.write(
-          `\r\n${red('✗ Error executing request:')} ${err instanceof Error ? err.message : String(err)}\r\n\r\n`,
+          `\r\n${red('✗ Error executing request:')} ${errMsg}\r\n`,
         );
+        if (isTimeout) {
+          this.io.write(
+            `  ${yellow('💡 Laptop Performance Tip:')} ${dim('If running a local model on CPU, consider using a faster 1.5B or 3B model (3–10x faster) or increase timeout with MUGIL_IDE_COMPLETION_TIMEOUT_MS.')}\r\n`,
+          );
+        }
+        this.io.write('\r\n');
       }
     } finally {
       this.turnAbort = null;

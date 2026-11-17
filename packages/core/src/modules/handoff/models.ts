@@ -191,13 +191,15 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
       }
     }
 
-    if (provider === 'lmstudio' || provider === 'local' || provider === 'openai') {
+    if (provider === 'lmstudio' || provider === 'local' || provider === 'openai' || provider === 'llamacpp') {
       const ep =
         provider === 'lmstudio'
           ? baseUrl || 'http://localhost:1234/v1'
-          : provider === 'local'
-            ? baseUrl || 'http://localhost:8000/v1'
-            : baseUrl || 'https://api.openai.com/v1';
+          : provider === 'llamacpp'
+            ? baseUrl || 'http://127.0.0.1:8080/v1'
+            : provider === 'local'
+              ? baseUrl || 'http://localhost:8000/v1'
+              : baseUrl || 'https://api.openai.com/v1';
 
       const headers: Record<string, string> = {};
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
