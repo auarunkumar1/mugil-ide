@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-22
+
 ### Added
 - **OpenCode Go Subscriber & Free Model Support**:
   - Full support for OpenCode Go subscription plans (Go, Go Plus, Go Teams) and endpoints (`https://opencode.ai/inference/go`).
@@ -652,3 +654,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.3.2]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.3.2
 [0.4.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.4.0
 [0.4.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.4.1
+
+[0.5.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.5.1
