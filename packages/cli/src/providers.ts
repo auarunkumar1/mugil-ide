@@ -52,9 +52,10 @@ export const PROVIDERS: ProviderDef[] = [
   },
   {
     id: 'opencode',
-    label: 'OpenCode Zen (Claude, Qwen, DeepSeek, Kimi — one curated key)',
+    label: 'OpenCode Go / Zen (DeepSeek, Claude, Qwen, Kimi, Free models)',
     keyVar: 'OPENCODE_API_KEY',
-    url: 'https://opencode.ai/auth',
+    baseVar: 'OPENCODE_BASE_URL',
+    url: 'https://opencode.ai/console',
   },
   {
     id: 'llamacpp',

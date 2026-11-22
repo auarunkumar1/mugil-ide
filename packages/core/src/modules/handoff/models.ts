@@ -93,28 +93,64 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
 
     if (provider === 'opencode') {
       const url = opencodeBaseUrls(baseUrl).models;
+      const isConsoleOrGo = /\/inference(\/go)?$/.test((baseUrl || '').replace(/\/+$/, ''));
       const res = await fetch(url, {
         headers: {
-          // Zen rejects non-fingerprinted clients on free models.
-          'User-Agent': OPENCODE_USER_AGENT,
+          'User-Agent': isConsoleOrGo ? 'mugil-ide/0.5.1' : OPENCODE_USER_AGENT,
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.ok) {
         const json = (await res.json()) as {
-          data?: Array<{ id: string; context_length?: number }>;
+          data?: Array<{
+            id: string;
+            context_length?: number;
+            limit?: { context?: number };
+            cost?: {
+              text?: {
+                input?: { price?: number; cache?: { read?: number } };
+                output?: { price?: number };
+              };
+            };
+            capabilities?: {
+              tools?: { supported?: boolean };
+              reasoning?: { supported?: boolean };
+            };
+          }>;
         };
         if (json.data && json.data.length > 0) {
-          const list: ModelSpec[] = json.data.map((m) => ({
-            id: m.id,
-            tier: 'standard' as const,
-            costPerMTokIn: 0,
-            costPerMTokOut: 0,
-            contextWindow: m.context_length || 128000,
-            supportsThinking: modelSupportsThinking(m.id),
-            supportsTools: modelSupportsTools(m.id),
-          }));
+          const list: ModelSpec[] = json.data.map((m) => {
+            const ctx = m.limit?.context || m.context_length || 128000;
+            const costIn = m.cost?.text?.input?.price ?? 0;
+            const costOut = m.cost?.text?.output?.price ?? 0;
+            const cacheIn = m.cost?.text?.input?.cache?.read;
+            const costPerMTokCacheRead =
+              cacheIn !== undefined ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
+            const tier: ModelSpec['tier'] = m.cost
+              ? costOut > 5
+                ? 'smart'
+                : costOut > 0.5
+                  ? 'standard'
+                  : 'cheap'
+              : 'standard';
+            return {
+              id: m.id,
+              tier,
+              costPerMTokIn: costIn,
+              costPerMTokOut: costOut,
+              costPerMTokCacheRead,
+              contextWindow: ctx,
+              supportsThinking:
+                m.capabilities?.reasoning?.supported !== undefined
+                  ? m.capabilities.reasoning.supported
+                  : modelSupportsThinking(m.id),
+              supportsTools:
+                m.capabilities?.tools?.supported !== undefined
+                  ? m.capabilities.tools.supported
+                  : modelSupportsTools(m.id),
+            };
+          });
           modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
           return list;
         }

@@ -142,6 +142,11 @@ describe('opencode provider', () => {
     expect(cfg.opencodeApiKey).toBe('oc-test');
     expect(cfg.opencodeBaseUrl).toBe('https://opencode.ai/zen/v1');
     expect(cfg.models.map((m) => m.id)).toEqual([
+      'deepseek-v4.1-flash',
+      'claude-haiku-5-5',
+      'qwen4-max',
+      'beam-free',
+      'hy4-flash-free',
       'claude-haiku-4-5',
       'claude-sonnet-4-5',
       'claude-opus-4-5',

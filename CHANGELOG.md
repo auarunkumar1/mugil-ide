@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **OpenCode Go Subscriber & Free Model Support**:
+  - Full support for OpenCode Go subscription plans (Go, Go Plus, Go Teams) and endpoints (`https://opencode.ai/inference/go`).
+  - Added mandatory `x-opencode-session` header generation and persistence per conversation/client session, fulfilling OpenCode Go routing and prompt-caching requirements.
+  - Automatic wire-protocol resolution in `opencodeBaseUrls()` for `/inference/go` and `/inference` (correctly mapping to `/inference/go/openai/v1/chat/completions`, `/inference/go/anthropic/v1/messages`, and `/inference/go/v1/models`).
+  - Added accurate OpenCode Go model discovery: parses `limit.context` (up to 1M+ context window), `cost.text` pricing, tool calling support, and thinking/reasoning flags directly from the live Go model catalog (`/inference/go/v1/models`).
+  - Updated curated `DEFAULT_OPENCODE_MODELS` to include active Go models (`deepseek-v4.1-flash`, `claude-haiku-5-5`, `qwen4-max`) and free-tier models (`beam-free`, `hy4-flash-free`).
+  - Added `baseVar: 'OPENCODE_BASE_URL'` to OpenCode provider settings in Web UI and CLI for seamless custom endpoint configuration.
+  - Proper client user-agent identification (`mugil-ide/0.5.1`) for Go and inference endpoints while maintaining compatibility with legacy Zen routes.
+
 ## [0.5.0] - 2026-11-17
 
 ### Added

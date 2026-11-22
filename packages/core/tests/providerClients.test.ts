@@ -512,6 +512,59 @@ describe('OpenCodeClient', () => {
       'https://opencode.ai/inference/openai/v1/chat/completions',
     );
   });
+
+  it('uses OpenCode Go /inference/go paths and sends x-opencode-session header', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'deepseek-v4.1-flash',
+        choices: [{ message: { content: 'hello from go' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-go-key',
+      baseUrl: 'https://opencode.ai/inference/go',
+      sessionId: 'ses_test12345',
+    });
+    const result = await client.complete([{ role: 'user', content: 'hello' }], {
+      model: 'deepseek-v4.1-flash',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/inference/go/openai/v1/chat/completions',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer oc-go-key',
+          'User-Agent': 'mugil-ide/0.5.1',
+          'x-opencode-session': 'ses_test12345',
+        }),
+      }),
+    );
+    expect(result.provider).toBe('opencode');
+    expect(result.content).toBe('hello from go');
+
+    fetchMock.mockResolvedValue(
+      okResponse({
+        model: 'claude-haiku-5-5',
+        content: [{ type: 'text', text: 'hi from claude on go' }],
+        usage: { input_tokens: 2, output_tokens: 2 },
+        stop_reason: 'end_turn',
+      }),
+    );
+    await client.complete([{ role: 'user', content: 'hi' }], { model: 'claude-haiku-5-5' });
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      'https://opencode.ai/inference/go/anthropic/v1/messages',
+    );
+    expect(fetchMock.mock.calls[1]![1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'x-api-key': 'oc-go-key',
+          'x-opencode-session': 'ses_test12345',
+        }),
+      }),
+    );
+  });
 });
 
 describe('provider selection in createEngine', () => {
@@ -910,6 +963,57 @@ describe('fetchProviderModels', () => {
       'https://opencode.ai/inference/v1/models',
       expect.anything(),
     );
+  });
+
+  it('lists OpenCode Go models with limit.context, cost and capabilities', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        data: [
+          {
+            id: 'deepseek-v4.1-flash',
+            limit: { context: 1000000 },
+            cost: { text: { input: { price: 0.14 }, output: { price: 0.28 } } },
+            capabilities: { tools: { supported: true }, reasoning: { supported: true } },
+          },
+          {
+            id: 'beam-free',
+            limit: { context: 1048576 },
+            cost: { text: { input: { price: 0 }, output: { price: 0 } } },
+            capabilities: { tools: { supported: true }, reasoning: { supported: false } },
+          },
+        ],
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const models = await fetchProviderModels({
+      provider: 'opencode',
+      apiKey: 'oc-go-key',
+      baseUrl: 'https://opencode.ai/inference/go',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://opencode.ai/inference/go/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer oc-go-key',
+          'User-Agent': 'mugil-ide/0.5.1',
+        }),
+      }),
+    );
+    expect(models.length).toBe(2);
+    expect(models[0]!.id).toBe('deepseek-v4.1-flash');
+    expect(models[0]!.contextWindow).toBe(1000000);
+    expect(models[0]!.costPerMTokIn).toBe(0.14);
+    expect(models[0]!.costPerMTokOut).toBe(0.28);
+    expect(models[0]!.supportsThinking).toBe(true);
+    expect(models[0]!.supportsTools).toBe(true);
+
+    expect(models[1]!.id).toBe('beam-free');
+    expect(models[1]!.contextWindow).toBe(1048576);
+    expect(models[1]!.costPerMTokIn).toBe(0);
+    expect(models[1]!.costPerMTokOut).toBe(0);
+    expect(models[1]!.tier).toBe('cheap');
+    expect(models[1]!.supportsThinking).toBe(false);
   });
 });
 

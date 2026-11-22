@@ -23,6 +23,8 @@ import type { StreamHandlers } from './stream.js';
 export interface OpenCodeClientOptions {
   apiKey?: string;
   baseUrl?: string;
+  sessionId?: string;
+  headers?: Record<string, string>;
 }
 
 /**
@@ -49,7 +51,7 @@ export function opencodeBaseUrls(baseUrl = 'https://opencode.ai/zen/v1'): {
   models: string;
 } {
   const base = baseUrl.replace(/\/+$/, '');
-  if (/\/inference$/.test(base)) {
+  if (/\/inference(\/go)?$/.test(base)) {
     return {
       openAi: `${base}/openai/v1`,
       anthropic: `${base}/anthropic`,
@@ -65,10 +67,22 @@ export class OpenCodeClient implements ProviderClient {
   private readonly openai: OpenAiClient;
   private readonly anthropic: AnthropicClient;
   readonly mock: boolean;
+  readonly sessionId: string;
+  readonly baseUrl?: string;
 
   constructor(options: OpenCodeClientOptions = {}) {
+    this.baseUrl = options.baseUrl;
     const urls = opencodeBaseUrls(options.baseUrl);
-    const headers = { 'User-Agent': OPENCODE_USER_AGENT };
+    this.sessionId =
+      options.sessionId ||
+      `ses_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+    const isConsoleOrGo = /\/inference(\/go)?$/.test((options.baseUrl || '').replace(/\/+$/, ''));
+    const userAgent = isConsoleOrGo ? 'mugil-ide/0.5.1' : OPENCODE_USER_AGENT;
+    const headers: Record<string, string> = {
+      'User-Agent': userAgent,
+      'x-opencode-session': this.sessionId,
+      ...(options.headers || {}),
+    };
     this.anthropic = new AnthropicClient({
       apiKey: options.apiKey,
       baseUrl: urls.anthropic,
@@ -129,10 +143,11 @@ export class OpenCodeClient implements ProviderClient {
   }
 
   // ponytail: gpt-*/codex-* models need Zen's /responses (OpenAI Responses
-  // API), a separate wire format. Upgrade path: add a responses translator
-  // here and call it from both complete() and stream().
+  // API), a separate wire format. OpenCode Console (/inference & /inference/go)
+  // automatically translates across wire formats.
   private assertSupported(model: string): void {
-    if (/^(gpt|codex)/.test(model)) {
+    const isConsoleOrGo = /\/inference(\/go)?$/.test((this.baseUrl || '').replace(/\/+$/, ''));
+    if (!isConsoleOrGo && /^(gpt|codex)/.test(model)) {
       throw new ProviderError(
         `OpenCode Zen model "${model}" requires the /responses endpoint, which is not supported yet — pick a claude-* model or another Zen model`,
         400,

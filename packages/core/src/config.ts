@@ -430,8 +430,53 @@ export const DEFAULT_TOGETHER_MODELS: ModelSpec[] = [
   },
 ];
 
-/** Default OpenCode Zen ladder. */
+/** Default OpenCode Go / Zen ladder. */
 export const DEFAULT_OPENCODE_MODELS: ModelSpec[] = [
+  {
+    id: 'deepseek-v4.1-flash',
+    tier: 'cheap',
+    costPerMTokIn: 0.14,
+    costPerMTokOut: 0.28,
+    contextWindow: 1000000,
+    supportsThinking: true,
+    supportsTools: true,
+  },
+  {
+    id: 'claude-haiku-5-5',
+    tier: 'standard',
+    costPerMTokIn: 1,
+    costPerMTokOut: 5,
+    contextWindow: 1000000,
+    supportsThinking: true,
+    supportsTools: true,
+  },
+  {
+    id: 'qwen4-max',
+    tier: 'smart',
+    costPerMTokIn: 2,
+    costPerMTokOut: 8,
+    contextWindow: 1000000,
+    supportsThinking: true,
+    supportsTools: true,
+  },
+  {
+    id: 'beam-free',
+    tier: 'cheap',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 1048576,
+    supportsThinking: true,
+    supportsTools: true,
+  },
+  {
+    id: 'hy4-flash-free',
+    tier: 'cheap',
+    costPerMTokIn: 0,
+    costPerMTokOut: 0,
+    contextWindow: 1048576,
+    supportsThinking: false,
+    supportsTools: true,
+  },
   {
     id: 'claude-haiku-4-5',
     tier: 'cheap',
