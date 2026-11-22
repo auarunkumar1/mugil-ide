@@ -22,6 +22,64 @@ export interface FetchModelsOptions {
 const modelsCache = new Map<string, { models: ModelSpec[]; timestamp: number }>();
 export const DEFAULT_MODELS_CACHE_TTL_MS = 60_000; // 1 minute
 
+const subscriptionCache = new Map<string, { isGo: boolean; timestamp: number }>();
+export const SUBSCRIPTION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export function clearSubscriptionCache(): void {
+  subscriptionCache.clear();
+}
+
+/**
+ * Detects whether the user's OpenCode API key is subscribed to OpenCode Go.
+ * OpenCode Go subscribers have access to the 31 Go subscription models at /inference/go.
+ * OpenCode Zen (pay-as-you-go) users have credits billed per token at /zen/v1 or /inference.
+ */
+export async function detectOpenCodeSubscription(
+  apiKey?: string,
+  timeoutMs = 3000,
+): Promise<boolean> {
+  if (!apiKey) return false;
+  const cached = subscriptionCache.get(apiKey);
+  if (cached && Date.now() - cached.timestamp < SUBSCRIPTION_CACHE_TTL_MS) {
+    return cached.isGo;
+  }
+  try {
+    const res = await fetch('https://opencode.ai/inference/go/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'x-opencode-session': `ses_detect_${Date.now().toString(36)}`,
+        'User-Agent': `mugil-ide/${VERSION}`,
+      },
+      body: JSON.stringify({
+        model: 'beam-free',
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 1,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    let isGo = false;
+    if (res.ok) {
+      isGo = true;
+    } else if (res.status === 400) {
+      const text = await res.text();
+      // If error mentions regions or go session, the auth passed as a Go subscriber
+      if (
+        text.includes('OpenCode Go') ||
+        text.includes('regions') ||
+        text.includes('x-opencode-session')
+      ) {
+        isGo = true;
+      }
+    }
+    subscriptionCache.set(apiKey, { isGo, timestamp: Date.now() });
+    return isGo;
+  } catch {
+    return cached ? cached.isGo : false;
+  }
+}
+
 export function clearModelsCache(): void {
   modelsCache.clear();
 }
@@ -93,8 +151,19 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
     }
 
     if (provider === 'opencode') {
-      const url = opencodeBaseUrls(baseUrl).models;
-      const isConsoleOrGo = /\/inference(\/go)?$/.test((baseUrl || '').replace(/\/+$/, ''));
+      const isExplicitGo = /\/inference\/go$/.test((baseUrl || '').replace(/\/+$/, ''));
+      const isExplicitZen =
+        Boolean(baseUrl) &&
+        !isExplicitGo &&
+        (baseUrl!.includes('/zen') || (baseUrl!.includes('/inference') && !baseUrl!.includes('/go')));
+      let isGo = isExplicitGo;
+      if (!isExplicitGo && !isExplicitZen && apiKey) {
+        isGo = await detectOpenCodeSubscription(apiKey, Math.min(timeoutMs, 2500));
+      }
+      const url = isGo
+        ? 'https://opencode.ai/inference/go/v1/models'
+        : opencodeBaseUrls(baseUrl).models;
+      const isConsoleOrGo = isGo || /\/inference(\/go)?$/.test((baseUrl || '').replace(/\/+$/, ''));
       const res = await fetch(url, {
         headers: {
           'User-Agent': isConsoleOrGo ? `mugil-ide/${VERSION}` : OPENCODE_USER_AGENT,
@@ -106,6 +175,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
         const json = (await res.json()) as {
           data?: Array<{
             id: string;
+            name?: string;
             type?: string;
             context_length?: number;
             limit?: { context?: number };
@@ -119,9 +189,11 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
               tools?: { supported?: boolean };
               reasoning?: { supported?: boolean };
             };
+            go?: unknown;
           }>;
         };
         if (json.data && json.data.length > 0) {
+          const providerLabel = isGo ? 'OpenCode Go' : 'OpenCode Zen';
           const list: ModelSpec[] = json.data
             .filter((m) => {
               if (m.type && m.type !== 'chat') return false;
@@ -129,36 +201,55 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
               return true;
             })
             .map((m) => {
-            const ctx = m.limit?.context || m.context_length || 128000;
-            const costIn = m.cost?.text?.input?.price ?? 0;
-            const costOut = m.cost?.text?.output?.price ?? 0;
-            const cacheIn = m.cost?.text?.input?.cache?.read;
-            const costPerMTokCacheRead =
-              cacheIn !== undefined ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
-            const tier: ModelSpec['tier'] = m.cost
-              ? costOut > 5
-                ? 'smart'
-                : costOut > 0.5
-                  ? 'standard'
-                  : 'cheap'
-              : 'standard';
-            return {
-              id: m.id,
-              tier,
-              costPerMTokIn: costIn,
-              costPerMTokOut: costOut,
-              costPerMTokCacheRead,
-              contextWindow: ctx,
-              supportsThinking:
-                m.capabilities?.reasoning?.supported !== undefined
-                  ? m.capabilities.reasoning.supported
-                  : modelSupportsThinking(m.id),
-              supportsTools:
-                m.capabilities?.tools?.supported !== undefined
-                  ? m.capabilities.tools.supported
-                  : modelSupportsTools(m.id),
+              const ctx = m.limit?.context || m.context_length || 128000;
+              const costIn = m.cost?.text?.input?.price ?? 0;
+              const costOut = m.cost?.text?.output?.price ?? 0;
+              const cacheIn = m.cost?.text?.input?.cache?.read;
+              const costPerMTokCacheRead =
+                cacheIn !== undefined ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
+              const tier: ModelSpec['tier'] = m.cost
+                ? costOut > 5
+                  ? 'smart'
+                  : costOut > 0.5
+                    ? 'standard'
+                    : 'cheap'
+                : 'standard';
+              return {
+                id: m.id,
+                name: m.name,
+                tier,
+                costPerMTokIn: costIn,
+                costPerMTokOut: costOut,
+                costPerMTokCacheRead,
+                contextWindow: ctx,
+                supportsThinking:
+                  m.capabilities?.reasoning?.supported !== undefined
+                    ? m.capabilities.reasoning.supported
+                    : modelSupportsThinking(m.id),
+                supportsTools:
+                  m.capabilities?.tools?.supported !== undefined
+                    ? m.capabilities.tools.supported
+                    : modelSupportsTools(m.id),
+                provider: 'opencode',
+                providerLabel,
+                isGo,
+              };
+            });
+          if (isGo) {
+            const GO_ORDER: Record<string, number> = {
+              'deepseek-v4.1-flash': 100,
+              'claude-haiku-5-5': 95,
+              'beam-free': 90,
+              'hy4-flash-free': 85,
+              'qwen4-max': 80,
+              'deepseek-v4-pro': 75,
+              'grok-4.7': 70,
+              'gemini-4-argon': 65,
+              'longcat-2.5-free': 60,
+              'iceman-contributor-free': 55,
             };
-          });
+            list.sort((a, b) => (GO_ORDER[b.id] || 0) - (GO_ORDER[a.id] || 0));
+          }
           modelsCache.set(cacheKey, { models: list, timestamp: Date.now() });
           return list;
         }

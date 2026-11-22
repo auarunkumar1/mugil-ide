@@ -607,6 +607,59 @@ describe('OpenCodeClient', () => {
       /OpenCode free model limit reached for "beam-free"\. In OpenCode Go, use model 'deepseek-v4\.1-flash'/,
     );
   });
+
+  it('automatically retries on OpenCode Go endpoint when hitting 402 Go provider mismatch', async () => {
+    let callCount = 0;
+    const fetchMock = jest.fn().mockImplementation(async (url: string) => {
+      callCount++;
+      if (url.includes('/zen/v1')) {
+        return {
+          ok: false,
+          status: 402,
+          text: async () =>
+            JSON.stringify({
+              error: {
+                type: 'invalid_request_error',
+                message:
+                  'Insufficient balance. This request is pay-as-you-go, billed to OpenCode Models credits. OpenCode Go covers only requests to the OpenCode Go provider.',
+              },
+            }),
+        };
+      }
+      return okResponse({
+        model: 'deepseek-v4.1-flash',
+        choices: [{ message: { content: 'rescued by go' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 3, completion_tokens: 3, total_tokens: 6 },
+      });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-go-key', baseUrl: 'https://opencode.ai/zen/v1' });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'deepseek-v4.1-flash',
+    });
+    expect(result.content).toBe('rescued by go');
+    expect(callCount).toBe(2);
+    expect(fetchMock.mock.calls[1]![0]).toBe(
+      'https://opencode.ai/inference/go/openai/v1/chat/completions',
+    );
+  });
+
+  it('translates region privacy restriction on DeepSeek Go models into clear instructions', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () =>
+        'This OpenCode Go model is hosted outside Europe and the United States. Select Global at https://opencode.ai/console/settings/privacy#regions to use it.',
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-go-key',
+      baseUrl: 'https://opencode.ai/inference/go',
+    });
+    await expect(
+      client.complete([{ role: 'user', content: 'hi' }], { model: 'deepseek-v4.1-flash' }),
+    ).rejects.toThrow(/OpenCode Go region restriction for "deepseek-v4\.1-flash"/);
+  });
 });
 
 describe('provider selection in createEngine', () => {
