@@ -846,7 +846,7 @@ export class AgentRepl {
         },
         {
           provider: 'opencode',
-          label: 'OpenCode Zen',
+          label: 'OpenCode',
           apiKey: keyFor(['OPENCODE_API_KEY']),
           baseUrl: this.engine.config.opencodeBaseUrl,
         },
@@ -862,7 +862,12 @@ export class AgentRepl {
           });
           if (found && found.length > 0) {
             found.forEach((m) =>
-              allFound.push({ ...m, provider: target.provider, isLocal: false }),
+              allFound.push({
+                ...m,
+                provider: target.provider,
+                providerLabel: m.providerLabel || target.label,
+                isLocal: false,
+              }),
             );
           }
         } catch {
@@ -890,9 +895,10 @@ export class AgentRepl {
         const indicator = isCurrent ? green('●') : dim('○');
         const tools = m.supportsTools ? cyan('[tools]') : '';
         const think = m.supportsThinking ? magenta('[think]') : '';
-        const prov = m.provider ? dim(`[${m.provider}]`) : '';
+        const provLabel = m.providerLabel || m.provider || '';
+        const prov = provLabel ? dim(`[${provLabel}]`) : '';
         this.io.write(
-          `  ${cyan(num)} ${indicator} ${bold(m.id.padEnd(35))} ${prov.padEnd(14)} ${dim(m.tier.padEnd(8))} ${tools} ${think}\r\n`,
+          `  ${cyan(num)} ${indicator} ${bold(m.id.padEnd(35))} ${prov.padEnd(18)} ${dim(m.tier.padEnd(8))} ${tools} ${think}\r\n`,
         );
       }
       this.io.write(

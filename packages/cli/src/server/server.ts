@@ -725,7 +725,8 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
                     ...x,
                     provider: 'opencode',
                     isLocal: false,
-                    providerLabel: 'OpenCode Zen',
+                    providerLabel: x.providerLabel || 'OpenCode Go',
+                    isGo: Boolean(x.isGo),
                   })),
                 }))
                 .catch(() => ({ isLocal: false, models: [] }))
@@ -1285,28 +1286,41 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
 
     if (url.pathname === '/api/keys' && req.method === 'GET') {
       try {
-        const { readUserEnv } = await import('@mugil-ide/core');
+        const { readUserEnv, detectOpenCodeSubscription } = await import('@mugil-ide/core');
         const { PROVIDERS, maskKey } = await import('../providers.js');
         const env = readUserEnv();
         const activeProvider = engine.config.provider;
-        const providers = PROVIDERS.map((p) => {
-          const keyVal = env[p.keyVar] || process.env[p.keyVar] || '';
-          const baseVal = p.baseVar ? env[p.baseVar] || process.env[p.baseVar] || '' : undefined;
-          const isConfigured = Boolean(keyVal || (p.custom && baseVal));
-          return {
-            id: p.id,
-            label: p.label,
-            url: p.url,
-            keyVar: p.keyVar,
-            baseVar: p.baseVar,
-            custom: p.custom,
-            isConfigured,
-            isActive: p.id === activeProvider,
-            isUnused: isConfigured && p.id !== activeProvider,
-            maskedKey: keyVal ? maskKey(keyVal) : '',
-            baseUrl: baseVal || '',
-          };
-        });
+        const providers = await Promise.all(
+          PROVIDERS.map(async (p) => {
+            const keyVal = env[p.keyVar] || process.env[p.keyVar] || '';
+            const baseVal = p.baseVar ? env[p.baseVar] || process.env[p.baseVar] || '' : undefined;
+            const isConfigured = Boolean(keyVal || (p.custom && baseVal));
+            let label = p.label;
+            if (p.id === 'opencode' && isConfigured) {
+              try {
+                const isGo = await detectOpenCodeSubscription(keyVal, 2000);
+                label = isGo
+                  ? 'OpenCode Go (Active Subscription · 31 Models)'
+                  : 'OpenCode Zen (Pay-as-you-go Credits)';
+              } catch {
+                /* fallback to default */
+              }
+            }
+            return {
+              id: p.id,
+              label,
+              url: p.url,
+              keyVar: p.keyVar,
+              baseVar: p.baseVar,
+              custom: p.custom,
+              isConfigured,
+              isActive: p.id === activeProvider,
+              isUnused: isConfigured && p.id !== activeProvider,
+              maskedKey: keyVal ? maskKey(keyVal) : '',
+              baseUrl: baseVal || '',
+            };
+          }),
+        );
         const unusedCount = providers.filter((p) => p.isUnused).length;
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ providers, activeProvider, unusedCount }));

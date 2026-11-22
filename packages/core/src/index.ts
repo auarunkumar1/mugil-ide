@@ -414,7 +414,11 @@ export {
 } from './config.js';
 export * as llamacpp from './modules/llamacpp/index.js';
 export * as hybrid from './modules/hybrid/index.js';
-export { fetchProviderModels } from './modules/handoff/models.js';
+export {
+  fetchProviderModels,
+  detectOpenCodeSubscription,
+  clearSubscriptionCache,
+} from './modules/handoff/models.js';
 export type { FetchModelsOptions } from './modules/handoff/models.js';
 export { resolveFileContext, type ResolveContextResult } from './contextResolver.js';
 export type { AppConfig, CompletionProvider } from './config.js';

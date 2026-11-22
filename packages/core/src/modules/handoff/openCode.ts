@@ -65,13 +65,15 @@ export function opencodeBaseUrls(baseUrl = 'https://opencode.ai/zen/v1'): {
 }
 
 export class OpenCodeClient implements ProviderClient {
-  private readonly openai: OpenAiClient;
-  private readonly anthropic: AnthropicClient;
+  private openai: OpenAiClient;
+  private anthropic: AnthropicClient;
   readonly mock: boolean;
   readonly sessionId: string;
   readonly baseUrl?: string;
+  private readonly options: OpenCodeClientOptions;
 
   constructor(options: OpenCodeClientOptions = {}) {
+    this.options = options;
     this.baseUrl = options.baseUrl;
     const urls = opencodeBaseUrls(options.baseUrl);
     this.sessionId =
@@ -113,6 +115,9 @@ export class OpenCodeClient implements ProviderClient {
         : await this.openai.complete(messages, opts);
       return { ...result, provider: 'opencode' };
     } catch (err) {
+      if (this.isGoSubscriptionMismatchError(err)) {
+        return this.retryOnGoEndpoint(messages, options, effectiveModel, false);
+      }
       this.handleOpenCodeError(err, effectiveModel);
     }
   }
@@ -120,15 +125,6 @@ export class OpenCodeClient implements ProviderClient {
   /**
    * Streaming variant of `complete()`, delegating to the composed client the
    * same way `complete()` does.
-   *
-   * TypeScript does not forward an optional interface member through
-   * composition: declaring `private readonly openai: OpenAiClient` and calling
-   * `this.openai.complete()` never makes `OpenCodeClient.stream` exist on
-   * `ProviderClient`, so without this method every OpenCode turn silently took
-   * the buffered fallback — one whole-answer delta, no progressive output.
-   * The `claude` routing branch, the unsupported-model guard and the
-   * `provider: 'opencode'` re-brand are reproduced exactly; only the transport
-   * differs.
    */
   async stream(
     messages: ChatMessage[],
@@ -151,7 +147,64 @@ export class OpenCodeClient implements ProviderClient {
         : await this.openai.stream(messages, opts, handlers);
       return { ...result, provider: 'opencode' };
     } catch (err) {
+      if (this.isGoSubscriptionMismatchError(err)) {
+        return this.retryOnGoEndpoint(messages, options, effectiveModel, true, handlers);
+      }
       this.handleOpenCodeError(err, effectiveModel);
+    }
+  }
+
+  private isGoSubscriptionMismatchError(err: unknown): boolean {
+    const msg = err instanceof Error ? err.message : String(err);
+    const isGoUrl = /\/inference\/go$/.test((this.baseUrl || '').replace(/\/+$/, ''));
+    if (
+      !isGoUrl &&
+      (msg.includes('OpenCode Go covers only requests') ||
+        (msg.includes('Insufficient balance') && msg.includes('OpenCode Go')))
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private async retryOnGoEndpoint(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    effectiveModel: string,
+    isStream: boolean,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    const goUrls = opencodeBaseUrls('https://opencode.ai/inference/go');
+    const headers: Record<string, string> = {
+      'User-Agent': `mugil-ide/${VERSION}`,
+      'x-opencode-session': this.sessionId,
+      ...(this.options.headers || {}),
+    };
+    const goAnthropic = new AnthropicClient({
+      apiKey: this.options.apiKey,
+      baseUrl: goUrls.anthropic,
+      headers,
+    });
+    const goOpenAi = new OpenAiClient({
+      apiKey: this.options.apiKey,
+      baseUrl: goUrls.openAi,
+      headers,
+    });
+    const opts = effectiveModel !== options.model ? { ...options, model: effectiveModel } : options;
+    try {
+      if (isStream) {
+        const result = effectiveModel.startsWith('claude')
+          ? await goAnthropic.stream(messages, opts, handlers)
+          : await goOpenAi.stream(messages, opts, handlers);
+        return { ...result, provider: 'opencode' };
+      } else {
+        const result = effectiveModel.startsWith('claude')
+          ? await goAnthropic.complete(messages, opts)
+          : await goOpenAi.complete(messages, opts);
+        return { ...result, provider: 'opencode' };
+      }
+    } catch (retryErr) {
+      this.handleOpenCodeError(retryErr, effectiveModel);
     }
   }
 
@@ -170,6 +223,23 @@ export class OpenCodeClient implements ProviderClient {
         `OpenCode free model limit reached for "${model}". In OpenCode Go, use model 'deepseek-v4.1-flash' or set OPENCODE_BASE_URL=https://opencode.ai/inference/go. Free models: beam-free, iceman-free, longcat-2.5-free, hy4-flash-free.`,
         429,
         true,
+      );
+    }
+    if (msg.includes('hosted outside Europe') || msg.includes('Select Global at') || msg.includes('#regions')) {
+      throw new ProviderError(
+        `OpenCode Go region restriction for "${model}": DeepSeek models in OpenCode Go require the "Global" region privacy setting. Enable "Global" under Settings > Privacy > Regions (https://opencode.ai/console) or switch to worldwide models like 'claude-haiku-5-5' or 'beam-free'.`,
+        400,
+        false,
+      );
+    }
+    if (
+      msg.includes('OpenCode Go covers only requests to the OpenCode Go provider') ||
+      (msg.includes('Insufficient balance') && msg.includes('OpenCode Go'))
+    ) {
+      throw new ProviderError(
+        `OpenCode Go subscription error: ${msg}. Requests for OpenCode Go subscribers must be sent to the OpenCode Go provider (OPENCODE_BASE_URL=https://opencode.ai/inference/go).`,
+        402,
+        false,
       );
     }
     throw err;

@@ -42,6 +42,7 @@ export type ExecutionTopology =
 /** Cost figures are USD per 1M tokens, used for routing and budget decisions. */
 export interface ModelSpec {
   id: string;
+  name?: string;
   tier: ModelTier;
   costPerMTokIn: number;
   costPerMTokOut: number;
@@ -50,6 +51,10 @@ export interface ModelSpec {
   supportsThinking?: boolean;
   /** Whether the model can call tools. Populated from catalog data when available. */
   supportsTools?: boolean;
+  provider?: string;
+  providerLabel?: string;
+  isGo?: boolean;
+  isLocal?: boolean;
 }
 
 export interface CompletionResult {

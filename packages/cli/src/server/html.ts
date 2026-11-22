@@ -1912,7 +1912,7 @@ export function getWebUiHtml(): string {
           <span id="header-engine-icon" style="font-size:13px;">⚡</span>
           <span id="header-engine-topo" style="font-weight:600;">Auto</span>
           <span style="color:var(--border); margin:0 1px;">|</span>
-          <span id="header-engine-model" style="color:var(--accent); max-width:140px; overflow:hidden; text-overflow:ellipsis;">Detecting...</span>
+          <span id="header-engine-model" style="color:var(--accent); max-width:200px; overflow:hidden; text-overflow:ellipsis;">Detecting...</span>
           <span style="font-size:9px; opacity:0.7;">▾</span>
         </button>
         <div class="menu-dropdown-content" id="header-engine-dropdown" style="min-width:320px; padding:12px; flex-direction:column; gap:10px;">
@@ -2514,7 +2514,7 @@ export function getWebUiHtml(): string {
               <option value="openrouter|OPENROUTER_API_KEY">OpenRouter (Rec)</option>
               <option value="openai|OPENAI_API_KEY">OpenAI</option>
               <option value="anthropic|ANTHROPIC_API_KEY">Anthropic</option>
-              <option value="opencode|OPENCODE_API_KEY">OpenCode</option>
+              <option value="opencode|OPENCODE_API_KEY">🌐 OpenCode (Go / Zen)</option>
             </select>
             <input type="password" id="welcome-key-input" class="input-field" placeholder="Paste your API key here (sk-...)" style="flex:1;" />
             <button class="btn btn-primary" onclick="saveWelcomeCloudKey()">Save Key</button>
@@ -4113,6 +4113,53 @@ export function getWebUiHtml(): string {
     let modifiedFiles = [];
     let currentSelectedPath = '';
 
+    function getProviderBadgeInfo(provider, providerLabel) {
+      const p = (provider || '').toLowerCase();
+      const pl = (providerLabel || '').toLowerCase();
+      if (p === 'opencode' || pl.includes('opencode')) {
+        if (pl.includes('go')) {
+          return { logo: '🌐', name: 'OpenCode Go', short: 'OpenCode Go' };
+        }
+        if (pl.includes('zen')) {
+          return { logo: '⚡', name: 'OpenCode Zen', short: 'OpenCode Zen' };
+        }
+        return { logo: '🌐', name: 'OpenCode Go', short: 'OpenCode' };
+      }
+      if (p === 'openrouter') return { logo: '🪐', name: 'OpenRouter', short: 'OpenRouter' };
+      if (p === 'openai') return { logo: '🟩', name: 'OpenAI', short: 'OpenAI' };
+      if (p === 'anthropic') return { logo: '🟧', name: 'Anthropic', short: 'Anthropic' };
+      if (p === 'vercel') return { logo: '▲', name: 'Vercel AI', short: 'Vercel' };
+      if (p === 'cloudflare') return { logo: '🟠', name: 'Cloudflare', short: 'Cloudflare' };
+      if (p === 'together') return { logo: '🤝', name: 'Together AI', short: 'Together' };
+      if (p === 'llamacpp') return { logo: '💻', name: 'llama.cpp', short: 'llama.cpp' };
+      if (p === 'ollama') return { logo: '🦙', name: 'Ollama', short: 'Ollama' };
+      if (p === 'lmstudio') return { logo: '🧪', name: 'LM Studio', short: 'LM Studio' };
+      if (p === 'local') return { logo: '💻', name: 'Local AI', short: 'Local' };
+      return { logo: '☁️', name: providerLabel || provider || 'Cloud', short: provider || 'Cloud' };
+    }
+
+    function updateHeaderModelDisplay(modelId, provider) {
+      if (!modelId) return;
+      activeModelId = modelId;
+      const m = (allAvailableModels || []).find(x => x.id === modelId)
+        || (availableCloudModels || []).find(x => x.id === modelId)
+        || (availableLocalModels || []).find(x => x.id === modelId);
+      const prov = getProviderBadgeInfo((m && m.provider) || provider, m && m.providerLabel);
+      const displayModel = m && m.name ? m.name : modelId;
+      
+      const engModelEl = document.getElementById('header-engine-model');
+      if (engModelEl) {
+        engModelEl.textContent = prov.logo + ' ' + displayModel;
+        engModelEl.title = prov.name + ': ' + modelId;
+      }
+      const headActiveEl = document.getElementById('header-active-model');
+      if (headActiveEl) {
+        headActiveEl.textContent = prov.logo + ' [' + prov.name + '] ' + displayModel;
+      }
+      const subEl = document.getElementById('sub-active-model');
+      if (subEl) subEl.textContent = modelId;
+    }
+
     // --- UI Font Scaling & Zoom ---
     let currentZoom = parseFloat(localStorage.getItem('mugil_ui_zoom') || '1.0');
     if (isNaN(currentZoom) || currentZoom < 0.7 || currentZoom > 2.0) currentZoom = 1.0;
@@ -4652,12 +4699,7 @@ export function getWebUiHtml(): string {
               updateDebuggerUI(msg.stepDebuggerEnabled);
             }
             if (msg.activeModel) {
-              activeModelId = msg.activeModel;
-              const subEl = document.getElementById('sub-active-model');
-              if (subEl) subEl.textContent = msg.activeModel;
-              document.getElementById('header-active-model').textContent = msg.activeModel;
-              const engModelEl = document.getElementById('header-engine-model');
-              if (engModelEl) engModelEl.textContent = msg.activeModel;
+              updateHeaderModelDisplay(msg.activeModel, msg.provider);
               const isLoc = Boolean(msg.isLocal);
               currentIsLocalEngine = isLoc;
               const locDot = document.getElementById('engine-local-status-dot');
@@ -5864,9 +5906,7 @@ export function getWebUiHtml(): string {
 
           if (data.activeModel) {
             activeModelId = data.activeModel;
-            document.getElementById('header-active-model').textContent = activeModelId;
-            const subEl = document.getElementById('sub-active-model');
-            if (subEl) subEl.textContent = activeModelId;
+            updateHeaderModelDisplay(data.activeModel, data.activeProvider);
             const statusModelEl = document.getElementById('status-model');
             if (statusModelEl) statusModelEl.textContent = 'Model: ' + activeModelId;
           }
@@ -5942,9 +5982,10 @@ export function getWebUiHtml(): string {
         const toolsBadge = m.supportsTools ? '<span style="color:var(--accent); font-size:10px; font-weight:bold;">[Tools]</span>' : '';
         const thinkBadge = m.supportsThinking ? '<span style="color:var(--magenta); font-size:10px; font-weight:bold;">[Thinking]</span>' : '';
         const sizeBadge = m.sizeBytes ? '<span style="color:var(--green); font-size:10px; font-weight:bold;">[' + (m.sizeBytes / 1e9).toFixed(2) + ' GB]</span>' : '';
-        const providerBadge = m.isLocal
-          ? '<span style="color:var(--green); font-size:10px; font-weight:bold;">[Local · Free]</span>'
-          : '<span style="color:var(--text-dim); font-size:10px;">[' + escapeHtml(m.provider || 'cloud') + ']</span>';
+        const prov = getProviderBadgeInfo(m.provider, m.providerLabel);
+        const providerBadge = '<span style="display:inline-flex; align-items:center; gap:3px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:4px; padding:1px 6px; font-size:10px; font-weight:600; color:' + (m.isLocal ? 'var(--green)' : 'var(--accent)') + ';">'
+          + prov.logo + ' ' + escapeHtml(prov.name)
+          + '</span>';
         const activeBadge = isActive ? '<span style="color:var(--green); font-weight:bold; font-size:11px;">● Active</span>' : '<button class="btn btn-primary" style="padding:2px 8px; font-size:10px;">Select & Run</button>';
         const isLocalGguf = m.provider === 'llamacpp' || (m.isLocal && m.id && m.id.endsWith('.gguf'));
         const sizeStr = m.sizeBytes ? (m.sizeBytes / 1e9).toFixed(2) + ' GB' : '';
@@ -5954,9 +5995,12 @@ export function getWebUiHtml(): string {
         
         card.onclick = function() { selectModel(m.id, m.provider); };
         card.innerHTML = '<div>'
-          + '<div style="font-weight:600; font-size:13px; color:var(--text);">' + escapeHtml(m.id) + '</div>'
-          + '<div style="font-size:11px; color:var(--text-dim); margin-top:2px;">'
-          + providerBadge + ' ' + sizeBadge + ' · Tier: <span style="text-transform:capitalize;">' + escapeHtml(m.tier || 'standard') + '</span> · ' + toolsBadge + ' ' + thinkBadge
+          + '<div style="display:flex; align-items:center; gap:8px;">'
+          + '<span style="font-weight:600; font-size:13px; color:var(--text);">' + escapeHtml(m.name || m.id) + '</span>'
+          + providerBadge
+          + '</div>'
+          + '<div style="font-size:11px; color:var(--text-dim); margin-top:3px;">'
+          + sizeBadge + (m.costPerMTokIn || m.costPerMTokOut ? ' · $' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out' : '') + ' · Tier: <span style="text-transform:capitalize;">' + escapeHtml(m.tier || 'standard') + '</span> · ' + toolsBadge + ' ' + thinkBadge
           + '</div>'
           + '</div>'
           + '<div style="display:flex; align-items:center;">'
@@ -5973,7 +6017,12 @@ export function getWebUiHtml(): string {
       if (activeModelTab === 'local') sourceList = availableLocalModels;
       else if (activeModelTab === 'cloud') sourceList = availableCloudModels;
 
-      const filtered = sourceList.filter(m => m.id.toLowerCase().includes(q) || (m.provider && m.provider.toLowerCase().includes(q)));
+      const filtered = sourceList.filter(m =>
+        m.id.toLowerCase().includes(q) ||
+        (m.name && m.name.toLowerCase().includes(q)) ||
+        (m.provider && m.provider.toLowerCase().includes(q)) ||
+        (m.providerLabel && m.providerLabel.toLowerCase().includes(q))
+      );
       renderModelCards(filtered);
     }
 
@@ -5985,11 +6034,7 @@ export function getWebUiHtml(): string {
           body: JSON.stringify({ model: modelId, provider })
         });
         activeModelId = modelId;
-        document.getElementById('header-active-model').textContent = modelId;
-        const subEl = document.getElementById('sub-active-model');
-        if (subEl) subEl.textContent = modelId;
-        const engModelEl = document.getElementById('header-engine-model');
-        if (engModelEl) engModelEl.textContent = modelId;
+        updateHeaderModelDisplay(modelId, provider);
         document.getElementById('status-model').textContent = 'Model: ' + modelId;
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'set_model', model: modelId, provider }));
@@ -7108,8 +7153,9 @@ export function getWebUiHtml(): string {
           localList.forEach((m) => {
             const opt = document.createElement('option');
             opt.value = m.id;
+            const prov = getProviderBadgeInfo(m.provider, m.providerLabel);
             const sizeGb = m.sizeBytes ? ' (' + (m.sizeBytes / 1e9).toFixed(1) + ' GB)' : '';
-            opt.textContent = '🟢 ' + (m.name || m.id) + sizeGb + ' · Free $0';
+            opt.textContent = prov.logo + ' [' + prov.name + '] ' + (m.name || m.id) + sizeGb + ' · Free $0';
             if (m.id === activeModelId || (activeModelId && activeModelId.includes(m.id))) {
               opt.selected = true;
             }
@@ -7159,10 +7205,11 @@ export function getWebUiHtml(): string {
         cloudList.forEach((m) => {
           const opt = document.createElement('option');
           opt.value = m.id;
+          const prov = getProviderBadgeInfo(m.provider, m.providerLabel);
           const costStr = (m.costPerMTokIn || m.costPerMTokOut)
             ? ' ($' + m.costPerMTokIn.toFixed(2) + ' in / $' + m.costPerMTokOut.toFixed(2) + ' out)'
             : '';
-          opt.textContent = '☁️ ' + m.id + costStr;
+          opt.textContent = prov.logo + ' [' + prov.name + '] ' + m.id + costStr;
           if (m.id === activeModelId) opt.selected = true;
           sel.appendChild(opt);
         });
@@ -7176,7 +7223,8 @@ export function getWebUiHtml(): string {
         allList.forEach((m) => {
           const opt = document.createElement('option');
           opt.value = m.id;
-          opt.textContent = m.id;
+          const prov = getProviderBadgeInfo(m.provider, m.providerLabel);
+          opt.textContent = prov.logo + ' [' + prov.name + '] ' + (m.name || m.id);
           if (m.id === activeModelId) opt.selected = true;
           setupModelSelect.appendChild(opt);
         });
