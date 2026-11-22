@@ -98,6 +98,35 @@ describe('mugil-ide CLI (spawned)', () => {
     expect(readFileSync(join(dir, '.env'), 'utf8')).not.toContain('OPENROUTER_API_KEY');
   });
 
+  it('keys --delete-unused deletes only inactive keys and keeps active provider', async () => {
+    const dir = tmpDir();
+    const envFile = join(dir, '.env');
+    writeFileSync(
+      envFile,
+      'AI_PROVIDER=opencode\nOPENCODE_API_KEY=oc-active-key-1234\nOPENROUTER_API_KEY=sk-or-unused-5678\nTOGETHER_API_KEY=tog-unused-9999\n',
+    );
+
+    const keysBefore = await runCli(['keys'], { MUGIL_IDE_ENV_FILE: envFile });
+    expect(keysBefore.stdout).toContain('[ACTIVE]  opencode');
+    expect(keysBefore.stdout).toContain('[UNUSED]  openrouter');
+    expect(keysBefore.stdout).toContain('[UNUSED]  together');
+    expect(keysBefore.stdout).toContain('2 unused key(s)');
+
+    const delUnused = await runCli(['keys', '--delete-unused'], { MUGIL_IDE_ENV_FILE: envFile });
+    expect(delUnused.stdout).toContain('removed unused keys');
+    expect(delUnused.stdout).toContain('OPENROUTER_API_KEY');
+    expect(delUnused.stdout).toContain('TOGETHER_API_KEY');
+
+    const contentAfter = readFileSync(envFile, 'utf8');
+    expect(contentAfter).toContain('OPENCODE_API_KEY');
+    expect(contentAfter).not.toContain('OPENROUTER_API_KEY');
+    expect(contentAfter).not.toContain('TOGETHER_API_KEY');
+
+    const delSingle = await runCli(['keys', '-d', 'opencode'], { MUGIL_IDE_ENV_FILE: envFile });
+    expect(delSingle.stdout).toContain('removed OPENCODE_API_KEY');
+    expect(readFileSync(envFile, 'utf8')).not.toContain('OPENCODE_API_KEY');
+  });
+
   it('logout requires a provider unless --all', async () => {
     const { code, stderr } = await runCli(['logout']);
     expect(code).not.toBe(0);

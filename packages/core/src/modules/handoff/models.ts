@@ -1,4 +1,5 @@
 import type { ModelSpec } from '../../types.js';
+import { VERSION } from '../../branding.js';
 import { OPENCODE_USER_AGENT, opencodeBaseUrls } from './openCode.js';
 import {
   modelSupportsThinking,
@@ -96,7 +97,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
       const isConsoleOrGo = /\/inference(\/go)?$/.test((baseUrl || '').replace(/\/+$/, ''));
       const res = await fetch(url, {
         headers: {
-          'User-Agent': isConsoleOrGo ? 'mugil-ide/0.5.1' : OPENCODE_USER_AGENT,
+          'User-Agent': isConsoleOrGo ? `mugil-ide/${VERSION}` : OPENCODE_USER_AGENT,
           ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         },
         signal: AbortSignal.timeout(timeoutMs),
@@ -105,6 +106,7 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
         const json = (await res.json()) as {
           data?: Array<{
             id: string;
+            type?: string;
             context_length?: number;
             limit?: { context?: number };
             cost?: {
@@ -120,7 +122,13 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
           }>;
         };
         if (json.data && json.data.length > 0) {
-          const list: ModelSpec[] = json.data.map((m) => {
+          const list: ModelSpec[] = json.data
+            .filter((m) => {
+              if (m.type && m.type !== 'chat') return false;
+              if (m.id === 'deepseek-v4.1-flash-free' || m.id === 'mimo-v2.6-flash-free') return false;
+              return true;
+            })
+            .map((m) => {
             const ctx = m.limit?.context || m.context_length || 128000;
             const costIn = m.cost?.text?.input?.price ?? 0;
             const costOut = m.cost?.text?.output?.price ?? 0;

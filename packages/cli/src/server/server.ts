@@ -1288,9 +1288,11 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         const { readUserEnv } = await import('@mugil-ide/core');
         const { PROVIDERS, maskKey } = await import('../providers.js');
         const env = readUserEnv();
+        const activeProvider = engine.config.provider;
         const providers = PROVIDERS.map((p) => {
           const keyVal = env[p.keyVar] || process.env[p.keyVar] || '';
           const baseVal = p.baseVar ? env[p.baseVar] || process.env[p.baseVar] || '' : undefined;
+          const isConfigured = Boolean(keyVal || (p.custom && baseVal));
           return {
             id: p.id,
             label: p.label,
@@ -1298,13 +1300,16 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
             keyVar: p.keyVar,
             baseVar: p.baseVar,
             custom: p.custom,
-            isConfigured: Boolean(keyVal || baseVal),
+            isConfigured,
+            isActive: p.id === activeProvider,
+            isUnused: isConfigured && p.id !== activeProvider,
             maskedKey: keyVal ? maskKey(keyVal) : '',
             baseUrl: baseVal || '',
           };
         });
+        const unusedCount = providers.filter((p) => p.isUnused).length;
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ providers }));
+        res.end(JSON.stringify({ providers, activeProvider, unusedCount }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
@@ -1408,6 +1413,115 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
         res.end(JSON.stringify({ ok: true, savedFile }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/keys' && req.method === 'DELETE') {
+      try {
+        const { readUserEnv, deleteUserEnvKeys, writeUserEnv } = await import('@mugil-ide/core');
+        const { PROVIDERS } = await import('../providers.js');
+        const json = await readJsonBody(req).catch(() => ({}));
+        const { provider, keyVar, baseVar, unusedOnly, all } = json as {
+          provider?: string;
+          keyVar?: string;
+          baseVar?: string;
+          unusedOnly?: boolean;
+          all?: boolean;
+        };
+
+        const env = readUserEnv();
+        const activeProvider = engine.config.provider;
+        const keysToDelete = new Set<string>();
+
+        if (all) {
+          for (const p of PROVIDERS) {
+            if (p.keyVar) keysToDelete.add(p.keyVar);
+            if (p.baseVar) keysToDelete.add(p.baseVar);
+          }
+          keysToDelete.add('AI_PROVIDER');
+        } else if (unusedOnly) {
+          for (const p of PROVIDERS) {
+            if (p.id !== activeProvider) {
+              const hasKey = Boolean(env[p.keyVar] || process.env[p.keyVar]);
+              const hasBase = Boolean(p.baseVar && (env[p.baseVar] || process.env[p.baseVar]));
+              if (hasKey) keysToDelete.add(p.keyVar);
+              if (hasBase && p.baseVar) keysToDelete.add(p.baseVar);
+            }
+          }
+        } else if (provider) {
+          const p = PROVIDERS.find((x) => x.id === provider);
+          if (p) {
+            if (p.keyVar) keysToDelete.add(p.keyVar);
+            if (p.baseVar) keysToDelete.add(p.baseVar);
+          }
+        } else if (keyVar || baseVar) {
+          if (keyVar) keysToDelete.add(keyVar);
+          if (baseVar) keysToDelete.add(baseVar);
+        }
+
+        const keysArray = Array.from(keysToDelete);
+        const { removed, file } = deleteUserEnvKeys(keysArray);
+
+        // Clear in-memory process.env
+        for (const k of keysArray) {
+          delete process.env[k];
+        }
+
+        // Clean corresponding fields on engine.config
+        if (keysToDelete.has('OPENROUTER_API_KEY')) delete (engine.config as any).openRouterApiKey;
+        if (keysToDelete.has('OPENAI_API_KEY')) delete (engine.config as any).openaiApiKey;
+        if (keysToDelete.has('ANTHROPIC_API_KEY')) delete (engine.config as any).anthropicApiKey;
+        if (keysToDelete.has('VERCEL_API_KEY')) delete (engine.config as any).vercelApiKey;
+        if (keysToDelete.has('CLOUDFLARE_API_KEY')) delete (engine.config as any).cloudflareApiKey;
+        if (keysToDelete.has('TOGETHER_API_KEY')) delete (engine.config as any).togetherApiKey;
+        if (keysToDelete.has('OPENCODE_API_KEY')) delete (engine.config as any).opencodeApiKey;
+        if (keysToDelete.has('OPENROUTER_BASE_URL')) delete (engine.config as any).openRouterBaseUrl;
+        if (keysToDelete.has('OPENAI_BASE_URL')) delete (engine.config as any).openaiBaseUrl;
+        if (keysToDelete.has('ANTHROPIC_BASE_URL')) delete (engine.config as any).anthropicBaseUrl;
+        if (keysToDelete.has('OLLAMA_BASE_URL')) delete (engine.config as any).ollamaBaseUrl;
+        if (keysToDelete.has('LMSTUDIO_BASE_URL')) delete (engine.config as any).lmstudioBaseUrl;
+        if (keysToDelete.has('LLAMACPP_BASE_URL')) delete (engine.config as any).llamacppBaseUrl;
+        if (keysToDelete.has('VERCEL_BASE_URL')) delete (engine.config as any).vercelBaseUrl;
+        if (keysToDelete.has('CLOUDFLARE_BASE_URL')) delete (engine.config as any).cloudflareBaseUrl;
+        if (keysToDelete.has('TOGETHER_BASE_URL')) delete (engine.config as any).togetherBaseUrl;
+        if (keysToDelete.has('OPENCODE_BASE_URL')) delete (engine.config as any).opencodeBaseUrl;
+
+        // If the active provider was deleted, pick the next available configured provider or fallback to openrouter
+        const updatedEnv = readUserEnv();
+        const activeDef = PROVIDERS.find((x) => x.id === activeProvider);
+        const activeKeyRemaining = activeDef
+          ? Boolean(
+              updatedEnv[activeDef.keyVar] ||
+                process.env[activeDef.keyVar] ||
+                (activeDef.custom && (updatedEnv[activeDef.baseVar || ''] || process.env[activeDef.baseVar || ''])),
+            )
+          : false;
+
+        let nextProvider = activeProvider;
+        if (!activeKeyRemaining && !unusedOnly) {
+          const available = PROVIDERS.find((p) => {
+            const k = updatedEnv[p.keyVar] || process.env[p.keyVar];
+            const b = p.baseVar ? updatedEnv[p.baseVar] || process.env[p.baseVar] : undefined;
+            return Boolean(k || (p.custom && b));
+          });
+          nextProvider = (available ? available.id : 'openrouter') as any;
+          engine.config.provider = nextProvider;
+          if (updatedEnv.AI_PROVIDER) {
+            writeUserEnv({ AI_PROVIDER: nextProvider });
+          } else {
+            deleteUserEnvKeys(['AI_PROVIDER']);
+          }
+          delete process.env.AI_PROVIDER;
+        }
+
+        engine.reconfigure({ ...engine.config, provider: nextProvider });
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, removed, file, activeProvider: nextProvider }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
       }
       return;

@@ -10,6 +10,7 @@
  * their wire code; only endpoint selection and result re-branding live here.
  */
 import type { ChatMessage, CompletionResult } from '../../types.js';
+import { VERSION } from '../../branding.js';
 import { OpenAiClient } from './openAi.js';
 import { AnthropicClient } from './anthropic.js';
 import {
@@ -77,7 +78,7 @@ export class OpenCodeClient implements ProviderClient {
       options.sessionId ||
       `ses_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
     const isConsoleOrGo = /\/inference(\/go)?$/.test((options.baseUrl || '').replace(/\/+$/, ''));
-    const userAgent = isConsoleOrGo ? 'mugil-ide/0.5.1' : OPENCODE_USER_AGENT;
+    const userAgent = isConsoleOrGo ? `mugil-ide/${VERSION}` : OPENCODE_USER_AGENT;
     const headers: Record<string, string> = {
       'User-Agent': userAgent,
       'x-opencode-session': this.sessionId,
@@ -102,12 +103,18 @@ export class OpenCodeClient implements ProviderClient {
   ): Promise<CompletionResult> {
     if (this.mock) return mockCompletion(messages, options, 'OPENCODE_API_KEY');
 
-    this.assertSupported(options.model);
+    const effectiveModel = this.normalizeModel(options.model);
+    this.assertSupported(effectiveModel);
 
-    const result = options.model.startsWith('claude')
-      ? await this.anthropic.complete(messages, options)
-      : await this.openai.complete(messages, options);
-    return { ...result, provider: 'opencode' };
+    try {
+      const opts = effectiveModel !== options.model ? { ...options, model: effectiveModel } : options;
+      const result = effectiveModel.startsWith('claude')
+        ? await this.anthropic.complete(messages, opts)
+        : await this.openai.complete(messages, opts);
+      return { ...result, provider: 'opencode' };
+    } catch (err) {
+      this.handleOpenCodeError(err, effectiveModel);
+    }
   }
 
   /**
@@ -134,12 +141,38 @@ export class OpenCodeClient implements ProviderClient {
       return result;
     }
 
-    this.assertSupported(options.model);
+    const effectiveModel = this.normalizeModel(options.model);
+    this.assertSupported(effectiveModel);
 
-    const result = options.model.startsWith('claude')
-      ? await this.anthropic.stream(messages, options, handlers)
-      : await this.openai.stream(messages, options, handlers);
-    return { ...result, provider: 'opencode' };
+    try {
+      const opts = effectiveModel !== options.model ? { ...options, model: effectiveModel } : options;
+      const result = effectiveModel.startsWith('claude')
+        ? await this.anthropic.stream(messages, opts, handlers)
+        : await this.openai.stream(messages, opts, handlers);
+      return { ...result, provider: 'opencode' };
+    } catch (err) {
+      this.handleOpenCodeError(err, effectiveModel);
+    }
+  }
+
+  private normalizeModel(model: string): string {
+    // OpenCode's unauthenticated web-only free endpoints reject external API callers with 429 FreeUsageLimitError.
+    // In OpenCode Go, DeepSeek and MiMo use their standard model IDs:
+    if (model === 'deepseek-v4.1-flash-free') return 'deepseek-v4.1-flash';
+    if (model === 'mimo-v2.6-flash-free') return 'mimo-v2.6-flash';
+    return model;
+  }
+
+  private handleOpenCodeError(err: unknown, model: string): never {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('FreeUsageLimitError') || msg.includes('Free usage limit reached')) {
+      throw new ProviderError(
+        `OpenCode free model limit reached for "${model}". In OpenCode Go, use model 'deepseek-v4.1-flash' or set OPENCODE_BASE_URL=https://opencode.ai/inference/go. Free models: beam-free, iceman-free, longcat-2.5-free, hy4-flash-free.`,
+        429,
+        true,
+      );
+    }
+    throw err;
   }
 
   // ponytail: gpt-*/codex-* models need Zen's /responses (OpenAI Responses

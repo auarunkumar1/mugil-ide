@@ -4,6 +4,7 @@ import { OpenCodeClient } from '../src/modules/handoff/openCode.js';
 import { CloudflareClient } from '../src/modules/handoff/cloudflare.js';
 import { fetchProviderModels } from '../src/modules/handoff/models.js';
 import { createEngine, loadConfig } from '../src/index.js';
+import { VERSION } from '../src/branding.js';
 import type { ToolDefinition } from '../src/types.js';
 
 const originalFetch = global.fetch;
@@ -536,7 +537,7 @@ describe('OpenCodeClient', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer oc-go-key',
-          'User-Agent': 'mugil-ide/0.5.1',
+          'User-Agent': `mugil-ide/${VERSION}`,
           'x-opencode-session': 'ses_test12345',
         }),
       }),
@@ -563,6 +564,47 @@ describe('OpenCodeClient', () => {
           'x-opencode-session': 'ses_test12345',
         }),
       }),
+    );
+  });
+
+  it('normalizes web-only -free model aliases to standard models on OpenCode', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'deepseek-v4.1-flash',
+        choices: [{ message: { content: 'hello normalized' }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-key' });
+    const result = await client.complete([{ role: 'user', content: 'test' }], {
+      model: 'deepseek-v4.1-flash-free',
+    });
+    expect(result.content).toBe('hello normalized');
+    const sentBody = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(sentBody.model).toBe('deepseek-v4.1-flash');
+  });
+
+  it('translates OpenCode FreeUsageLimitError into clear actionable ProviderError', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      text: async () =>
+        JSON.stringify({
+          type: 'error',
+          error: {
+            type: 'FreeUsageLimitError',
+            message:
+              'Free usage limit reached. Free models work in OpenCode (https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go',
+          },
+        }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({ apiKey: 'oc-key' });
+    await expect(
+      client.complete([{ role: 'user', content: 'test' }], { model: 'beam-free' }),
+    ).rejects.toThrow(
+      /OpenCode free model limit reached for "beam-free"\. In OpenCode Go, use model 'deepseek-v4\.1-flash'/,
     );
   });
 });
@@ -971,12 +1013,25 @@ describe('fetchProviderModels', () => {
         data: [
           {
             id: 'deepseek-v4.1-flash',
+            type: 'chat',
             limit: { context: 1000000 },
             cost: { text: { input: { price: 0.14 }, output: { price: 0.28 } } },
             capabilities: { tools: { supported: true }, reasoning: { supported: true } },
           },
           {
+            id: 'deepseek-v4.1-flash-free',
+            type: 'chat',
+            limit: { context: 200000 },
+            cost: { text: { input: { price: 0 }, output: { price: 0 } } },
+          },
+          {
+            id: 'voyage-code-4',
+            type: 'embedding',
+            limit: { context: 32000 },
+          },
+          {
             id: 'beam-free',
+            type: 'chat',
             limit: { context: 1048576 },
             cost: { text: { input: { price: 0 }, output: { price: 0 } } },
             capabilities: { tools: { supported: true }, reasoning: { supported: false } },
@@ -996,7 +1051,7 @@ describe('fetchProviderModels', () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer oc-go-key',
-          'User-Agent': 'mugil-ide/0.5.1',
+          'User-Agent': `mugil-ide/${VERSION}`,
         }),
       }),
     );

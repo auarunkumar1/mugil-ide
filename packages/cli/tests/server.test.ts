@@ -1849,6 +1849,78 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
       await server.close();
     }
   });
+
+  it('serves GET and DELETE /api/keys to manage and delete unused keys', async () => {
+    const engine = createEngine(loadConfig());
+    const server = await startIdeServer({ engine, model: 'test-model' });
+    try {
+      // 1. Configure OpenRouter (active) and Together (unused)
+      await fetch(`${server.url}/api/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'openrouter',
+          keyVar: 'OPENROUTER_API_KEY',
+          value: 'sk-or-v1-testkey123456789',
+        }),
+      });
+      await fetch(`${server.url}/api/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyVar: 'TOGETHER_API_KEY',
+          value: 'together-test-key-9999',
+          baseVar: 'TOGETHER_BASE_URL',
+          baseUrl: 'https://api.together.xyz/v1',
+        }),
+      });
+
+      // 2. Query GET /api/keys
+      const getRes = await fetch(`${server.url}/api/keys`);
+      expect(getRes.status).toBe(200);
+      const getData = (await getRes.json()) as any;
+      expect(getData.activeProvider).toBe('openrouter');
+      expect(getData.unusedCount).toBeGreaterThanOrEqual(1);
+
+      const orP = getData.providers.find((p: any) => p.id === 'openrouter');
+      expect(orP.isActive).toBe(true);
+      expect(orP.isUnused).toBe(false);
+
+      const togP = getData.providers.find((p: any) => p.id === 'together');
+      expect(togP.isActive).toBe(false);
+      expect(togP.isUnused).toBe(true);
+
+      // 3. Delete unused keys
+      const delUnusedRes = await fetch(`${server.url}/api/keys`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unusedOnly: true }),
+      });
+      expect(delUnusedRes.status).toBe(200);
+      const delUnusedData = (await delUnusedRes.json()) as any;
+      expect(delUnusedData.ok).toBe(true);
+      expect(delUnusedData.removed).toContain('TOGETHER_API_KEY');
+
+      // Verify together is no longer configured
+      const afterDelRes = await fetch(`${server.url}/api/keys`);
+      const afterDelData = (await afterDelRes.json()) as any;
+      const togAfter = afterDelData.providers.find((p: any) => p.id === 'together');
+      expect(togAfter.isConfigured).toBe(false);
+      expect(afterDelData.unusedCount).toBe(0);
+
+      // 4. Delete specific provider
+      const delSingleRes = await fetch(`${server.url}/api/keys`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'openrouter' }),
+      });
+      expect(delSingleRes.status).toBe(200);
+      const delSingleData = (await delSingleRes.json()) as any;
+      expect(delSingleData.removed).toContain('OPENROUTER_API_KEY');
+    } finally {
+      await server.close();
+    }
+  });
   it('rejects selection of system directories via POST /api/workspace', async () => {
     const engine = createEngine(loadConfig());
     const server = await startIdeServer({ engine, model: 'test-model' });

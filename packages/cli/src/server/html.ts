@@ -2436,7 +2436,7 @@ export function getWebUiHtml(): string {
   <div class="modal-overlay" id="account-modal">
     <div class="modal-dialog">
       <div class="modal-title-bar">
-        <span>Provider Accounts & API Keys</span>
+        <span>🔑 API Key Manager & Provider Accounts</span>
         <button class="btn" onclick="closeAccountModal()">✕</button>
       </div>
       <div class="modal-body" id="provider-list-container">
@@ -6615,7 +6615,7 @@ export function getWebUiHtml(): string {
         const res = await fetch('/api/keys');
         if (res.ok) {
           const data = await res.json();
-          renderProviders(data.providers);
+          renderProviders(data);
         }
       } catch (err) {
         container.innerHTML = '<div style="color:var(--red); padding:12px;">Failed to load accounts.</div>';
@@ -6627,32 +6627,200 @@ export function getWebUiHtml(): string {
       populateSetupModels();
     }
 
-    function renderProviders(providers) {
+    function renderProviders(data) {
+      const providers = data.providers || (Array.isArray(data) ? data : []);
+      const activeProvider = data.activeProvider || '';
+      const unusedCount = data.unusedCount !== undefined ? data.unusedCount : providers.filter(p => p.isUnused).length;
+      const configuredCount = providers.filter(p => p.isConfigured).length;
+
       const container = document.getElementById('provider-list-container');
       container.innerHTML = '';
+
+      // API Key Manager Header Status & Bulk Actions
+      const headerBar = document.createElement('div');
+      headerBar.className = 'api-key-manager-header';
+      headerBar.style = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:10px 14px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px;';
+      headerBar.innerHTML = \`
+        <div>
+          <div style="font-size:12px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:6px;">
+            <span>Active Provider:</span>
+            <span style="color:var(--accent); text-transform:uppercase; font-size:11px; padding:1px 6px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); border-radius:4px;">\${escapeHtml(activeProvider || 'openrouter')}</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:3px;">
+            \${unusedCount > 0
+              ? \`<span style="color:var(--amber, #f59e0b); font-weight:500;">🟡 \${unusedCount} unused key(s) configured (inactive)</span>\`
+              : \`<span style="color:var(--green, #22c55e);">🟢 All configured keys are in active use</span>\`}
+            · <span>\${configuredCount} configured</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          \${unusedCount > 0 ? \`
+            <button class="btn" onclick="deleteUnusedKeys()" style="font-size:11px; padding:4px 10px; background:rgba(245,158,11,0.15); border:1px solid var(--amber, #f59e0b); color:var(--amber, #f59e0b); font-weight:500;" title="Delete keys for all providers except active">
+              🗑️ Delete Unused (\${unusedCount})
+            </button>
+          \` : ''}
+        </div>
+      \`;
+      container.appendChild(headerBar);
+
+      // Providers List
       providers.forEach(p => {
         const row = document.createElement('div');
         row.className = 'provider-row';
         const isConn = p.isConfigured;
+        const isActive = p.isActive;
+        const isUnused = p.isUnused;
+
+        let statusBadge = '';
+        if (isActive) {
+          statusBadge = '<span style="font-size:10px; padding:2px 6px; background:rgba(34,197,94,0.15); border:1px solid var(--green, #22c55e); color:var(--green, #22c55e); border-radius:10px; font-weight:600;">ACTIVE</span>';
+        } else if (isUnused) {
+          statusBadge = '<span style="font-size:10px; padding:2px 6px; background:rgba(245,158,11,0.15); border:1px solid var(--amber, #f59e0b); color:var(--amber, #f59e0b); border-radius:10px; font-weight:600;">UNUSED</span>';
+        }
+
         const statusPill = isConn
-          ? \`<span style="color:var(--green); font-size:11px; font-weight:600;">🟢 Connected (\${escapeHtml(p.maskedKey || p.baseUrl)})</span>\`
+          ? \`<span style="color:var(--green); font-size:11px; font-weight:500;">Connected (\${escapeHtml(p.maskedKey || p.baseUrl)})</span>\`
           : \`<span style="color:var(--text-dim); font-size:11px;">⚪ Not Configured</span>\`;
 
         row.innerHTML = \`
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div>
-              <strong style="font-size:13px;">\${escapeHtml(p.label)}</strong>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <strong style="font-size:13px;">\${escapeHtml(p.label)}</strong>
+                \${statusBadge}
+              </div>
               <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">\${statusPill}</div>
             </div>
-            \${p.url && !p.custom ? \`<a href="\${p.url}" target="_blank" style="color:var(--accent); font-size:11px;">Get Key ↗</a>\` : ''}
+            <div style="display:flex; align-items:center; gap:6px;">
+              \${isConn && !isActive ? \`
+                <button class="btn" onclick="makeActiveProvider('\${p.id}')" style="font-size:11px; padding:3px 8px;" title="Set \${escapeHtml(p.id)} as the active AI provider">
+                  Switch To
+                </button>
+              \` : ''}
+              \${isConn ? \`
+                <button class="btn" onclick="deleteProviderKey('\${p.id}', '\${escapeHtml(p.label)}')" style="font-size:11px; padding:3px 8px; color:var(--red, #ef4444); border-color:rgba(239,68,68,0.3);" title="Delete this provider API key">
+                  🗑️ Delete
+                </button>
+              \` : ''}
+              \${p.url && !p.custom ? \`<a href="\${p.url}" target="_blank" style="color:var(--accent); font-size:11px; text-decoration:none; margin-left:4px;">Get Key ↗</a>\` : ''}
+            </div>
           </div>
           <div style="display:flex; gap:8px; margin-top:6px;">
-            <input type="\${p.custom ? 'text' : 'password'}" class="input-field" id="key-input-\${p.id}" placeholder="\${p.custom ? 'Base URL (e.g. ' + p.url + ')' : 'Enter ' + p.keyVar}" value="\${p.custom ? p.baseUrl : ''}" />
+            <input type="\${p.custom ? 'text' : 'password'}" class="input-field" id="key-input-\${p.id}" placeholder="\${p.custom ? 'Base URL (e.g. ' + p.url + ')' : 'Enter new ' + p.keyVar}" value="\${p.custom ? p.baseUrl : ''}" />
             <button class="btn btn-primary" onclick="saveProviderKey('\${p.id}', '\${p.keyVar}', '\${p.baseVar || ''}', \${Boolean(p.custom)})">Save</button>
           </div>
         \`;
         container.appendChild(row);
       });
+
+      // Bottom management toolbar
+      if (configuredCount > 0) {
+        const bottomBar = document.createElement('div');
+        bottomBar.style = 'display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--border);';
+        bottomBar.innerHTML = \`
+          <div style="font-size:11px; color:var(--text-dim);">
+            Keys stored securely in user environment (mode 0600)
+          </div>
+          <div style="display:flex; gap:6px;">
+            \${unusedCount > 0 ? \`
+              <button class="btn" onclick="deleteUnusedKeys()" style="font-size:11px; padding:4px 10px; color:var(--amber, #f59e0b); border-color:rgba(245,158,11,0.4);">
+                Clear Unused Keys (\${unusedCount})
+              </button>
+            \` : ''}
+            <button class="btn" onclick="deleteAllKeys()" style="font-size:11px; padding:4px 10px; color:var(--red, #ef4444); border-color:rgba(239,68,68,0.3);">
+              Clear All Keys
+            </button>
+          </div>
+        \`;
+        container.appendChild(bottomBar);
+      }
+    }
+
+    async function makeActiveProvider(providerId) {
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: providerId }),
+        });
+        if (res.ok) {
+          openAccountModal();
+          loadModels();
+          checkConfiguredProviders();
+          populateSetupModels();
+        }
+      } catch (err) {
+        alert('Failed to switch provider: ' + err.message);
+      }
+    }
+
+    async function deleteProviderKey(providerId, label) {
+      if (!confirm('Are you sure you want to delete the API key and settings for ' + label + '?')) return;
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: providerId }),
+        });
+        if (res.ok) {
+          openAccountModal();
+          loadModels();
+          checkConfiguredProviders();
+          populateSetupModels();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert('Failed to delete key: ' + (err.error || res.statusText));
+        }
+      } catch (err) {
+        alert('Failed to delete key: ' + err.message);
+      }
+    }
+
+    async function deleteUnusedKeys() {
+      if (!confirm('Delete all unused provider API keys? Only the active provider key will be retained.')) return;
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ unusedOnly: true }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          alert('Successfully removed ' + (data.removed ? data.removed.length : 0) + ' unused key(s).');
+          openAccountModal();
+          loadModels();
+          checkConfiguredProviders();
+          populateSetupModels();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert('Failed to delete unused keys: ' + (err.error || res.statusText));
+        }
+      } catch (err) {
+        alert('Failed to delete unused keys: ' + err.message);
+      }
+    }
+
+    async function deleteAllKeys() {
+      if (!confirm('Are you sure you want to delete ALL saved API keys? You will need to reconfigure a provider to use cloud models.')) return;
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ all: true }),
+        });
+        if (res.ok) {
+          alert('All provider keys removed.');
+          openAccountModal();
+          loadModels();
+          checkConfiguredProviders();
+          populateSetupModels();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert('Failed to delete keys: ' + (err.error || res.statusText));
+        }
+      } catch (err) {
+        alert('Failed to delete keys: ' + err.message);
+      }
     }
 
     async function saveProviderKey(providerId, keyVar, baseVar, isCustom) {

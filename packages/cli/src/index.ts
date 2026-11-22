@@ -158,30 +158,48 @@ program
 
 program
   .command('logout')
-  .description('Remove a saved API key for a provider (--all removes every key)')
-  .argument('[provider]', 'openrouter | openai | anthropic | ollama | lmstudio')
+  .description('Remove a saved API key for a provider (--all removes every key, --unused removes inactive keys)')
+  .argument('[provider]', 'provider id (e.g. openrouter, opencode, openai, anthropic, vercel, cloudflare, together, ollama, lmstudio)')
   .option('--all', 'remove all saved provider keys')
-  .action(async (provider: string | undefined, options: { all?: boolean }) => {
-    const keyVarByProvider: Record<string, string> = {
-      openrouter: 'OPENROUTER_API_KEY',
-      openai: 'OPENAI_API_KEY',
-      anthropic: 'ANTHROPIC_API_KEY',
-      ollama: 'OLLAMA_BASE_URL',
-      lmstudio: 'LMSTUDIO_BASE_URL',
-    };
-    const keys = options.all
-      ? Object.values(keyVarByProvider)
-      : provider
-        ? [keyVarByProvider[provider]]
-        : [];
-    if (keys.length === 0 || keys.some((k) => !k)) {
+  .option('--unused', 'remove all saved keys except the currently active provider')
+  .action(async (provider: string | undefined, options: { all?: boolean; unused?: boolean }) => {
+    const env = readUserEnv();
+    const activeProvider = process.env.AI_PROVIDER || env.AI_PROVIDER || 'openrouter';
+    const keysToDelete: string[] = [];
+
+    if (options.all) {
+      for (const p of PROVIDERS) {
+        if (p.keyVar) keysToDelete.push(p.keyVar);
+        if (p.baseVar) keysToDelete.push(p.baseVar);
+      }
+      keysToDelete.push('AI_PROVIDER');
+    } else if (options.unused) {
+      for (const p of PROVIDERS) {
+        if (p.id !== activeProvider) {
+          if (env[p.keyVar] || process.env[p.keyVar]) keysToDelete.push(p.keyVar);
+          if (p.baseVar && (env[p.baseVar] || process.env[p.baseVar])) keysToDelete.push(p.baseVar);
+        }
+      }
+    } else if (provider) {
+      const p = PROVIDERS.find((x) => x.id === provider || x.keyVar === provider);
+      if (p) {
+        if (p.keyVar) keysToDelete.push(p.keyVar);
+        if (p.baseVar) keysToDelete.push(p.baseVar);
+      } else {
+        keysToDelete.push(provider);
+      }
+    } else {
       program.error(
-        'error: provide a provider (openrouter | openai | anthropic | ollama | lmstudio) or --all',
+        `error: provide a provider (${PROVIDERS.map((p) => p.id).join(' | ')}) or --unused or --all`,
       );
     }
-    const { file, removed } = deleteUserEnvKeys(keys as string[]);
+
+    const { file, removed } = deleteUserEnvKeys(keysToDelete);
+    for (const k of keysToDelete) {
+      delete process.env[k];
+    }
     if (removed.length === 0) {
-      console.log(`  nothing to remove — no saved keys in ${file}`);
+      console.log(`  nothing to remove — no matching saved keys in ${file}`);
       return;
     }
     console.log(`  removed ${removed.join(', ')} from ${file}`);
@@ -189,35 +207,102 @@ program
 
 program
   .command('keys')
-  .description('Show which provider API keys are configured (masked)')
-  .action(() => {
+  .description('Show configured provider API keys, or delete unused/specific keys')
+  .option('-d, --delete <provider>', 'delete key and config for a specific provider')
+  .option('--delete-unused', 'delete all configured keys except the active provider')
+  .option('--delete-all', 'delete all configured keys')
+  .action((options: { delete?: string; deleteUnused?: boolean; deleteAll?: boolean }) => {
     const env = readUserEnv();
     const file = userEnvPath();
-    console.log(`\n  Mugil IDE API keys — ${file}\n`);
+    const activeProvider = process.env.AI_PROVIDER || env.AI_PROVIDER || 'openrouter';
+
+    if (options.deleteAll) {
+      const keysToDelete: string[] = [];
+      for (const p of PROVIDERS) {
+        if (p.keyVar) keysToDelete.push(p.keyVar);
+        if (p.baseVar) keysToDelete.push(p.baseVar);
+      }
+      keysToDelete.push('AI_PROVIDER');
+      const { removed } = deleteUserEnvKeys(keysToDelete);
+      for (const k of keysToDelete) delete process.env[k];
+      console.log(`\n  removed all API keys (${removed.join(', ') || 'none found'}) from ${file}\n`);
+      return;
+    }
+
+    if (options.deleteUnused) {
+      const keysToDelete: string[] = [];
+      for (const p of PROVIDERS) {
+        if (p.id !== activeProvider) {
+          if (env[p.keyVar] || process.env[p.keyVar]) keysToDelete.push(p.keyVar);
+          if (p.baseVar && (env[p.baseVar] || process.env[p.baseVar])) keysToDelete.push(p.baseVar);
+        }
+      }
+      const { removed } = deleteUserEnvKeys(keysToDelete);
+      for (const k of keysToDelete) delete process.env[k];
+      if (removed.length === 0) {
+        console.log(`\n  no unused keys found to remove (active provider: ${activeProvider})\n`);
+      } else {
+        console.log(
+          `\n  removed unused keys (${removed.join(', ')}) from ${file} (retained active provider: ${activeProvider})\n`,
+        );
+      }
+      return;
+    }
+
+    if (options.delete) {
+      const provId = options.delete;
+      const p = PROVIDERS.find((x) => x.id === provId || x.keyVar === provId);
+      const keysToDelete = p ? [p.keyVar, ...(p.baseVar ? [p.baseVar] : [])] : [provId];
+      const { removed } = deleteUserEnvKeys(keysToDelete);
+      for (const k of keysToDelete) delete process.env[k];
+      if (removed.length === 0) {
+        console.log(`\n  no saved key found for "${provId}" in ${file}\n`);
+      } else {
+        console.log(`\n  removed ${removed.join(', ')} from ${file}\n`);
+      }
+      return;
+    }
+
+    console.log(`\n  Mugil IDE API Key Manager — ${file}`);
+    console.log(`  Active Provider: ${activeProvider}\n`);
     let any = false;
+    let unusedCount = 0;
     for (const p of PROVIDERS.filter((x) => !x.custom)) {
-      const value = env[p.keyVar];
+      const value = env[p.keyVar] || process.env[p.keyVar];
       if (value) {
         any = true;
-        console.log(`  ${p.id.padEnd(12)} ${maskKey(value)}`);
+        const isActive = p.id === activeProvider;
+        const status = isActive ? '[ACTIVE]' : '[UNUSED]';
+        if (!isActive) unusedCount++;
+        console.log(`  ${status.padEnd(9)} ${p.id.padEnd(14)} ${maskKey(value)}`);
       } else {
-        console.log(`  ${p.id.padEnd(12)} — not configured`);
+        console.log(`  ${'[—]'.padEnd(9)} ${p.id.padEnd(14)} — not configured`);
       }
     }
     for (const p of PROVIDERS.filter((x) => x.custom)) {
-      const base = env[p.keyVar] || (p.baseVar ? env[p.baseVar] : undefined);
+      const base =
+        env[p.keyVar] ||
+        process.env[p.keyVar] ||
+        (p.baseVar ? env[p.baseVar] || process.env[p.baseVar] : undefined);
       if (base) {
         any = true;
-        console.log(`  ${p.id.padEnd(12)} base: ${base}`);
+        const isActive = p.id === activeProvider;
+        const status = isActive ? '[ACTIVE]' : '[UNUSED]';
+        if (!isActive) unusedCount++;
+        console.log(`  ${status.padEnd(9)} ${p.id.padEnd(14)} base: ${base}`);
       }
     }
     if (!any) {
-      console.log('  none configured — use the web UI Accounts & Keys modal to add a key');
+      console.log('  none configured — use the web UI API Key Manager modal or mugil-ide login');
+    } else if (unusedCount > 0) {
+      console.log(
+        `\n  💡 Tip: You have ${unusedCount} unused key(s). Run 'mugil-ide keys --delete-unused' to clean them up.`,
+      );
     }
     try {
       const mode = statSync(file).mode;
       if (process.platform !== 'win32' && (mode & 0o077) !== 0) {
-        console.log(`  ⚠ ${file} is readable by others — fix with: chmod 600 "${file}"`);
+        console.log(`\n  ⚠ ${file} is readable by others — fix with: chmod 600 "${file}"`);
       }
     } catch {
       // file absent
