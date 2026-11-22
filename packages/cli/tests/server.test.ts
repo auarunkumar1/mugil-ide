@@ -1861,7 +1861,7 @@ describe('Mugil IDE PTY + xterm.js Web Server', () => {
         body: JSON.stringify({
           provider: 'openrouter',
           keyVar: 'OPENROUTER_API_KEY',
-          value: 'sk-or-v1-testkey123456789',
+          value: 'sk-or-v1-test1234',
         }),
       });
       await fetch(`${server.url}/api/keys`, {
