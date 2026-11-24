@@ -6,8 +6,9 @@
  * configurable client architecture with provider-specific adapters.
  */
 
-import type { ChatMessage } from '../../types.js';
+import type { ChatMessage, CompletionResult } from '../../types.js';
 import { OpenAiWireClient, type ProviderCompleteOptions } from './provider.js';
+import type { StreamHandlers } from './stream.js';
 
 export type UnifiedProviderKind =
   | 'openai'
@@ -72,7 +73,8 @@ export class UnifiedWireClient extends OpenAiWireClient {
         baseUrl.includes('0.0.0.0') ||
         baseUrl.includes('::1') ||
         kind === 'ollama' ||
-        kind === 'lmstudio');
+        kind === 'lmstudio' ||
+        kind === 'llamacpp');
 
     const headers: Record<string, string> = { ...(options.extraHeaders || {}) };
     if (kind === 'openrouter') {
@@ -110,11 +112,54 @@ export class UnifiedWireClient extends OpenAiWireClient {
     }
 
     // OpenRouter streaming usage
-    if (this.providerKind === 'openrouter') {
+    if (this.providerKind === 'openrouter' && options.stream) {
       body.stream_options = { include_usage: true };
     }
 
     return body;
+  }
+
+  override async complete(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+  ): Promise<CompletionResult> {
+    const result = await super.complete(messages, options);
+    const isLocal = this.config.isLocalEndpoint ? this.config.isLocalEndpoint() : false;
+    const billingSource =
+      this.providerKind === 'openrouter'
+        ? 'openrouter'
+        : isLocal
+          ? 'local'
+          : 'unknown';
+    return {
+      ...result,
+      usage: {
+        ...result.usage,
+        billingSource,
+      },
+    };
+  }
+
+  override async stream(
+    messages: ChatMessage[],
+    options: ProviderCompleteOptions,
+    handlers: StreamHandlers = {},
+  ): Promise<CompletionResult> {
+    const result = await super.stream(messages, options, handlers);
+    const isLocal = this.config.isLocalEndpoint ? this.config.isLocalEndpoint() : false;
+    const billingSource =
+      this.providerKind === 'openrouter'
+        ? 'openrouter'
+        : isLocal
+          ? 'local'
+          : 'unknown';
+    return {
+      ...result,
+      usage: {
+        ...result.usage,
+        billingSource,
+      },
+    };
   }
 }
 

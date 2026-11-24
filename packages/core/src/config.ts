@@ -644,6 +644,14 @@ export interface AppConfig {
   tokenBudget: number;
   cacheTtlSeconds: number;
   models: ModelSpec[];
+  /** Feature flag for Provider Core v2 architecture (v0.6.0). Defaults to true. */
+  providerV2: boolean;
+  /** Secret handling policy: 'local-only' (default) or 'redact'. */
+  secretPolicy: 'local-only' | 'redact';
+  /** Sensitivity boundary: 'secrets' (default) or 'secrets+pii'. */
+  sensitivePolicy: 'secrets' | 'secrets+pii';
+  /** Local endpoint classification policy: 'loopback' (default) or 'private-lan'. */
+  localEndpointsPolicy: 'loopback' | 'private-lan';
   embedding: {
     apiKey?: string;
     model?: string;
@@ -837,10 +845,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     togetherApiKey,
     togetherBaseUrl: merged.TOGETHER_BASE_URL || 'https://api.together.xyz/v1',
     opencodeApiKey,
-    opencodeBaseUrl:
-      merged.OPENCODE_BASE_URL && merged.OPENCODE_BASE_URL !== 'https://opencode.ai/zen/v1'
-        ? merged.OPENCODE_BASE_URL
-        : 'https://opencode.ai/inference/go',
+    opencodeBaseUrl: merged.OPENCODE_BASE_URL || '',
     redisUrl: merged.REDIS_URL || undefined,
     redisClusterUrls: parseList(merged.REDIS_CLUSTER_URLS),
     cacheDir: merged.MUGIL_IDE_CACHE_DIR || defaultCacheDir,
@@ -849,6 +854,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     tokenBudget: Number.isFinite(tokenBudget) && tokenBudget > 0 ? tokenBudget : 128000,
     cacheTtlSeconds: Number.isFinite(cacheTtl) && cacheTtl > 0 ? cacheTtl : 3600,
     models,
+    providerV2: parseBool(merged.MUGIL_IDE_PROVIDER_V2, true),
+    secretPolicy: (merged.MUGIL_IDE_SECRET_POLICY || '').toLowerCase() === 'redact' ? 'redact' : 'local-only',
+    sensitivePolicy: (merged.MUGIL_IDE_SENSITIVE_POLICY || '').toLowerCase() === 'secrets+pii' ? 'secrets+pii' : 'secrets',
+    localEndpointsPolicy: (merged.MUGIL_IDE_LOCAL_ENDPOINTS || '').toLowerCase() === 'private-lan' ? 'private-lan' : 'loopback',
     embedding: {
       apiKey: openaiApiKey,
       model: merged.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',

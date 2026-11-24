@@ -12,6 +12,7 @@ import type {
   SessionEntry,
   SessionStats,
   ExecutionTopology,
+  Usage,
 } from '@mugil-ide/core';
 import {
   fetchProviderModels,
@@ -178,6 +179,10 @@ export class AgentRepl {
   private shimmerHue = 0;
   private mcpConnecting: Promise<McpToolsBundle> | null = null;
   public stats: ReplSessionStats = AgentRepl.defaultStats();
+  private terminalColumns = (typeof process !== 'undefined' && process.stdout?.columns) || 80;
+  private secretUnsubscribe?: () => void;
+  private activeStreamMarkdown?: StreamMarkdown;
+  private lastUsage?: Usage;
 
   constructor(engine: Engine, io: ReplIO, initialModel?: string, options: AgentReplOptions = {}) {
     this.engine = engine;
@@ -201,6 +206,13 @@ export class AgentRepl {
     const resumed = loadSessionFile();
     this.restoreSessionEntries(resumed.entries);
     this.restoreSessionStats(resumed.stats);
+
+    // Non-blocking secret discovery alert banner
+    this.secretUnsubscribe = globalSecretVault.onSecretDiscovered((event) => {
+      this.io.write(
+        `\r\n  ${yellow('⚠️')} ${bold('[Secret Protected]')}: Detected and vaulted ${event.count} credential${event.count === 1 ? '' : 's'} (${event.types.join(', ')}). Local placeholders substituted.\r\n`,
+      );
+    });
   }
 
   /** Fresh zeroed stats — used at construction and on `/reset`. */
@@ -222,6 +234,10 @@ export class AgentRepl {
 
   /** Closes long-lived connections (MCP stdio children). */
   public async dispose(): Promise<void> {
+    if (this.secretUnsubscribe) {
+      this.secretUnsubscribe();
+      this.secretUnsubscribe = undefined;
+    }
     if (this.mcpConnecting) {
       try {
         const bundle = await this.mcpConnecting;
@@ -239,6 +255,19 @@ export class AgentRepl {
 
   public getMode(): 'plan' | 'act' {
     return this.mode;
+  }
+
+  public setColumns(cols: number): void {
+    if (cols > 0) {
+      this.terminalColumns = cols;
+      if (this.activeStreamMarkdown) {
+        this.activeStreamMarkdown.setColumns(cols);
+      }
+    }
+  }
+
+  public getColumns(): number {
+    return this.terminalColumns;
   }
 
   public setMode(mode: 'plan' | 'act'): void {
@@ -330,6 +359,10 @@ export class AgentRepl {
 
   public getStats(): ReplSessionStats {
     return { ...this.stats, filesModified: new Set(this.stats.filesModified) };
+  }
+
+  public getLastUsage(): Usage | undefined {
+    return this.lastUsage;
   }
 
   public getTurns(): SessionTurn[] {
@@ -926,6 +959,29 @@ export class AgentRepl {
       `  ${dim('Completion Tokens:')}  ${magenta(s.completionTokens)}`,
       `  ${dim('Total Tokens Used:')}  ${bold(s.totalTokens)}`,
       `  ${dim('Estimated Cost:')}     ${green(`$${s.estimatedCost.toFixed(4)}`)}`,
+      ...(this.lastUsage
+        ? [
+            `  ${dim('Last Turn Ledger:')}   ${cyan(`${this.lastUsage.promptTokens} in`)} / ${magenta(`${this.lastUsage.completionTokens} out`)}` +
+              (this.lastUsage.reasoningTokens
+                ? ` / ${cyan(`${this.lastUsage.reasoningTokens} reasoning`)}`
+                : '') +
+              (this.lastUsage.cachedTokens
+                ? ` / ${green(`${this.lastUsage.cachedTokens} cached`)}`
+                : '') +
+              (this.lastUsage.cacheWriteTokens
+                ? ` / ${cyan(`${this.lastUsage.cacheWriteTokens} cache-write`)}`
+                : ''),
+            `  ${dim('Billing:')}           ${yellow(
+              this.lastUsage.allowance
+                ? this.lastUsage.allowance.total
+                  ? `${this.lastUsage.billingSource ?? 'provider'} allowance ${this.lastUsage.allowance.used}/${this.lastUsage.allowance.total}`
+                  : `${this.lastUsage.billingSource ?? 'provider'} allowance $${this.lastUsage.allowance.used.toFixed(6)}`
+                : this.lastUsage.cost !== undefined
+                  ? `${this.lastUsage.billingSource ?? 'provider'} $${this.lastUsage.cost.toFixed(4)}`
+                  : this.lastUsage.billingSource ?? 'unknown',
+            )}`,
+          ]
+        : []),
       `  ${dim('Tokens Saved (Real):')} ${green(s.tokensSaved)} of ${cyan(s.tokensSaved + s.compressibleTokens)} ${green(`(${savingsPct}% reduction)`)}`,
       `  ${dim('Optimistic Savings:')}  ${bold(green(`~${s.optimisticTokensSaved.toLocaleString()} tok (~${optPct}% overall efficiency)`))}`,
       `    ${dim('├─')} 🦴 ${bold('Caveman')} ${dim('(Prompt & History):')}   ${cyan(`${bd.caveman.toLocaleString()} tok`)}`,
@@ -1547,7 +1603,8 @@ export class AgentRepl {
     let streamedRegion = false;
     let streamedThinking = '';
     let thinkingRegion = false;
-    const streamMarkdown = new StreamMarkdown();
+    const streamMarkdown = new StreamMarkdown({ columns: this.terminalColumns });
+    this.activeStreamMarkdown = streamMarkdown;
 
     this.io.write('\r\n' + `${ANSI.bold}${ANSI.cyan}` + '─'.repeat(64) + `${ANSI.reset}\r\n`);
     this.io.write(
@@ -1825,6 +1882,7 @@ export class AgentRepl {
       });
 
       const elapsed = Date.now() - started;
+      this.lastUsage = result.usage;
 
       // Update statistics
       this.stats.requests++;
@@ -1962,7 +2020,7 @@ export class AgentRepl {
         this.io.write(`\r\n${bold(cyan('Assistant:'))}\r\n`);
       }
       if (!streamedIsAnswer) {
-        this.io.write(`${formatMarkdown(result.response)}\r\n`);
+        this.io.write(`${formatMarkdown(result.response, { columns: this.terminalColumns })}\r\n`);
       } else {
         const trailing = streamMarkdown.flush();
         if (trailing) this.io.write(trailing);
@@ -1977,13 +2035,42 @@ export class AgentRepl {
         );
       }
 
-      // Turn Footer
+      // Turn Footer & Token Ledger
       const isLocal = this.isModelLocal(result.model);
       const engineTag = isLocal ? green('💻 Local') : magenta('☁️ Online');
       const elapsedSec = (elapsed / 1000).toFixed(1);
-      this.io.write(
-        `\r\n${dim(`[${engineTag} (${result.model}) · ${result.usage.totalTokens} tok · ${elapsedSec}s · ${toolsCalled.length} tools]`)}\r\n`,
-      );
+      const u = result.usage;
+      const ledgerParts: string[] = [`${engineTag} (${result.model})`];
+      let tokStr = `${u.totalTokens} tok`;
+      if (u.promptTokens || u.completionTokens) {
+        tokStr += ` (in:${u.promptTokens} out:${u.completionTokens}`;
+        if (u.reasoningTokens) tokStr += ` reasoning:${u.reasoningTokens}`;
+        if (u.cachedTokens) tokStr += ` cached:${u.cachedTokens}`;
+        if (u.cacheWriteTokens) tokStr += ` cache_write:${u.cacheWriteTokens}`;
+        tokStr += ')';
+      }
+      ledgerParts.push(tokStr);
+      if (u.billingSource) {
+        ledgerParts.push(`billing:${u.billingSource}`);
+      }
+      if (u.allowance && (u.billingSource === 'go' || u.billingSource === 'go-plus' || u.billingSource === 'free')) {
+        ledgerParts.push(
+          u.allowance.total
+            ? `allowance:${u.allowance.used}/${u.allowance.total}`
+            : `allowance:$${u.allowance.used.toFixed(6)}`,
+        );
+      } else if (u.cost !== undefined) {
+        ledgerParts.push(`$${u.cost.toFixed(4)}`);
+      } else if (u.allowance) {
+        ledgerParts.push(
+          u.allowance.total
+            ? `allowance:${u.allowance.used}/${u.allowance.total}`
+            : `allowance:$${u.allowance.used.toFixed(6)}`,
+        );
+      }
+      ledgerParts.push(`${elapsedSec}s`);
+      ledgerParts.push(`${toolsCalled.length} tools`);
+      this.io.write(`\r\n${dim(`[${ledgerParts.join(' · ')}]`)}\r\n`);
       if (result.truncated) {
         this.io.write(
           `  ${yellow('⚠ Answer was cut off by the model output-token cap')} ${dim(`(finish_reason: ${result.finishReason}) — raise max_tokens or shorten the task.`)}\r\n`,
@@ -2044,6 +2131,7 @@ export class AgentRepl {
         this.io.write('\r\n');
       }
     } finally {
+      this.activeStreamMarkdown = undefined;
       this.turnAbort = null;
       this.isProcessing = false;
     }

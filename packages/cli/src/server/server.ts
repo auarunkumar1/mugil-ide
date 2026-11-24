@@ -17,6 +17,7 @@ import {
   VERSION,
   writeUserEnv,
   globalStepDebugger,
+  globalSecretVault,
 } from '@mugil-ide/core';
 import { getWebUiHtml } from './html.js';
 import { EMBEDDED_VENDOR_ASSETS } from './embeddedVendor.js';
@@ -1300,7 +1301,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
               try {
                 const isGo = await detectOpenCodeSubscription(keyVal, 2000);
                 label = isGo
-                  ? 'OpenCode Go (Active Subscription · 31 Models)'
+                  ? 'OpenCode Go (Active Subscription)'
                   : 'OpenCode Zen (Pay-as-you-go Credits)';
               } catch {
                 /* fallback to default */
@@ -2461,6 +2462,7 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           turboMode,
           stepDebuggerEnabled: globalStepDebugger.isEnabled(),
           busy: repl.isBusy,
+          lastUsage: repl.getLastUsage(),
           stats: {
             ...repl.stats,
             filesModified: Array.from(repl.stats.filesModified),
@@ -2715,8 +2717,9 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           // If a full command string was sent (e.g. from quick input or modal)
           if (rawData.includes('\r') || rawData.includes('\n')) {
             const cleanText = rawData.replace(/[\r\n]+$/, '');
-            sendAgentData(cleanText + '\r\n');
-            await repl.handleInput(cleanText);
+            const tokenized = globalSecretVault.tokenize(cleanText).text;
+            sendAgentData(tokenized + '\r\n');
+            await repl.handleInput(tokenized);
             sendStatusNow();
             return;
           }
@@ -2754,6 +2757,10 @@ export async function startIdeServer(options: ServerOptions): Promise<RunningSer
           if (msg.cols && msg.rows) {
             await startPty(Number(msg.cols), Number(msg.rows));
             ptySession?.resize(Number(msg.cols), Number(msg.rows));
+          }
+        } else if (msg.type === 'resize_agent') {
+          if (msg.cols) {
+            repl?.setColumns(Number(msg.cols));
           }
         }
       } catch {

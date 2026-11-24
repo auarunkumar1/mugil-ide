@@ -365,12 +365,12 @@ describe('OpenCodeClient', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://opencode.ai/zen/v1/messages',
+      'https://opencode.ai/inference/go/anthropic/v1/messages',
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
           'x-api-key': 'oc-test',
-          'User-Agent': 'opencode/1.18.27',
+          'User-Agent': expect.stringContaining('mugil-ide'),
         }),
       }),
     );
@@ -393,11 +393,11 @@ describe('OpenCodeClient', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://opencode.ai/zen/v1/chat/completions',
+      'https://opencode.ai/inference/go/openai/v1/chat/completions',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer oc-test',
-          'User-Agent': 'opencode/1.18.27',
+          'User-Agent': expect.stringContaining('mugil-ide'),
         }),
       }),
     );
@@ -406,13 +406,43 @@ describe('OpenCodeClient', () => {
     expect(result.usage.totalTokens).toBe(7);
   });
 
-  it('rejects gpt/codex models with a non-retryable error (Responses API unsupported)', async () => {
-    global.fetch = jest.fn() as unknown as typeof fetch;
-    const client = new OpenCodeClient({ apiKey: 'oc-test' });
-    await expect(
-      client.complete([{ role: 'user', content: 'hi' }], { model: 'gpt-5.6-sol' }),
-    ).rejects.toMatchObject({ status: 400, retryable: false });
-    expect(global.fetch).not.toHaveBeenCalled();
+  it('routes responses-protocol models to the native Responses endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        status: 'completed',
+        output: [
+          {
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: 'OK' }],
+          },
+        ],
+        usage: {
+          input_tokens: 8,
+          output_tokens: 2,
+          total_tokens: 10,
+          input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+          output_tokens_details: { reasoning_tokens: 0 },
+          cost: 0,
+          opencode: { billing_source: 'go', allowance: 0.00001 },
+        },
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-test',
+      baseUrl: 'https://opencode.ai/inference/go',
+    });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'gpt-5.6-sol',
+      protocol: 'responses',
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      'https://opencode.ai/inference/go/openai/v1/responses',
+    );
+    expect(result.content).toBe('OK');
+    expect(result.usage.billingSource).toBe('go');
+    expect(result.usage.allowance?.used).toBeCloseTo(0.00001);
   });
 
   it('streams claude models over SSE from /v1/messages and re-brands the provider', async () => {
@@ -441,7 +471,7 @@ describe('OpenCodeClient', () => {
       stream: boolean;
     };
     expect(body.stream).toBe(true);
-    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/zen/v1/messages');
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/inference/go/anthropic/v1/messages');
     expect(deltas.map((d) => d.text)).toEqual(['Hel', 'lo']);
     // Provenance survives delegation: the fragments really were incremental.
     expect(deltas.every((d) => d.streamed === true)).toBe(true);
@@ -471,19 +501,59 @@ describe('OpenCodeClient', () => {
       },
     );
 
-    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/zen/v1/chat/completions');
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://opencode.ai/inference/go/openai/v1/chat/completions');
     expect(deltas).toEqual(['hi', ' there']);
     expect(result.provider).toBe('opencode');
     expect(result.content).toBe('hi there');
   });
 
-  it('rejects gpt/codex models on the streaming path too', async () => {
-    global.fetch = jest.fn() as unknown as typeof fetch;
-    const client = new OpenCodeClient({ apiKey: 'oc-test' });
-    await expect(
-      client.stream!([{ role: 'user', content: 'hi' }], { model: 'gpt-5.6-sol' }),
-    ).rejects.toMatchObject({ status: 400, retryable: false });
-    expect(global.fetch).not.toHaveBeenCalled();
+  it('routes messages-protocol models to the native Messages endpoint', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      okResponse({
+        model: 'qwen4-max',
+        content: [{ type: 'text', text: 'OK' }],
+        usage: { input_tokens: 8, output_tokens: 2 },
+        stop_reason: 'end_turn',
+      }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-test',
+      baseUrl: 'https://opencode.ai/inference/go',
+    });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'qwen4-max',
+      protocol: 'messages',
+    });
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      'https://opencode.ai/inference/go/anthropic/v1/messages',
+    );
+    expect(result.content).toBe('OK');
+  });
+
+  it('streams responses-protocol deltas without duplicating final text', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      sseResponse([
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"O"}\n\n',
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"K"}\n\n',
+        'event: response.output_text.done\ndata: {"type":"response.output_text.done","text":"OK"}\n\n',
+        'event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":4,"output_tokens":2,"total_tokens":6}}}\n\n',
+      ]),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-test',
+      baseUrl: 'https://opencode.ai/inference/go',
+    });
+    const deltas: string[] = [];
+    const result = await client.stream!(
+      [{ role: 'user', content: 'hi' }],
+      { model: 'gpt-5.6-sol', protocol: 'responses' },
+      { onDelta: (text) => deltas.push(text) },
+    );
+    expect(deltas).toEqual(['O', 'K']);
+    expect(result.content).toBe('OK');
+    expect(result.usage.totalTokens).toBe(6);
   });
   it('uses the documented /inference paths when that base is configured', async () => {
     const fetchMock = jest.fn().mockResolvedValue(
@@ -567,10 +637,10 @@ describe('OpenCodeClient', () => {
     );
   });
 
-  it('normalizes web-only -free model aliases to standard models on OpenCode', async () => {
+  it('preserves free model variants without rewriting to paid models on OpenCode', async () => {
     const fetchMock = jest.fn().mockResolvedValue(
       okResponse({
-        model: 'deepseek-v4.1-flash',
+        model: 'deepseek-v4.1-flash-free',
         choices: [{ message: { content: 'hello normalized' }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
       }),
@@ -582,7 +652,7 @@ describe('OpenCodeClient', () => {
     });
     expect(result.content).toBe('hello normalized');
     const sentBody = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
-    expect(sentBody.model).toBe('deepseek-v4.1-flash');
+    expect(sentBody.model).toBe('deepseek-v4.1-flash-free');
   });
 
   it('translates OpenCode FreeUsageLimitError into clear actionable ProviderError', async () => {
@@ -604,7 +674,7 @@ describe('OpenCodeClient', () => {
     await expect(
       client.complete([{ role: 'user', content: 'test' }], { model: 'beam-free' }),
     ).rejects.toThrow(
-      /OpenCode free model limit reached for "beam-free"\. In OpenCode Go, use model 'deepseek-v4\.1-flash'/,
+      /OpenCode quota limit reached for "beam-free"\. Allowance or free limits have been exhausted/,
     );
   });
 
@@ -644,6 +714,44 @@ describe('OpenCodeClient', () => {
     );
   });
 
+  it('falls back from the Go endpoint to pay-as-you-go on EntitlementError', async () => {
+    const calls: string[] = [];
+    const fetchMock = jest.fn().mockImplementation(async (url: string) => {
+      calls.push(url);
+      if (url.includes('/inference/go')) {
+        return {
+          ok: false,
+          status: 403,
+          text: async () =>
+            JSON.stringify({
+              type: 'error',
+              error: {
+                type: 'EntitlementError',
+                message: 'OpenCode Go subscription required.',
+              },
+            }),
+        } as Response;
+      }
+      return okResponse({
+        model: 'claude-haiku-5-5',
+        content: [{ type: 'text', text: 'zen ok' }],
+        usage: { input_tokens: 2, output_tokens: 2 },
+        stop_reason: 'end_turn',
+      });
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const client = new OpenCodeClient({
+      apiKey: 'oc-zen-key',
+      baseUrl: 'https://opencode.ai/inference/go',
+    });
+    const result = await client.complete([{ role: 'user', content: 'hi' }], {
+      model: 'claude-haiku-5-5',
+    });
+    expect(result.content).toBe('zen ok');
+    expect(calls[0]).toContain('/inference/go');
+    expect(calls[1]).toContain('https://opencode.ai/inference/anthropic/v1/messages');
+  });
+
   it('translates region privacy restriction on DeepSeek Go models into clear instructions', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: false,
@@ -665,7 +773,7 @@ describe('OpenCodeClient', () => {
 describe('provider selection in createEngine', () => {
   it('picks OpenAI when only OPENAI_API_KEY is set', () => {
     const engine = createEngine(loadConfig({ NODE_ENV: 'test', OPENAI_API_KEY: 'sk-x' }));
-    expect(engine.client.constructor.name).toBe('OpenAiClient');
+    expect(engine.client.constructor.name).toBe('UnifiedWireClient');
     expect(engine.config.provider).toBe('openai');
   });
 
@@ -692,14 +800,14 @@ describe('provider selection in createEngine', () => {
 
   it('supports Ollama without API key', () => {
     const engine = createEngine(loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'ollama' }));
-    expect(engine.client.constructor.name).toBe('OpenAiClient');
+    expect(engine.client.constructor.name).toBe('UnifiedWireClient');
     expect(engine.client.mock).toBe(false);
     expect(engine.config.provider).toBe('ollama');
   });
 
   it('supports LM Studio without API key', () => {
     const engine = createEngine(loadConfig({ NODE_ENV: 'test', AI_PROVIDER: 'lmstudio' }));
-    expect(engine.client.constructor.name).toBe('OpenAiClient');
+    expect(engine.client.constructor.name).toBe('UnifiedWireClient');
     expect(engine.client.mock).toBe(false);
     expect(engine.config.provider).toBe('lmstudio');
   });
@@ -1108,7 +1216,7 @@ describe('fetchProviderModels', () => {
         }),
       }),
     );
-    expect(models.length).toBe(2);
+    expect(models.length).toBe(3);
     expect(models[0]!.id).toBe('deepseek-v4.1-flash');
     expect(models[0]!.contextWindow).toBe(1000000);
     expect(models[0]!.costPerMTokIn).toBe(0.14);
@@ -1122,6 +1230,11 @@ describe('fetchProviderModels', () => {
     expect(models[1]!.costPerMTokOut).toBe(0);
     expect(models[1]!.tier).toBe('cheap');
     expect(models[1]!.supportsThinking).toBe(false);
+
+    expect(models[2]!.id).toBe('deepseek-v4.1-flash-free');
+    expect(models[2]!.contextWindow).toBe(200000);
+    expect(models[2]!.costPerMTokIn).toBe(0);
+    expect(models[2]!.costPerMTokOut).toBe(0);
   });
 });
 

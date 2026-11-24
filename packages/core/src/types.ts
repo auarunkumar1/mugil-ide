@@ -5,6 +5,17 @@ export interface Usage {
   completionTokens: number;
   totalTokens: number;
   cachedTokens?: number;
+  reasoningTokens?: number;
+  cacheWriteTokens?: number;
+  cost?: number;
+  listCost?: number;
+  billingSource?: 'free' | 'balance' | 'go' | 'go-plus' | 'byok' | 'opencode' | 'openrouter' | 'local' | 'unknown';
+  allowance?: {
+    used: number;
+    /** Plan allowance total when the provider reports one; OpenCode reports a dollar spend only. */
+    total?: number;
+    resetAt?: string;
+  };
 }
 
 export interface ToolDefinition {
@@ -28,6 +39,10 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
   /** Tool messages: the id of the ToolCall this is the result of. */
   toolCallId?: string;
+  /** Preserved reasoning content for multi-turn reasoning continuity. */
+  reasoning?: string;
+  /** Provider-specific reasoning details or signature blocks. */
+  reasoningDetails?: Record<string, unknown>;
 }
 
 export type ModelTier = 'cheap' | 'standard' | 'smart';
@@ -47,7 +62,10 @@ export interface ModelSpec {
   costPerMTokIn: number;
   costPerMTokOut: number;
   costPerMTokCacheRead?: number;
+  costPerMTokCacheWrite?: number;
   contextWindow: number;
+  maxOutputTokens?: number;
+  protocol?: 'chat' | 'messages' | 'responses';
   supportsThinking?: boolean;
   /** Whether the model can call tools. Populated from catalog data when available. */
   supportsTools?: boolean;
@@ -69,6 +87,8 @@ export interface CompletionResult {
   mock?: boolean;
   /** Reasoning/thinking output from reasoning-capable models, if any. */
   thinking?: string;
+  /** Provider-specific reasoning details or signature blocks. */
+  reasoningDetails?: Record<string, unknown>;
 }
 
 export interface HandoffOptions {

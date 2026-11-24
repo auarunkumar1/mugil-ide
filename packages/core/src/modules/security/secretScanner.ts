@@ -32,7 +32,9 @@ interface ScanPattern {
   group?: number;
   /** Reject matches whose Shannon entropy is below this (drops lookalikes). */
   minEntropy?: number;
-  /** Extra rejection rule. */
+  /** Extra validation rule (must return true to accept match). */
+  validate?: (value: string) => boolean;
+  /** Legacy alias for validate. */
   reject?: (value: string) => boolean;
 }
 
@@ -59,16 +61,24 @@ export function shannonEntropy(value: string): number {
 
 const SECRET_PATTERNS: ScanPattern[] = [
   // --- AI & cloud provider keys (specific prefixes first) -------------------
+  { type: 'OPENCODE_API_KEY', regex: /\boc_sk_[A-Za-z0-9_-]{20,}\b/g },
   { type: 'OPENAI_PROJECT_KEY', regex: /\bsk-proj-[A-Za-z0-9_-]{15,}/g },
   { type: 'ANTHROPIC_API_KEY', regex: /\bsk-ant-[A-Za-z0-9_-]{15,}/g },
   { type: 'OPENROUTER_API_KEY', regex: /\bsk-or-v1-[A-Za-z0-9_-]{15,}/g },
   { type: 'OPENAI_API_KEY', regex: /\bsk-[A-Za-z0-9]{30,}/g },
   { type: 'GOOGLE_API_KEY', regex: /\bAIza[0-9A-Za-z_-]{30,}/g },
   { type: 'AWS_ACCESS_KEY_ID', regex: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },
+  { type: 'GITLAB_TOKEN', regex: /\bglpat-[A-Za-z0-9_-]{20,}\b/g },
+  { type: 'GITHUB_PAT', regex: /\bgithub_pat_[A-Za-z0-9_]{22,}\b/g },
   { type: 'GITHUB_TOKEN', regex: /\bgh[pousr]_[A-Za-z0-9]{20,}/g },
   { type: 'SLACK_TOKEN', regex: /\bxox[baprs]-[A-Za-z0-9-]{20,}/g },
   { type: 'STRIPE_KEY', regex: /\bsk_live_[A-Za-z0-9]{20,}/g },
   { type: 'HUGGINGFACE_TOKEN', regex: /\bhf_[A-Za-z0-9]{20,}/g },
+  {
+    type: 'JWT_TOKEN',
+    regex: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
+    minEntropy: 3.5,
+  },
 
   // --- Private keys & certificates -----------------------------------------
   {
@@ -101,7 +111,13 @@ const SECRET_PATTERNS: ScanPattern[] = [
       /\b(?:password|passwd|pwd|secret|api[-_]?key|access[-_]?token)\s*[:=]\s*["']?([A-Za-z0-9_\-+/=]{12,})["']?/gi,
     group: 1,
     minEntropy: 3,
-    reject: notPlaceholder,
+    validate: notPlaceholder,
+  },
+  {
+    type: 'SECRET_URL_PARAM',
+    regex: /[?&](?:token|api[-_]?key|access[-_]?token|secret|key|sig)=([A-Za-z0-9_\-.~+/=]{8,})/gi,
+    group: 1,
+    validate: notPlaceholder,
   },
 ];
 
@@ -112,7 +128,7 @@ const SECRET_PATTERNS: ScanPattern[] = [
  * positive only costs the full scan.
  */
 const HINT =
-  /sk-|bearer|basic |akia|asia|gh[pousr]_|xox[baprs]-|aiza|sk_live_|hf_|begin |:\/\/|passw|secret|api[-_]?key|token/i;
+  /sk-|oc_sk_|glpat|github_pat|eyJ|bearer|basic |akia|asia|gh[pousr]_|xox[baprs]-|aiza|sk_live_|hf_|begin |:\/\/|passw|secret|api[-_]?key|token|[?&](?:token|key|sig|secret)/i;
 
 /** All credential spans in `text`, ordered by position, never overlapping. */
 export function scanSecrets(text: string): SecretMatch[] {
@@ -131,10 +147,11 @@ export function scanSecrets(text: string): SecretMatch[] {
         continue;
       }
       const start = match.index + (pattern.group !== undefined ? match[0].indexOf(value) : 0);
+      const validator = pattern.validate ?? pattern.reject;
       const accept =
         start >= 0 &&
         (!pattern.minEntropy || shannonEntropy(value) >= pattern.minEntropy) &&
-        (!pattern.reject || pattern.reject(value));
+        (!validator || validator(value));
       if (accept) found.push({ type: pattern.type, value, start, end: start + value.length });
       if (match[0].length === 0) re.lastIndex += 1;
     }

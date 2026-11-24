@@ -52,7 +52,7 @@ describe('secret protection choke points', () => {
 
   it('handoff redacts a secret the caller left in cleartext', async () => {
     const client = recordingClient();
-    const handoff = new HandoffManager({ client, models: MODELS });
+    const handoff = new HandoffManager({ client, models: MODELS, secretPolicy: 'redact' });
     await handoff.complete([{ role: 'user', content: `key is ${OPENROUTER}` }]);
     expect(JSON.stringify(client.seen[0])).not.toContain('sk-or-v1');
     expect(JSON.stringify(client.seen[0])).toContain('[MUGIL_SECRET_OPENROUTER_API_KEY_1]');
@@ -60,7 +60,7 @@ describe('secret protection choke points', () => {
 
   it('handoff redacts secrets inside tool-call arguments', async () => {
     const client = recordingClient();
-    const handoff = new HandoffManager({ client, models: MODELS });
+    const handoff = new HandoffManager({ client, models: MODELS, secretPolicy: 'redact' });
     await handoff.stream([
       {
         role: 'assistant',
@@ -75,7 +75,7 @@ describe('secret protection choke points', () => {
 
   it('pipeline never caches or sends cleartext input', async () => {
     const client = recordingClient('done');
-    const handoff = new HandoffManager({ client, models: MODELS });
+    const handoff = new HandoffManager({ client, models: MODELS, secretPolicy: 'redact' });
     const pipeline = new Pipeline({
       cache: new SmartCache({
         backend: new MemoryBackend(),
@@ -93,7 +93,7 @@ describe('secret protection choke points', () => {
 
   it('tool output is tokenized before the model sees it', async () => {
     const client = recordingClient('done');
-    const handoff = new HandoffManager({ client, models: MODELS });
+    const handoff = new HandoffManager({ client, models: MODELS, secretPolicy: 'redact' });
     const loop = new ToolLoop({ handoff, maxIterations: 2 });
     const toolCall: ToolCall = { id: 'c1', name: 'leak', arguments: '{}' };
 

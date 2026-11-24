@@ -1,0 +1,7 @@
+{
+  "error": {
+    "message": "OpenCode Go allowance exhausted for current period",
+    "code": "quota_exceeded",
+    "reset_at": "2026-12-01T00:00:00Z"
+  }
+}

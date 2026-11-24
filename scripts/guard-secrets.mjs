@@ -24,6 +24,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** name → regex. Order matters only for reporting. */
 const PATTERNS = [
+  ['OpenCode API key', /\boc_sk_[A-Za-z0-9_-]{15,}/],
   ['OpenRouter API key', /\bsk-or-v1-[A-Za-z0-9_-]{15,}/],
   ['Anthropic API key', /\bsk-ant-[A-Za-z0-9_-]{15,}/],
   ['OpenAI project key', /\bsk-proj-[A-Za-z0-9_-]{15,}/],
@@ -31,6 +32,8 @@ const PATTERNS = [
   ['Google API key', /\bAIza[0-9A-Za-z_-]{30,}/],
   ['AWS access key', /\bAKIA[0-9A-Z]{16}/],
   ['GitHub PAT', /\bgh[pousr]_[A-Za-z0-9]{20,}/],
+  ['GitLab PAT', /\bglpat-[A-Za-z0-9_-]{20,}/],
+  ['JWT token', /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/],
   ['Slack token', /\bxox[baprs]-[A-Za-z0-9-]{20,}/],
   ['Stripe key', /\bsk_live_[A-Za-z0-9]{20,}/],
   ['Private key block', /-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/],
@@ -75,11 +78,19 @@ function main() {
   if (process.argv.length > 2) {
     files = process.argv.slice(2);
   } else {
-    const out = execFileSync('git', ['diff', '--cached', '--name-only', '-z'], {
-      cwd: root,
-      encoding: 'utf8',
-    });
-    files = out.split('\0').filter(Boolean);
+    try {
+      const staged = execFileSync('git', ['diff', '--cached', '--name-only', '-z'], {
+        cwd: root,
+        encoding: 'utf8',
+      }).split('\0').filter(Boolean);
+      const untracked = execFileSync('git', ['ls-files', '--others', '--modified', '--exclude-standard', '-z'], {
+        cwd: root,
+        encoding: 'utf8',
+      }).split('\0').filter(Boolean);
+      files = Array.from(new Set([...staged, ...untracked]));
+    } catch {
+      files = [];
+    }
   }
 
   const findings = [];

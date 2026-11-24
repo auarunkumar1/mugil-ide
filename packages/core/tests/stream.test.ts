@@ -513,7 +513,7 @@ describe('OpenAI-format gateway clients stream', () => {
       expect(seen.stream.stream_options).toEqual({ include_usage: true });
       expect(out.provider).toBe(provider);
       expect(out.content).toBe('ok');
-      expect(out.usage).toEqual({ promptTokens: 1, completionTokens: 1, totalTokens: 2 });
+      expect(out.usage).toEqual(expect.objectContaining({ promptTokens: 1, completionTokens: 1, totalTokens: 2 }));
     },
   );
 

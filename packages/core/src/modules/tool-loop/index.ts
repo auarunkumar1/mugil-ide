@@ -230,13 +230,13 @@ export class ToolLoop {
         }
       }
 
-      // Optimize context: when the model calls tools, conversational preamble is
-      // discarded by the terminal and unneeded by subsequent iterations. Leaving
-      // content empty or minimal stops re-sending partial chatter on every turn.
+      // Preserve reasoning content and toolCalls for reasoning continuity across iterations
       msgs.push({
         role: 'assistant',
         content: '',
         toolCalls: completion.toolCalls,
+        reasoning: completion.thinking,
+        reasoningDetails: completion.reasoningDetails,
       });
 
       for (const call of completion.toolCalls) {

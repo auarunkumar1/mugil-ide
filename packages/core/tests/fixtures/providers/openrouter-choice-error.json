@@ -1,0 +1,14 @@
+{
+  "id": "gen-12345",
+  "choices": [
+    {
+      "index": 0,
+      "message": null,
+      "error": {
+        "code": 500,
+        "message": "Provider upstream timeout"
+      },
+      "finish_reason": "error"
+    }
+  ]
+}

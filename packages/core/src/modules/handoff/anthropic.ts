@@ -16,6 +16,7 @@ import {
   type ProviderCompleteOptions,
 } from './provider.js';
 import { parseAnthropicSse, type StreamedCompletion, type StreamHandlers } from './stream.js';
+import { sanitizeOutbound } from '../security/outboundGuard.js';
 
 export interface AnthropicClientOptions {
   apiKey?: string;
@@ -178,6 +179,13 @@ export class AnthropicClient implements ProviderClient {
       if (result.thinking && result.thinking.length > 0) handlers.onThinking?.(result.thinking);
       return result;
     }
+    const requestBody = sanitizeOutbound(
+      { ...this.buildBody(messages, options), stream: true },
+      {
+        destinationUrl: `${this.baseUrl}/v1/messages`,
+        expectedProviderKey: this.apiKey,
+      },
+    );
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
@@ -186,7 +194,7 @@ export class AnthropicClient implements ProviderClient {
         'anthropic-version': '2023-06-01',
         ...this.extraHeaders,
       },
-      body: JSON.stringify({ ...this.buildBody(messages, options), stream: true }),
+      body: JSON.stringify(requestBody),
       signal: requestSignal(options),
     });
     if (!res.ok) {
@@ -234,6 +242,9 @@ export class AnthropicClient implements ProviderClient {
         ...(streamed.usage?.cachedTokens !== undefined
           ? { cachedTokens: streamed.usage.cachedTokens }
           : {}),
+        ...(streamed.usage?.cacheWriteTokens !== undefined
+          ? { cacheWriteTokens: streamed.usage.cacheWriteTokens }
+          : {}),
       },
       finishReason: streamed.finishReason,
       toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
@@ -246,6 +257,10 @@ export class AnthropicClient implements ProviderClient {
     options: ProviderCompleteOptions,
   ): Promise<CompletionResult> {
     if (this.mock) return mockCompletion(messages, options, 'ANTHROPIC_API_KEY');
+    const requestBody = sanitizeOutbound(this.buildBody(messages, options), {
+      destinationUrl: `${this.baseUrl}/v1/messages`,
+      expectedProviderKey: this.apiKey,
+    });
     const res = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
@@ -254,7 +269,7 @@ export class AnthropicClient implements ProviderClient {
         'anthropic-version': '2023-06-01',
         ...this.extraHeaders,
       },
-      body: JSON.stringify(this.buildBody(messages, options)),
+      body: JSON.stringify(requestBody),
       signal: requestSignal(options),
     });
 
@@ -291,11 +306,13 @@ export class AnthropicClient implements ProviderClient {
       data.usage?.input_tokens ?? estimateMessagesTokens(messages, options.tools);
     const completionTokens = data.usage?.output_tokens ?? countTokens(content);
     const cachedTokens = data.usage?.cache_read_input_tokens;
+    const cacheWriteTokens = data.usage?.cache_creation_input_tokens;
     const usage = {
       promptTokens,
       completionTokens,
       totalTokens: promptTokens + completionTokens,
       ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {}),
     };
     return {
       provider: 'anthropic',

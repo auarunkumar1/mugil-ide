@@ -13,6 +13,7 @@ import type { ProviderClient } from './modules/handoff/provider.js';
 import { HandoffManager } from './modules/handoff/index.js';
 import { Pipeline } from './pipeline.js';
 import { installOverrideReader } from './modules/overridesNode.js';
+import { globalSecretVault } from './modules/security/secretVault.js';
 
 // --- Credited modules -------------------------------------------------------
 
@@ -223,6 +224,13 @@ export type {
 export { scanSecrets, hasSecrets, shannonEntropy } from './modules/security/secretScanner.js';
 export type { SecretMatch } from './modules/security/secretScanner.js';
 export {
+  classifyEndpoint,
+  sanitizeOutbound,
+  SecretLeakError,
+  type EndpointClassification,
+  type SanitizeOptions,
+} from './modules/security/outboundGuard.js';
+export {
   SecretVault,
   globalSecretVault,
   secretToken,
@@ -317,8 +325,23 @@ export { CloudflareClient } from './modules/handoff/cloudflare.js';
 export type { CloudflareClientOptions } from './modules/handoff/cloudflare.js';
 export { TogetherClient } from './modules/handoff/together.js';
 export type { TogetherClientOptions } from './modules/handoff/together.js';
-export { OpenCodeClient } from './modules/handoff/openCode.js';
-export type { OpenCodeClientOptions } from './modules/handoff/openCode.js';
+export {
+  ChatCompletionsAdapter,
+  MessagesAdapter,
+  ResponsesAdapter,
+  type ProtocolAdapter,
+} from './modules/handoff/protocols/index.js';
+export {
+  OpenCodeClient,
+  fetchOpenCodeUsage,
+  resolveOpenCodePlan,
+  clearOpenCodePlanCache,
+} from './modules/handoff/openCode.js';
+export type {
+  OpenCodeClientOptions,
+  OpenCodeUsageInfo,
+  OpenCodePlanResult,
+} from './modules/handoff/openCode.js';
 export { ProviderError, mockCompletion } from './modules/handoff/provider.js';
 export type { ProviderClient, ProviderCompleteOptions } from './modules/handoff/provider.js';
 export { HandoffManager } from './modules/handoff/index.js';
@@ -444,10 +467,29 @@ export type {
   ExecutionTopology,
 } from './types.js';
 
+import {
+  createUnifiedWireClient,
+  type UnifiedProviderKind,
+} from './modules/handoff/unifiedWireClient.js';
+
+function registerConfiguredSecrets(cfg: AppConfig): void {
+  if (cfg.opencodeApiKey) globalSecretVault.registerKnownSecret('OPENCODE_API_KEY', cfg.opencodeApiKey);
+  if (cfg.openRouterApiKey) globalSecretVault.registerKnownSecret('OPENROUTER_API_KEY', cfg.openRouterApiKey);
+  if (cfg.openaiApiKey) globalSecretVault.registerKnownSecret('OPENAI_API_KEY', cfg.openaiApiKey);
+  if (cfg.anthropicApiKey) globalSecretVault.registerKnownSecret('ANTHROPIC_API_KEY', cfg.anthropicApiKey);
+  if (cfg.vercelApiKey) globalSecretVault.registerKnownSecret('VERCEL_API_KEY', cfg.vercelApiKey);
+  if (cfg.cloudflareApiKey) globalSecretVault.registerKnownSecret('CLOUDFLARE_API_KEY', cfg.cloudflareApiKey);
+  if (cfg.togetherApiKey) globalSecretVault.registerKnownSecret('TOGETHER_API_KEY', cfg.togetherApiKey);
+}
+
 /** Builds a fully-wired engine from the environment. */
 export function createEngine(config: AppConfig) {
   installOverrideReader();
   let currentConfig = config;
+
+  // Register configured provider keys into SecretVault as exact known secrets
+  registerConfiguredSecrets(currentConfig);
+
   const cacheBackend = createCacheBackend({
     redisUrl: currentConfig.redisUrl,
     redisClusterUrls: currentConfig.redisClusterUrls,
@@ -463,7 +505,14 @@ export function createEngine(config: AppConfig) {
     namespace: process.cwd(),
   });
   let client = createClient(currentConfig);
-  const handoff = new HandoffManager({ client, models: currentConfig.models });
+  const handoff = new HandoffManager({
+    client,
+    models: currentConfig.models,
+    secretPolicy: currentConfig.secretPolicy,
+    sensitivePolicy: currentConfig.sensitivePolicy,
+    localEndpointsPolicy: currentConfig.localEndpointsPolicy,
+    providerV2: currentConfig.providerV2,
+  });
   const pipeline = new Pipeline({
     cache,
     handoff,
@@ -483,9 +532,14 @@ export function createEngine(config: AppConfig) {
     backend: cacheBackend,
     reconfigure(newConfig: AppConfig) {
       currentConfig = newConfig;
+      registerConfiguredSecrets(newConfig);
       client = createClient(newConfig);
       handoff.setClient(client);
       handoff.setModels(newConfig.models);
+      handoff.setSecretPolicy(newConfig.secretPolicy);
+      handoff.setSensitivePolicy(newConfig.sensitivePolicy);
+      handoff.setLocalEndpointsPolicy(newConfig.localEndpointsPolicy);
+      handoff.setProviderV2(newConfig.providerV2);
       pipeline.tokenBudget = newConfig.tokenBudget;
       return engine;
     },
@@ -498,6 +552,77 @@ export type Engine = ReturnType<typeof createEngine>;
 
 /** Picks the completion client for the configured provider. */
 function createClient(config: AppConfig): ProviderClient {
+  if (config.providerV2) {
+    if (config.provider === 'opencode') {
+      return new OpenCodeClient({ apiKey: config.opencodeApiKey, baseUrl: config.opencodeBaseUrl });
+    }
+    if (config.provider === 'anthropic') {
+      return new AnthropicClient({
+        apiKey: config.anthropicApiKey,
+        baseUrl: config.anthropicBaseUrl,
+      });
+    }
+    if (config.provider === 'openrouter') {
+      return new OpenRouterClient({
+        apiKey: config.openRouterApiKey,
+        baseUrl: config.openRouterBaseUrl,
+      });
+    }
+    if (config.provider === 'cloudflare') {
+      return new CloudflareClient({
+        apiKey: config.cloudflareApiKey,
+        accountId: config.cloudflareAccountId,
+        gatewayId: config.cloudflareGatewayId,
+        baseUrl: config.cloudflareBaseUrl,
+      });
+    }
+    if (config.provider === 'together') {
+      return new TogetherClient({
+        apiKey: config.togetherApiKey,
+        baseUrl: config.togetherBaseUrl,
+      });
+    }
+    if (config.provider === 'vercel') {
+      return new VercelClient({
+        apiKey: config.vercelApiKey,
+        baseUrl: config.vercelBaseUrl,
+      });
+    }
+    const kind = (config.provider === 'local' ? 'custom' : config.provider) as UnifiedProviderKind;
+    const baseUrls: Partial<Record<string, string>> = {
+      llamacpp: config.llamacppBaseUrl,
+      ollama: config.ollamaBaseUrl,
+      lmstudio: config.lmstudioBaseUrl,
+      local: config.localBaseUrl,
+      openai: config.openaiBaseUrl,
+      openrouter: config.openRouterBaseUrl,
+      vercel: config.vercelBaseUrl,
+      cloudflare: config.cloudflareBaseUrl,
+      together: config.togetherBaseUrl,
+    };
+    const apiKeys: Partial<Record<string, string>> = {
+      openai: config.openaiApiKey,
+      openrouter: config.openRouterApiKey,
+      vercel: config.vercelApiKey,
+      cloudflare: config.cloudflareApiKey,
+      together: config.togetherApiKey,
+      llamacpp: 'llamacpp',
+      ollama: 'ollama',
+      lmstudio: 'lm-studio',
+      local: 'local',
+    };
+    try {
+      return createUnifiedWireClient({
+        provider: kind,
+        apiKey: apiKeys[config.provider],
+        baseUrl: baseUrls[config.provider],
+      });
+    } catch {
+      // fall through to legacy clients if provider is unknown to unified client
+    }
+  }
+
+  // Legacy provider client v1 path
   if (config.provider === 'llamacpp') {
     return new OpenAiClient({
       apiKey: 'llamacpp',

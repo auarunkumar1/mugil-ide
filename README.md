@@ -1,529 +1,470 @@
 <div align="center">
 
-# ☁️ Mugil IDE
+# Mugil IDE — Token-Efficient AI Coding Agent & Local-First Browser IDE
 
-### The Token-Efficient, Autonomous AI Coding Agent Harness & Web IDE
+### An open-source AI coding agent for your browser, with local LLM support and up to 40–70% lower token costs on compressible work.
 
 [![GitHub Release](https://img.shields.io/github/v/release/auarunkumar1/mugil-ide?label=release&color=1f6feb&style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
+[![CI](https://github.com/auarunkumar1/mugil-ide/actions/workflows/ci.yml/badge.svg)](https://github.com/auarunkumar1/mugil-ide/actions/workflows/ci.yml)
+[![Tests: 784 Passing](https://img.shields.io/badge/tests-784%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platform: Win · Mac · Linux](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
-[![Tests: 710 Passing](https://img.shields.io/badge/tests-710%20passing-3fb950.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
-[![MCP: Supported](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
-[![TypeScript: 5.x](https://img.shields.io/badge/TypeScript-5.x-3178c6.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide)
-[![Offline Ready](https://img.shields.io/badge/assets-100%25%20vendored-8957e5.svg?style=flat-square)](README.md)
+[![Platforms: Windows · macOS · Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen.svg?style=flat-square)](https://github.com/auarunkumar1/mugil-ide/releases)
+[![Node: 20 | 22](https://img.shields.io/badge/node-20%20%7C%2022-339933.svg?style=flat-square)](https://nodejs.org/)
+[![Local AI](https://img.shields.io/badge/local%20AI-llama.cpp%20%7C%20Ollama%20%7C%20LM%20Studio-8957e5.svg?style=flat-square)](#local-ai-and-hybrid-routing)
+[![MCP](https://img.shields.io/badge/MCP-client%20%26%20server-blueviolet.svg?style=flat-square)](#model-context-protocol-mcp)
+[![Telemetry: none](https://img.shields.io/badge/telemetry-none-2ea043.svg?style=flat-square)](#security-and-privacy)
 
 </div>
 
-<div align="center">
+**Mugil IDE** is an open-source AI coding agent and browser-based developer environment. It reads, edits, tests, and debugs real repositories through a tool-driven agent loop — while a token-efficiency pipeline trims prompts, compresses noisy tool output, caches repeated work, and keeps an honest per-turn ledger of what you spend.
 
-**Welcome to Mugil IDE!** An open-source, ultra-efficient autonomous coding agent harness and developer environment that runs directly in your browser. Mugil IDE wraps state-of-the-art LLMs in a full-featured harness that reads, edits, tests, and debugs your software — while actively cutting 40% to 70% off your token consumption and API bills.
-
-Featuring a **built-in offline local AI runtime (`llama.cpp`)** with automated GGUF model management, seamless compatibility with **external local daemons** (Ollama, LM Studio), and **state-of-the-art cloud intelligence** (DeepSeek, Anthropic Claude 3.7 Sonnet, OpenAI, and Vercel AI) in a **hybrid local coder + cloud auditor** architecture.
-
-<p align="center">
-  <a href="#-quick-start"><b>⚡ Quick Start</b></a> •
-  <a href="#-why-mugil-ide"><b>Why Mugil IDE</b></a> •
-  <a href="#-visual-tour--ui-highlights"><b>Visual Tour</b></a> •
-  <a href="#-feature-highlights"><b>Features</b></a> •
-  <a href="#-18-autonomous-workspace-tools--subagent-swarms"><b>Tools Matrix</b></a> •
-  <a href="#-whats-shipped-today-vs-next-release"><b>Shipped vs Roadmap</b></a> •
-  <a href="#-downloads--installation"><b>Downloads</b></a> •
-  <a href="#%EF%B8%8F-configuration--environment-variables"><b>Configuration</b></a>
-</p>
-
-</div>
+It is designed for developers who want **cloud-model capability without cloud-only assumptions**. Run it fully offline with the built-in `llama.cpp` runtime, connect Ollama or LM Studio, or hand complex work to OpenCode Go, OpenRouter, OpenAI, Anthropic, or another supported provider. The same browser UI, tools, permissions, diffs, and secret protection apply in every mode.
 
 ---
 
-## ⚡ Quick Start
+## Table of Contents
 
-Get up and running in under 60 seconds:
+- [What is Mugil IDE?](#what-is-mugil-ide)
+- [At a glance](#at-a-glance)
+- [Why Mugil IDE?](#why-mugil-ide)
+- [Quick start](#quick-start)
+- [Feature highlights](#feature-highlights)
+- [Local AI and hybrid routing](#local-ai-and-hybrid-routing)
+- [Supported providers and protocols](#supported-providers-and-protocols)
+- [Security and privacy](#security-and-privacy)
+- [How token savings work](#how-token-savings-work)
+- [Compatibility](#compatibility)
+- [Configuration](#configuration)
+- [CLI and MCP](#cli-and-mcp)
+- [What is new in v0.6.0](#what-is-new-in-v060)
+- [FAQ](#faq)
+- [Contributing](#contributing)
+- [License and attributions](#license-and-attributions)
 
-### Option 1: Standalone Binary (Zero dependencies, no Node/npm needed)
+---
 
-Download the standalone executable for your OS from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
+## What is Mugil IDE?
+
+Mugil IDE is not just a chat box or an autocomplete layer. It is a full **agent harness** around a language model:
+
+- **A real coding loop.** The agent can inspect files, search a codebase, read symbols and AST skeletons, apply patches, run commands, collect diagnostics, and verify its own work.
+- **A browser IDE.** Open a terminal-style agent pane, file explorer, split diff viewer, and CodeGraph inspector in a normal browser tab. No Electron or Tauri shell required.
+- **A token-efficient context engine.** Prompts and tool output are cleaned before they reach the model, and repeated work is served from a multi-tier cache where safe.
+- **A local-first runtime.** Built-in `llama.cpp`, plus automatic detection of Ollama and LM Studio, so you can keep working without a cloud key.
+- **A privacy boundary.** Credentials are vaulted locally, outbound payloads are sanitized, and secret-bearing turns can be forced to stay local.
+- **An open protocol citizen.** Use it as an MCP client, run it as an MCP server, and route models through native Chat Completions, Anthropic Messages, or OpenAI Responses protocols.
+
+In short: **a practical AI coding agent for people who care about cost, privacy, and owning their toolchain.**
+
+---
+
+## At a glance
+
+| | |
+| --- | --- |
+| **License** | MIT |
+| **Interface** | Browser-based IDE + CLI + standalone binaries |
+| **Platforms** | Windows x64, Linux x64/arm64, macOS arm64/x64 |
+| **Local models** | Built-in `llama.cpp`; Ollama; LM Studio |
+| **Cloud providers** | OpenCode Go/Zen, OpenRouter, OpenAI, Anthropic, Vercel AI Gateway, Cloudflare Workers AI, Together AI |
+| **Wire protocols** | OpenAI Chat Completions, Anthropic Messages, OpenAI Responses |
+| **Extensibility** | MCP client and server; skills; custom tools |
+| **Security** | Local secret vault, fail-closed egress guard, no telemetry |
+| **Best for** | Cost-sensitive developers, local/offline workflows, browser-first and mobile-adjacent development |
+
+---
+
+## Why Mugil IDE?
+
+### Spend less on the same work
+
+AI coding agents often waste context on filler, repeated logs, entire files, and stale conversation. Mugil IDE compresses the parts that can be compressed, caches the parts that repeat, and keeps your generation budget separate from your history budget.
+
+### Work offline when you need to
+
+The built-in `llama.cpp` runtime can download and run GGUF models directly. Ollama and LM Studio are detected automatically. You can also mix local and cloud models: draft locally, audit in the cloud, or keep the entire turn local.
+
+### Keep secrets out of the cloud
+
+Pasted keys, `.env` values, bearer tokens, private keys, and secrets in tool output are replaced with local vault tokens before they reach a model. In the default `local-only` mode, a secret-bearing turn is refused if the active provider is remote.
+
+### Use the tools you already trust
+
+Mugil IDE supports OpenCode Go and Zen, OpenRouter, OpenAI, Anthropic, Vercel AI Gateway, Cloudflare, Together AI, and local OpenAI-compatible endpoints. It does not lock you into one model vendor.
+
+### Stay in the browser
+
+The UI is served by a local Node server with vendored assets. It works on desktop, tablet, and phone browsers, and can stream a session to another device on your network with a QR code.
+
+---
+
+## Quick start
+
+### Option 1 — Standalone binary (recommended)
+
+Download the latest executable for your OS from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**.
 
 ```bash
-# Linux
-chmod +x mugil-ide-linux-x64 && ./mugil-ide-linux-x64
+# Linux (x64)
+chmod +x mugil-ide-linux-x64
+./mugil-ide-linux-x64
 
-# macOS
-chmod +x mugil-ide-darwin-arm64 && ./mugil-ide-darwin-arm64
+# macOS (Apple Silicon)
+chmod +x mugil-ide-darwin-arm64
+./mugil-ide-darwin-arm64
 
 # Windows (PowerShell)
 .\mugil-ide-windows-x64.exe
 ```
 
-### Option 2: Running from Source
+Available artifacts include Windows x64, Linux x64, Linux arm64, macOS arm64, macOS x64, a Debian package, and `SHA256SUMS.txt`.
+
+### Option 2 — Run from source
+
+Requirements: **Node.js 20 or 22**.
 
 ```bash
 git clone https://github.com/auarunkumar1/mugil-ide.git
 cd mugil-ide
 npm install
+npm run build
 npm start
 ```
 
-### Option 3: 100% Offline Local AI with Built-in llama.cpp (No Cloud, No API Keys, No Third-Party Daemons)
+The server opens the browser IDE automatically. If it does not, use the URL printed in the terminal.
 
-Mugil IDE includes a built-in `llama.cpp` runtime that downloads and runs local GGUF models directly on your CPU or GPU:
+### Option 3 — 100% offline with the built-in `llama.cpp` runtime
+
+No cloud key, no Ollama, no LM Studio, and no Python required:
 
 ```bash
-# Download a lightweight, laptop-friendly local coder (Qwen2.5-Coder-1.5B ~986MB):
 mugil-ide llamacpp download qwen2.5-coder-1.5b
-
-# Or simply start Mugil IDE and manage GGUF models directly in the browser via "📦 Manage GGUF Models" in the menu!
 mugil-ide
 ```
 
-Mugil IDE also automatically detects existing local daemons (Ollama at `localhost:11434` or LM Studio at `localhost:1234`) with zero configuration.
+Then choose the local model in the model picker or the **Manage GGUF Models** dialog.
 
----
+### Option 4 — Use Ollama or LM Studio
 
-## 🌟 Why Mugil IDE?
-
-Most AI coding assistants treat tokens like water — stuffing thousands of lines of raw terminal logs, boilerplate comments, and conversational filler into your prompt until you hit a wall, run up a giant bill, or get hit with:
-
-> `⚠ Answer was cut off by token limit`
-
-**Mugil IDE is built differently.** It acts as an intelligent, token-compressing buffer between you and the LLM. It refines your input, strips AI signatures and watermarks, caches repetitive queries, extracts compact AST code skeletons, bounds generation limits dynamically, and gives you instant 1-click rollbacks if something goes wrong.
-
-Best of all, **it's 100% browser-based with zero telemetry**. Launch it from your terminal, and it immediately opens a polished, two-pane dark-mode IDE in your browser with fully vendored assets — running fast, cleanly, and completely offline-capable.
-
-### 🛡️ What is an Autonomous Agent Harness?
-
-In AI-assisted software engineering, raw LLMs cannot write or maintain production code in isolation. An **Agent Harness** provides the robust execution substrate, tooling environment, and safety boundaries that enable an AI model to safely interact with a real repository:
-
-- **Execution & Tool Loop:** Provides a sandboxed execution runtime for shell commands (`run_command`), surgical file edits (`edit_file`, `apply_patch`), CodeGraph AST symbol mapping, blob pagination (`read_blob`), and multi-provider asset generation (`generate_image`).
-- **Token Economy & Context Engineering:** Optimizes token budgets before input hits the LLM (via Caveman linguistic compression and RTK deduplication) and extracts lightweight AST skeletons (`read_skeleton`) to save 70–80% of context tokens during codebase research.
-- **Verification & Safe Rollbacks:** Pre-write snapshotting and an immutable session journal enable instant 1-click `/undo` rollbacks for both text and binary assets.
-- **Interactive Developer Control:** Bridges the loop to a browser UI with token-by-token xterm.js streaming, live split-pane diff viewing, and Model Context Protocol (MCP) tooling.
-
----
-
-## ✨ Feature Highlights
-
-Every major capability in Mugil IDE is built to give you maximum developer superpowers while keeping token costs tiny. Here is how each feature works — defined simply first, and then under the hood.
-
-```mermaid
-flowchart LR
-    %% Inbound flow
-    User(["👤 User Prompt"]) --> Refine["⚡ Token Refiner\n(Caveman + RTK TSV)"]
-    Refine --> Cache{"🔍 SmartCache"}
-
-    %% Caching branches
-    Cache -- "Hit" --> Cached["⚡ Instant (0ms · $0)"]
-    Cache -- "Miss" --> Router["🔀 Auto-Handoff\n(Cloud / Local LLM)"]
-
-    %% Execution loop
-    Router --> LLM["🧠 LLM Engine"]
-    LLM <--> Tools["🧰 18 Workspace Tools\n(AST · Blobs · CodeGraph · Media)"]
-
-    %% Post-generation cleaning
-    LLM --> DeAI["✂️ De-AI & Watermark Stripper\n(Purges AI Disclaimers & Signatures)"]
-    DeAI --> Stream["🌊 Live SSE Stream\n(Markdown + Thinking)"]
-    Stream --> WebIDE["💻 Web IDE & 1-Click Undo\n(xterm.js · Diff Journal)"]
-```
-
----
-
-### 1. ⚡ Token Refinement & Compression Pipeline
-
-- **💡 Def:**  
-  When you talk to an AI, roughly half of what gets sent is conversational fluff, redundant punctuation, repeating log lines, or obvious syntax. Mugil IDE automatically cleans your prompt before the AI reads it — dropping your bill by 40–70% without the model losing any context or meaning. When the AI responds, Mugil IDE purges AI disclaimers, watermarks, and conversational signatures before code hits your disk.
-- **⚙️ Under the Hood:**  
-  A multi-stage pipeline executes synchronously before handoff and after code generation:
-  - **Caveman Strategy (Inbound):** Strips conversational pleasantries and filler tokens according to ASD-STE100 technical grammar rules.
-  - **RTK (Reduced Token Kernel - Inbound):** Deduplicates repeated error messages, strips ANSI escape sequences, collapses matching test lines, and filters noisy build output.
-  - **Ponytail Minimization (Inbound/Prompting):** Enforces standard library reuse and concise, surgical diffs, stopping the model from writing unnecessary boilerplate.
-  - **De-AI Watermark & Signature Stripper (Post-Generation):** Intercepts generated code and responses to remove AI attribution watermarks, conversational sign-offs, and disclaimer headers before saving to disk or rendering in the UI.
-
----
-
-### 2. 🚀 Pre-Session Setup & Live Token Economics
-
-- **💡 Def:**  
-  No more surprise bills! When you start a coding session, a friendly popup lets you choose your model, pick your history size, and see **exact pricing in real-time** (e.g., _$0.55/1M input* for DeepSeek-R1, or *Free / $0.00_ for local Ollama). It even calculates the estimated worst-case cost of a full turn before you type a single word.
-- **⚙️ Under the Hood:**  
-  On launch, `/api/config` and `/api/models` probe configured local daemons (Ollama `:11434`, LM Studio `:1234`) and cloud catalogs (OpenRouter, Anthropic, OpenAI). The UI dynamically calculates:
-  $$\text{Turn Cost} = \frac{(\text{History Budget} \times \text{Cost}_{\text{in}}) + (\text{Max Output} \times \text{Cost}_{\text{out}})}{1{,}000{,}000}$$
-  All adjustments save directly to your session configuration without needing a server restart.
-
----
-
-### 3. ⚡ Turbo Mode & Safety Permission Gates
-
-- **💡 Def:**  
-  Want to sit back and let the AI build an entire feature without nagging you for permission on every single file? Turn on **Turbo Mode**! Prefer to inspect every change before it hits your disk? Stay in standard **Act Mode** to get a preview modal, or **Plan Mode** for 100% read-only brainstorming.
-- **⚙️ Under the Hood:**  
-  The engine enforces an explicit `PermissionCheck` policy on all tool executions:
-  - **Turbo Mode (`⚡ Turbo: ON`):** Bypasses confirmation prompts, automatically executing file edits, git patches, and shell commands. A prominent amber banner reminds you that autonomous execution is live.
-  - **Act Mode (`⚡ Act`):** Intercepts dangerous actions (`write_file`, `edit_file`, `run_command`, MCP tools) and renders a modal in your browser showing the exact arguments with **Allow** / **Deny** buttons.
-  - **Plan Mode (`🔒 Plan`):** Read-only mode. Workspace modifications and bash commands are denied outright, guaranteeing zero unwanted changes.
-
----
-
-### 4. ⚙️ User-Definable History & Output Budgets (No More Cutoffs!)
-
-- **💡 Def:**  
-  Ever had an AI write 90% of a complex script only to stop in the middle of a loop because it ran out of output tokens? In Mugil IDE, you have dedicated knobs for both **History Budget** (how much past context to remember) and **Max Output Tokens** (how long an answer can be). Expanding your history will never accidentally squeeze your output generation budget!
-- **⚙️ Under the Hood:**  
-  Previous agent architectures floored completion tokens when conversation history grew large. Mugil IDE separates input history budgeting (`DEFAULT_HISTORY_BUDGET = 64,000`, override via `MUGIL_IDE_TOKEN_LIMIT`) from output generation (`DEFAULT_MAX_OUTPUT_TOKENS = 32,768`, override via `MUGIL_IDE_MAX_OUTPUT_TOKENS`). The pipeline computes:
-  $$\text{contextRoom} = \text{contextWindow} - \text{promptTokens} - 1024$$
-  and safely clamps generation headroom so the model always has space to complete its work.
-
----
-
-### 5. 💾 Multi-Tier Smart Caching & Ephemeral Breakpoints
-
-- **💡 Def:**  
-  If you ask a similar question or run repeated tasks, Mugil IDE serves the answer instantly from cache instead of charging your credit card again.
-- **⚙️ Under the Hood:**  
-  Three progressive cache layers:
-  - **Exact Match:** Instant hit on identical prompt digests.
-  - **Partial Prefix Match ($O(L)$ `PrefixTrie`):** Reuses the common prefix of an answer when you append new instructions, generating only the delta.
-  - **Semantic Match:** Matches prompts by cosine similarity of embeddings (via local Lexical or OpenAI embeddings).
-  - **Provider-Level Prompt Caching:** Automatically injects Anthropic ephemeral breakpoints (`cache_control: { type: 'ephemeral' }`) and OpenAI key-sorted canonical JSON for automatic 90% provider input discounts.
-
----
-
-### 6. 🛠️ 20 Autonomous Workspace Tools & Subagent Swarms
-
-- **💡 Def:**  
-  Mugil IDE comes out of the box with tools to search, read, write, test, explore, generate visual media, and refactor code. It can even spin up helper "subagents" to perform broad background research without cluttering your main conversation!
-- **⚙️ Under the Hood:**  
-  Built-in tools are organized into five specialized operational categories:
-
-  | Category                | Tools                                                                                              | Primary Capabilities                                                                                                                   |
-  | :---------------------- | :------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
-  | **Inspection & AST**    | `read_file`, `read_symbol`, `read_skeleton`, `search_code`, `list_files`, `codegraph`, `read_blob` | AST code signatures, surgical single-function/class reader, regex pattern search, multi-language symbol graphs, and LRU blob chunking. |
-  | **Surgical Editing**    | `edit_file`, `apply_patch`, `write_file`                                                           | Precise 1-line unified diff replacements, multi-hunk patch application, atomic writes.                                                 |
-  | **Shell & Execution**   | `run_command`                                                                                      | Sandboxed command execution with process group timeouts, Delta Mode diffing, and RTK build noise filtering.                            |
-  | **Swarm Orchestration** | `task`                                                                                             | Spawns scoped subagents (`explore` or `general`) in-process, with their own tool registry and permission policy.                       |
-  | **Media & External**    | `generate_image`, `webfetch`, `mcp`                                                                | Multi-tier visual asset generation, live URL retrieval, and Lazy Model Context Protocol gateway.                                       |
-
----
-
-### 7. 🔍 Live Diff Viewer & 1-Click Undo
-
-- **💡 Def:**  
-  Every change made by the AI appears in real-time in a split diff viewer. If the agent makes a mistake, click **"↩ Undo Edit"** or type `/undo` to instantly roll back your files to their exact previous state.
-- **⚙️ Under the Hood:**  
-  All file writes are tracked in an immutable session journal (`pushEdit`, `undoLast`). Diffs are computed on a background worker thread (`diffWorker.js`) so large multi-thousand line patches never freeze the browser terminal.
-
----
-
-## 📸 Visual Tour & UI Highlights
-
-<p align="center">
-  <img src="docs/assets/mugil-ide-preview.svg" alt="Mugil IDE Web Interface Preview" width="100%">
-</p>
-
-| Area                               | Features & Capabilities                                                                                                                                                                       |
-| :--------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Top Navigation**                 | 🚀 **Pre-Session Setup Popup** · ⚡ **Turbo Mode Toggle** · 🤖 **Model Selector** · 🔑 **API Key Manager** · ⚡ **Token Budget Config**                                                       |
-| **Attribution Strip**              | Single-line compact strip giving direct credit to upstream projects: _Caveman, RTK Headroom, Ponytail, De-AI, Watermarks, CodeGraph AST, OpenCode_                                            |
-| **Left Pane (Agent Loop)**         | Live xterm.js terminal with token-by-token streaming, markdown formatting, turn history pills, and isolated shell terminal with PTY support                                                   |
-| **Right Pane (Code & Inspection)** | Interactive file tree, live diff viewer with syntax highlights, file viewer, and structural symbol CodeGraph                                                                                  |
-| **Bottom Status Bar**              | Live WebSocket connection indicator, active model ID, session token tally, and real input-token savings (`saved / compressible input` across Caveman, RTK, history compaction and cache hits) |
-
----
-
-## 🚀 What's Shipped Today vs. Next Release
-
-We believe in complete transparency. Here is a clear breakdown of what is fully built, tested, and working right now in **v0.5.0**, versus what is on the roadmap for **v0.6.0**:
-
-### ✅ Shipped & Ready in v0.5.0 (Current Release)
-
-#### ⚡ Built-in Offline Local AI (llama.cpp Engine) & Hybrid Architecture
-
-- [x] **Zero-Config llama.cpp Engine Runtime:** Vendored pinned upstream `llama.cpp` release (`b12451`) with automated OS detection, SHA256 checksum verification, and atomic extraction for `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`, and `win-x64` under `~/.mugil-ide/llamacpp/bin/`. Runs local GGUF models directly on CPU or GPU with zero third-party dependencies (no Ollama, LM Studio, Python, or Docker required).
-- [x] **Curated GGUF Model Catalog & Custom Importer:** Includes laptop-optimized coding sweet spots: `Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf` (~986 MB, fast CPU execution on laptops) and `Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf` (~4.7 GB). Drop any `.gguf` file into `~/.mugil-ide/llamacpp/models/` for immediate discovery.
-- [x] **Full CLI Local AI Lifecycle Commands:** `mugil-ide llamacpp status`, `download <preset>`, `start [preset]`, `stop`, and `import <file>`.
-- [x] **Web UI Model Manager & Storage Controls:** Interactive Web UI modal (`📦 Manage GGUF Models`) in the top navigation ribbon and mobile header dropdown with live disk space tracking, active server status badge, download progress, 1-click **Download**, **Load / Activate**, **Stop Server**, and **Delete Model** with safe process verification and disk reclamation.
-- [x] **Hybrid Local Coder + Cloud Auditor Architecture:** Dual-brain workflow executing file searches, symbol inspection, and rapid local drafting offline via `llama.cpp` at \$0 cost, handing off complex architectural reviews and multi-file refactoring to cloud models.
-- [x] **Dynamic Tool Pruning & Context Optimization:** Automatically prunes unnecessary tool schemas (`pruneToolsForLocalModel`) to fit within compact 4k/8k context windows on local laptop hardware.
-- [x] **Small-Model System Prompt Hardening:** Suppresses conversational disclaimers (`"As an AI developed by..."`) and strictly anchors local models to workspace tools and direct code output.
-- [x] **Robust Multi-Vector Process Supervision:** Multi-vector process discovery (`findRunningLlamaPids`) querying Linux `/proc/<pid>/comm` and `/proc/<pid>/cmdline` (handling NUL byte separators), `pgrep -x llama-server` on Linux/macOS, and `tasklist` on Windows. Synchronously terminates background server processes on `POST /api/shutdown`, `Ctrl+C`, `SIGTERM`, `SIGHUP`, `SIGQUIT`, and Node `exit` / `beforeExit`.
-- [x] **Startup Collision Deduplication:** In-flight startup deduplication (`activeStartup`) prevents race conditions where rapid model switches or REPL interactions previously spawned competing background server processes.
-- [x] **Balanced JSON Tool Extraction:** Zero-regex balanced JSON parser (`findBalancedJsonObject`) in `packages/core/src/modules/handoff/toolExtractor.ts` reliably extracts and executes nested tool calls emitted as raw text by small local models.
-- [x] **Day & Vintage CRT Themes:** High-contrast **Day / Light (Day White)** theme with uniform contrast across all inputs, selects, headers, modals, and diff views; plus nostalgic **CRT Amber / Phosphor (Vintage CRT)** theme.
-- [x] **Browser Launch Single-Instance Hygiene:** Single-instance browser launch guard (`hasOpenedBrowser`) prevents duplicate browser tab spawns on server start.
-
-#### 📱 Remote Device Streaming & Modern Responsive UI
-
-- [x] **Remote Device Streaming via Secret Link & QR Code:** Stream live agent sessions to phones, tablets, or secondary monitors on your local network. Pure-TypeScript zero-dependency QR code generator (`packages/cli/src/server/qr.ts`) outputs vector SVG for the browser and half-block ANSI art for the terminal. Enabled with `--remote` (`-r`) or header `📱 Stream` button.
-- [x] **Multi-Client WebSocket Session Broadcaster:** Dual-stack LAN IPv4/IPv6 socket binding with replay buffer and multi-client connection pooling (`connectedClients`) streams live thinking, agent turns, and tool executions to all connected devices simultaneously with automated token session authentication.
-- [x] **Three-Pane Collapsible Responsive Layout & Mobile/Tablet Architecture:** Flexible 3-pane workspace with left file explorer/graph, center conversation/terminal, and right diff/file inspection panes. On mobile screens ($\le$ 768px), side panes initialize collapsed and toggle with single-pane full-screen focus, eliminating horizontal squishing.
-- [x] **Mobile Dock & Touch Navigation:** Dedicated touch-friendly bottom dock (`#mobile-dock`) with one-touch switches (`Agent`, `Terminal`, `Files`, `Diff`, `Stream`) for phones and tablets, with iOS home indicator safe area inset handling.
-- [x] **Mobile-Optimized Header & Scrollable Dropdown Menus:** Streamlined 42px mobile header with fixed-position touch dropdowns (`z-index: 5000`) providing full access to model switches, agent modes, step debugger, theme selection, and session tools.
-- [x] **Intuitive Double-Click Folder Navigation:** File explorer folder picker supports single-click item selection with path preview, and double-click (or button) to open and enter folders.
-- [x] **Multi-Line Auto-Expanding Prompt Input:** Chat input textarea defaults to a comfortable 5-line height on desktop, expanding dynamically without truncating long multi-line instructions.
-- [x] **Modern Thinking Stream & Turn Cards:** Collapsible real-time reasoning container (`#thinking-container`) with live elapsed execution timer, pulse indicator, and token metrics. Switch between `[✨ Modern View]` and `[💻 Raw Terminal]` on the fly.
-- [x] **Multi-Theme Engine:** 5 high-contrast designer palettes (**GitHub Dark**, **Nordic Nord**, **OLED Dark True Black**, **Dracula**, and **Cyberpunk Neon**) with synchronized xterm.js terminal emulator colors and header `🎨 Theme` selector.
-
-#### 🧠 Token Economy & Context Architecture
-
-- [x] **Delta Mode Diagnostics (RTK Error Cache):** Session error signature cache for recurring test/build commands (`npm test`, `pytest`, `cargo test`, `tsc`). Isolates resolved, new, and unchanged failures and collapses repeated stack traces. A run that visibly failed but produced no parsable failures never counts as "all resolved", and the cache is scoped per workspace.
-- [x] **Auto-Tiered File Reader & Surgical `read_symbol` Tool:** Code files >300 lines read without line ranges return an outline skeleton with line anchors; non-code formats (json/csv/log/markdown) are read in full, and a fallback preview states how many lines were omitted. `read_symbol(path, symbol)` extracts one function/class/method with exact line spans, ignoring braces inside strings, comments and regexes.
-- [x] **Lazy MCP Schema Pruning:** Eliminates 2,000–5,000 static tokens of schema overhead on every turn via deferred discovery (`list_mcp_tools`, `call_mcp`).
-- [x] **Offline Vector Semantic Cache (`MUGIL_IDE_EMBEDDING_PROVIDER=onnx`):** 384-dimensional hashed subword projection, ~5–8ms per embed on AMD/Intel/Apple Silicon CPUs, zero network calls. Real ONNX inference is used only when `onnxruntime-node` is installed and `MUGIL_IDE_ONNX_MODEL_PATH` points at a model; otherwise the deterministic hashed projection runs (lexical similarity, not a learned embedding).
-- [x] **Token Compression Suite:** Integrated Caveman prompt compression, RTK noise filters, Ponytail output minimization, and signature/watermark removers.
-- [x] **AST Skeleton Code Reading:** `read_skeleton` tool extracts code signatures and types without bloated function bodies, saving 70–80% of exploratory tokens.
-- [x] **Content-Compressed Retrieval (CCR):** LRU `BlobStore` for oversized tool outputs (>48k chars) with on-demand `read_blob` chunking.
-- [x] **Smart Caching & Prefix Breakpoints:** Exact match, $O(L)$ `PrefixTrie` partial matching, and Anthropic ephemeral cache headers.
-- [x] **Honest Savings Indicator:** Reports real input-token savings against compressible input (Caveman/RTK, signature stripping, history compaction, cache hits).
-- [x] **Token Savings Breakdown Popover:** Granular 4-tier savings breakdown modal accessible by clicking the ribbon's Savings metric pill.
-- [x] **Dynamic Context & Output Token Sizing:** Eliminates mid-sentence token cutoff errors via `MUGIL_IDE_MAX_OUTPUT_TOKENS` and dynamic context room calculation.
-- [x] **Workload Presets & Interactive Sliders:** Presets (Light Convo, Deep Development, Big Codebase & Audit) with dual slider/number controls and real-time turn cost calculations.
-
-#### 🛠️ Autonomous Tools & Execution Control
-
-- [x] **Interactive Step Debugger:** Visual step-through interface to pause, inspect, edit tool call arguments, skip, or abort subagent operations before execution via the Web UI modal and WebSocket breakpoint protocol.
-- [x] **Multi-File Split Diff Review & Hunk-by-Hunk Staging:** Per-hunk acceptance or reversion directly in the web UI via `POST /api/diff/hunk-apply` (position-verified, `reversePatch` for revert, undo-journaled). It edits the working tree; it does not run `git add`.
-- [x] **Worktree Squad Library (not wired into `task` yet):** `WorktreeSquadManager` can create/remove isolated Git worktrees under `.mugil/worktrees/<id>` (gitignored). The `task` tool still runs subagents in-process — worktree isolation is opt-in API surface, not automatic.
-- [x] **20 Autonomous Workspace Tools:** Full suite for reading, searching, symbols, editing, patching, running commands, media generation, and web exploration.
-- [x] **Autonomous Image Generation & Truthful Asset Writing:** Built-in `generate_image` tool and Web UI modal with interactive Provider and Model selectors (Auto waterfall cascade or direct provider targeting with provider-specific model presets and custom model input). Dispatches across Vercel AI Gateway (`bfl/flux-2-klein-4b`), OpenRouter (`flux-3-image-klein`), OpenAI (`gpt-image-1` / DALL-E), Together AI, and keyless Pollinations AI. Honest extension matching (`sniffImageFormat`) forces extensions to match real magic bytes (PNG, JPEG, WebP, GIF, SVG), vector wrappers preserve genuine MIME types, and fallback vector placeholders are clearly flagged with diagnostic causes.
-- [x] **Binary Diffing & Byte-Exact Undo:** `/api/diffs` flags binary files and skips raw patch calculations, displaying clean binary notifications in the diff viewer. The session journal captures binary states in base64 for byte-exact `/undo` restoration.
-- [x] **Safe File Writing & Non-Code Diagnostics Filter:** `write_file` append mode and diagnostics bypass on documentation/logs/data files (`.md`, `.log`, `.txt`, `.json`), preventing infinite repair loops.
-- [x] **Interactive Mid-Turn Limit Extension:** When the tool calling limit is reached, users can dynamically extend limits (+15/+30 iterations) or wrap up seamlessly mid-run.
-
-#### 💻 Browser Web IDE & Developer Control
-
-- [x] **Multi-Workspace Folder Management:** "Open Project Folder" and "Create New Project" modal and directory switcher without restarting the Node server (`/api/workspace/switch`, `/api/workspace/create`).
-- [x] **Pluggable Extension & Skill Registry Drawer:** Visual UI modal to inspect, enable, and configure agent skills, custom tools, and external MCP servers.
-- [x] **Self-Contained Web UI:** The IDE page ships as a single response with inline styles/scripts and vendored xterm.js assets, so it works fully offline with no external CDN.
-- [x] **Browser-First Web IDE:** Dual-pane xterm.js interface with vendored assets (100% offline-ready).
-- [x] **Turbo Mode Autonomous Execution:** Instant execution of writes, edits, and terminal commands without confirmation prompts, plus Act/Plan safety modes.
-- [x] **One-Click Stop for Agent Streams:** A dedicated `■ Stop` button and `Esc` shortcut abort the in-flight turn without closing the session.
-- [x] **Kill Server Button:** A red `⚠ Kill Server` header control opens a warning modal and stops the backend via the authorized `POST /api/shutdown` route, then shows a "Server stopped" screen instead of endlessly reconnecting.
-- [x] **Visual Folder Browser & First-Run Project Creator:** Interactive file system navigator with OS shortcuts, folder picker, and instant `mkdir -p` project creation for quick onboarding.
-- [x] **First-Run AI Setup & Zero-Key Onboarding:** Automatically detects fresh launches without configured API keys. Presents a streamlined welcome modal offering 1-click cloud provider configuration and free 100% offline local AI (Ollama `:11434`, LM Studio `:1234`).
-- [x] **Live Session Spending & Improved Token Counter:** Real-time session spending tracker ($ USD) displayed continuously in the top navigation ribbon alongside token counts.
-- [x] **Streamlined Ribbon UI & Collapsible Menu:** Clean top ribbon with zoom controls (`A−`, reset, `A+`) and live metrics; secondary controls consolidated into a collapsible `☰ Menu ▾`.
-- [x] **Intelligent Modal Layering & Stack Management:** Proper z-index layering hierarchy ensuring API Key Manager and Welcome Dialogs render smoothly in front of setup and workspace modals.
-
-#### 🌐 Multi-Provider Handoff & Protocols
-
-- [x] **Provider Wire Clients:** `OpenAiWireClient` is the shared base for the OpenAI-compatible providers (OpenAI, OpenRouter, Together, Vercel, Cloudflare, OpenCode). An additional configurable `UnifiedWireClient` exists for callers that want provider selection by name.
-- [x] **Multi-Provider Auto Handoff:** OpenRouter, Anthropic, OpenAI, Vercel AI, Cloudflare, Together AI, Ollama, LM Studio, and local endpoints.
-- [x] **Working Vercel AI Gateway:** Targets `https://ai-gateway.vercel.sh/v1`, uses namespaced `creator/model` IDs, honours `AI_GATEWAY_API_KEY`, and imports real per-model pricing.
-- [x] **Verified Provider API Paths:** Cloudflare workers AI Gateway now uses `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions` and its model catalog actually loads; OpenCode supports documented `https://opencode.ai/inference` base alongside legacy `zen/v1`.
-- [x] **OpenRouter & Streaming Protocol Hardening:** Populated `stream_options = { include_usage: true }` on streaming LLM requests and implemented typed `OpenRouterError` handling.
-- [x] **Model Context Protocol (MCP):** Consume external MCP servers as tools, or run Mugil IDE as an MCP server via `mugil-ide-mcp`.
-- [x] **Online Web Access (`webfetch`) Toggle:** Configurable in pre-session setup and environment settings, enabling live web fetching when required.
-
-#### 🛡️ Reliability, Security & Hardening
-
-- [x] **Unified Workspace Path Containment:** Shared `resolveInsideWorkspace` helper in `@mugil-ide/core` prevents lexical directory traversal and symlink/junction escapes across tools and HTTP routes (`/api/generate-image`, `/api/file`).
-- [x] **Crash-Audit Hardening (all nine findings from `crash-audit-26-10-26.md`):** global `unhandledRejection`/`uncaughtException` handlers, 400 (not `exit 1`) on malformed `Host`, socket-scoped WebSocket frame errors, non-throwing session autosave, fallback-PTY spawn-error surfacing, linear-time CodeGraph (20k symbols: 5.1 s → 83 ms), WebSocket flow control, `run_command` process-group kills, and a bounded `SmartCache` trie.
-- [x] **Update-Available Indicator:** A `⬆ vX.Y.Z` pill appears beside the header version when npm has a newer release, backed by `GET /api/update-check` (6-hour cache, 4-second timeout, never blocks startup), linking straight to the release tag.
-- [x] **Clean Session Token URL Routing:** Separated pristine base server URLs from authenticated browser launch tokens (`server.tokenUrl`), eliminating query parameter duplication.
-- [x] **Deterministic CI & Test Suite Reliability:** Hard 15-minute execution timeouts and explicit server connection teardown hooks in the HTTP/WebSocket runtime, resolving keep-alive runner hangs on GitHub Actions.
-- [x] **Standalone Compiled Executables & GitHub Releases:** Downloadable click-to-run binaries for Windows (`.exe`), Linux (`.deb` / `.tar.gz`), and macOS (`arm64` / `x64`) without requiring Node or npm.
-- [x] **Multi-Tier Skills Registry & REST API:** Skills are discovered from `.mugil/skills`, `.agents/skills`, `.claude/skills`, the global `~/.config/mugil-ide/skills`, and built-in skills shipped with `@mugil-ide/core`. Frontmatter carries `version`, `author`, `tags`, `triggers` and `tools`; bundled `scripts/` and `references/` are listed in the inspector. Served by `GET /api/skills`, `GET /api/skills/:name`, `POST /api/skills/toggle` (persisted in `.mugil/config.json`) and `POST /api/skills/create`, with `/skills`, `/skill` and `/skill-create` in the CLI and a live registry drawer (toggle, inspect, create) in the Web UI. Prompt-matching `triggers` inject a skill's instructions up front instead of costing a tool call.
-- [x] **Ephemeral Secret Vault & Zero-Leak Guard:** Credentials pasted into chat or emitted by a tool (`cat .env`, an auth header in a stack trace) are replaced with `[MUGIL_SECRET_<TYPE>_<N>]` tokens before reaching any message. Real values live only in process memory; `run_command` resolves them locally and tool output is re-tokenized. Enforced at three choke points (ingestion, tool loop, `HandoffManager` pre-flight) with a client-side confirmation in the Web UI. Detects 20+ formats: OpenAI/Anthropic/OpenRouter/Google/AWS/GitHub/Slack/Stripe/Hugging Face keys, bearer & basic auth, database connection-string passwords, PEM private keys, and CLI password flags.
-- [x] **Curated Open-Source Skills Gallery & Universal Installer:** Bundled catalog of 16 battle-tested skills with full attribution, license badges, and 1-click picking to workspace (`.mugil/skills`) or global (`~/.config/mugil-ide/skills`). Supports custom installation from GitHub repositories (`/tree/` subfolders or raw URLs) and local paths with path traversal sandboxing. Accessible via Web UI "Skills Gallery" tab and CLI `/gallery`, `/skill-install`, `/skill-uninstall`.
-- [x] **Dedicated Open-Source Credits & Attributions Page:** Dedicated `📜 Open Source Credits & Attributions` UI modal in the main menu and CLI `/credits` command honoring original authors, canonical repositories, and licenses for agent skills, core modules (Caveman, RTK, Ponytail, OpenCode, CodeGraph, etc.), and libraries. Shipped with complete 21-entry `ATTRIBUTIONS.md`.
-- [x] **Skills Security Hardening & Containment (v0.3.2):** Symlink escape prevention (`containedSkillFile`), non-builtin provenance tagging (`[workspace skill]` / `[global skill]`) with untrusted content warnings, prompt trigger character budget limit (12,000 chars across all matched skills), SSRF-guarded gallery/URL downloads (`guardedFetch` with private IP/metadata block and redirect re-checks), non-markdown body rejection, filtered local directory copying (`copySkillDir`), config-clobber guard, and re-install overwrite confirmation prompts.
-- [x] **Universal `process-auditor` Multi-Industry Business Logic Skill:** Built-in workspace skill verifying state machine invariants, financial precision, and audit readiness across 10 verticals: ERP, Banking/FinTech, Hospital Management (HMS), Hotel PMS, Logistics/Fleet, Manufacturing, Retail POS/Grocery, Construction/Contracting, Events/Catering, and Tax/Print document compliance. Features automated heuristic scanner (`scripts/verify-business-logic.mjs`) and paired test suite (`tests/test-industry-audits.mjs`).
-- [x] **Comprehensive Test Suite:** 710 unit and integration tests passing across all packages (53 suites: 623 core, 68 cli, 10 docs, 9 mcp), hermetic by default.
-
-### 🎯 Planned for Next Release Push (v0.6.0 Roadmap)
-
-- [ ] **Multi-Modal Audio & Voice Interaction:** Real-time voice input and speech streaming via local Whisper / Piper models.
-- [ ] **Autonomous Git PR Automation:** Direct GitHub PR generation with multi-file diff explanations and automated test reports.
-- [ ] **Self-Hosted Team Collaboration Hub:** Multi-user session sharing with role-based pair programming locks over WebRTC.
-
-> [!TIP]
-> **Pure Browser IDE Architecture & Philosophy**
-> Mugil IDE is proudly browser-first, mobile-ready, and OS-agnostic. We deliberately reject heavy desktop wrappers (Electron / Tauri) in favor of zero-install, instant-launch web accessibility. Any device with a modern browser—from desktop workstations to tablets and smartphones—can access the complete agent terminal, diff viewer, and workspace.
-
----
-
-## 💻 Downloads & Installation
-
-> [!IMPORTANT]
-> **Direct Standalone Installers & Binary Releases on GitHub (npm Sunset Notice)**
->
-> Official distribution of Mugil IDE has migrated directly to **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**. Publishing to `npmjs.com` has been **sunset** starting with v0.4.0+.
->
-> You no longer need `npm`, `node`, or any package manager installed to run Mugil IDE. Download official, self-contained click-to-run binaries and installers for your operating system:
->
-> | Platform                              | Download & Package Type         | How to Run                                                          |
-> | :------------------------------------ | :------------------------------ | :------------------------------------------------------------------ |
-> | **Windows (x64)**                     | `mugil-ide-windows-x64.exe`     | Double-click or run `.\mugil-ide-windows-x64.exe`                   |
-> | **Linux (Ubuntu / Debian / Mint)**    | `mugil-ide-linux-amd64.deb`     | Double-click to install or `sudo dpkg -i mugil-ide-linux-amd64.deb` |
-> | **Linux Universal (x64 / arm64)**     | `mugil-ide-linux-x64.tar.gz`    | Extract and run `./mugil-ide-linux-x64`                             |
-> | **macOS (Apple Silicon M1/M2/M3/M4)** | `mugil-ide-darwin-arm64.tar.gz` | Extract and run `./mugil-ide-darwin-arm64`                          |
-> | **macOS (Intel x64)**                 | `mugil-ide-darwin-x64.tar.gz`   | Extract and run `./mugil-ide-darwin-x64`                            |
->
-> 👉 **[Download the Latest Standalone Release on GitHub ↗](https://github.com/auarunkumar1/mugil-ide/releases)**
-
-### Option 1: Standalone Compiled Executables (Recommended)
-
-Download the standalone executable directly from **[GitHub Releases](https://github.com/auarunkumar1/mugil-ide/releases)**:
-
-- **Windows:** Download `mugil-ide-windows-x64.exe` and launch it from PowerShell or double-click.
-- **Linux (Debian/Ubuntu):** Install the `.deb` package:
-  ```bash
-  sudo dpkg -i mugil-ide-linux-amd64.deb
-  mugil-ide
-  ```
-- **Linux / macOS Universal:** Extract the `.tar.gz` and run the binary:
-  ```bash
-  tar -xzvf mugil-ide-linux-x64.tar.gz
-  ./mugil-ide-linux-x64
-  ```
-
----
-
-### Option 2: Running from Source (Development)
-
-If you are developing or contributing to Mugil IDE:
-
-- Requirements: **Node.js >= 20** or **Bun >= 1.2**
+Start your local daemon, then launch Mugil IDE:
 
 ```bash
-# Clone the repository
-git clone https://github.com/auarunkumar1/mugil-ide.git
-cd mugil-ide
+# Ollama
+ollama serve
 
-# Install dependencies and build
-npm install
-npm run build
-
-# Start the IDE
-npm start
+# In another terminal
+mugil-ide
 ```
+
+Mugil IDE probes `http://localhost:11434/v1` for Ollama and `http://localhost:1234/v1` for LM Studio.
 
 ---
 
-### Monorepo Architecture & Packages
+## Feature highlights
 
-Mugil IDE is organized as a modular TypeScript monorepo across four packages:
+### Token-efficient context engine
 
-| Package               | Purpose                                                                      | Workspace Directory | Release Tarball             |
-| :-------------------- | :--------------------------------------------------------------------------- | :------------------ | :-------------------------- |
-| **`mugil-ide`**       | The complete web IDE, local HTTP/WebSocket server, and CLI tools             | `packages/cli`      | `mugil-ide-0.4.1.tgz`      |
-| **`@mugil-ide/core`** | The core engine: token compression, smart cache, auto handoff, and tool loop | `packages/core`     | `mugil-ide-core-0.4.1.tgz` |
-| **`@mugil-ide/mcp`**  | Model Context Protocol stdio server exposing the engine as tools             | `packages/mcp`      | `mugil-ide-mcp-0.4.1.tgz`  |
-| **`@mugil-ide/docs`** | Automated markdown documentation generator from source code                  | `packages/docs`     | `mugil-ide-docs-0.4.1.tgz` |
+A multi-stage pipeline runs before prompts reach a model:
 
-> [!NOTE]
-> **Installing Tarballs via npm:** While distribution via the public `npmjs.com` registry is sunset in favor of standalone releases, release tarballs (`.tgz`) are built via `npm run pack` and attached to each **[GitHub Release](https://github.com/auarunkumar1/mugil-ide/releases)**. To install globally using Node.js without compiling:
->
-> ```bash
-> npm install -g https://github.com/auarunkumar1/mugil-ide/releases/download/v0.4.1/mugil-ide-0.4.1.tgz
-> ```
+- **Caveman-style prompt compression** removes conversational filler while preserving intent.
+- **RTK output filtering** deduplicates repeated errors, strips ANSI noise, and collapses build/test logs.
+- **Ponytail-style output discipline** encourages small, surgical diffs instead of boilerplate.
+- **Signature and watermark removal** cleans model output before it is stored or written.
+- **Smart caching** reuses exact, prefix, and semantically similar requests where safe.
+- **AST skeletons and tool pruning** keep large codebases and local models within their context windows.
+- **Provider prompt caching** uses stable JSON and Anthropic cache breakpoints where available.
+- **Per-turn token ledger** reports prompt, completion, reasoning, cached, and cache-write tokens alongside cost or allowance source.
+
+The savings target is **up to 40–70% of compressible input**, not a fixed guarantee. The UI reports measured savings rather than an optimistic marketing number.
+
+### Autonomous coding tools
+
+Mugil IDE ships with a focused set of workspace tools:
+
+| Category | Tools |
+| --- | --- |
+| Inspection and AST | `read_file`, `read_symbol`, `read_skeleton`, `search_code`, `list_files`, `codegraph`, `read_blob` |
+| Editing | `edit_file`, `apply_patch`, `write_file` |
+| Execution | `run_command` with process-group timeouts and output filtering |
+| Swarms | `task` for scoped subagents |
+| External and media | `generate_image`, `webfetch`, `websearch`, MCP tools |
+
+Every tool call respects the active permission policy: **Act** asks before dangerous actions, **Plan** is read-only, and **Turbo** runs autonomously.
+
+### Browser IDE with real diffs and undo
+
+- xterm.js agent terminal with streaming Markdown, tables, code highlighting, and reasoning output
+- live split-pane diff viewer
+- hunk-by-hunk review and reversion
+- byte-exact undo for text and binary assets
+- interactive step debugger for tool calls
+- session history, named sessions, and resume
+- remote device streaming over LAN with a QR code
+
+### Model Context Protocol (MCP)
+
+Mugil IDE can consume external MCP servers as tools and can run as an MCP server for other clients:
+
+```bash
+# Run Mugil IDE as an MCP server
+mugil-ide-mcp
+```
+
+MCP schemas are loaded lazily to avoid paying thousands of tokens of schema overhead on every turn.
 
 ---
 
-## 🛠️ CLI Utilities & Standalone Modes
+## Local AI and hybrid routing
 
-In addition to the interactive Web IDE, Mugil IDE includes several handy CLI tools:
+Mugil IDE treats local models as first-class providers, not a fallback.
 
-### One-Shot Headless Mode (`run`)
+### Built-in `llama.cpp`
 
-Run a quick prompt through the token-compression pipeline without opening the browser:
+- pinned upstream runtime with checksum verification
+- automatic OS/architecture selection
+- CPU and GPU execution
+- curated GGUF catalog plus custom model import
+- lifecycle commands: `status`, `download`, `start`, `stop`, `import`
+- browser-based model manager with download progress and disk usage
+
+### External local daemons
+
+- **Ollama** at `http://localhost:11434/v1`
+- **LM Studio** at `http://localhost:1234/v1`
+- any OpenAI-compatible local endpoint via `LOCAL_BASE_URL`
+
+### Hybrid local coder + cloud auditor
+
+Use a small local model for fast exploration, AST summaries, and draft edits; hand architectural reviews, large refactors, or ambiguous failures to a stronger cloud model. Tool pruning and context budgeting adapt automatically for small local context windows.
+
+---
+
+## Supported providers and protocols
+
+| Provider | Notes |
+| --- | --- |
+| **OpenCode Go** | `/inference/go`; plan-aware routing, usage and allowance tracking, native Responses/Messages/Chat support |
+| **OpenCode Zen** | pay-as-you-go endpoint with automatic Go fallback handling |
+| **OpenRouter** | reasoning effort, provider routing requirements, typed errors, `Retry-After` handling, GitHub attribution |
+| **OpenAI** | Chat Completions and Responses-style models |
+| **Anthropic** | native Messages client with thinking budgets |
+| **Vercel AI Gateway** | namespaced model IDs and real provider pricing |
+| **Cloudflare Workers AI** | direct API and AI Gateway paths |
+| **Together AI** | OpenAI-compatible models and reasoning |
+| **llama.cpp** | built-in local runtime |
+| **Ollama / LM Studio** | auto-detected local daemons |
+| **Custom local** | any OpenAI-compatible `LOCAL_BASE_URL` |
+
+Protocol selection follows the live model catalog where available: Chat Completions, Anthropic Messages, or OpenAI Responses. That means GPT/Grok-style models are not forced through a chat-completions translation when their native protocol is available.
+
+---
+
+## Security and privacy
+
+Mugil IDE is built for local-first use:
+
+- **No telemetry.** The IDE does not phone home.
+- **In-memory secret vault.** Detected credentials are replaced with `[MUGIL_SECRET_TYPE_N]` tokens. Real values stay in process memory and are never written to session files, cache, logs, or webhooks.
+- **Known-key registry.** Configured provider keys are registered as exact known secrets at startup and on reconfiguration.
+- **Local-only default.** With `MUGIL_IDE_SECRET_POLICY=local-only`, a secret-bearing turn requires a local provider client. If the active client is remote, the turn fails closed instead of sending anything.
+- **Explicit redact mode.** Set `MUGIL_IDE_SECRET_POLICY=redact` if you want to send vault placeholders to a cloud model.
+- **Outbound guard.** Media prompts, web search, `webfetch`, remote MCP calls, webhooks, provider headers, and provider request bodies are sanitized before egress.
+- **Provider keys are credentials, not context.** A provider key is sent only in its own authorization header; it is never placed in model-visible content.
+
+Read the full threat model in [SECURITY.md](SECURITY.md) and [docs/security/architecture.md](docs/security/architecture.md).
+
+---
+
+## How token savings work
+
+Mugil IDE reduces cost in four places:
+
+1. **Before the model:** prompt refinement, deduplication, history compaction, and AST/tool-schema pruning.
+2. **Around the model:** exact, prefix, and semantic caching where a request is safe to reuse.
+3. **After the model:** removal of signatures, disclaimers, and duplicate formatting before storage.
+4. **Across providers:** prompt caching, cache-aware token accounting, and fail-fast handling of quota or entitlement errors so fallback chains do not burn tokens.
+
+The result is not “free tokens.” It is **less waste per turn**, with a visible ledger so you can see what was sent, what was cached, and what it cost.
+
+---
+
+## Compatibility
+
+### Operating systems and binaries
+
+| Platform | Artifact |
+| --- | --- |
+| Windows x64 | `mugil-ide-windows-x64.exe` |
+| Linux x64 | `mugil-ide-linux-x64.tar.gz` |
+| Linux arm64 | `mugil-ide-linux-arm64.tar.gz` |
+| Debian/Ubuntu x64 | `mugil-ide-linux-amd64.deb` |
+| macOS Apple Silicon | `mugil-ide-darwin-arm64.tar.gz` |
+| macOS Intel | `mugil-ide-darwin-x64.tar.gz` |
+
+### Development and CI
+
+- Node.js **20** and **22** in CI
+- TypeScript 5.x
+- Linux CI runners
+- Windows/macOS/Linux binary compilation through GitHub Actions
+
+### Browser
+
+A modern desktop or mobile browser with WebSocket support. The UI is served locally and assets are vendored, so it works without a CDN.
+
+---
+
+## Configuration
+
+Settings can be changed in the Web UI or in `~/.config/mugil-ide/.env`.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `AI_PROVIDER` | auto-detected | `opencode`, `openrouter`, `openai`, `anthropic`, `vercel`, `cloudflare`, `together`, `ollama`, `lmstudio`, `llamacpp`, or `local` |
+| `OPENCODE_API_KEY` | — | OpenCode Go or Zen API key |
+| `OPENCODE_BASE_URL` | auto | Optional explicit OpenCode base URL |
+| `OPENROUTER_API_KEY` | — | OpenRouter API key |
+| `OPENAI_API_KEY` | — | OpenAI API key |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key |
+| `VERCEL_API_KEY` | — | Vercel AI Gateway key (`AI_GATEWAY_API_KEY` also accepted) |
+| `CLOUDFLARE_API_KEY` | — | Cloudflare Workers AI key |
+| `TOGETHER_API_KEY` | — | Together AI key |
+| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama endpoint |
+| `LMSTUDIO_BASE_URL` | `http://localhost:1234/v1` | LM Studio endpoint |
+| `LLAMACPP_BASE_URL` | `http://127.0.0.1:8080/v1` | Built-in llama.cpp endpoint |
+| `LOCAL_BASE_URL` | `http://localhost:8000/v1` | Generic local OpenAI-compatible endpoint |
+| `MUGIL_IDE_MODEL` | provider default | Preferred model ID |
+| `MUGIL_IDE_TOKEN_LIMIT` | `64000` | Context budget for multi-turn history |
+| `MUGIL_IDE_MAX_OUTPUT_TOKENS` | `32768` | Maximum generation ceiling |
+| `MUGIL_IDE_HISTORY_BUDGET` | `64000` | History token budget |
+| `MUGIL_IDE_MAX_TURNS` | `100` | Turns kept before compaction |
+| `MUGIL_IDE_MODE` | `act` | Default workflow: `act` (confirm changes) or `plan` (read-only) |
+| `MUGIL_IDE_PROVIDER_V2` | `1` | Enable Provider Core v2 clients and native protocol adapters |
+| `MUGIL_IDE_SECRET_POLICY` | `local-only` | `local-only` or `redact` |
+| `MUGIL_IDE_LOCAL_ENDPOINTS` | `loopback` | `loopback` or `private-lan` |
+| `MUGIL_IDE_SKILLS_DIR` | `~/.config/mugil-ide/skills` | Global skills directory |
+| `MUGIL_IDE_IMAGE_MODEL` | `bfl/flux-2-klein-4b` | Default image model for Vercel AI Gateway |
+
+See the Web UI setup dialog and [CONTRIBUTING.md](CONTRIBUTING.md) for the complete development configuration.
+
+---
+
+## CLI and MCP
 
 ```bash
-mugil-ide run "Write a binary search function in TypeScript"
+# Start the browser IDE
+mugil-ide
 
-# Run with a specific model and thinking level
-mugil-ide run -m anthropic/claude-3.7-sonnet -t high "Optimize this SQL query"
+# One-shot headless prompt
+mugil-ide run "Write a binary search in TypeScript"
 
-# Output raw JSON with token savings breakdown
-mugil-ide run --json "Refactor auth middleware"
-```
+# Specific model and thinking level
+mugil-ide run -m deepseek-v4.1-flash -t high "Refactor auth middleware"
 
-### Automated Documentation Generator (`docs`)
+# JSON output with token accounting
+mugil-ide run --json "Explain this stack trace"
 
-Scan your codebase, extract function signatures and JSDoc comments, and generate clean markdown documentation:
-
-```bash
+# Generate project documentation
 mugil-ide docs . -o DOCUMENTATION.md
-```
 
-### Standalone MCP Server (`mugil-ide-mcp`)
+# Local llama.cpp lifecycle
+mugil-ide llamacpp status
+mugil-ide llamacpp download qwen2.5-coder-1.5b
+mugil-ide llamacpp start
+mugil-ide llamacpp stop
 
-Expose Mugil IDE's token-saving tools to Claude Desktop, Cursor, or any MCP client:
-
-```bash
+# Run the MCP server
 mugil-ide-mcp
 ```
 
 ---
 
-## ⚙️ Configuration & Environment Variables
+## What is new in v0.6.0
 
-All settings can be configured via the Web UI modals or by editing `~/.config/mugil-ide/.env` (or setting environment variables):
+v0.6.0 is the **Provider Core v2** release:
 
-| Variable                           | Default                                | Description                                                                                                            |
-| :--------------------------------- | :------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| `MUGIL_IDE_TOKEN_LIMIT`            | `64000`                                | Context token budget for multi-turn history window                                                                     |
-| `MUGIL_IDE_MAX_OUTPUT_TOKENS`      | `32768`                                | Model generation ceiling (prevents output cutoff errors)                                                               |
-| `MUGIL_IDE_TURBO_MODE`             | `0`                                    | Set to `1` to enable autonomous execution without user prompts                                                         |
-| `MUGIL_IDE_HISTORY_BUDGET`         | `64000`                                | Sliding window token budget for past conversation turns                                                                |
-| `MUGIL_IDE_MAX_TURNS`              | `100`                                  | Maximum number of turns kept in active history before compacting                                                       |
-| `MUGIL_IDE_MODE`                   | `act`                                  | Default mode: `act` (prompts before changes) or `plan` (read-only)                                                     |
-| `OPENROUTER_API_KEY`               | —                                      | API key for OpenRouter (primary cloud gateway)                                                                         |
-| `OPENAI_API_KEY`                   | —                                      | API key for OpenAI                                                                                                     |
-| `ANTHROPIC_API_KEY`                | —                                      | API key for Anthropic                                                                                                  |
-| `VERCEL_API_KEY`                   | —                                      | API key for the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) (`AI_GATEWAY_API_KEY` is accepted as an alias) |
-| `VERCEL_BASE_URL`                  | `https://ai-gateway.vercel.sh/v1`      | AI Gateway endpoint — model ids are namespaced, e.g. `anthropic/claude-sonnet-4.5`                                     |
-| `MUGIL_IDE_IMAGE_MODEL`            | `bfl/flux-2-klein-4b`                  | Default image generation model for Vercel AI Gateway                                                                   |
-| `MUGIL_IDE_OPENAI_IMAGE_MODEL`     | `gpt-image-1`                          | Model override for OpenAI image generation (e.g. `dall-e-3`)                                                           |
-| `MUGIL_IDE_OPENROUTER_IMAGE_MODEL` | `black-forest-labs/flux-3-image-klein` | Model override for OpenRouter image generation                                                                         |
-| `MUGIL_IDE_TOGETHER_IMAGE_MODEL`   | `black-forest-labs/FLUX.1-schnell`     | Model override for Together AI image generation                                                                        |
-| `OLLAMA_BASE_URL`                  | `http://localhost:11434/v1`            | URL for local Ollama instances                                                                                         |
-| `LMSTUDIO_BASE_URL`                | `http://localhost:1234/v1`             | URL for local LM Studio instances                                                                                      |
-| `MUGIL_IDE_COMMAND_TIMEOUT`        | `60000`                                | Terminal command execution timeout in milliseconds                                                                     |
-| `MUGIL_IDE_MAX_TOOL_CHARS`         | `48000`                                | Maximum character length for a tool return before CCR blob caching                                                     |
-| `MUGIL_IDE_SKILLS_DIR`             | `~/.config/mugil-ide/skills`           | Global (cross-project) skills tier; workspace tiers are `.mugil/skills`, `.agents/skills`, `.claude/skills`            |
+- **OpenCode correctness:** real plan/usage detection, Go/Zen fallback, quota fast-fail, free-model preservation, and native user-agent identification.
+- **Native protocols:** catalog-driven Chat Completions, Anthropic Messages, and OpenAI Responses routing; reasoning continuity across tool loops.
+- **OpenRouter hardening:** reasoning parameters, typed errors, mid-stream error handling, `Retry-After` support, and correct attribution.
+- **Fail-closed secrets:** local-only default, exact known-key registry, request-body sanitization, outbound guards, and non-blocking discovery alerts.
+- **Token ledger:** reasoning, cached, cache-write, cost, allowance, and billing-source reporting.
+- **Terminal rendering:** width-aware streaming Markdown with tables, syntax highlighting, links, task lists, CJK/emoji widths, and live resize.
+- **Local AI parity:** llama.cpp, Ollama, and LM Studio remain first-class alongside cloud providers.
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete release history and [docs/PRE_RELEASE_CI_GUIDE.md](docs/PRE_RELEASE_CI_GUIDE.md) for the release checklist.
 
 ---
 
-## 🧑‍💻 Contributing & Building from Source
+## FAQ
 
-We warmly welcome community contributions, issues, and pull requests! Before preparing or publishing a release, consult the [Pre-Release & CI Verification Guide](docs/PRE_RELEASE_CI_GUIDE.md).
+### What is Mugil IDE?
+
+Mugil IDE is an open-source AI coding agent and browser IDE. It combines a tool-driven coding loop, token-efficient context handling, local LLM support, and a privacy-focused secret boundary.
+
+### Is Mugil IDE free and open source?
+
+Yes. The project is MIT-licensed. You can use it with your own provider keys, local models, or a mix of both.
+
+### Does it work fully offline?
+
+Yes, with the built-in `llama.cpp` runtime or a local Ollama/LM Studio server. No cloud key is required for local-only operation.
+
+### Which local models are supported?
+
+Any GGUF model supported by the bundled `llama.cpp` runtime, plus models served by Ollama, LM Studio, or another OpenAI-compatible local endpoint.
+
+### Does it work with OpenCode Go or OpenRouter?
+
+Yes. OpenCode Go and Zen use plan-aware routing and usage tracking; OpenRouter supports reasoning effort, provider routing requirements, and typed error handling.
+
+### How does token saving work?
+
+Mugil IDE reduces prompt filler, compresses noisy tool output, prunes unnecessary tool schemas, uses AST skeletons, and caches safe repeated work. The UI reports measured savings rather than a fixed promise.
+
+### Are my secrets sent to the cloud?
+
+Not in cleartext. Detected secrets are vaulted as local placeholders. With the default `MUGIL_IDE_SECRET_POLICY=local-only`, a secret-bearing turn is refused if the active provider is remote. `redact` mode explicitly allows placeholders to reach a cloud model.
+
+### Is Mugil IDE a VS Code extension?
+
+No. It is a browser-first IDE served by a local Node process, with standalone binaries for Windows, macOS, and Linux. It is not an Electron/Tauri desktop wrapper or a VS Code extension.
+
+### How is it different from a typical AI coding assistant?
+
+It focuses on **token economics, local-first operation, explicit tool permissions, and local-only secret handling**, rather than only chat completion. The agent can run tools, show diffs, and undo changes, while the provider layer is open to multiple clouds and local runtimes.
+
+### Does it collect telemetry?
+
+No. The IDE does not send usage telemetry.
+
+---
+
+## Contributing
+
+Contributions are welcome. Before opening a pull request:
 
 ```bash
-# Clone the repository
-git clone https://github.com/auarunkumar1/mugil-ide.git
-cd mugil-ide
-
-# Install dependencies and build all packages
 npm install
-npm run build
-
-# Run the full test suite (624 tests across 43 suites)
+npm run typecheck
+npm run lint
 npm test
-
-# Launch local development server
-node packages/cli/dist/index.js
+node scripts/guard-secrets.mjs
 ```
 
----
-
-## ❤️ Open-Source Attributions
-
-Mugil IDE stands on the shoulders of brilliant open-source pioneers. We gratefully credit and celebrate the projects that inspired our modular engine:
-
-- **[Caveman](https://github.com/JuliusBrussee/caveman)** by Julius Brussee — Filler-free, ultra-compressed prompt communication.
-- **[RTK](https://github.com/rtk-ai/rtk)** by RTK AI — Reduced Token Kernel for command noise reduction and log compression.
-- **[Ponytail](https://github.com/DietrichGebert/ponytail)** by Dietrich Gebert — Output minimization and "laziest senior developer" discipline.
-- **[Avoid AI Writing](https://github.com/conorbronsdon/avoid-ai-writing)** by Conor Bronsdon — Signature and AI boilerplate stripping.
-- **[Watermarks Remover](https://github.com/guillaumemeyer/watermarks-remover)** by Guillaume Meyer — AI provenance watermark stripping.
-- **[CodeGraph](https://github.com/colbymchenry/codegraph)** by Colby McHenry — Knowledge graph indexing for codebases.
-- **[OpenCode](https://github.com/sst/opencode)** by SST — Clean coding agent architectures and context trimming patterns.
-
-See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for complete licenses and attribution notices.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for architecture, test conventions, and opt-in live provider smoke tests. Report security issues according to [SECURITY.md](SECURITY.md).
 
 ---
+
+## License and attributions
+
+Mugil IDE is released under the [MIT License](LICENSE).
+
+It builds on the ideas and work of the open-source community, including Caveman, RTK, Ponytail, Avoid AI Writing, Watermarks Remover, CodeGraph, and OpenCode. See [ATTRIBUTIONS.md](ATTRIBUTIONS.md) for complete credits and licenses.
 
 <div align="center">
 
-**Built with ❤️ for developers who love fast code, clean context, and smaller bills.**  
-_Star us on GitHub if you find Mugil IDE helpful!_
+**Built for developers who want capable AI coding without giving up cost control, local models, or privacy.**
+
+[GitHub](https://github.com/auarunkumar1/mugil-ide) · [Releases](https://github.com/auarunkumar1/mugil-ide/releases) · [Issues](https://github.com/auarunkumar1/mugil-ide/issues) · [Security](SECURITY.md)
 
 </div>

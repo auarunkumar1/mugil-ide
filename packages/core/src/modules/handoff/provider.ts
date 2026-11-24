@@ -8,9 +8,13 @@ import type {
 import { countTokens } from '../../token/tokenizer.js';
 import { parseOpenAiSse, type StreamedCompletion, type StreamHandlers } from './stream.js';
 import { extractTextualToolCalls } from './toolExtractor.js';
+import { parseUsageMetadata } from './usageMetadata.js';
+import { sanitizeOutbound } from '../security/outboundGuard.js';
 
 export interface ProviderCompleteOptions {
   model: string;
+  /** Optional catalog-selected wire protocol; clients may fall back to heuristics. */
+  protocol?: 'chat' | 'messages' | 'responses';
   maxTokens?: number;
   temperature?: number;
   thinkingLevel?: ThinkingLevel;
@@ -130,16 +134,19 @@ export function estimateMessagesTokens(messages: ChatMessage[], tools?: ToolDefi
  */
 export function toOpenAiMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
   return messages.map((m): Record<string, unknown> => {
-    if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
-      return {
-        role: 'assistant',
-        content: m.content,
-        tool_calls: m.toolCalls.map((call) => ({
+    if (m.role === 'assistant') {
+      const msg: Record<string, unknown> = { role: 'assistant', content: m.content };
+      if (m.reasoning) {
+        msg.reasoning_content = m.reasoning;
+      }
+      if (m.toolCalls && m.toolCalls.length > 0) {
+        msg.tool_calls = m.toolCalls.map((call) => ({
           id: call.id,
           type: 'function',
           function: { name: call.name, arguments: call.arguments },
-        })),
-      };
+        }));
+      }
+      return msg;
     }
     if (m.role === 'tool') {
       return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
@@ -266,6 +273,24 @@ export function openAiStreamResult(
       ...(streamed.usage?.cachedTokens !== undefined
         ? { cachedTokens: streamed.usage.cachedTokens }
         : {}),
+      ...(streamed.usage?.reasoningTokens !== undefined
+        ? { reasoningTokens: streamed.usage.reasoningTokens }
+        : {}),
+      ...(streamed.usage?.cacheWriteTokens !== undefined
+        ? { cacheWriteTokens: streamed.usage.cacheWriteTokens }
+        : {}),
+      ...(streamed.usage?.cost !== undefined
+        ? { cost: streamed.usage.cost }
+        : {}),
+      ...(streamed.usage?.listCost !== undefined
+        ? { listCost: streamed.usage.listCost }
+        : {}),
+      ...(streamed.usage?.allowance !== undefined
+        ? { allowance: streamed.usage.allowance }
+        : {}),
+      ...(streamed.usage?.billingSource !== undefined
+        ? { billingSource: streamed.usage.billingSource }
+        : {}),
     },
     finishReason: streamed.finishReason,
     toolCalls: streamed.toolCalls.length > 0 ? streamed.toolCalls : undefined,
@@ -278,6 +303,7 @@ export class ProviderError extends Error {
     message: string,
     public readonly status?: number,
     public readonly retryable = false,
+    public readonly retryAfter?: number,
   ) {
     super(message);
     this.name = 'ProviderError';
@@ -381,19 +407,38 @@ export class OpenAiWireClient implements ProviderClient {
       body.stream_options = { include_usage: true };
     }
 
+    const headers = sanitizeOutbound(this.getHeaders(), {
+      destinationUrl: this.getUrl(),
+      expectedProviderKey: this.config.apiKey,
+    });
+
+    const safeBody = sanitizeOutbound(body, {
+      destinationUrl: this.getUrl(),
+      expectedProviderKey: this.config.apiKey,
+    });
+
     const res = await fetch(this.getUrl(), {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
+      headers,
+      body: JSON.stringify(safeBody),
       signal: requestSignal(options),
     });
 
     if (!res.ok) {
       const retryable = res.status === 429 || res.status >= 500;
       const text = await res.text();
-      this.handleHttpError(res.status, res.statusText, text, retryable);
+      this.handleHttpError(res.status, res.statusText, text, retryable, res.headers);
     }
     return res;
+  }
+
+  protected createError(
+    message: string,
+    status?: number,
+    retryable = false,
+    retryAfter?: number,
+  ): ProviderError {
+    return new ProviderError(message, status, retryable, retryAfter);
   }
 
   protected handleHttpError(
@@ -401,11 +446,26 @@ export class OpenAiWireClient implements ProviderClient {
     statusText: string,
     bodyText: string,
     retryable: boolean,
+    headers?: Headers,
   ): never {
-    throw new ProviderError(
+    let retryAfter: number | undefined;
+    const retryHeader = headers?.get('retry-after');
+    if (retryHeader) {
+      const sec = parseInt(retryHeader, 10);
+      if (!isNaN(sec)) {
+        retryAfter = sec;
+      } else {
+        const d = Date.parse(retryHeader);
+        if (!isNaN(d)) {
+          retryAfter = Math.max(0, Math.ceil((d - Date.now()) / 1000));
+        }
+      }
+    }
+    throw this.createError(
       `${this.config.providerName} ${status} ${statusText}: ${bodyText.slice(0, 300)}`,
       status,
       retryable,
+      retryAfter,
     );
   }
 
@@ -425,7 +485,7 @@ export class OpenAiWireClient implements ProviderClient {
     }
     const res = await this.post(messages, options, true);
     if (!res.body) {
-      throw new ProviderError(
+      throw this.createError(
         `${this.config.providerName} returned no body to stream`,
         res.status,
         true,
@@ -448,8 +508,10 @@ export class OpenAiWireClient implements ProviderClient {
     }
     const res = await this.post(messages, options, false);
     const data = (await res.json()) as {
+      error?: { code?: number | string; message?: string; metadata?: Record<string, unknown> };
       model?: string;
       choices?: Array<{
+        error?: { code?: number | string; message?: string };
         message?: {
           content?: string | null;
           reasoning_content?: string;
@@ -467,8 +529,37 @@ export class OpenAiWireClient implements ProviderClient {
         completion_tokens?: number;
         total_tokens?: number;
         prompt_tokens_details?: { cached_tokens?: number };
+        completion_tokens_details?: { reasoning_tokens?: number };
+        total_cost?: number;
       };
     };
+
+    if (data?.error) {
+      const err = data.error;
+      const msg = typeof err === 'string' ? err : err.message ?? JSON.stringify(err);
+      const code = typeof err?.code === 'number' ? err.code : (parseInt(String(err?.code), 10) || 500);
+      const retryable = code === 429 || code >= 500;
+      const retryAfter = err?.metadata?.recheck_after ? Number(err.metadata.recheck_after) : undefined;
+      throw this.createError(
+        `${this.config.providerName} error: ${msg}`,
+        code,
+        retryable,
+        retryAfter,
+      );
+    }
+
+    if (data?.choices?.[0]?.error) {
+      const err = data.choices[0].error;
+      const msg = typeof err === 'string' ? err : err.message ?? JSON.stringify(err);
+      const code = typeof err?.code === 'number' ? err.code : (parseInt(String(err?.code), 10) || 500);
+      const retryable = code === 429 || code >= 500;
+      throw this.createError(
+        `${this.config.providerName} choice error: ${msg}`,
+        code,
+        retryable,
+      );
+    }
+
     const message = data.choices?.[0]?.message;
     const split = extractThinkBlock(
       message?.content ?? '',
@@ -503,11 +594,15 @@ export class OpenAiWireClient implements ProviderClient {
       data.usage?.prompt_tokens ?? estimateMessagesTokens(messages, options.tools);
     const completionTokens = data.usage?.completion_tokens ?? countTokens(content);
     const cachedTokens = data.usage?.prompt_tokens_details?.cached_tokens;
+    const reasoningTokens = data.usage?.completion_tokens_details?.reasoning_tokens;
+    const meta = parseUsageMetadata(data.usage as Record<string, any> | undefined);
     const usage = {
       promptTokens,
       completionTokens,
       totalTokens: data.usage?.total_tokens ?? promptTokens + completionTokens,
       ...(cachedTokens !== undefined ? { cachedTokens } : {}),
+      ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
+      ...meta,
     };
     return {
       provider: this.config.providerName,

@@ -12,7 +12,7 @@ describe('UnifiedWireClient', () => {
   it('configures OpenRouter provider headers and stream options', () => {
     const client = new UnifiedWireClient({ provider: 'openrouter', apiKey: 'router-key' });
     expect(client.name).toBe('openrouter');
-    const body = client.buildBody([{ role: 'user', content: 'hello' }], {});
+    const body = client.buildBody([{ role: 'user', content: 'hello' }], { stream: true });
     expect(body.stream_options).toEqual({ include_usage: true });
   });
 

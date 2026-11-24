@@ -1,9 +1,17 @@
 {
   "name": "mugil-ide",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
-  "description": "Token-efficient Mugil IDE — core engine + web IDE",
+  "description": "Open-source, token-efficient AI coding agent and local-first browser IDE with llama.cpp, Ollama, LM Studio, MCP, and local-only secrets.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/auarunkumar1/mugil-ide.git"
+  },
+  "homepage": "https://github.com/auarunkumar1/mugil-ide#readme",
+  "bugs": {
+    "url": "https://github.com/auarunkumar1/mugil-ide/issues"
+  },
   "workspaces": [
     "packages/*"
   ],

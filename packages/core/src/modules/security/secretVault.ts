@@ -25,6 +25,14 @@ export interface TokenizeResult {
   types: string[];
 }
 
+export interface SecretDiscoveredEvent {
+  count: number;
+  tokens: string[];
+  types: string[];
+}
+
+export type SecretDiscoveredListener = (event: SecretDiscoveredEvent) => void;
+
 const TOKEN_RE = /\[MUGIL_SECRET_[A-Z0-9_]+?_\d+\]/g;
 
 /** Builds the opaque token for a secret type + sequence id. */
@@ -35,33 +43,76 @@ export function secretToken(type: string, id: number): string {
 export class SecretVault {
   private readonly secrets = new Map<string, string>();
   private readonly byValue = new Map<string, string>();
+  private readonly knownSecrets = new Map<string, string>();
+  private readonly listeners = new Set<SecretDiscoveredListener>();
   private seq = 0;
 
   get size(): number {
     return this.secrets.size;
   }
 
+  /** Registers a listener notified whenever secrets are discovered and vaulted. */
+  onSecretDiscovered(listener: SecretDiscoveredListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** Registers an exact known secret (e.g. from environment variables at startup). */
+  registerKnownSecret(type: string, value?: string): void {
+    if (!value || value.length < 8) return;
+    this.knownSecrets.set(value, type);
+    this.assign({ type, value, start: 0, end: value.length });
+  }
+
   /** Replaces every detected secret in `text` with a vault token. */
   tokenize(text: string): TokenizeResult {
     const empty: TokenizeResult = { text, count: 0, tokens: [], types: [] };
     if (!text) return empty;
-    const matches = scanSecrets(text);
-    if (matches.length === 0) return empty;
 
+    let currentText = text;
     const tokens: string[] = [];
     const types: string[] = [];
+
+    // Check exact known secrets first
+    for (const [val, type] of this.knownSecrets.entries()) {
+      if (currentText.includes(val)) {
+        const token = this.assign({ type, value: val, start: 0, end: val.length });
+        currentText = currentText.replaceAll(val, token);
+        tokens.push(token);
+        types.push(type);
+      }
+    }
+
+    const matches = scanSecrets(currentText);
     let out = '';
     let cursor = 0;
     for (const match of matches) {
-      out += text.slice(cursor, match.start);
+      out += currentText.slice(cursor, match.start);
       const token = this.assign(match);
       out += token;
       tokens.push(token);
       types.push(match.type);
       cursor = match.end;
     }
-    out += text.slice(cursor);
-    return { text: out, count: matches.length, tokens, types };
+    out += currentText.slice(cursor);
+
+    const totalCount = tokens.length;
+    if (totalCount > 0) {
+      const event: SecretDiscoveredEvent = {
+        count: totalCount,
+        tokens: [...tokens],
+        types: [...types],
+      };
+      for (const listener of this.listeners) {
+        try {
+          listener(event);
+        } catch {
+          // Listeners should never crash tokenization
+        }
+      }
+    }
+
+    return { text: out, count: totalCount, tokens, types };
   }
 
   /** Token for this exact secret value, reusing one if it is already vaulted. */
@@ -95,10 +146,27 @@ export class SecretVault {
     return this.resolve(text) !== text;
   }
 
-  clear(): void {
+  /**
+   * Clears the ephemeral secrets discovered during turns.
+   * Preserves exact registered known secrets by default unless clearKnownSecrets is true.
+   */
+  clear(clearKnownSecrets = false): void {
     this.secrets.clear();
     this.byValue.clear();
     this.seq = 0;
+    if (clearKnownSecrets) {
+      this.knownSecrets.clear();
+    } else {
+      // Re-seed known secrets
+      for (const [val, type] of this.knownSecrets.entries()) {
+        this.assign({ type, value: val, start: 0, end: val.length });
+      }
+    }
+  }
+
+  /** Clears all state including known secrets (used by tests). */
+  clearAll(): void {
+    this.clear(true);
   }
 }
 

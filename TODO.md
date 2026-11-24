@@ -41,7 +41,7 @@
 - [x] **Parallel Model Probing (§7.6)**: Probing local and cloud providers concurrently in `/api/models` using `Promise.allSettled`.
 - [x] **Hermetic Test Suite (§6.1)**: Cleared ambient `MUGIL_IDE_*` in jest setupFiles.
 
-## Crash Audit 2026-10-26 — fixed in this release (see `crash-audit-26-10-26.md`)
+## Crash Audit 2026-10-26 — fixed in this release
 
 - [x] **Global Error Handlers (crash amplifier)**: `unhandledRejection` / `uncaughtException` log and keep the server serving (`packages/cli/src/index.ts`).
 - [x] **Malformed `Host` Header (unauthenticated DoS)**: both `new URL` sites now parse against a fixed base and answer 400 (`parseRequestUrl` in `server.ts`); HTTP handler is wrapped so a stray rejection becomes a 500.

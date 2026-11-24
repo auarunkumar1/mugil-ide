@@ -181,7 +181,12 @@ export class Pipeline {
   async ask(prompt: string, options: AskOptions = {}): Promise<AskResult> {
     const webhooks = options.webhooks ?? parseWebhookConfigs();
     const startedAt = Date.now();
-    void fireWebhooks(webhooks, 'turn.started', { prompt }, options.webhookFetch);
+    void fireWebhooks(
+      webhooks,
+      'turn.started',
+      { prompt: globalSecretVault.tokenize(prompt).text },
+      options.webhookFetch,
+    );
     try {
       const result = await this.runAsk(prompt, options, webhooks);
       void fireWebhooks(
@@ -508,7 +513,7 @@ export class Pipeline {
             void fireWebhooks(
               webhooks,
               'tool.executed',
-              { name: call.name, args: call.arguments },
+              { name: call.name, args: globalSecretVault.tokenize(call.arguments).text },
               options.webhookFetch,
             );
           },

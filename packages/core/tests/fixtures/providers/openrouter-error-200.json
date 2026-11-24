@@ -1,0 +1,9 @@
+{
+  "error": {
+    "code": 402,
+    "message": "Insufficient credits in account",
+    "metadata": {
+      "provider_name": "Anthropic"
+    }
+  }
+}

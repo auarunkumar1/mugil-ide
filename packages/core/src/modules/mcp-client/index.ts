@@ -24,6 +24,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { ToolCall, ToolDefinition } from '../../types.js';
 import type { ToolRegistry } from '../tool-loop/index.js';
+import { sanitizeOutbound } from '../security/outboundGuard.js';
 import {
   createLazyMcpGateway,
   LAZY_MCP_TOOL_DEFINITIONS,
@@ -185,9 +186,12 @@ export function mcpResultToString(result: {
 /** Default connector: SDK Client over stdio (command) or streamable HTTP (url). */
 async function connectOneMcpServer(server: McpServerConfig): Promise<McpConnection> {
   const client = new Client({ name: 'mugil-ide', version: '0.1.0' });
+  const sanitizedHeaders = server.headers && server.url
+    ? sanitizeOutbound(server.headers, { destinationUrl: server.url })
+    : server.headers;
   const transport = server.url
     ? new StreamableHTTPClientTransport(new URL(server.url), {
-        requestInit: server.headers ? { headers: server.headers } : undefined,
+        requestInit: sanitizedHeaders ? { headers: sanitizedHeaders } : undefined,
       })
     : new StdioClientTransport({
         command: server.command ?? '',
@@ -203,9 +207,12 @@ async function connectOneMcpServer(server: McpServerConfig): Promise<McpConnecti
       inputSchema: t.inputSchema,
     })),
     callTool: async (name, args) => {
+      const sanitizedArgs = server.url
+        ? sanitizeOutbound(args, { destinationUrl: server.url })
+        : args;
       const result = await client.callTool({
         name,
-        arguments: args as Record<string, unknown> | undefined,
+        arguments: sanitizedArgs as Record<string, unknown> | undefined,
       });
       return mcpResultToString(
         result as { isError?: boolean; content?: { type?: string; text?: string }[] },

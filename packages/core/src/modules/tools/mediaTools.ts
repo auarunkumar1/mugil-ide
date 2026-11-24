@@ -15,6 +15,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { sanitizeOutbound } from '../security/outboundGuard.js';
 
 export interface GenerateImageOptions {
   /** Description of the image to generate. */
@@ -339,7 +340,8 @@ export async function generateImage(options: GenerateImageOptions): Promise<Gene
   }
 
   const { width, height } = parseDimensions(options.size);
-  const fullPrompt = options.style ? `${options.prompt}, ${options.style} style` : options.prompt;
+  const rawPrompt = options.style ? `${options.prompt}, ${options.style} style` : options.prompt;
+  const fullPrompt = sanitizeOutbound(rawPrompt, { destinationUrl: 'https://remote-image-provider' });
   const wantSvg = requestedPath.toLowerCase().endsWith('.svg');
   const fetchImpl = options.fetchFn ?? globalThis.fetch;
   const fallbackReasons: string[] = [];

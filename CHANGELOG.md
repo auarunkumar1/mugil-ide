@@ -7,7 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
+### Added
+- **OpenCode Correctness Foundation**:
+  - Live plan discovery and quota polling via `GET /inference/go/v1/usage`.
+  - Bidirectional endpoint fallback between OpenCode Go (`/inference/go`) and legacy Zen (`/inference`), eliminating manual URL tinkering.
+  - Native user agent identification (`mugil-ide/0.6.0`), retiring impersonation of `opencode/1.18.27`.
+  - Preservation of free model variants (`beam-free`, `hy4-flash-free`, etc.) without forced rewriting to paid models.
+  - Structured error translation for OpenCode quota limits, authentication failures, region locks, and entitlement mismatches; 429 quota exhaustion fails fast with `retryable: false`.
+  - Catalog-driven native protocol routing (`protocol` from the live model catalog) for Chat Completions, Anthropic Messages, and OpenAI Responses; GPT/Grok/Muse use Responses and Qwen/MiniMax use Messages.
+  - Provider Core v2 is enabled by default; set `MUGIL_IDE_PROVIDER_V2=0` for the legacy client path.
+- **Secret Boundary & Non-Blocking Vaulting**:
+  - Outbound destination classification (`loopback`, `private-lan`, `remote`) via `classifyEndpoint()`.
+  - Multi-credential pattern scanner expanded to detect OpenCode keys (`oc_sk_...`), GitLab tokens, GitHub PATs, JWT tokens, and sensitive URL query parameters.
+  - Token-vaulting pre-matching against configured provider keys (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.), substituting local vault tokens (`[MUGIL_SECRET_TYPE_N]`).
+  - Non-blocking user alerts (`onSecretDiscovered` banner) in CLI and web REPL without halting agent turns mid-flight.
+  - Fail-closed security guard (`SecretLeakError`) that blocks raw credentials from escaping to remote cloud providers or third-party webhooks.
+  - Request-body sanitization at the provider network boundary (OpenAI-compatible, Anthropic Messages, and OpenCode dispatch), plus media, web search, webfetch, and remote MCP egress.
+  - `MUGIL_IDE_SECRET_POLICY=local-only` is the default; remote clients are refused for secret-bearing turns instead of being called with a local model ID.
+- **Native OpenCode Protocols & Reasoning Continuity**:
+  - Preserved reasoning and thinking tokens across tool loop iterations (`completion.thinking` mapped to `ChatMessage.reasoning`).
+  - Protocol adapters for `/v1/chat/completions`, `/v1/messages`, and `/v1/responses`, ensuring clean wire translation with zero header contamination.
+  - OpenAI-compatible `reasoning_content` forwarding for DeepSeek, Together, and OpenRouter reasoning models.
+- **OpenRouter Hardening & Provider Wire Resilience**:
+  - Strict conditional streaming: `stream_options = { include_usage: true }` attached only when streaming is enabled, preventing upstream rejection on buffered requests.
+  - Detection of HTTP 200 responses containing top-level `error` or choice-level error objects, raising typed `OpenRouterError`.
+  - Upstream `Retry-After` header extraction and propagation across 429 and 5xx rate-limit errors.
+  - Proper app attribution headers (`HTTP-Referer`: `https://github.com/auarunkumar1/mugil-ide`, `X-Title`: `Mugil IDE`).
+- **Token Ledger & Local-AI Parity**:
+  - Comprehensive usage metadata reporting: `reasoningTokens`, `cachedTokens`, `cacheWriteTokens`, `cost`, `allowance`, and `billingSource`.
+  - OpenCode numeric allowance (`opencode.allowance`) and list-cost parsing; CLI footers, `/stats`, and the Web UI now show a per-turn token/billing ledger.
+  - Clean OpenAI wire-format parity for local runtimes (`llamacpp`, `ollama`, `lmstudio`, `local`) with zero leaked cloud headers or fake keys.
+- **Width-Aware Two-Phase Terminal Markdown Streaming**:
+  - Modular markdown rendering engine (`packages/cli/src/terminal/markdown/`): `tokenize.ts`, `inline.ts`, `table.ts`, `code.ts`, `render.ts`, `stream.ts`.
+  - Two-phase progressive table streaming: buffers header, separator, and first 2 rows to determine column widths against live terminal width, then streams subsequent rows line-by-line with ellipsis `…` truncation.
+  - Lightweight syntax highlighting for TypeScript/JavaScript, Python, JSON, Shell, and Diff.
+  - Real-time terminal resize support via `resize_agent` WebSocket message routing.
+  - Correct streaming fenced-code opening detection (no leaked ``` line) and CJK/emoji-aware column widths.
+
+### Changed
+- Rewrote the README as a friendlier landing page with keyword-rich headings, an at-a-glance matrix, provider and compatibility tables, a FAQ, and clearer quick-start paths.
+- Updated repository description, homepage, and topics for discoverability.
+- Synchronized test-count badges and documentation with the 784-test / 59-suite release state.
+
 ## [0.5.3] - 2026-11-22
+
+### Changed
+- Maintenance release with stability improvements and dependency updates.
 
 ## [0.5.1] - 2026-11-22
 
@@ -284,7 +331,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Savings Indicator Always Read 0%**: The status-bar pill divided the tokens removed by the modules by the provider's _whole_ prompt count — system prompt, tool schemas and history, tens of thousands of tokens no module touches — so refinement alone rounded to zero. Savings are now `savedTokens / (savedTokens + compressibleTokens)` (Caveman/RTK refinement, signature stripping, history eviction, tool-output compression, cache hits), so an ordinary Caveman run reports a real percentage.
-- **Crash Audit 2026-10-26** (all nine findings from `crash-audit-26-10-26.md`): global `unhandledRejection`/`uncaughtException` handlers keep the server serving; a malformed `Host` header answers 400 instead of killing the process; malformed WebSocket frames terminate only their own socket; session autosave can no longer reject out of a turn; a failed fallback-PTY spawn surfaces `[Shell failed to start: …]`; `/api/graph` is linear-time (20 000 symbols: 5 099 ms → 83 ms) with a per-file size cap and a revision-keyed cache; WebSocket output is flow-controlled; `run_command` timeouts kill the whole process group; and the `SmartCache` prefix trie is bounded.
+- **Crash Audit 2026-10-26**: global `unhandledRejection`/`uncaughtException` handlers keep the server serving; a malformed `Host` header answers 400 instead of killing the process; malformed WebSocket frames terminate only their own socket; session autosave can no longer reject out of a turn; a failed fallback-PTY spawn surfaces `[Shell failed to start: …]`; `/api/graph` is linear-time (20 000 symbols: 5 099 ms → 83 ms) with a per-file size cap and a revision-keyed cache; WebSocket output is flow-controlled; `run_command` timeouts kill the whole process group; and the `SmartCache` prefix trie is bounded.
 - **Cloudflare Gateway URL**: Requests went to `api.cloudflare.com/gateway/accounts/…` (404); they now use `gateway.ai.cloudflare.com/v1/{account}/{gateway}/openai/chat/completions`.
 - **Cloudflare Model Catalog**: Discovery parsed the account id out of a base URL that never contains `/accounts/`, so the catalog was never listed; the id is now passed from config.
 - **`run_command` Backgrounded Processes**: `exec` silently ignores `detached`, so timeouts left `nohup … &` grandchildren alive; it now spawns its own process group and kills the group.
@@ -660,3 +707,5 @@ a browser-based autonomous AI IDE (there is no TUI / terminal CLI).
 [0.5.1]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.5.1
 
 [0.5.3]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.5.3
+
+[0.6.0]: https://github.com/auarunkumar1/mugil-ide/releases/tag/v0.6.0

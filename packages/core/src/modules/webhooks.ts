@@ -16,6 +16,7 @@
  * from ever being slowed by an unreachable endpoint.
  */
 import * as fs from 'node:fs';
+import { sanitizeOutbound } from './security/outboundGuard.js';
 
 export const WEBHOOK_EVENTS = [
   'turn.started',
@@ -81,16 +82,17 @@ export async function fireWebhooks(
   fetchFn: typeof fetch = globalThis.fetch,
 ): Promise<WebhookResult[]> {
   if (configs.length === 0) return [];
-  const body = JSON.stringify({
-    event,
-    payload,
-    source: 'mugil-ide',
-    ts: new Date().toISOString(),
-  });
   const matching = configs.filter((c) => !c.events || c.events.includes(event));
   return Promise.all(
     matching.map(async (config): Promise<WebhookResult> => {
       try {
+        const sanitizedPayload = sanitizeOutbound(payload, { destinationUrl: config.url }) as Record<string, unknown>;
+        const body = JSON.stringify({
+          event,
+          payload: sanitizedPayload,
+          source: 'mugil-ide',
+          ts: new Date().toISOString(),
+        });
         const response = await fetchFn(config.url, {
           method: 'POST',
           headers: { 'content-type': 'application/json', ...(config.headers ?? {}) },

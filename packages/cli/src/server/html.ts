@@ -1853,6 +1853,7 @@ export function getWebUiHtml(): string {
         </div>
       </div>
       <span class="metric-pill" id="session-spent" style="color:var(--green); border-color:#23863644;">Est. Spent: $0.0000</span>
+      <span class="metric-pill" id="session-ledger" style="display:none; color:var(--text-dim);" title="Last turn token and billing ledger"></span>
 
       <!-- Zoom controls directly on ribbon -->
       <div class="zoom-controls" style="display:flex; align-items:center; background:var(--card-bg); border:1px solid var(--border); border-radius:4px; overflow:hidden;" title="Adjust text & terminal zoom size">
@@ -2241,6 +2242,7 @@ export function getWebUiHtml(): string {
       <span id="status-busy" class="busy-indicator" style="display:none;">● Working…</span>
       <span id="status-model">Model: auto</span>
       <span id="status-tokens">Used: 0 tok</span>
+      <span id="status-ledger" style="color:var(--text-dim);"></span>
       <span id="status-spent" style="color:var(--green);">Est. Spent: $0.0000</span>
       <span id="status-workspace" onclick="openWorkspaceModal()" style="cursor:pointer; text-decoration:underline;" title="Click to view or switch workspace directory">Workspace: Active</span>
     </div>
@@ -4727,6 +4729,35 @@ export function getWebUiHtml(): string {
               if (headerSpent) headerSpent.textContent = costText;
               const statusSpent = document.getElementById('status-spent');
               if (statusSpent) statusSpent.textContent = costText;
+
+              const ledgerEl = document.getElementById('session-ledger');
+              const statusLedger = document.getElementById('status-ledger');
+              if (msg.lastUsage) {
+                const u = msg.lastUsage;
+                const parts = [];
+                parts.push('in:' + (u.promptTokens || 0));
+                parts.push('out:' + (u.completionTokens || 0));
+                if (u.reasoningTokens) parts.push('reason:' + u.reasoningTokens);
+                if (u.cachedTokens) parts.push('cached:' + u.cachedTokens);
+                if (u.cacheWriteTokens) parts.push('cache-w:' + u.cacheWriteTokens);
+                if (u.billingSource) parts.push('billing:' + u.billingSource);
+                if (u.allowance && (u.billingSource === 'go' || u.billingSource === 'go-plus' || u.billingSource === 'free')) {
+                  parts.push(u.allowance.total
+                    ? 'allowance:' + u.allowance.used + '/' + u.allowance.total
+                    : 'allowance:$' + Number(u.allowance.used || 0).toFixed(6));
+                } else if (typeof u.cost === 'number') {
+                  parts.push('$' + u.cost.toFixed(4));
+                }
+                const ledgerText = parts.join(' · ');
+                if (ledgerEl) {
+                  ledgerEl.textContent = ledgerText;
+                  ledgerEl.style.display = '';
+                }
+                if (statusLedger) statusLedger.textContent = ledgerText;
+              } else {
+                if (ledgerEl) ledgerEl.style.display = 'none';
+                if (statusLedger) statusLedger.textContent = '';
+              }
 
               const saved = Number(msg.stats.tokensSaved) || 0;
               const kept = Number(msg.stats.compressibleTokens) || 0;

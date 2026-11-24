@@ -33,6 +33,7 @@ import {
   type PermissionCheck,
 } from './permissions.js';
 import { runDiagnostics, type DiagnosticsResult } from './diagnostics.js';
+import { sanitizeOutbound } from '../security/outboundGuard.js';
 import { captureFile, pushEdit } from '../undo.js';
 import {
   connectMcpServers,
@@ -1705,8 +1706,10 @@ export function createWorkspaceTools(
       }
       let parsed: URL;
       try {
-        parsed = new URL(args.url);
-      } catch {
+        const sanitizedUrl = sanitizeOutbound(args.url, { destinationUrl: args.url });
+        parsed = new URL(sanitizedUrl);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'SecretLeakError') throw err;
         return `Error: invalid URL: ${args.url}`;
       }
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -1793,6 +1796,7 @@ export function createWorkspaceTools(
       if (!websearchEnabled) {
         return 'Error: websearch is disabled. Set MUGIL_IDE_ENABLE_EXA=1 to enable (uses Exa AI hosted MCP, no key required for casual use).';
       }
+      const sanitizedQuery = sanitizeOutbound(args.query, { destinationUrl: EXA_MCP_URL });
       try {
         const bundle = await getExaBundle(options.websearchConnect);
         const executor = bundle.registry[EXA_TOOL_NAME];
@@ -1803,7 +1807,7 @@ export function createWorkspaceTools(
         const out = await executor({
           id: call.id,
           name: EXA_TOOL_NAME,
-          arguments: JSON.stringify({ query: args.query, numResults }),
+          arguments: JSON.stringify({ query: sanitizedQuery, numResults }),
         });
         return out.length > 8000
           ? `${out.slice(0, 8000)}\n… (search results truncated at 8000 chars)`

@@ -1,6 +1,6 @@
 import type { ModelSpec } from '../../types.js';
 import { VERSION } from '../../branding.js';
-import { OPENCODE_USER_AGENT, opencodeBaseUrls } from './openCode.js';
+import { OPENCODE_USER_AGENT, opencodeBaseUrls, resolveOpenCodePlan } from './openCode.js';
 import {
   modelSupportsThinking,
   modelSupportsTools,
@@ -31,52 +31,18 @@ export function clearSubscriptionCache(): void {
 
 /**
  * Detects whether the user's OpenCode API key is subscribed to OpenCode Go.
- * OpenCode Go subscribers have access to the 31 Go subscription models at /inference/go.
- * OpenCode Zen (pay-as-you-go) users have credits billed per token at /zen/v1 or /inference.
+ * Uses resolveOpenCodePlan against GET /inference/go/v1/usage.
  */
 export async function detectOpenCodeSubscription(
   apiKey?: string,
   timeoutMs = 3000,
 ): Promise<boolean> {
   if (!apiKey) return false;
-  const cached = subscriptionCache.get(apiKey);
-  if (cached && Date.now() - cached.timestamp < SUBSCRIPTION_CACHE_TTL_MS) {
-    return cached.isGo;
-  }
   try {
-    const res = await fetch('https://opencode.ai/inference/go/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'x-opencode-session': `ses_detect_${Date.now().toString(36)}`,
-        'User-Agent': `mugil-ide/${VERSION}`,
-      },
-      body: JSON.stringify({
-        model: 'beam-free',
-        messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 1,
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    let isGo = false;
-    if (res.ok) {
-      isGo = true;
-    } else if (res.status === 400) {
-      const text = await res.text();
-      // If error mentions regions or go session, the auth passed as a Go subscriber
-      if (
-        text.includes('OpenCode Go') ||
-        text.includes('regions') ||
-        text.includes('x-opencode-session')
-      ) {
-        isGo = true;
-      }
-    }
-    subscriptionCache.set(apiKey, { isGo, timestamp: Date.now() });
-    return isGo;
+    const res = await resolveOpenCodePlan(apiKey, undefined, timeoutMs);
+    return res.plan === 'go';
   } catch {
-    return cached ? cached.isGo : false;
+    return false;
   }
 }
 
@@ -116,7 +82,16 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             id: string;
             name?: string;
             context_length?: number;
-            pricing?: { prompt?: string; completion?: string; input_cache_read?: string };
+            pricing?: {
+              prompt?: string;
+              completion?: string;
+              input_cache_read?: string;
+              input_cache_write?: string;
+            };
+            top_provider?: {
+              max_completion_tokens?: number;
+              is_moderated?: boolean;
+            };
             supported_parameters?: string[];
           }>;
         };
@@ -127,18 +102,30 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             const cacheIn = m.pricing?.input_cache_read
               ? Number(m.pricing.input_cache_read) * 1_000_000
               : undefined;
+            const cacheWrite = m.pricing?.input_cache_write
+              ? Number(m.pricing.input_cache_write) * 1_000_000
+              : undefined;
             const tier: ModelSpec['tier'] =
               costOut > 5 ? 'smart' : costOut > 0.5 ? 'standard' : 'cheap';
             const costPerMTokCacheRead =
               cacheIn !== undefined && !isNaN(cacheIn) ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
+            const costPerMTokCacheWrite =
+              cacheWrite !== undefined && !isNaN(cacheWrite) ? cacheWrite : undefined;
+            const hasReasoning =
+              Array.isArray(m.supported_parameters) &&
+              (m.supported_parameters.includes('reasoning') ||
+                m.supported_parameters.includes('include_reasoning'));
             return {
               id: m.id,
+              name: m.name,
               tier,
               costPerMTokIn: isNaN(costIn) ? 0 : costIn,
               costPerMTokOut: isNaN(costOut) ? 0 : costOut,
               costPerMTokCacheRead,
+              costPerMTokCacheWrite,
               contextWindow: m.context_length || 128000,
-              supportsThinking: modelSupportsThinking(m.id),
+              maxOutputTokens: m.top_provider?.max_completion_tokens,
+              supportsThinking: hasReasoning || modelSupportsThinking(m.id),
               supportsTools: Array.isArray(m.supported_parameters)
                 ? m.supported_parameters.includes('tools')
                 : modelSupportsTools(m.id),
@@ -177,17 +164,24 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
             id: string;
             name?: string;
             type?: string;
+            api?:
+              | string
+              | {
+                  messages?: boolean | string;
+                  responses?: boolean | string;
+                  chat_completions?: boolean | string;
+                };
             context_length?: number;
-            limit?: { context?: number };
+            limit?: { context?: number; output?: number };
             cost?: {
               text?: {
-                input?: { price?: number; cache?: { read?: number } };
+                input?: { price?: number; cache?: { read?: number; write?: number } };
                 output?: { price?: number };
               };
             };
             capabilities?: {
               tools?: { supported?: boolean };
-              reasoning?: { supported?: boolean };
+              reasoning?: { supported?: boolean; max_budget?: number };
             };
             go?: unknown;
           }>;
@@ -197,16 +191,19 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
           const list: ModelSpec[] = json.data
             .filter((m) => {
               if (m.type && m.type !== 'chat') return false;
-              if (m.id === 'deepseek-v4.1-flash-free' || m.id === 'mimo-v2.6-flash-free') return false;
               return true;
             })
             .map((m) => {
               const ctx = m.limit?.context || m.context_length || 128000;
+              const maxOutput = m.limit?.output;
               const costIn = m.cost?.text?.input?.price ?? 0;
               const costOut = m.cost?.text?.output?.price ?? 0;
               const cacheIn = m.cost?.text?.input?.cache?.read;
+              const cacheWrite = m.cost?.text?.input?.cache?.write;
               const costPerMTokCacheRead =
                 cacheIn !== undefined ? cacheIn : costIn > 0 ? costIn * 0.1 : 0;
+              const costPerMTokCacheWrite =
+                cacheWrite !== undefined ? cacheWrite : undefined;
               const tier: ModelSpec['tier'] = m.cost
                 ? costOut > 5
                   ? 'smart'
@@ -214,6 +211,27 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
                     ? 'standard'
                     : 'cheap'
                 : 'standard';
+
+              let protocol: ModelSpec['protocol'] = undefined;
+              if (typeof m.api === 'string') {
+                if (m.api.includes('response')) protocol = 'responses';
+                else if (m.api.includes('message')) protocol = 'messages';
+                else if (m.api.includes('chat')) protocol = 'chat';
+              } else if (m.api && typeof m.api === 'object') {
+                if (m.api.responses) protocol = 'responses';
+                else if (m.api.messages) protocol = 'messages';
+                else if (m.api.chat_completions) protocol = 'chat';
+              }
+              if (!protocol) {
+                if (/^(gpt|codex)/.test(m.id)) {
+                  protocol = 'responses';
+                } else if (/^claude/.test(m.id)) {
+                  protocol = 'messages';
+                } else {
+                  protocol = 'chat';
+                }
+              }
+
               return {
                 id: m.id,
                 name: m.name,
@@ -221,7 +239,10 @@ export async function fetchProviderModels(options: FetchModelsOptions): Promise<
                 costPerMTokIn: costIn,
                 costPerMTokOut: costOut,
                 costPerMTokCacheRead,
+                costPerMTokCacheWrite,
                 contextWindow: ctx,
+                maxOutputTokens: maxOutput,
+                protocol,
                 supportsThinking:
                   m.capabilities?.reasoning?.supported !== undefined
                     ? m.capabilities.reasoning.supported

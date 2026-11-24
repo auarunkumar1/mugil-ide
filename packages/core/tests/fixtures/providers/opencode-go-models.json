@@ -1,0 +1,91 @@
+{
+  "data": [
+    {
+      "id": "claude-haiku-5-5",
+      "name": "Claude Haiku 5.5",
+      "type": "chat",
+      "api": {
+        "messages": true,
+        "chat_completions": false,
+        "responses": false
+      },
+      "context_length": 1000000,
+      "limit": { "context": 1000000, "output": 8192 },
+      "cost": {
+        "text": {
+          "input": { "price": 0.1, "cache": { "read": 0.01, "write": 0.125 } },
+          "output": { "price": 0.5 }
+        }
+      },
+      "capabilities": {
+        "tools": { "supported": true },
+        "reasoning": { "supported": true, "max_budget": 32000 }
+      },
+      "go": {
+        "monthly_usage": true,
+        "limited_regions": false
+      }
+    },
+    {
+      "id": "beam-free",
+      "name": "Beam Free",
+      "type": "chat",
+      "api": {
+        "chat_completions": true
+      },
+      "context_length": 1048576,
+      "limit": { "context": 1048576, "output": 4096 },
+      "cost": {
+        "text": {
+          "input": { "price": 0 },
+          "output": { "price": 0 }
+        }
+      },
+      "capabilities": {
+        "tools": { "supported": true },
+        "reasoning": { "supported": true }
+      }
+    },
+    {
+      "id": "deepseek-v4.1-flash",
+      "name": "DeepSeek V4.1 Flash",
+      "type": "chat",
+      "api": "chat",
+      "context_length": 1000000,
+      "limit": { "context": 1000000, "output": 8192 },
+      "cost": {
+        "text": {
+          "input": { "price": 0.15 },
+          "output": { "price": 0.6 }
+        }
+      },
+      "capabilities": {
+        "tools": { "supported": true },
+        "reasoning": { "supported": true }
+      },
+      "go": {
+        "limited_regions": true
+      }
+    },
+    {
+      "id": "gpt-5-preview",
+      "name": "GPT 5 Preview",
+      "type": "chat",
+      "api": {
+        "responses": true
+      },
+      "context_length": 200000,
+      "limit": { "context": 200000, "output": 16384 },
+      "cost": {
+        "text": {
+          "input": { "price": 2.0 },
+          "output": { "price": 8.0 }
+        }
+      },
+      "capabilities": {
+        "tools": { "supported": true },
+        "reasoning": { "supported": true }
+      }
+    }
+  ]
+}

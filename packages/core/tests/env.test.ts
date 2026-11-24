@@ -140,7 +140,7 @@ describe('opencode provider', () => {
     });
     expect(cfg.provider).toBe('opencode');
     expect(cfg.opencodeApiKey).toBe('oc-test');
-    expect(cfg.opencodeBaseUrl).toBe('https://opencode.ai/inference/go');
+    expect(cfg.opencodeBaseUrl).toBe('');
     expect(cfg.models.map((m) => m.id)).toEqual([
       'claude-haiku-5-5',
       'beam-free',

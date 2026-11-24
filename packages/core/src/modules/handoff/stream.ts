@@ -13,9 +13,11 @@
  * the bottom of this file — it does I/O, through the `HandoffManager`, and is
  * the streaming entry point for callers.
  */
-import type { ChatMessage, HandoffOptions, ToolCall } from '../../types.js';
+import type { ChatMessage, HandoffOptions, ToolCall, Usage } from '../../types.js';
 import type { HandoffManager, HandoffResult } from './index.js';
 import { extractTextualToolCalls, StreamToolFilter } from './toolExtractor.js';
+import { ProviderError } from './provider.js';
+import { parseUsageMetadata } from './usageMetadata.js';
 
 export interface StreamHandlers {
   /**
@@ -43,6 +45,12 @@ export interface StreamedCompletion {
     completionTokens?: number;
     totalTokens?: number;
     cachedTokens?: number;
+    reasoningTokens?: number;
+    cacheWriteTokens?: number;
+    cost?: number;
+    listCost?: number;
+    allowance?: Usage['allowance'];
+    billingSource?: Usage['billingSource'];
   };
   model?: string;
 }
@@ -197,9 +205,26 @@ export async function parseOpenAiSse(
   const partial = new Map<number, { id: string; name: string; args: string }>();
 
   for await (const ev of iterateSseEvents(body)) {
+    if (ev.event === 'error') {
+      const json = safeJson(ev.data);
+      const err = (json?.error ?? json) as any;
+      const msg = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : ev.data);
+      const code = typeof err?.code === 'number' ? err.code : (parseInt(String(err?.code), 10) || 500);
+      const retryable = code === 429 || code >= 500;
+      const retryAfter = err?.metadata?.recheck_after ? Number(err.metadata.recheck_after) : undefined;
+      throw new ProviderError(`SSE error event: ${msg}`, code, retryable, retryAfter);
+    }
     if (ev.data === '[DONE]') break;
     const json = safeJson(ev.data);
     if (!json) continue;
+    if (json.error) {
+      const err = json.error as any;
+      const msg = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : JSON.stringify(err));
+      const code = typeof err?.code === 'number' ? err.code : (parseInt(String(err?.code), 10) || 500);
+      const retryable = code === 429 || code >= 500;
+      const retryAfter = err?.metadata?.recheck_after ? Number(err.metadata.recheck_after) : undefined;
+      throw new ProviderError(`Stream error: ${msg}`, code, retryable, retryAfter);
+    }
     if (typeof json.model === 'string' && json.model) model = json.model;
     if (json.usage) {
       const u = json.usage as {
@@ -207,16 +232,27 @@ export async function parseOpenAiSse(
         completion_tokens?: number;
         total_tokens?: number;
         prompt_tokens_details?: { cached_tokens?: number };
+        completion_tokens_details?: { reasoning_tokens?: number };
+        total_cost?: number;
       };
       usage = {
         promptTokens: u.prompt_tokens,
         completionTokens: u.completion_tokens,
         totalTokens: u.total_tokens,
         cachedTokens: u.prompt_tokens_details?.cached_tokens,
+        reasoningTokens: u.completion_tokens_details?.reasoning_tokens,
+        ...parseUsageMetadata(u as Record<string, any>),
       };
     }
     const choice = (json.choices as Array<Record<string, any>> | undefined)?.[0];
     if (!choice) continue;
+    if (choice.error || choice.finish_reason === 'error') {
+      const err = choice.error as any;
+      const msg = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Stream finished with error');
+      const code = typeof err?.code === 'number' ? err.code : (parseInt(String(err?.code), 10) || 500);
+      const retryable = code === 429 || code >= 500;
+      throw new ProviderError(`Stream choice error: ${msg}`, code, retryable);
+    }
     if (typeof choice.finish_reason === 'string') finishReason = choice.finish_reason;
     const delta = choice.delta ?? {};
     const reasoning = delta.reasoning_content ?? delta.reasoning;
@@ -285,6 +321,7 @@ export async function parseAnthropicSse(
   let promptTokens: number | undefined;
   let completionTokens: number | undefined;
   let cacheReadTokens: number | undefined;
+  let cacheWriteTokens: number | undefined;
   let model: string | undefined;
   // Anthropic streams tool inputs as `input_json_delta` fragments belonging to
   // the block most recently announced by `content_block_start`.
@@ -295,6 +332,12 @@ export async function parseAnthropicSse(
     const json = safeJson(ev.data);
     if (!json) continue;
     const type = (ev.event ?? json.type) as string;
+
+    if (type === 'error' || json.type === 'error') {
+      const err = (json.error ?? json) as any;
+      const msg = typeof err?.message === 'string' ? err.message : (typeof err === 'string' ? err : 'Anthropic stream error');
+      throw new ProviderError(`Anthropic stream error: ${msg}`, 500, true);
+    }
 
     if (type === 'message_start') {
       const msg = json.message as
@@ -311,6 +354,7 @@ export async function parseAnthropicSse(
       const input = msg?.usage;
       promptTokens = input?.input_tokens;
       cacheReadTokens = input?.cache_read_input_tokens;
+      cacheWriteTokens = input?.cache_creation_input_tokens;
       continue;
     }
     if (type === 'message_delta') {
@@ -362,6 +406,7 @@ export async function parseAnthropicSse(
             completionTokens,
             totalTokens: (promptTokens ?? 0) + (completionTokens ?? 0) || undefined,
             cachedTokens: cacheReadTokens,
+            cacheWriteTokens,
           }
         : undefined,
     model,
